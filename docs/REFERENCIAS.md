@@ -86,6 +86,20 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Gráficos de barras agrupadas e radar do protótipo (Fase 4)
   - Diferenças assumidas: o seletor de mês global fica no cabeçalho (o protótipo não tem); o título do Painel é "Painel", sem o nome do usuário; o bloco de metas do Painel mostra estado vazio até a Fase 4. Os botões "Nova renda" e "Nova despesa" nos cartões seguem o protótipo (a decisão anterior de listas sem botões foi substituída).
 
+## Ajustes pedidos após a Fase 4
+
+- [ ok ] Observação na despesa (campo no Novo lançamento; aparece na linha da lista e no menu Editar)
+- [ ok ] Categorias personalizadas com cor própria (criar no formulário, apagar na janela de categorias; cor aparece em listas e gráficos)
+- [ ok ] Menu ⋮ nos lançamentos e anotações (Editar, Fixar como atalho, Excluir)
+- [ ok ] Lançamentos só para visualizar e ajustar: sem botões Nova renda e Nova despesa
+- [ ok ] Modal Lançar continua aberto após cadastrar (fecha com Esc, X ou clique fora)
+- [ ok ] Editar anotações
+- [ ok ] Despesa extra cadastrada pelo Lançar (aba Despesa extra); botões removidos da Projeção
+- [ ok ] Comparação: só meses com movimentação, aviso com menos de 2 meses, até 5 meses
+- [ ok ] Cabeçalho sem a caixa atrás dos botões (transparente no topo, com fundo só ao rolar)
+- [ ] Nova opção no Crédito parcelado (aguardando a descrição)
+  - Repositório na versão 3 (`customCategories`), com migração de v1 e v2.
+
 ## Fase 4: Telas que hoje são mock
 
 - [ ok ] Metas: tipo `Goal`, criar, editar, excluir e aportar

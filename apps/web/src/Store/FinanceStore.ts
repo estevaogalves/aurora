@@ -10,6 +10,7 @@ import {
   type CreditInstallment,
   patchContribution,
   type CreditTransaction,
+  type CustomCategory,
   type ExtraExpense,
   type Goal,
   type Note,
@@ -19,7 +20,7 @@ import { repository } from "../repositories";
 import type { Category } from "../Types/Category";
 import { getCurrentMonth } from "../Utils/Date";
 
-export type { CreditInstallment, CreditTransaction, ExtraExpense, Goal, Note, Transaction };
+export type { CreditInstallment, CreditTransaction, CustomCategory, ExtraExpense, Goal, Note, Transaction };
 
 /**
  * Estado do app. Os dados vêm do repositório (hoje o localStorage) e a store
@@ -39,11 +40,13 @@ interface FinanceState {
   notes: Note[];
   goals: Goal[];
   extraExpenses: ExtraExpense[];
+  customCategories: CustomCategory[];
 
   addTransaction: (transaction: Transaction) => void;
   removeTransaction: (id: string) => void;
   updateTransactionName: (id: string, name: string) => void;
   updateTransactionCategory: (id: string, category: Category) => void;
+  updateTransactionNotes: (id: string, notes: string) => void;
   updateTransactionAmountForMonth: (id: string, month: string, cents: number) => void;
   toggleTransactionFixed: (id: string) => void;
   /** Fixa: oculta no mês. Comum: remove de vez. */
@@ -51,6 +54,7 @@ interface FinanceState {
   restoreTransactionByMonth: (id: string, month: string) => void;
 
   addCreditTransaction: (credit: CreditTransaction) => void;
+  updateCreditTransaction: (id: string, patch: Partial<CreditTransaction>) => void;
   removeCreditTransaction: (id: string) => void;
 
   addNote: (note: Note) => void;
@@ -63,6 +67,9 @@ interface FinanceState {
   /** Soma um aporte (centavos) ao guardado da meta. */
   contributeToGoal: (id: string, cents: number) => void;
   removeGoal: (id: string) => void;
+
+  addCategory: (category: CustomCategory) => void;
+  removeCategory: (id: string) => void;
 
   addExtraExpense: (extra: ExtraExpense) => void;
   removeExtraExpense: (id: string) => void;
@@ -111,6 +118,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     notes: [],
     goals: [],
     extraExpenses: [],
+    customCategories: [],
 
     addTransaction: (transaction) => {
       set((state) => ({ transactions: [...state.transactions, transaction] }));
@@ -127,6 +135,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     updateTransactionName: (id, name) => patchTransaction(id, { name }),
 
     updateTransactionCategory: (id, category) => patchTransaction(id, { category }),
+
+    updateTransactionNotes: (id, notes) => patchTransaction(id, { notes }),
 
     updateTransactionAmountForMonth: (id, month, cents) => {
       const t = findTransaction(id);
@@ -157,6 +167,13 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         creditTransactions: [...state.creditTransactions, credit],
       }));
       sync(repository.addCredit(credit));
+    },
+
+    updateCreditTransaction: (id, patch) => {
+      set((state) => ({
+        creditTransactions: state.creditTransactions.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+      }));
+      sync(repository.updateCredit(id, patch));
     },
 
     removeCreditTransaction: (id) => {
@@ -211,6 +228,16 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeGoal: (id) => {
       set((state) => ({ goals: state.goals.filter((g) => g.id !== id) }));
       sync(repository.removeGoal(id));
+    },
+
+    addCategory: (category) => {
+      set((state) => ({ customCategories: [...state.customCategories, category] }));
+      sync(repository.addCategory(category));
+    },
+
+    removeCategory: (id) => {
+      set((state) => ({ customCategories: state.customCategories.filter((c) => c.id !== id) }));
+      sync(repository.removeCategory(id));
     },
 
     addExtraExpense: (extra) => {

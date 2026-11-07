@@ -7,7 +7,7 @@ import { DISTRIBUTION, getDistribution, getMonthSummary, goalPercent } from "@/d
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useCategoryTotals, useMonthCredit, useMonthSummary, useMonthTransactions } from "@/Store/selectors";
-import { categoryColors } from "@/Utils/categoryColors";
+import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
 
@@ -78,13 +78,14 @@ function Trend() {
 function Categories() {
   const month = useFinanceStore((s) => s.currentMonth);
   const totals = useCategoryTotals();
+  const colorOf = useCategoryColor();
 
   return (
     <Panel title="Despesas por categoria" subtitle={getMonthName(month).replace(/^./, (c) => c.toUpperCase())}>
       {totals.length === 0 ? (
         <Empty>Nenhuma despesa neste mês.</Empty>
       ) : (
-        <ChartDonut slices={totals.map((t) => ({ label: t.category.replace("/Parcelado", ""), value: t.value, color: categoryColors[t.category] }))} />
+        <ChartDonut slices={totals.map((t) => ({ label: t.category.replace("/Parcelado", ""), value: t.value, color: colorOf(t.category) }))} />
       )}
     </Panel>
   );

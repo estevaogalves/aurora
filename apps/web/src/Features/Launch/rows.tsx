@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Pill } from "@/components/shared/Panel";
 import { formatBRL } from "@/lib/money";
 import type { Category } from "@/Types/Category";
-import { categoryColors } from "@/Utils/categoryColors";
+import { useCategoryColor } from "@/Utils/categoryColors";
 
 /** Linha do protótipo B: quadradinho de categoria, nome com meta e valor à direita. */
 export function Row({
@@ -59,9 +59,10 @@ export interface ExpenseLine {
 
 /** Linha somente leitura de despesa (Painel). */
 export function ExpenseStaticRow({ line }: { line: ExpenseLine }) {
+  const colorOf = useCategoryColor();
   return (
     <Row
-      color={categoryColors[line.category]}
+      color={colorOf(line.category)}
       name={line.name}
       meta={
         <>

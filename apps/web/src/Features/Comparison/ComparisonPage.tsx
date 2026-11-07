@@ -6,15 +6,15 @@ import StatCard from "@/components/shared/StatCard";
 import { getAvailableMonths, getMonthSummary } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import type { Category } from "@/Types/Category";
-import { categoryColors } from "@/Utils/categoryColors";
+import { EXPENSE_CATEGORIES, type Category } from "@/Types/Category";
+import { useCategoryColor } from "@/Utils/categoryColors";
 import { compareMonths, formatMonth, formatMonthShort, getCurrentMonth, getMonthName } from "@/Utils/Date";
 
-const MAX_SELECTED = 3;
+const MAX_SELECTED = 5;
 const MAX_MONTHS = 12;
-const SERIES_COLORS = ["hsl(var(--s1))", "hsl(var(--s2))", "hsl(var(--s3))"];
+const SERIES_COLORS = ["hsl(var(--s1))", "hsl(var(--s2))", "hsl(var(--s3))", "hsl(var(--s4))", "hsl(var(--s5))"];
 
-const CATEGORIES: Category[] = ["Moradia", "Transporte", "Alimentação", "Saúde", "Educação", "Lazer", "Serviços", "Outros", "Crédito/Parcelado"];
+const BASE_CATEGORIES: Category[] = [...EXPENSE_CATEGORIES, "Crédito/Parcelado"];
 const RADAR_AXES: Category[] = ["Moradia", "Alimentação", "Transporte", "Saúde", "Lazer", "Crédito/Parcelado"];
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -25,25 +25,26 @@ export default function ComparisonPage() {
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const notes = useFinanceStore((s) => s.notes);
-  const current = useFinanceStore((s) => s.currentMonth);
+  const customCategories = useFinanceStore((s) => s.customCategories);
+  const colorOf = useCategoryColor();
 
-  const available = useMemo(() => {
-    // só meses que já aconteceram: o futuro é assunto da Projeção
+  const data = useMemo(() => ({ transactions, creditTransactions }), [transactions, creditTransactions]);
+
+  // só meses que já aconteceram e tiveram movimentação (renda ou despesa)
+  const summaries = useMemo(() => {
     const today = getCurrentMonth();
     const months = getAvailableMonths({ transactions, creditTransactions, notes }, today).filter((m) => compareMonths(m, today) <= 0);
-    const all = months.length ? months : [current];
-    return all.slice(-MAX_MONTHS);
-  }, [transactions, creditTransactions, notes, current]);
+    return months.map((m) => getMonthSummary(data, m)).filter((s) => s.totalIncome > 0 || s.totalExpense > 0).slice(-MAX_MONTHS);
+  }, [transactions, creditTransactions, notes, data]);
+  const available = useMemo(() => summaries.map((s) => s.month), [summaries]);
 
   const [picked, setPicked] = useState<string[] | null>(null);
   // sem escolha do usuário: os 3 últimos meses; escolhas de meses que sumiram são ignoradas
   const selected = useMemo(() => {
-    const valid = (picked ?? available.slice(-MAX_SELECTED)).filter((m) => available.includes(m));
+    const valid = (picked ?? available.slice(-3)).filter((m) => available.includes(m));
     return valid.sort(compareMonths);
   }, [picked, available]);
 
-  const data = useMemo(() => ({ transactions, creditTransactions }), [transactions, creditTransactions]);
-  const summaries = useMemo(() => available.map((m) => getMonthSummary(data, m)), [available, data]);
   const bySelected = summaries.filter((s) => selected.includes(s.month));
 
   function toggle(month: string) {
@@ -52,6 +53,7 @@ export default function ComparisonPage() {
     else setPicked([...base, month].slice(-MAX_SELECTED));
   }
 
+  const CATEGORIES = [...BASE_CATEGORIES, ...customCategories.map((c) => c.name)];
   const avg = bySelected.length ? Math.round(bySelected.reduce((s, m) => s + m.balance, 0) / bySelected.length) : 0;
   const best = bySelected.reduce((a, b) => (b.balance > a.balance ? b : a), bySelected[0]);
   const worst = bySelected.reduce((a, b) => (b.balance < a.balance ? b : a), bySelected[0]);
@@ -64,24 +66,36 @@ export default function ComparisonPage() {
     <>
       <PageHeader title="Comparação" subtitle="Escolha os meses e veja a diferença." />
 
-      <Panel title="Meses" subtitle={`Até ${MAX_SELECTED} ao mesmo tempo`}>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Meses comparados">
-          {available.map((m) => (
-            <button
-              key={m}
-              type="button"
-              aria-pressed={selected.includes(m)}
-              onClick={() => toggle(m)}
-              className="rounded-full border border-border-strong bg-card px-3.5 py-[7px] text-[13px] font-semibold text-ink2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-[0_6px_18px_color-mix(in_srgb,hsl(var(--primary))_35%,transparent)]"
-            >
-              {chipLabel(m)}
-            </button>
-          ))}
-        </div>
-        <p className="mt-2 text-[13px] text-muted-foreground">Escolha até {MAX_SELECTED} meses.</p>
-      </Panel>
+      {available.length >= 2 && (
+        <Panel title="Meses" subtitle={`Até ${MAX_SELECTED} ao mesmo tempo`}>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Meses comparados">
+            {available.map((m) => (
+              <button
+                key={m}
+                type="button"
+                aria-pressed={selected.includes(m)}
+                onClick={() => toggle(m)}
+                className="rounded-full border border-border-strong bg-card px-3.5 py-[7px] text-[13px] font-semibold text-ink2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-[0_6px_18px_color-mix(in_srgb,hsl(var(--primary))_35%,transparent)]"
+              >
+                {chipLabel(m)}
+              </button>
+            ))}
+          </div>
+          <p className="mt-2 text-[13px] text-muted-foreground">Escolha até {MAX_SELECTED} meses.</p>
+        </Panel>
+      )}
 
-      {bySelected.length === 0 ? (
+      {available.length < 2 ? (
+        <div className="mt-3.5">
+          <Panel title="Dados insuficientes" subtitle="A comparação precisa de pelo menos dois meses com movimentações">
+            <Empty>
+              {available.length === 0
+                ? "Ainda não há lançamentos. Use o botão Lançar para cadastrar rendas e despesas."
+                : `Só ${formatMonth(available[0])} tem movimentações. Quando outro mês tiver lançamentos, a comparação aparece aqui.`}
+            </Empty>
+          </Panel>
+        </div>
+      ) : bySelected.length === 0 ? (
         <div className="mt-3.5"><Panel title="Nenhum mês escolhido"><Empty>Selecione ao menos um mês para comparar.</Empty></Panel></div>
       ) : (
         <>
@@ -138,7 +152,7 @@ export default function ComparisonPage() {
                 <div className="flex flex-col gap-3">
                   {CATEGORIES.map((c) => (
                     <div key={c} className="grid grid-cols-[110px_1fr] items-center gap-3 text-[13px]">
-                      <span className="flex items-center gap-1.5"><i className="h-2 w-2 flex-none rounded-[2px]" style={{ background: categoryColors[c] }} />{c.replace("/Parcelado", "")}</span>
+                      <span className="flex items-center gap-1.5"><i className="h-2 w-2 flex-none rounded-[2px]" style={{ background: colorOf(c) }} />{c.replace("/Parcelado", "")}</span>
                       <div className="flex flex-col gap-[3px]">
                         {bySelected.map((m, j) => {
                           const v = m.byCategory[c] ?? 0;

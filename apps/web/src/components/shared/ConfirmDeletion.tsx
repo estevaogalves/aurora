@@ -24,7 +24,7 @@ export default function ConfirmDeletion({
   hideOnly,
   itemLabel = "item",
 }: ConfirmDeletionProps) {
-  const article = /^(despesa|renda|meta|compra)/.test(itemLabel) ? "Esta" : "Este";
+  const article = /^(despesa|renda|meta|compra|anotação)/.test(itemLabel) ? "Esta" : "Este";
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>

@@ -12,6 +12,9 @@ const PATHS = {
   pin: "M12 17v5M9 3h6l-1 6 3 3v2H7v-2l3-3z",
   trash: "M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3",
   restore: "M3 12a9 9 0 109-9 9 9 0 00-6.4 2.6L3 8M3 3v5h5",
+  dots: "M12 5v.01M12 12v.01M12 19v.01",
+  edit: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4",
+  check: "M5 12l5 5L20 7",
   chevronL: "M15 18l-6-6 6-6",
   chevronR: "M9 6l6 6-6 6",
 } as const;
@@ -32,7 +35,7 @@ export default function Icon({ name, size = 20, className }: { name: IconName; s
       aria-hidden="true"
       className={className}
     >
-      <path d={PATHS[name]} />
+      <path d={PATHS[name]} strokeWidth={name === "dots" ? 3 : undefined} />
     </svg>
   );
 }

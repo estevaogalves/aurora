@@ -1,5 +1,6 @@
 import type {
   CreditTransaction,
+  CustomCategory,
   ExtraExpense,
   FinanceData,
   Goal,
@@ -20,6 +21,7 @@ export interface FinanceRepository {
   removeTransaction(id: string): Promise<void>;
 
   addCredit(credit: CreditTransaction): Promise<void>;
+  updateCredit(id: string, patch: Partial<CreditTransaction>): Promise<void>;
   removeCredit(id: string): Promise<void>;
 
   addNote(note: Note): Promise<void>;
@@ -32,4 +34,7 @@ export interface FinanceRepository {
 
   addExtraExpense(extra: ExtraExpense): Promise<void>;
   removeExtraExpense(id: string): Promise<void>;
+
+  addCategory(category: CustomCategory): Promise<void>;
+  removeCategory(id: string): Promise<void>;
 }

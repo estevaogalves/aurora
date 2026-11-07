@@ -67,8 +67,8 @@ describe("migrateLegacy", () => {
 
 describe("migrateStored", () => {
   it("aceita o envelope atual", () => {
-    const data = migrateStored({ version: 2, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [] } });
-    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [] });
+    const data = migrateStored({ version: 3, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [] } });
+    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [] });
   });
 
   it("recusa versão futura e lixo", () => {
@@ -78,12 +78,13 @@ describe("migrateStored", () => {
   });
 
   it("completa listas que faltam", () => {
-    expect(migrateStored({ version: 2, data: {} })).toEqual({
+    expect(migrateStored({ version: 3, data: {} })).toEqual({
       transactions: [],
       creditTransactions: [],
       notes: [],
       goals: [],
       extraExpenses: [],
+      customCategories: [],
     });
   });
 
@@ -99,7 +100,7 @@ describe("migrateStored", () => {
 describe("LocalRepository", () => {
   it("começa vazio sem nenhum dado salvo", async () => {
     const repo = new LocalRepository(fakeStorage());
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [] });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [] });
   });
 
   it("importa o formato antigo uma vez e mantém o backup intacto", async () => {
@@ -111,7 +112,7 @@ describe("LocalRepository", () => {
 
     expect(data.transactions[0].amount).toBe(500050);
     expect(storage.map.get(LEGACY_STORAGE_KEY)).toBe(original);
-    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(2);
+    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(3);
   });
 
   it("depois de migrar, ignora o formato antigo", async () => {
@@ -165,6 +166,7 @@ describe("LocalRepository", () => {
       notes: [],
       goals: [],
       extraExpenses: [],
+      customCategories: [],
     });
   });
 
@@ -187,6 +189,29 @@ describe("LocalRepository", () => {
     expect(empty.extraExpenses).toEqual([]);
   });
 
+  it("guarda categorias personalizadas e atualiza compra no crédito", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.addCategory({ id: "k1", name: "Pets", color: "#FF8800" });
+    await repo.addCredit({ id: "c1", name: "TV", totalAmount: 100000, installments: 10, startMonth: "2026-03", category: "Pets" });
+    await repo.updateCredit("c1", { name: "TV nova", installments: 5 });
+
+    const reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.customCategories).toEqual([{ id: "k1", name: "Pets", color: "#FF8800" }]);
+    expect(reloaded.creditTransactions[0]).toMatchObject({ name: "TV nova", installments: 5, category: "Pets" });
+
+    await repo.removeCategory("k1");
+    expect((await new LocalRepository(storage).load()).customCategories).toEqual([]);
+  });
+
+  it("migra a v2 (sem categorias) sem perder metas", () => {
+    const goal = { id: "g", name: "Viagem", target: 100, saved: 0, monthly: 0, deadline: null };
+    const data = migrateStored({ version: 2, data: { goals: [goal] } });
+    expect(data?.goals).toEqual([goal]);
+    expect(data?.customCategories).toEqual([]);
+  });
+
   it("funciona sem storage disponível", async () => {
     const repo = new LocalRepository({
       getItem: () => {
@@ -196,7 +221,7 @@ describe("LocalRepository", () => {
         throw new Error("bloqueado");
       },
     });
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [] });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [] });
     await expect(
       repo.addNote({ id: "1", content: "a", date: "d", pinned: false, month: "2026-03" }),
     ).resolves.toBeUndefined();

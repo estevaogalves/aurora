@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import Icon from "../components/Icon";
 import { btnClass } from "../components/shared/styles";
@@ -15,11 +16,20 @@ export const CONTAINER = "mx-auto w-[calc(100%-2rem)] max-w-[1240px]";
 /** Abas no topo (pílulas), seletor de mês, tema e a ação única "Lançar". */
 export default function AppShell() {
   const openLaunch = useUiStore((s) => s.openLaunch);
+  const [scrolled, setScrolled] = useState(false);
+
+  // no topo o cabeçalho é transparente (sem caixa atrás dos botões); ao rolar ganha fundo
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
     <div className="min-h-screen">
-      <div className={CONTAINER}>
-        <header className="sticky top-0 z-20 flex flex-wrap items-center gap-[18px] bg-background/80 py-3.5 backdrop-blur-[14px]">
+      <header className={`sticky top-0 z-20 transition-colors ${scrolled ? "border-b border-border bg-background/85 backdrop-blur-[14px]" : "border-b border-transparent"}`}>
+        <div className={`${CONTAINER} flex flex-wrap items-center gap-[18px] py-3.5`}>
           <NavLink to="/painel" aria-label={APP_NAME} className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-[-0.02em]">
             <Logo />
             {APP_NAME}
@@ -55,8 +65,8 @@ export default function AppShell() {
               </button>
             </div>
           </div>
-        </header>
-      </div>
+        </div>
+      </header>
 
       <ToastContainer />
       <TransactionForm />

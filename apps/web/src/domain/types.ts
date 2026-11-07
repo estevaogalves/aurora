@@ -65,6 +65,13 @@ export interface ExtraExpense {
   month: Month;
 }
 
+/** Categoria criada pelo usuário, com cor própria (hex, ex.: "#FF8800"). */
+export interface CustomCategory {
+  id: string;
+  name: string;
+  color: string;
+}
+
 /** Meta de economia. Valores em centavos. */
 export interface Goal {
   id: string;
@@ -86,6 +93,7 @@ export interface FinanceData {
   notes: Note[];
   goals: Goal[];
   extraExpenses: ExtraExpense[];
+  customCategories: CustomCategory[];
 }
 
 export interface MonthSummary {

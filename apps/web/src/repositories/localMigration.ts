@@ -1,6 +1,7 @@
 import { toCents } from "../lib/money";
 import type {
   CreditTransaction,
+  CustomCategory,
   ExtraExpense,
   FinanceData,
   Goal,
@@ -9,7 +10,7 @@ import type {
 } from "../domain/types";
 
 /** Versão atual do formato salvo. Aumente ao mudar o formato e trate em `migrateStored`. */
-export const CURRENT_VERSION = 2;
+export const CURRENT_VERSION = 3;
 
 /** Onde os dados vivem hoje. */
 export const STORAGE_KEY = "aurora:finance";
@@ -28,6 +29,7 @@ export const emptyData = (): FinanceData => ({
   notes: [],
   goals: [],
   extraExpenses: [],
+  customCategories: [],
 });
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -65,7 +67,7 @@ export function migrateLegacy(raw: unknown): FinanceData | null {
 
   const notes = asArray<Note>(state.notes);
 
-  return { transactions, creditTransactions, notes, goals: [], extraExpenses: [] };
+  return { transactions, creditTransactions, notes, goals: [], extraExpenses: [], customCategories: [] };
 }
 
 /** Lê o formato atual. Devolve null se o texto não for um envelope válido. */
@@ -74,7 +76,8 @@ export function migrateStored(raw: unknown): FinanceData | null {
     return null;
   }
 
-  // v1 -> v2: entram `goals` e `extraExpenses`; quem não tem recebe listas vazias abaixo
+  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`.
+  // Quem não tem esses campos recebe listas vazias abaixo.
   if (raw.version > CURRENT_VERSION) return null;
 
   return {
@@ -83,6 +86,7 @@ export function migrateStored(raw: unknown): FinanceData | null {
     notes: asArray<Note>(raw.data.notes),
     goals: asArray<Goal>(raw.data.goals),
     extraExpenses: asArray<ExtraExpense>(raw.data.extraExpenses),
+    customCategories: asArray<CustomCategory>(raw.data.customCategories),
   };
 }
 

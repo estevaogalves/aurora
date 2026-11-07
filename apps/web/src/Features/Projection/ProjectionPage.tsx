@@ -1,75 +1,19 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import ChartGroupBars from "@/components/charts/ChartGroupBars";
 import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
-import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
-import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { getProjection } from "@/domain";
-import { formatBRL, formatBRLShort, parseBRL } from "@/lib/money";
+import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import { categoryColors } from "@/Utils/categoryColors";
-import { changeMonth, formatMonthShort, formatMonthTitle, monthsDifference } from "@/Utils/Date";
-import { showToast } from "../Warnings/toast";
+import { useCategoryColor } from "@/Utils/categoryColors";
+import { changeMonth, formatMonthShort, monthsDifference } from "@/Utils/Date";
 
 const MONTHS_AHEAD = 6;
 
 const cap = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 const shortLabel = (month: string) => cap(formatMonthShort(month).split(" ")[0]);
-
-function ExtraDialog({ open, months, onClose }: { open: boolean; months: string[]; onClose: () => void }) {
-  const addExtra = useFinanceStore((s) => s.addExtraExpense);
-  const [name, setName] = useState("");
-  const [amount, setAmount] = useState("");
-  const [month, setMonth] = useState(months[0]);
-
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const cents = parseBRL(amount);
-    if (!name.trim()) return showToast({ type: "error", text: "Descreva a despesa" });
-    if (!cents) return showToast({ type: "error", text: "Informe um valor maior que zero" });
-    addExtra({ id: crypto.randomUUID(), name: name.trim(), amount: cents, month });
-    showToast({ type: "success", text: `Despesa extra "${name.trim()}" adicionada` });
-    setName("");
-    setAmount("");
-    onClose();
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Nova despesa extra</DialogTitle>
-          <DialogDescription>Um gasto previsto para um mês específico.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={submit} className="flex flex-col gap-4">
-          <Field label="Descrição" htmlFor="extra-name">
-            <input id="extra-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Seguro do carro" className={inputClass} />
-          </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Valor" htmlFor="extra-amount">
-              <MoneyInput id="extra-amount" value={amount} onChange={setAmount} />
-            </Field>
-            <Field label="Mês" htmlFor="extra-month">
-              <select id="extra-month" value={month} onChange={(e) => setMonth(e.target.value)} className={inputClass}>
-                {months.map((m) => (
-                  <option key={m} value={m}>{formatMonthTitle(m)}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button type="submit">Adicionar</Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 export default function ProjectionPage() {
   const current = useFinanceStore((s) => s.currentMonth);
@@ -77,7 +21,7 @@ export default function ProjectionPage() {
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const extras = useFinanceStore((s) => s.extraExpenses);
   const removeExtra = useFinanceStore((s) => s.removeExtraExpense);
-  const [adding, setAdding] = useState(false);
+  const colorOf = useCategoryColor();
 
   // do mês seguinte ao que está sendo visto
   const start = changeMonth(current, 1);
@@ -108,12 +52,6 @@ export default function ProjectionPage() {
       <PageHeader
         title="Projeção futura"
         subtitle={`Os próximos ${MONTHS_AHEAD} meses com o que já está previsto.`}
-        action={
-          <button type="button" onClick={() => setAdding(true)} className={`${btnClass.primary} ${btnClass.sm}`}>
-            <Icon name="plus" size={16} />
-            Despesa extra
-          </button>
-        }
       />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
@@ -148,9 +86,9 @@ export default function ProjectionPage() {
         </div>
 
         <div className="col-span-12 lg:col-span-4">
-          <Panel title="Despesas extras planejadas" subtitle="Gastos que não se repetem todo mês" action={<button type="button" onClick={() => setAdding(true)} className={`${btnClass.primary} ${btnClass.sm}`}><Icon name="plus" size={14} />Nova extra</button>}>
+          <Panel title="Despesas extras planejadas" subtitle="Gastos que não se repetem todo mês. Cadastre pelo botão Lançar.">
             {extrasInWindow.length === 0 ? (
-              <Empty>Nenhuma despesa extra nos próximos meses.</Empty>
+              <Empty>Nenhuma despesa extra nos próximos meses. Use Lançar → Despesa extra.</Empty>
             ) : (
               extrasInWindow.map((e) => (
                 <div key={e.id} className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-3 border-t border-border py-[11px] first:border-t-0 first:pt-0">
@@ -177,7 +115,7 @@ export default function ProjectionPage() {
                 const end = changeMonth(c.startMonth, c.installments - 1);
                 return (
                   <div key={c.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border py-[11px] first:border-t-0 first:pt-0">
-                    <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: categoryColors["Crédito/Parcelado"] }} />
+                    <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: colorOf(c.category) }} />
                     <div className="min-w-0">
                       <div className="break-words font-semibold">{c.name}</div>
                       <div className="mt-0.5 text-[12.5px] text-muted-foreground">Faltam {remaining} {remaining === 1 ? "parcela" : "parcelas"} · termina em {shortLabel(end)}</div>
@@ -192,7 +130,6 @@ export default function ProjectionPage() {
         </div>
       </div>
 
-      <ExtraDialog key={String(adding)} open={adding} months={months} onClose={() => setAdding(false)} />
     </>
   );
 }
