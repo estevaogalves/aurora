@@ -108,6 +108,8 @@ export interface FinanceData {
   customCategories: CustomCategory[];
   /** Percentuais escolhidos pelo usuário; null = padrão. */
   distribution: DistributionItem[] | null;
+  /** Avisos de prazo de metas que o usuário já marcou como vistos (veja `goalAlertKey`). */
+  seenAlerts: string[];
 }
 
 export interface MonthSummary {

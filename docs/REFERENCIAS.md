@@ -108,6 +108,9 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Rendimento no Aportar (rendimento e aporte separados; total de rendimentos no card da meta)
 - [ ok ] Novo visual do PDF: proposta C "Gráficos e cores" (cabeçalho escuro, cartões coloridos, barras por mês, categorias com as cores do app)
 - [ ok ] Aviso de meta com prazo próximo: sino no cabeçalho com contador, aviso no Painel e selo nos cards (vencida, vence neste mês ou em até 3 meses)
+- [ ok ] Marcar aviso como visto (por aviso ou todos, no sino e no Painel); o selo nos cards de Metas permanece. O aviso volta se a meta ficar mais urgente ou o prazo mudar
+- [ ok ] PDF sem folhas desnecessárias: lançamentos seguem na mesma página da sugestão quando cabem
+  - Repositório na versão 5 (`seenAlerts`).
   - Repositório na versão 4 (`distribution`, `yieldTotal` nas metas), com migração das anteriores.
 - Decisão: o nome do produto é **Aurora**, definitivo.
 

@@ -145,6 +145,11 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async setSeenAlerts(keys: string[]) {
+    this.data.seenAlerts = keys;
+    this.persist();
+  }
+
   /* ---------- internos ---------- */
 
   private snapshot(): FinanceData {
@@ -156,6 +161,7 @@ export class LocalRepository implements FinanceRepository {
       extraExpenses: this.data.extraExpenses,
       customCategories: this.data.customCategories,
       distribution: this.data.distribution,
+      seenAlerts: this.data.seenAlerts,
     };
   }
 

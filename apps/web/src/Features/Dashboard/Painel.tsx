@@ -231,7 +231,7 @@ function NotesReadOnly() {
 }
 
 function GoalDeadlines() {
-  const alerts = useGoalAlerts();
+  const { unseen: alerts, markSeen } = useGoalAlerts();
   if (alerts.length === 0) return null;
   const urgent = alerts.some((a) => a.level !== "soon");
 
@@ -242,7 +242,13 @@ function GoalDeadlines() {
           <Icon name="bell" size={16} />
           {alerts.length === 1 ? "Uma meta com prazo chegando" : `${alerts.length} metas com prazo chegando`}
         </h2>
-        <Link to="/metas" className="text-[13px] font-bold text-primary">Ver metas →</Link>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => markSeen(alerts)} className="inline-flex items-center gap-1.5 text-[13px] font-bold text-primary hover:underline">
+            <Icon name="check" size={14} />
+            Marcar como visto
+          </button>
+          <Link to="/metas" className="text-[13px] font-bold text-primary">Ver metas →</Link>
+        </div>
       </div>
       <ul className="mt-2 flex flex-col gap-1.5 text-[13px] text-ink2">
         {alerts.slice(0, 3).map((a) => (

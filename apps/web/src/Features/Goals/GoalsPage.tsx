@@ -73,7 +73,7 @@ export default function GoalsPage() {
   const goals = useFinanceStore((s) => s.goals);
   const removeGoal = useFinanceStore((s) => s.removeGoal);
   const summary = getGoalsSummary(goals);
-  const alerts = useGoalAlerts();
+  const { all: alerts } = useGoalAlerts();
 
   const [editing, setEditing] = useState<Goal | null>(null);
   // a meta fica guardada ao fechar para o título não piscar vazio durante a animação

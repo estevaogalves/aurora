@@ -127,3 +127,22 @@ describe("avisos de prazo das metas", () => {
     expect(a.monthsLeft).toBe(1);
   });
 });
+
+import { alertKey, goalAlertKey, splitSeenAlerts } from "./index";
+
+describe("avisos vistos", () => {
+  const goal: Goal = { id: "g", name: "Viagem", target: 100000, saved: 0, monthly: 0, deadline: "2026-12" };
+
+  it("separa vistos de não vistos pela chave", () => {
+    const [a] = getGoalAlerts([goal], "2026-11");
+    expect(splitSeenAlerts([a], [])).toEqual({ unseen: [a], seen: [] });
+    expect(splitSeenAlerts([a], [alertKey(a)])).toEqual({ unseen: [], seen: [a] });
+  });
+
+  it("o aviso volta quando a meta fica mais urgente ou o prazo muda", () => {
+    const seenKeys = [alertKey(getGoalAlerts([goal], "2026-11")[0])]; // "vence em breve"
+    expect(splitSeenAlerts(getGoalAlerts([goal], "2026-12"), seenKeys).unseen).toHaveLength(1); // virou "vence neste mês"
+    expect(splitSeenAlerts(getGoalAlerts([{ ...goal, deadline: "2027-01" }], "2026-11"), seenKeys).unseen).toHaveLength(1);
+    expect(goalAlertKey("g", "2026-12", "soon")).toBe("g:2026-12:soon");
+  });
+});

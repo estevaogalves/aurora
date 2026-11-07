@@ -44,6 +44,8 @@ interface FinanceState {
   customCategories: CustomCategory[];
   /** null = percentuais padrão */
   distribution: DistributionItem[] | null;
+  /** chaves dos avisos de meta já vistos */
+  seenAlerts: string[];
 
   addTransaction: (transaction: Transaction) => void;
   removeTransaction: (id: string) => void;
@@ -77,6 +79,8 @@ interface FinanceState {
   addExtraExpense: (extra: ExtraExpense) => void;
   updateExtraExpense: (id: string, patch: Partial<ExtraExpense>) => void;
   setDistribution: (items: DistributionItem[] | null) => void;
+  markAlertsSeen: (keys: string[]) => void;
+  markAlertUnseen: (key: string) => void;
   removeExtraExpense: (id: string) => void;
 
   getTransactionsByMonth: (month: string) => Transaction[];
@@ -125,6 +129,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     extraExpenses: [],
     customCategories: [],
     distribution: null,
+    seenAlerts: [],
 
     addTransaction: (transaction) => {
       set((state) => ({ transactions: [...state.transactions, transaction] }));
@@ -232,8 +237,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     removeGoal: (id) => {
-      set((state) => ({ goals: state.goals.filter((g) => g.id !== id) }));
+      const seenAlerts = get().seenAlerts.filter((k) => !k.startsWith(`${id}:`));
+      set((state) => ({ goals: state.goals.filter((g) => g.id !== id), seenAlerts }));
       sync(repository.removeGoal(id));
+      sync(repository.setSeenAlerts(seenAlerts));
     },
 
     addCategory: (category) => {
@@ -256,6 +263,18 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         extraExpenses: state.extraExpenses.map((e) => (e.id === id ? { ...e, ...patch } : e)),
       }));
       sync(repository.updateExtraExpense(id, patch));
+    },
+
+    markAlertsSeen: (keys) => {
+      const next = [...new Set([...get().seenAlerts, ...keys])];
+      set({ seenAlerts: next });
+      sync(repository.setSeenAlerts(next));
+    },
+
+    markAlertUnseen: (key) => {
+      const next = get().seenAlerts.filter((k) => k !== key);
+      set({ seenAlerts: next });
+      sync(repository.setSeenAlerts(next));
     },
 
     setDistribution: (items) => {

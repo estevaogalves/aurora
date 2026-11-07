@@ -1,13 +1,29 @@
 import { useMemo } from "react";
-import { getGoalAlerts, type GoalAlert } from "@/domain";
+import { alertKey, getGoalAlerts, splitSeenAlerts, type GoalAlert } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { getCurrentMonth } from "@/Utils/Date";
 
-/** Metas com prazo vencido ou chegando, da mais urgente para a menos urgente. */
-export function useGoalAlerts(): GoalAlert[] {
+/**
+ * Avisos de prazo das metas. `all` mostra tudo (usado nos selos da tela de Metas);
+ * `unseen` é o que ainda não foi marcado como visto (sino e Painel).
+ */
+export function useGoalAlerts() {
   const goals = useFinanceStore((s) => s.goals);
-  return useMemo(() => getGoalAlerts(goals, getCurrentMonth()), [goals]);
+  const seenKeys = useFinanceStore((s) => s.seenAlerts);
+  const markAlertsSeen = useFinanceStore((s) => s.markAlertsSeen);
+  const markAlertUnseen = useFinanceStore((s) => s.markAlertUnseen);
+
+  const all = useMemo(() => getGoalAlerts(goals, getCurrentMonth()), [goals]);
+  const { unseen, seen } = useMemo(() => splitSeenAlerts(all, seenKeys), [all, seenKeys]);
+
+  return {
+    all,
+    unseen,
+    seen,
+    markSeen: (alerts: GoalAlert[]) => markAlertsSeen(alerts.map(alertKey)),
+    markUnseen: (alert: GoalAlert) => markAlertUnseen(alertKey(alert)),
+  };
 }
 
 /** "Prazo vencido", "Vence neste mês", "Vence em 2 meses". */

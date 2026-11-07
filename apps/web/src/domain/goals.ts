@@ -70,6 +70,24 @@ export interface GoalAlert {
 }
 
 /**
+ * Identifica um aviso. Muda quando a meta passa de "vence em breve" para "vence neste mês" ou
+ * "vencida", e quando o prazo é alterado, então o aviso volta a aparecer nesses casos.
+ */
+export const goalAlertKey = (goalId: string, deadline: Month | null, level: GoalAlertLevel) =>
+  `${goalId}:${deadline ?? ""}:${level}`;
+
+export const alertKey = (a: GoalAlert) => goalAlertKey(a.goal.id, a.goal.deadline, a.level);
+
+/** Separa os avisos em ainda não vistos e já vistos. */
+export function splitSeenAlerts(alerts: GoalAlert[], seen: string[]) {
+  const set = new Set(seen);
+  return {
+    unseen: alerts.filter((a) => !set.has(alertKey(a))),
+    seen: alerts.filter((a) => set.has(alertKey(a))),
+  };
+}
+
+/**
  * Metas ainda não concluídas com prazo vencido, vencendo neste mês ou nos próximos
  * `GOAL_ALERT_WINDOW_MONTHS` meses. Da mais urgente para a menos urgente.
  * O prazo é um mês: a meta vale até o fim dele.

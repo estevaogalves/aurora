@@ -67,8 +67,8 @@ describe("migrateLegacy", () => {
 
 describe("migrateStored", () => {
   it("aceita o envelope atual", () => {
-    const data = migrateStored({ version: 4, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null } });
-    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null });
+    const data = migrateStored({ version: 5, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] } });
+    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] });
   });
 
   it("recusa versão futura e lixo", () => {
@@ -78,7 +78,7 @@ describe("migrateStored", () => {
   });
 
   it("completa listas que faltam", () => {
-    expect(migrateStored({ version: 4, data: {} })).toEqual({
+    expect(migrateStored({ version: 5, data: {} })).toEqual({
       transactions: [],
       creditTransactions: [],
       notes: [],
@@ -86,6 +86,7 @@ describe("migrateStored", () => {
       extraExpenses: [],
       customCategories: [],
       distribution: null,
+      seenAlerts: [],
     });
   });
 
@@ -101,7 +102,7 @@ describe("migrateStored", () => {
 describe("LocalRepository", () => {
   it("começa vazio sem nenhum dado salvo", async () => {
     const repo = new LocalRepository(fakeStorage());
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] });
   });
 
   it("importa o formato antigo uma vez e mantém o backup intacto", async () => {
@@ -113,7 +114,7 @@ describe("LocalRepository", () => {
 
     expect(data.transactions[0].amount).toBe(500050);
     expect(storage.map.get(LEGACY_STORAGE_KEY)).toBe(original);
-    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(4);
+    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(5);
   });
 
   it("depois de migrar, ignora o formato antigo", async () => {
@@ -169,6 +170,7 @@ describe("LocalRepository", () => {
       extraExpenses: [],
       customCategories: [],
       distribution: null,
+      seenAlerts: [],
     });
   });
 
@@ -237,6 +239,17 @@ describe("LocalRepository", () => {
     expect(data?.customCategories).toHaveLength(1);
   });
 
+  it("guarda os avisos vistos e migra a v4 sem eles", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.setSeenAlerts(["g1:2026-12:soon"]);
+    expect((await new LocalRepository(storage).load()).seenAlerts).toEqual(["g1:2026-12:soon"]);
+
+    expect(migrateStored({ version: 4, data: { distribution: null } })?.seenAlerts).toEqual([]);
+    expect(migrateStored({ version: 5, data: { seenAlerts: ["a", 3, "b"] } })?.seenAlerts).toEqual(["a", "b"]);
+  });
+
   it("funciona sem storage disponível", async () => {
     const repo = new LocalRepository({
       getItem: () => {
@@ -246,7 +259,7 @@ describe("LocalRepository", () => {
         throw new Error("bloqueado");
       },
     });
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] });
     await expect(
       repo.addNote({ id: "1", content: "a", date: "d", pinned: false, month: "2026-03" }),
     ).resolves.toBeUndefined();

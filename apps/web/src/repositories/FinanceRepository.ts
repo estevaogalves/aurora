@@ -42,4 +42,7 @@ export interface FinanceRepository {
 
   /** null volta ao padrão */
   setDistribution(items: DistributionItem[] | null): Promise<void>;
+
+  /** Lista completa dos avisos de meta marcados como vistos. */
+  setSeenAlerts(keys: string[]): Promise<void>;
 }
