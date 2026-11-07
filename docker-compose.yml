@@ -38,8 +38,8 @@ services:
       DATABASE_URL: ${DATABASE_URL:-postgres://aurora:aurora@postgres:5432/aurora?sslmode=disable}
       MIGRATE_DATABASE_URL: ${MIGRATE_DATABASE_URL:-}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      # troque em produção: openssl rand -hex 32
-      JWT_SECRET: ${JWT_SECRET:-dev-only-secret-change-me-0123456789abcdef}
+      # obrigatório, sem valor padrão: gere com `openssl rand -hex 32` (ou `make env`) e ponha no .env
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env (openssl rand -hex 32)}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}

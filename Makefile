@@ -1,6 +1,6 @@
 # Atalhos do Aurora. `make help` lista os comandos.
 .DEFAULT_GOAL := help
-.PHONY: help install dev up down logs test test-web test-api lint typecheck build generate check clean
+.PHONY: help env install dev up down logs test test-web test-api lint typecheck build generate check clean
 
 GO_IMAGE  ?= golang:1.26-alpine
 PG_IMAGE  ?= postgres:17
@@ -8,14 +8,17 @@ PG_IMAGE  ?= postgres:17
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
 
+env: ## Cria o .env a partir do exemplo, com um JWT_SECRET aleatório (não sobrescreve)
+	@test -f .env && echo ".env já existe, nada a fazer" || { 	  sed "s/^JWT_SECRET=.*/JWT_SECRET=$$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')/" .env.example > .env; 	  echo ".env criado com um JWT_SECRET novo"; }
+
 install: ## Instala as dependências do front
 	pnpm install
 
-dev: install ## Postgres, Redis e API no Docker + front em modo dev (http://localhost:5173)
+dev: install env ## Postgres, Redis e API no Docker + front em modo dev (http://localhost:5173)
 	docker compose up -d --build postgres redis api
 	VITE_DATA_SOURCE=api pnpm dev
 
-up: ## Sobe tudo no Docker (web em http://localhost:8080)
+up: env ## Sobe tudo no Docker (web em http://localhost:8080)
 	docker compose up --build -d
 
 down: ## Para os containers (os dados do banco ficam)

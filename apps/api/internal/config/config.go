@@ -55,10 +55,43 @@ func Load() (Config, error) {
 	if c.DatabaseURL == "" {
 		problems = append(problems, errors.New("DATABASE_URL é obrigatória"))
 	}
-	if len(c.JWTSecret) < 32 {
-		problems = append(problems, errors.New("JWT_SECRET é obrigatória e precisa ter ao menos 32 caracteres"))
+	if err := checkJWTSecret(c.JWTSecret); err != nil {
+		problems = append(problems, err)
 	}
 	return c, errors.Join(problems...)
+}
+
+// weakSecretMarkers são trechos que denunciam segredos de exemplo (do .env.example, do README, de tutoriais).
+var weakSecretMarkers = []string{
+	"dev-only", "change-me", "changeme", "example", "exemplo", "placeholder",
+	"your-secret", "your_secret", "password", "senha", "0123456789abcdef",
+}
+
+const (
+	minSecretLen      = 32
+	minSecretDistinct = 10
+)
+
+// checkJWTSecret recusa segredo ausente, curto, de exemplo ou de baixa entropia (ex.: "aaaa…").
+// Gere um bom com: openssl rand -hex 32
+func checkJWTSecret(secret string) error {
+	if len(secret) < minSecretLen {
+		return errors.New("JWT_SECRET é obrigatória e precisa ter ao menos 32 caracteres (gere com: openssl rand -hex 32)")
+	}
+	lower := strings.ToLower(secret)
+	for _, m := range weakSecretMarkers {
+		if strings.Contains(lower, m) {
+			return errors.New("JWT_SECRET parece um valor de exemplo; gere um segredo próprio com: openssl rand -hex 32")
+		}
+	}
+	distinct := map[rune]struct{}{}
+	for _, r := range secret {
+		distinct[r] = struct{}{}
+	}
+	if len(distinct) < minSecretDistinct {
+		return errors.New("JWT_SECRET tem pouca variedade de caracteres; gere um segredo aleatório com: openssl rand -hex 32")
+	}
+	return nil
 }
 
 func env(key, def string) string {

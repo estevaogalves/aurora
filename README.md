@@ -16,7 +16,7 @@ Monorepo pnpm:
 Pré-requisitos: Node 22+, pnpm 11 (`corepack enable`) e Docker. Go não precisa estar instalado.
 
 ```bash
-cp .env.example .env     # opcional: os padrões já funcionam em desenvolvimento
+make env                # cria o .env com um JWT_SECRET aleatório (obrigatório; sem valor padrão)
 make up                  # tudo no Docker: http://localhost:8080
 ```
 
