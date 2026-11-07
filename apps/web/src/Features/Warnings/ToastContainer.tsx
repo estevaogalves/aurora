@@ -1,35 +1,33 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { subscribeToasts, type Toast } from "./toast";
 
-export interface Toast {
-  id: string;
-  type: "success" | "error";
-  text: string;
-}
+const DURATION_MS = 2600;
 
-let addToastHandler: ((toast: Toast) => void) | null = null;
-
-export function showToast(toast: Omit<Toast, "id">) {
-  addToastHandler?.({ ...toast, id: crypto.randomUUID() });
-}
-
+/** Avisos em pílula, no rodapé central (protótipo B). */
 export function ToastContainer() {
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  addToastHandler = (toast: Toast) => {
-    setToasts((prev) => [...prev, toast]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-    }, 3000);
-  };
+  useEffect(
+    () =>
+      subscribeToasts((toast) => {
+        setToasts((prev) => [...prev, toast]);
+        setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toast.id)), DURATION_MS);
+      }),
+    [],
+  );
 
   return (
-    <div className="fixed top-4 right-4 z-[60] flex flex-col gap-2">
+    <div
+      role="status"
+      aria-live="polite"
+      className="pointer-events-none fixed bottom-5 left-1/2 z-[70] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 flex-col items-center gap-2"
+    >
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`px-6 py-3 rounded-md text-foreground shadow-lg transform transition-all duration-500 ${
-            toast.type === "success" ? "bg-primary text-lg font-bold" : "bg-destructive text-lg font-bold"
-          } animate-slide-in`}
+          className={`rounded-full px-4 py-2.5 text-[13px] font-semibold shadow-lg ${
+            toast.type === "error" ? "bg-destructive text-destructive-foreground" : "bg-foreground text-background"
+          }`}
         >
           {toast.text}
         </div>

@@ -1,6 +1,8 @@
 import type {
   CreditTransaction,
+  ExtraExpense,
   FinanceData,
+  Goal,
   Note,
   Transaction,
 } from "../domain/types";
@@ -23,4 +25,11 @@ export interface FinanceRepository {
   addNote(note: Note): Promise<void>;
   updateNote(id: string, patch: Partial<Note>): Promise<void>;
   removeNote(id: string): Promise<void>;
+
+  addGoal(goal: Goal): Promise<void>;
+  updateGoal(id: string, patch: Partial<Goal>): Promise<void>;
+  removeGoal(id: string): Promise<void>;
+
+  addExtraExpense(extra: ExtraExpense): Promise<void>;
+  removeExtraExpense(id: string): Promise<void>;
 }

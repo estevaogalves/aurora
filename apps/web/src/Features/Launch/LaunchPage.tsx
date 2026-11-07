@@ -10,7 +10,7 @@ import { useHiddenTransactions, useMonthCredit, useMonthTransactions } from "@/S
 import { useUiStore, type LaunchTab } from "@/Store/UiStore";
 import type { Category } from "@/Types/Category";
 import { categoryColors } from "@/Utils/categoryColors";
-import { showToast } from "../Warnings/ToastContainer";
+import { showToast } from "../Warnings/toast";
 import { ProgressMini, Row } from "./rows";
 
 const iconBtn =

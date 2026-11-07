@@ -24,6 +24,8 @@ export default function ConfirmDeletion({
   hideOnly,
   itemLabel = "item",
 }: ConfirmDeletionProps) {
+  const article = /^(despesa|renda|meta|compra)/.test(itemLabel) ? "Esta" : "Este";
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onCancel()}>
       <DialogContent className="max-w-md">
@@ -31,8 +33,8 @@ export default function ConfirmDeletion({
           <DialogTitle>{hideOnly ? "Ocultar neste mês?" : "Confirmar exclusão"}</DialogTitle>
           <DialogDescription>
             {hideOnly
-              ? `Esta ${itemLabel} será ocultada apenas neste mês e poderá ser restaurada.`
-              : `Este ${itemLabel} será removido permanentemente.`}
+              ? `${article} ${itemLabel} será ocultada apenas neste mês e poderá ser restaurada.`
+              : `${article} ${itemLabel} será ${article === "Esta" ? "removida" : "removido"} permanentemente.`}
           </DialogDescription>
         </DialogHeader>
         <div className="flex justify-end gap-2">

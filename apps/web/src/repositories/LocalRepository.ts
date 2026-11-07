@@ -1,6 +1,8 @@
 import type {
   CreditTransaction,
+  ExtraExpense,
   FinanceData,
+  Goal,
   Note,
   Transaction,
 } from "../domain/types";
@@ -89,6 +91,31 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async addGoal(goal: Goal) {
+    this.data.goals = [...this.data.goals, goal];
+    this.persist();
+  }
+
+  async updateGoal(id: string, patch: Partial<Goal>) {
+    this.data.goals = this.data.goals.map((g) => (g.id === id ? { ...g, ...patch } : g));
+    this.persist();
+  }
+
+  async removeGoal(id: string) {
+    this.data.goals = this.data.goals.filter((g) => g.id !== id);
+    this.persist();
+  }
+
+  async addExtraExpense(extra: ExtraExpense) {
+    this.data.extraExpenses = [...this.data.extraExpenses, extra];
+    this.persist();
+  }
+
+  async removeExtraExpense(id: string) {
+    this.data.extraExpenses = this.data.extraExpenses.filter((e) => e.id !== id);
+    this.persist();
+  }
+
   /* ---------- internos ---------- */
 
   private snapshot(): FinanceData {
@@ -96,6 +123,8 @@ export class LocalRepository implements FinanceRepository {
       transactions: this.data.transactions,
       creditTransactions: this.data.creditTransactions,
       notes: this.data.notes,
+      goals: this.data.goals,
+      extraExpenses: this.data.extraExpenses,
     };
   }
 

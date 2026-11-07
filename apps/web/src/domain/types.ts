@@ -65,11 +65,27 @@ export interface ExtraExpense {
   month: Month;
 }
 
+/** Meta de economia. Valores em centavos. */
+export interface Goal {
+  id: string;
+  name: string;
+  /** centavos: quanto quer juntar */
+  target: number;
+  /** centavos: quanto já guardou */
+  saved: number;
+  /** centavos: quanto pretende guardar por mês (0 = sem previsão) */
+  monthly: number;
+  /** Mês em que quer concluir, ou null. */
+  deadline: Month | null;
+}
+
 /** Tudo o que o app guarda. É o que o repositório carrega e salva. */
 export interface FinanceData {
   transactions: Transaction[];
   creditTransactions: CreditTransaction[];
   notes: Note[];
+  goals: Goal[];
+  extraExpenses: ExtraExpense[];
 }
 
 export interface MonthSummary {

@@ -68,8 +68,8 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Tela Lançamentos com rendas, despesas e parcelas
 - [ ok ] `TransactionForm` único em modal (substitui `AddExpenses` e `AddIncome`)
 - [ ok ] Componentes `StatCard`, `ConfirmDeletion` e `CategorySelect`
-- [ ] Gráficos em Recharts usando os tokens
-  - Parcial: os gráficos do Painel usam os tokens. Os de Despesas, Projeção e Comparação ainda usam as cores de `categoryColors` (hex).
+- [ ok ] Gráficos em Recharts usando os tokens
+  - Substituído: os gráficos são SVG próprios portados do protótipo B (`src/components/charts/`), com os tokens do tema. O Recharts não é mais usado.
 - [ ok ] Sem rolagem horizontal em 400px
   - Conferido no navegador (Playwright) nas 6 rotas, em claro e escuro. Telas mock (Projeção, Comparação, Relatórios) foram só ajustadas; serão refeitas na Fase 4.
 
@@ -82,27 +82,30 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Lançamentos igual ao protótipo (rendas + anotações à esquerda, despesas à direita)
 - [ ok ] Modal "Novo lançamento" (Despesa, Renda, Crédito parcelado)
 - [ ok ] Gráficos de linha e rosca portados do protótipo, com tooltip
-- [ ] Projeção, Comparação, Metas e Relatórios no layout do protótipo (feitos junto da Fase 4, que dá a lógica)
-- [ ] Gráficos de barras agrupadas e radar do protótipo (Fase 4)
+- [ ok ] Projeção, Comparação, Metas e Relatórios no layout do protótipo (feitos junto da Fase 4, que dá a lógica)
+- [ ok ] Gráficos de barras agrupadas e radar do protótipo (Fase 4)
   - Diferenças assumidas: o seletor de mês global fica no cabeçalho (o protótipo não tem); o título do Painel é "Painel", sem o nome do usuário; o bloco de metas do Painel mostra estado vazio até a Fase 4. Os botões "Nova renda" e "Nova despesa" nos cartões seguem o protótipo (a decisão anterior de listas sem botões foi substituída).
 
 ## Fase 4: Telas que hoje são mock
 
-- [ ] Metas: tipo `Goal`, criar, editar, excluir e aportar
-- [ ] Projeção futura: despesas extras e `getProjection`
-- [ ] Comparação: seleção de meses, ranking, barras, radar e categorias
-- [ ] Relatórios: exportar PDF (`exportPDF` com o mês por parâmetro)
-- [ ] Relatórios: exportar CSV
-- [ ] Relatórios: exportar TXT
+- [ ok ] Metas: tipo `Goal`, criar, editar, excluir e aportar
+- [ ok ] Projeção futura: despesas extras e `getProjection`
+- [ ok ] Comparação: seleção de meses, ranking, barras, radar e categorias
+- [ ok ] Relatórios: exportar PDF (`exportPDF` com o período por parâmetro)
+- [ ok ] Relatórios: exportar CSV
+- [ ok ] Relatórios: exportar TXT
 
 ## Fase 5: Limpeza e correções
 
-- [ ] Remover `Navbar.tsx`, `EditableAmount.tsx`, `Mocks/*`, `Types/Incomes.tsx`, `SideBarStore.ts` e `ListExtraExpenses.tsx`
-- [ ] Remover `console.log` e blocos comentados
+- Feito junto da Fase 4: telas antigas, mocks, sidebar, componentes `ui` sem uso, `tsc -b` zerado e a maior parte do lint. Resta o aviso de `ui/button.tsx` (exporta `buttonVariants` junto do componente).
+
+- [ ok ] Remover `Navbar.tsx`, `EditableAmount.tsx`, `Mocks/*`, `Types/Incomes.tsx`, `SideBarStore.ts` e `ListExtraExpenses.tsx`
+- [ ok ] Remover `console.log` e blocos comentados
 - [ ok ] Corrigir `EditableName` (a edição não fecha depois de salvar) (feito na Fase 1)
-- [ ] Corrigir `grid-cols-[auto,1fr,auto]` em `ExpenseCard.tsx`
-- [ ] Zerar os erros de TypeScript (`tsc -b`)
+- [ ok ] Corrigir `grid-cols-[auto,1fr,auto]` em `ExpenseCard.tsx`
+- [ ok ] Zerar os erros de TypeScript (`tsc -b`)
 - [ ] Zerar os avisos do `pnpm lint`
+  - Falta 1: `components/ui/button.tsx` (react-refresh/only-export-components).
 
 ## Fase 6: Backend em Go
 
@@ -149,6 +152,6 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
   - Parcial: mês vazio no meio não trava mais a volta (usa `getAvailableMonths`). Avançar para meses futuros fica para o seletor global da Fase 3.
 - [ ok ] `MoneyCard` e `SummaryCard` sem reagir à troca de mês
 - [ ok ] Percentuais de distribuição duplicados em `getDistribuition` e `CardPositive`
-- [ ] Nomes trocados entre arquivo e função (`BarsGraph`, `CategoryGraph`)
-- [ ] Botão "Cancelar" da despesa extra enviando o formulário
-- [ ] Botão "Criar Meta" recarregando a página
+- [ ok ] Nomes trocados entre arquivo e função (`BarsGraph`, `CategoryGraph`)
+- [ ok ] Botão "Cancelar" da despesa extra enviando o formulário
+- [ ok ] Botão "Criar Meta" recarregando a página

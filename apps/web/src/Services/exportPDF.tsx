@@ -1,223 +1,132 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { formatMonth, getToday } from "../Utils/Date";
-import { useFinanceStore } from "../Store/FinanceStore";
-import {
-  CREDIT_CATEGORY,
-  getCreditByMonth,
-  getDistribution,
-  getMonthSummary,
-  getTransactionsByMonth,
-} from "../domain";
+import { getDistribution, getPeriodTotals, getReportRows, type ReportOptions } from "../domain";
 import { formatBRL } from "../lib/money";
+import { useFinanceStore } from "../Store/FinanceStore";
+import { formatMonth, getToday } from "../Utils/Date";
 
-/** Gera o PDF do mês informado (formato "YYYY-MM"), com as parcelas do crédito. */
-export function exportPDF(currentMonth: string) {
+const VIOLET: [number, number, number] = [91, 72, 232];
+const SOFT: [number, number, number] = [243, 244, 251];
+
+export interface PdfOptions extends ReportOptions {
+  distribution: boolean;
+}
+
+type LastTable = { lastAutoTable: { finalY: number } };
+
+/** Gera o PDF do período (lista de meses "YYYY-MM"). Com um só mês, mostra a sugestão de distribuição se pedida. */
+export function exportPDF(months: string[], options: PdfOptions) {
   const doc = new jsPDF();
   const store = useFinanceStore.getState();
-  const data = {
-    transactions: store.transactions,
-    creditTransactions: store.creditTransactions,
-  };
+  const data = { transactions: store.transactions, creditTransactions: store.creditTransactions };
+  const totals = getPeriodTotals(data, months);
+  const multi = months.length > 1;
+  const periodLabel = multi
+    ? `${formatMonth(months[0])} a ${formatMonth(months[months.length - 1])}`
+    : formatMonth(months[0]);
 
-  const summary = getMonthSummary(data, currentMonth);
-  const totals = {
-    totalIncome: summary.totalIncome,
-    totalExpense: summary.totalExpense,
-    balance: summary.balance,
-  };
-
-  const monthTransactions = getTransactionsByMonth(store.transactions, currentMonth);
-  const installments = getCreditByMonth(store.creditTransactions, currentMonth);
-
-  const { emergency, invest, leisure, education, costs } = getDistribution(
-    summary.balance,
-  );
-
-  const formatCurrency = formatBRL;
-
-  // ================= HEADER =================
-  doc.setFillColor(16, 185, 129);
+  // cabeçalho
+  doc.setFillColor(...VIOLET);
   doc.rect(0, 0, 210, 35, "F");
-
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(20);
   doc.setFont("helvetica", "bold");
-  doc.text("MEU BOLSO", 14, 20);
-
-  doc.setFont("helvetica", "normal"); // reset
+  doc.text("AURORA", 14, 20);
+  doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
-  doc.text(`Relatório - ${formatMonth(currentMonth)}`, 14, 28);
-
+  doc.text(`Relatório - ${periodLabel}`, 14, 28);
   doc.setTextColor(0, 0, 0);
 
-  // ================= CARDS =================
-  const drawCard = (label: string, value: string, x: number) => {
-    doc.setFillColor(240, 253, 244);
-    doc.roundedRect(x, 45, 55, 22, 3, 3, "F");
+  let y = 45;
 
+  // cartões de total
+  const card = (label: string, value: string, x: number) => {
+    doc.setFillColor(...SOFT);
+    doc.roundedRect(x, y, 55, 22, 3, 3, "F");
     doc.setFontSize(9);
     doc.setTextColor(100);
-    doc.text(label, x + 3, 52);
-
+    doc.text(label, x + 3, y + 7);
     doc.setFontSize(12);
     doc.setTextColor(0);
-    doc.text(value, x + 3, 60);
+    doc.text(value, x + 3, y + 15);
+  };
+  card("Receitas", formatBRL(totals.income), 14);
+  card("Despesas", formatBRL(totals.expense), 74);
+  card("Saldo", formatBRL(totals.balance), 134);
+  y += 35;
+
+  const table = (title: string, head: string[], body: string[][], right: number[] = []) => {
+    doc.setFontSize(13);
+    doc.setTextColor(0);
+    doc.text(title, 14, y);
+    autoTable(doc, {
+      startY: y + 4,
+      head: [head],
+      body,
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: VIOLET, textColor: [255, 255, 255] },
+      alternateRowStyles: { fillColor: SOFT },
+      columnStyles: Object.fromEntries(right.map((i) => [i, { halign: "right" as const }])),
+    });
+    y = (doc as unknown as LastTable).lastAutoTable.finalY + 10;
   };
 
-  drawCard("Receitas", formatCurrency(totals.totalIncome), 14);
-  drawCard("Despesas", formatCurrency(totals.totalExpense), 74);
-  drawCard("Saldo", formatCurrency(totals.balance), 134);
-
-  let currentY = 80;
-
-  // ================= DISTRIBUIÇÃO =================
-  if (totals.balance > 0) {
-    doc.setFontSize(13);
-    doc.text("Sugestão de distribuição do saldo", 14, currentY);
-
-    const totalDistribuido =
-      emergency + invest + leisure + education + costs;
-
-    autoTable(doc, {
-      startY: currentY + 5,
-      head: [["Categoria", "%", "Valor"]],
-      body: [
-        ["Reserva de emergência", `${((emergency / totals.balance) * 100).toFixed(1)}%`, formatCurrency(emergency)],
-        ["Investimentos", `${((invest / totals.balance) * 100).toFixed(1)}%`, formatCurrency(invest)],
-        ["Lazer", `${((leisure / totals.balance) * 100).toFixed(1)}%`, formatCurrency(leisure)],
-        ["Educação", `${((education / totals.balance) * 100).toFixed(1)}%`, formatCurrency(education)],
-        ["Gastos pessoais", `${((costs / totals.balance) * 100).toFixed(1)}%`, formatCurrency(costs)],
-      ],
-      foot: [[
-        "Total distribuído",
-        `${((totalDistribuido / totals.balance) * 100).toFixed(1)}%`,
-        formatCurrency(totalDistribuido),
-      ]],
-      styles: {
-        fontSize: 10,
-        cellPadding: 3,
-      },
-      headStyles: {
-        fillColor: [16, 185, 129],
-        textColor: [255, 255, 255],
-      },
-      footStyles: {
-        fillColor: [200, 230, 201],
-        textColor: [0, 0, 0],
-        fontStyle: "bold",
-      },
-      showFoot: "last" as any,
-      alternateRowStyles: {
-        fillColor: [240, 253, 244],
-      },
-    });
-
-    currentY = (doc as any).lastAutoTable.finalY + 10;
-  } else {
-    doc.setFontSize(11);
-    doc.setTextColor(120);
-    doc.text("Sem saldo disponível para distribuição", 14, currentY);
-    currentY += 10;
-    doc.setTextColor(0);
+  if (options.summary) {
+    table(
+      "Resumo por mês",
+      ["Mês", "Receitas", "Despesas", "Saldo"],
+      totals.months.map((m) => [formatMonth(m.month), formatBRL(m.totalIncome), formatBRL(m.totalExpense), formatBRL(m.balance)]),
+      [1, 2, 3],
+    );
   }
 
-  // ================= TRANSAÇÕES =================
-  doc.setFontSize(13);
-  doc.text("Transações do mês", 14, currentY);
-
-  // parcelas do crédito entram como despesas do mês
-  const monthRows = [
-    ...monthTransactions.map((t) => ({
-      name: t.name,
-      category: t.category as string,
-      type: t.type,
-      amount: t.amount,
-    })),
-    ...installments.map((c) => ({
-      name: `${c.name} (${c.currentInstallment}/${c.installments})`,
-      category: CREDIT_CATEGORY as string,
-      type: "expense" as const,
-      amount: c.installmentValue,
-    })),
-  ];
-
-  const sortedTransactions = [...monthRows].sort((a, b) => {
-    if (a.type === "income" && b.type === "expense") return -1;
-    if (a.type === "expense" && b.type === "income") return 1;
-    return 0;
-  });
-
-  const body: any[] = [];
-  let lastType = "";
-
-  sortedTransactions.forEach((t) => {
-    if (lastType && lastType !== t.type) {
-      body.push(["", "", "", ""]); // espaço visual
+  if (options.distribution && !multi) {
+    const balance = totals.months[0].balance;
+    if (balance > 0) {
+      const d = getDistribution(balance);
+      const pct = (v: number) => `${((v / balance) * 100).toFixed(1)}%`;
+      table(
+        "Sugestão de distribuição do saldo",
+        ["Destino", "%", "Valor"],
+        [
+          ["Reserva de emergência", pct(d.emergency), formatBRL(d.emergency)],
+          ["Investimentos", pct(d.invest), formatBRL(d.invest)],
+          ["Lazer", pct(d.leisure), formatBRL(d.leisure)],
+          ["Educação", pct(d.education), formatBRL(d.education)],
+          ["Gastos pessoais", pct(d.costs), formatBRL(d.costs)],
+        ],
+        [1, 2],
+      );
+    } else {
+      doc.setFontSize(11);
+      doc.setTextColor(120);
+      doc.text("Sem saldo disponível para distribuição", 14, y);
+      doc.setTextColor(0);
+      y += 10;
     }
+  }
 
-    body.push([
-      t.name,
-      t.category,
-      t.type === "income" ? "Receita" : "Despesa",
-      formatCurrency(t.amount),
-    ]);
+  if (options.entries || options.credit) {
+    const rows = getReportRows(data, months, options);
+    table(
+      "Lançamentos",
+      multi ? ["Mês", "Nome", "Categoria", "Tipo", "Valor"] : ["Nome", "Categoria", "Tipo", "Valor"],
+      rows.map((r) => {
+        const name = r.note ? `${r.name} (${r.note})` : r.name;
+        const cells = [name, r.category, r.type, formatBRL(r.amount)];
+        return multi ? [formatMonth(r.month), ...cells] : cells;
+      }),
+      [multi ? 4 : 3],
+    );
+  }
 
-    lastType = t.type;
-  });
-
-  autoTable(doc, {
-    startY: currentY + 5,
-    head: [["Nome", "Categoria", "Tipo", "Valor"]],
-    body,
-    styles: {
-      fontSize: 10,
-      cellPadding: 3,
-    },
-    headStyles: {
-      fillColor: [16, 185, 129],
-      textColor: [255, 255, 255],
-    },
-    alternateRowStyles: {
-      fillColor: [240, 253, 244],
-    },
-    columnStyles: {
-      3: { halign: "right" },
-    },
-    didParseCell: (data) => {
-      const row = data.row.raw as any[];
-
-      // linha de separação
-      if (row.every((cell) => cell === "")) {
-        data.cell.styles.minCellHeight = 4;
-        data.cell.styles.fillColor = [255, 255, 255];
-        return;
-      }
-
-      // cor dos valores
-      if (data.column.index === 3) {
-        const isExpense = row[2] === "Despesa";
-
-        data.cell.styles.textColor = isExpense
-          ? [220, 38, 38]
-          : [16, 185, 129];
-      }
-    },
-  });
-
-  // ================= FOOTER =================
-  const pageHeight = doc.internal.pageSize.height;
-
+  // rodapé
+  const h = doc.internal.pageSize.height;
   doc.setDrawColor(200);
-  doc.line(14, pageHeight - 15, 196, pageHeight - 15);
-
+  doc.line(14, h - 15, 196, h - 15);
   doc.setFontSize(9);
   doc.setTextColor(120);
-  doc.text(
-    `Gerado em ${getToday()} • Aurora`,
-    14,
-    pageHeight - 8
-  );
+  doc.text(`Gerado em ${getToday()} • Aurora`, 14, h - 8);
 
-  doc.save(`relatorio-${currentMonth}.pdf`);
+  doc.save(`relatorio-${months[0]}${multi ? `_a_${months[months.length - 1]}` : ""}.pdf`);
 }

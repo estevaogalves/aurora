@@ -67,8 +67,8 @@ describe("migrateLegacy", () => {
 
 describe("migrateStored", () => {
   it("aceita o envelope atual", () => {
-    const data = migrateStored({ version: 1, data: { transactions: [], creditTransactions: [], notes: [] } });
-    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [] });
+    const data = migrateStored({ version: 2, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [] } });
+    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [] });
   });
 
   it("recusa versão futura e lixo", () => {
@@ -78,18 +78,28 @@ describe("migrateStored", () => {
   });
 
   it("completa listas que faltam", () => {
-    expect(migrateStored({ version: 1, data: {} })).toEqual({
+    expect(migrateStored({ version: 2, data: {} })).toEqual({
       transactions: [],
       creditTransactions: [],
       notes: [],
+      goals: [],
+      extraExpenses: [],
     });
+  });
+
+  it("migra a v1 (sem metas nem extras) sem perder dados", () => {
+    const tx = { id: "a", name: "Salário", amount: 100, type: "income", category: "Renda", month: "2026-03" };
+    const data = migrateStored({ version: 1, data: { transactions: [tx], creditTransactions: [], notes: [] } });
+    expect(data?.transactions).toEqual([tx]);
+    expect(data?.goals).toEqual([]);
+    expect(data?.extraExpenses).toEqual([]);
   });
 });
 
 describe("LocalRepository", () => {
   it("começa vazio sem nenhum dado salvo", async () => {
     const repo = new LocalRepository(fakeStorage());
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [] });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [] });
   });
 
   it("importa o formato antigo uma vez e mantém o backup intacto", async () => {
@@ -101,7 +111,7 @@ describe("LocalRepository", () => {
 
     expect(data.transactions[0].amount).toBe(500050);
     expect(storage.map.get(LEGACY_STORAGE_KEY)).toBe(original);
-    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(1);
+    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(2);
   });
 
   it("depois de migrar, ignora o formato antigo", async () => {
@@ -153,7 +163,28 @@ describe("LocalRepository", () => {
       transactions: [],
       creditTransactions: [],
       notes: [],
+      goals: [],
+      extraExpenses: [],
     });
+  });
+
+  it("guarda metas e despesas extras", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.addGoal({ id: "g1", name: "Viagem", target: 100000, saved: 0, monthly: 10000, deadline: "2027-07" });
+    await repo.updateGoal("g1", { saved: 25000 });
+    await repo.addExtraExpense({ id: "e1", name: "IPVA", amount: 110000, month: "2027-01" });
+
+    const reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.goals[0]).toMatchObject({ id: "g1", saved: 25000 });
+    expect(reloaded.extraExpenses).toHaveLength(1);
+
+    await repo.removeGoal("g1");
+    await repo.removeExtraExpense("e1");
+    const empty = await new LocalRepository(storage).load();
+    expect(empty.goals).toEqual([]);
+    expect(empty.extraExpenses).toEqual([]);
   });
 
   it("funciona sem storage disponível", async () => {
@@ -165,7 +196,7 @@ describe("LocalRepository", () => {
         throw new Error("bloqueado");
       },
     });
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [] });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [] });
     await expect(
       repo.addNote({ id: "1", content: "a", date: "d", pinned: false, month: "2026-03" }),
     ).resolves.toBeUndefined();

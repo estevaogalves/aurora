@@ -8,7 +8,10 @@ import {
   patchRestoreInMonth,
   patchToggleFixed,
   type CreditInstallment,
+  patchContribution,
   type CreditTransaction,
+  type ExtraExpense,
+  type Goal,
   type Note,
   type Transaction,
 } from "../domain";
@@ -16,7 +19,7 @@ import { repository } from "../repositories";
 import type { Category } from "../Types/Category";
 import { getCurrentMonth } from "../Utils/Date";
 
-export type { CreditInstallment, CreditTransaction, Note, Transaction };
+export type { CreditInstallment, CreditTransaction, ExtraExpense, Goal, Note, Transaction };
 
 /**
  * Estado do app. Os dados vêm do repositório (hoje o localStorage) e a store
@@ -34,6 +37,8 @@ interface FinanceState {
   transactions: Transaction[];
   creditTransactions: CreditTransaction[];
   notes: Note[];
+  goals: Goal[];
+  extraExpenses: ExtraExpense[];
 
   addTransaction: (transaction: Transaction) => void;
   removeTransaction: (id: string) => void;
@@ -52,6 +57,15 @@ interface FinanceState {
   removeNote: (id: string) => void;
   togglePinNote: (id: string) => void;
   updateNote: (id: string, content: string) => void;
+
+  addGoal: (goal: Goal) => void;
+  updateGoal: (id: string, patch: Partial<Goal>) => void;
+  /** Soma um aporte (centavos) ao guardado da meta. */
+  contributeToGoal: (id: string, cents: number) => void;
+  removeGoal: (id: string) => void;
+
+  addExtraExpense: (extra: ExtraExpense) => void;
+  removeExtraExpense: (id: string) => void;
 
   getTransactionsByMonth: (month: string) => Transaction[];
   getHiddenTransactionsByMonth: (month: string) => Transaction[];
@@ -95,6 +109,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     transactions: [],
     creditTransactions: [],
     notes: [],
+    goals: [],
+    extraExpenses: [],
 
     addTransaction: (transaction) => {
       set((state) => ({ transactions: [...state.transactions, transaction] }));
@@ -175,6 +191,36 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         notes: state.notes.map((n) => (n.id === id ? { ...n, content } : n)),
       }));
       sync(repository.updateNote(id, { content }));
+    },
+
+    addGoal: (goal) => {
+      set((state) => ({ goals: [...state.goals, goal] }));
+      sync(repository.addGoal(goal));
+    },
+
+    updateGoal: (id, patch) => {
+      set((state) => ({ goals: state.goals.map((g) => (g.id === id ? { ...g, ...patch } : g)) }));
+      sync(repository.updateGoal(id, patch));
+    },
+
+    contributeToGoal: (id, cents) => {
+      const goal = get().goals.find((g) => g.id === id);
+      if (goal) get().updateGoal(id, patchContribution(goal, cents));
+    },
+
+    removeGoal: (id) => {
+      set((state) => ({ goals: state.goals.filter((g) => g.id !== id) }));
+      sync(repository.removeGoal(id));
+    },
+
+    addExtraExpense: (extra) => {
+      set((state) => ({ extraExpenses: [...state.extraExpenses, extra] }));
+      sync(repository.addExtraExpense(extra));
+    },
+
+    removeExtraExpense: (id) => {
+      set((state) => ({ extraExpenses: state.extraExpenses.filter((e) => e.id !== id) }));
+      sync(repository.removeExtraExpense(id));
     },
 
     getTransactionsByMonth: (month) =>

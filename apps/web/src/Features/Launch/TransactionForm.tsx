@@ -9,55 +9,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import {
   centsToInput,
   parseBRL,
-  sanitizeAmountInput,
   splitInstallments,
 } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore, type LaunchTab } from "@/Store/UiStore";
 import type { Category } from "@/Types/Category";
 import { formatMonthTitle } from "@/Utils/Date";
-import { showToast } from "../Warnings/ToastContainer";
+import { showToast } from "../Warnings/toast";
 
 const tabClass =
   "rounded-[10px] py-2 text-[13px] font-semibold text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
-
-const inputClass =
-  "w-full rounded-md border border-border-strong bg-secondary px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-70";
-
-function Field({ label, htmlFor, hint, children }: { label: string; htmlFor?: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={htmlFor} className="text-[12.5px] font-bold text-ink2">
-        {label}
-        {hint && <span className="ml-1 font-normal text-muted-foreground">{hint}</span>}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function MoneyInput({ id, value, onChange, disabled }: { id: string; value: string; onChange?: (v: string) => void; disabled?: boolean }) {
-  return (
-    <div className="relative">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">R$</span>
-      <input
-        id={id}
-        type="text"
-        inputMode="decimal"
-        placeholder="0,00"
-        disabled={disabled}
-        value={value}
-        onChange={(e) => onChange?.(sanitizeAmountInput(e.target.value))}
-        className={`${inputClass} pl-9 font-semibold`}
-      />
-    </div>
-  );
-}
 
 /** Ação única de lançamento: despesa, renda ou compra parcelada no crédito. */
 export default function TransactionForm() {

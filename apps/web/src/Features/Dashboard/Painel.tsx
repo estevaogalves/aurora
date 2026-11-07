@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import ChartDonut from "@/components/charts/ChartDonut";
 import ChartLine from "@/components/charts/ChartLine";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
-import { DISTRIBUTION, getDistribution, getMonthSummary } from "@/domain";
+import { DISTRIBUTION, getDistribution, getMonthSummary, goalPercent } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useCategoryTotals, useMonthCredit, useMonthSummary, useMonthTransactions } from "@/Store/selectors";
@@ -123,10 +123,29 @@ function Suggestion() {
 }
 
 function GoalsMini() {
+  const goals = useFinanceStore((s) => s.goals);
+
   return (
     <Panel title="Metas" subtitle="Progresso geral">
-      <Empty>Você ainda não criou metas.</Empty>
-      <Link to="/metas" className="mt-3 inline-block text-[13px] font-bold text-primary">Ir para Metas →</Link>
+      {goals.length === 0 ? (
+        <Empty>Você ainda não criou metas.</Empty>
+      ) : (
+        goals.slice(0, 4).map((g) => {
+          const pct = goalPercent(g);
+          return (
+            <div key={g.id} className="mb-3">
+              <div className="mb-1.5 flex justify-between gap-2 text-[13px]">
+                <span className="min-w-0 truncate font-semibold">{g.name}</span>
+                <b className="num">{pct}%</b>
+              </div>
+              <div className="h-[5px] overflow-hidden rounded-full bg-secondary">
+                <i className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+              </div>
+            </div>
+          );
+        })
+      )}
+      <Link to="/metas" className="mt-1 inline-block text-[13px] font-bold text-primary">{goals.length === 0 ? "Criar uma meta" : "Ver todas as metas"} →</Link>
     </Panel>
   );
 }

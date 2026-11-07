@@ -1,4 +1,5 @@
 import { formatBRL } from "@/lib/money";
+import { niceTicks, shortReais as short } from "./scale";
 import { TipBox } from "./ChartTooltip";
 import { useChartTip } from "./useChartTip";
 import { useChartWidth } from "./useChartWidth";
@@ -13,23 +14,6 @@ export interface LineSeries {
 }
 
 const PAD = { l: 44, r: 10, t: 10, b: 26 };
-
-function niceTicks(max: number) {
-  const cand = [1, 2, 2.5, 5];
-  let p = 10 ** Math.floor(Math.log10(Math.max(max, 1) / 4));
-  for (;;) {
-    for (const c of cand) {
-      if (max / (c * p) <= 4.6) {
-        const step = c * p;
-        return { step, n: Math.ceil(max / step), top: Math.ceil(max / step) * step };
-      }
-    }
-    p *= 10;
-  }
-}
-
-const short = (reais: number) =>
-  Math.abs(reais) >= 1000 ? `${(reais / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil` : String(reais);
 
 /** Linhas com grade leve e ponto final destacado (protótipo B). Valores em centavos. */
 export default function ChartLine({ labels, series, height = 230 }: { labels: string[]; series: LineSeries[]; height?: number }) {

@@ -104,7 +104,7 @@ function creditEndMonth(c: CreditTransaction): Month {
  * em ordem. Fixas contam só pelo mês em que foram criadas.
  */
 export function getAvailableMonths(
-  data: FinanceData,
+  data: Pick<FinanceData, "transactions" | "creditTransactions" | "notes">,
   today: Month,
 ): Month[] {
   const points: Month[] = [
