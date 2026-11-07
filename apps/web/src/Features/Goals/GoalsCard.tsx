@@ -27,14 +27,14 @@ export default function GoalsCard() {
   return (
     <div>
       {/* titulo */}
-      <div className="mx-44 mt-6">
+      <div className=" mt-6">
         <h1 className="text-3xl font-bold text-foreground">Metas Financeiras</h1>
         <p className="text-xl font-medium text-foreground/80">
           Acompanhe o progresso das suas metas e objetivos
         </p>
       </div>
 
-      <Card className="rounded-xl bg-card border-border w-[1440px] mt-6 mx-44">
+      <Card className="rounded-xl bg-card border-border w-full mt-6">
         <CardHeader className="flex flex-row items-center justify-between">
           {/* ESQUERDA */}
           <div className="flex items-center gap-3">

@@ -31,7 +31,7 @@ export default function BarGraph() {
   }));
 
   return (
-    <Card className="bg-card border-border rounded-xl w-[1440px]">
+    <Card className="bg-card border-border rounded-xl w-full">
       {/* HEADER */}
       <CardHeader>
         <CardTitle className="text-xl text-foreground font-bold">

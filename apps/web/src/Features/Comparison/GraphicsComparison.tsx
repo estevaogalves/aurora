@@ -14,7 +14,7 @@ import RadarChart from "./Graphics/RadarChart";
 
 export default function GraphicsComparison() {
   return (
-    <div className="mx-44 mt-6">
+    <div className=" mt-6">
       <Tabs defaultValue="bars">
         <TabsList className="flex justify-start gap-3 bg-transparent p-0 h-auto mb-6">
           <TabsTrigger

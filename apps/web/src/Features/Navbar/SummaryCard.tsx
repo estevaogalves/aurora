@@ -14,7 +14,7 @@ export default function SummaryCard() {
     useMonthSummary();
 
   return (
-    <div className="mx-44 pt-6">
+    <div className=" pt-6">
       <div className="grid grid-cols-3 gap-6">
         <Card className="rounded-xl bg-card border-border">
           <CardHeader className="flex flex-row items-start gap-4 space-y-0">

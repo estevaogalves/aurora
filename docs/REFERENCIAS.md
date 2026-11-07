@@ -58,10 +58,11 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 
 ## Fase 3: Layout e telas
 
-- [ ] `AppShell` com abas no topo (substitui `AppSideBar`)
-- [ ] Container responsivo `max-w-[1240px]`, sem `w-[1380px]` e `mx-44`
-- [ ] Rotas `/painel`, `/lancamentos`, `/projecao`, `/comparacao`, `/metas` e `/relatorios`
-- [ ] Seletor de mês global no cabeçalho
+- [ ok ] `AppShell` com abas no topo (substitui `AppSideBar`)
+- [ ok ] Container responsivo `max-w-[1240px]`, sem `w-[1380px]` e `mx-44`
+- [ ok ] Rotas `/painel`, `/lancamentos`, `/projecao`, `/comparacao`, `/metas` e `/relatorios`
+- [ ok ] Seletor de mês global no cabeçalho
+  - Avançar para meses futuros continua bloqueado (só até o mês atual); decidir se libera junto da Projeção.
 - [ ] Painel somente leitura (saldo, tendência, categorias, sugestão, metas, 5 últimas despesas)
 - [ ] Tela Lançamentos com rendas, despesas e parcelas
 - [ ] `TransactionForm` único em modal (substitui `AddExpenses` e `AddIncome`)

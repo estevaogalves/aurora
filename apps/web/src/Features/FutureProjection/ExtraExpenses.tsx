@@ -23,7 +23,7 @@ export default function ExtraExpenses() {
   }
 
   return (
-    <div className="mt-6 w-[1440px] mx-44">
+    <div className="mt-6 w-full">
       <Card className="rounded-xl bg-card border-border">
         <CardHeader>
           <div className="flex items-center justify-between">

@@ -15,7 +15,7 @@ export default function ExportReports() {
   const [mes, setMes] = useState("atual");
 
   return (
-    <div className="mt-8 mx-44 w-[1380px]">
+    <div className="mt-8 w-full">
       <Card className="rounded-xl bg-card border-border">
         <CardHeader>
           <CardTitle className="text-xl text-foreground font-bold">

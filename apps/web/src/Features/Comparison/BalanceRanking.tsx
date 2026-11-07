@@ -49,8 +49,8 @@ export default function BalanceRanking() {
   const sorted = [...items].sort((a, b) => b.balance - a.balance);
 
   return (
-    <div className="mx-44">
-      <Card className="rounded-xl bg-card border-border w-[1380px] mt-6 mb-6">
+    <div className="">
+      <Card className="rounded-xl bg-card border-border w-full mt-6 mb-6">
         <CardHeader>
           <CardTitle className="text-xl text-foreground/80 font-bold">
             Ranking de Saldo

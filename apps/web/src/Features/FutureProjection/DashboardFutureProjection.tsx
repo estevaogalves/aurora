@@ -12,7 +12,7 @@ export default function DashboardFutureProjection() {
   const [meses, setMeses] = useState(6);
 
   return (
-    <div className="mx-44 mt-6">
+    <div className=" mt-6">
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <section>
@@ -24,7 +24,7 @@ export default function DashboardFutureProjection() {
       </div>
 
       {/* CARDS */}
-      <div className="grid grid-cols-4 gap-6 mt-6 w-[1440px]">
+      <div className="grid grid-cols-4 gap-6 mt-6 w-full">
         {/* renda fixa */}
         <Card className="rounded-xl bg-card border-border">
           <CardHeader>
@@ -103,7 +103,7 @@ export default function DashboardFutureProjection() {
       </div>
 
       {/* CONTROLE DE MESES */}
-      <Card className="rounded-xl bg-card border-border w-[1440px] mt-6">
+      <Card className="rounded-xl bg-card border-border w-full mt-6">
         <CardHeader>
           <div className="flex items-center justify-between mt-10">
             <CardTitle className="text-muted-foreground text-lg">

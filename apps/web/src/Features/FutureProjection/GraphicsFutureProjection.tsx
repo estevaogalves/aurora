@@ -11,7 +11,7 @@ import LineGraph from "./Graphics/LineGraph";
 
 export default function GraphicsFutureProjection() {
   return (
-    <div className="mx-44 mt-6">
+    <div className=" mt-6">
       <Tabs defaultValue="bars">
         <TabsList className="flex justify-start gap-3 bg-transparent p-0 h-auto mb-6">
           <TabsTrigger

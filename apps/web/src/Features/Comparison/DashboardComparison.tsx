@@ -29,7 +29,7 @@ export default function DashboardComparison() {
   const [openCard, setOpenCard] = useState(false);
 
   return (
-    <div className="mt-6 mx-44">
+    <div className="mt-6">
       <div className="flex items-center justify-between">
         <section>
           <h1 className="text-3xl font-bold text-foreground">Comparação de Meses</h1>
@@ -38,7 +38,7 @@ export default function DashboardComparison() {
           </p>
         </section>
       </div>
-      <Card className="rounded-xl bg-card border-border w-[1380px] mt-6">
+      <Card className="rounded-xl bg-card border-border w-full mt-6">
         <CardHeader>
           <div className="flex items-center justify-between">
             <section>
@@ -159,7 +159,7 @@ export default function DashboardComparison() {
       </div>
 
       {/* se nao for selecionado dois meses pelo menos - mostra esse card */}
-      {/* <Card className="rounded-xl bg-card border-border w-[1380px] mt-6">
+      {/* <Card className="rounded-xl bg-card border-border w-full mt-6">
         <CardHeader className="py-36">
           <div className="flex flex-col items-center">
             <div className="text-foreground/80">

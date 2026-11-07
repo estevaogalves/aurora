@@ -9,7 +9,7 @@ import CreditList from "./Lists/CreditList";
 
 export default function DividedExpenses() {
   return (
-    <div className="mt-6 w-[1440px] mx-44">
+    <div className="mt-6 w-full">
       <Card className="rounded-xl bg-card border-border">
         <CardHeader>
           <CardTitle className="text-lg text-foreground/80 font-bold">
