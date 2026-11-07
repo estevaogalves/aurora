@@ -240,7 +240,7 @@ export function exportPDF(months: string[], options: PdfOptions) {
       .sort((a, b) => b[1] - a[1]);
 
     if (cats.length > 0) {
-      ensure(18 + cats.length * 9); // o bloco inteiro cabe junto ou vai para a próxima página
+      ensure(18 + Math.min(cats.length, 3) * 9); // título com pelo menos 3 barras; o resto segue na página seguinte se precisar
       section("Despesas por categoria", `Total de ${formatBRL(totals.expense)} no período`);
       const labelW = 44;
       const valueW = 34;
@@ -307,7 +307,8 @@ export function exportPDF(months: string[], options: PdfOptions) {
   if (options.entries || options.credit) {
     const rows = getReportRows(data, months, options);
     if (rows.length > 0) {
-      if (y > BODY_TOP + 2) newPage();
+      // segue na mesma página se couber o título e algumas linhas; a tabela continua sozinha nas seguintes
+      ensure(36);
       section("Lançamentos", "Receitas em verde, despesas em vermelho");
       const dotCol = multi ? 2 : 1;
       autoTable(doc, {
