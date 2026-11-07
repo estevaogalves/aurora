@@ -59,7 +59,7 @@ export default function CategoryPieChart() {
         <div className="h-[500px] flex items-center">
           <ChartContainer
             config={chartConfig}
-            className="mx-auto w-[600px] h-[600px]"
+            className="mx-auto aspect-square w-full max-w-[600px]"
           >
             <PieChart width={600} height={600}>
               <ChartTooltip content={<ChartTooltipContent hideLabel />} />

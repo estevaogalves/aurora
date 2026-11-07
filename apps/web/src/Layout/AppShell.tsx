@@ -1,4 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { LuPlus } from "react-icons/lu";
+import TransactionForm from "../Features/Launch/TransactionForm";
+import { useUiStore } from "../Store/UiStore";
 import { ToastContainer } from "../Features/Warnings/ToastContainer";
 import Logo from "../theme/Logo";
 import { APP_NAME } from "../theme/theme";
@@ -10,6 +13,8 @@ export const CONTAINER = "mx-auto w-full max-w-[1240px] px-4 sm:px-6";
 
 /** Estrutura base: cabeçalho com abas no topo e conteúdo num container responsivo. */
 export default function AppShell() {
+  const openLaunch = useUiStore((s) => s.openLaunch);
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
@@ -21,6 +26,13 @@ export default function AppShell() {
 
           <div className="flex items-center gap-3">
             <MonthSelector />
+            <button
+              type="button"
+              onClick={() => openLaunch()}
+              className="flex h-9 items-center gap-1.5 rounded-lg bg-accent px-3 text-sm font-semibold text-accent-foreground transition-opacity hover:opacity-90"
+            >
+              <LuPlus aria-hidden="true" /> Lançar
+            </button>
             <div className="w-10">
               <ThemeToggle showLabel={false} />
             </div>
@@ -50,6 +62,7 @@ export default function AppShell() {
       </header>
 
       <ToastContainer />
+      <TransactionForm />
 
       <main className={`${CONTAINER} pb-20 pt-6`}>
         <Outlet />

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaExclamationTriangle } from "react-icons/fa";
+import ConfirmDeletion from "../../components/shared/ConfirmDeletion";
 import { IoIosArrowDown, IoIosArrowUp } from "react-icons/io";
 import { PiPushPinDuotone, PiPushPinSlashFill } from "react-icons/pi";
 import { formatBRL } from "../../lib/money";
@@ -7,55 +7,6 @@ import { useFinanceStore } from "../../Store/FinanceStore";
 import { useHiddenTransactions, useMonthTransactions } from "../../Store/selectors";
 import { showToast } from "../Warnings/ToastContainer";
 import IncomeCard from "./IncomeCard";
-
-interface ConfirmDeletionProps {
-  onCloseWarning: () => void;
-  onConfirm: () => void;
-  /** Fixa só some neste mês e pode ser restaurada. */
-  hideOnly?: boolean;
-}
-
-function ConfirmDeletion({
-  onCloseWarning,
-  onConfirm,
-  hideOnly,
-}: ConfirmDeletionProps) {
-  return (
-    <div className="flex items-center justify-center fixed inset-0 backdrop-blur-sm bg-black/90 z-50">
-      <div className="bg-card border border-border rounded-3xl shadow-2xl w-[520px] overflow-hidden">
-        {/* Barra superior */}
-        <div className="bg-secondary flex items-center gap-3 px-6 py-3">
-          <FaExclamationTriangle className="text-foreground" size={20} />
-          <h1 className="text-foreground text-xl font-bold">Confirmar exclusão</h1>
-        </div>
-
-        {/* Conteúdo */}
-        <div className="p-6 flex flex-col gap-4">
-          <h2 className="text-foreground text-lg font-serif">
-            {hideOnly
-              ? "Esta renda fixa será ocultada apenas neste mês e poderá ser restaurada. Deseja continuar?"
-              : "Este item será removido permanentemente. Realmente deseja prosseguir?"}
-          </h2>
-
-          <div className="flex justify-end gap-4 mt-4">
-            <button
-              onClick={onCloseWarning}
-              className="bg-secondary hover:bg-secondary transition-colors duration-200 text-foreground px-4 py-2 rounded-xl font-medium shadow-md"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={onConfirm}
-              className="bg-destructive hover:bg-destructive/90 transition-colors duration-200 text-primary-foreground px-4 py-2 rounded-xl font-medium shadow-md"
-            >
-              Confirmar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function IncomeList() {
   const currentMonth = useFinanceStore((state) => state.currentMonth);
@@ -148,21 +99,21 @@ export default function IncomeList() {
 
   return (
     <div className="grid gap-3">
-      {showWarning && incomeToDelete && (
-        <ConfirmDeletion
-          onCloseWarning={() => {
-            setShowWarning(false);
-            setIncomeToDelete(null);
-          }}
-          onConfirm={() => {
-            if (!incomeToDelete) return;
-            handleRemove(incomeToDelete);
-            setShowWarning(false);
-            setIncomeToDelete(null);
-          }}
-          hideOnly={!!incomes.find((i) => i.id === incomeToDelete)?.fixed}
-        />
-      )}
+      <ConfirmDeletion
+        open={showWarning && !!incomeToDelete}
+        itemLabel={incomes.find((i) => i.id === incomeToDelete)?.fixed ? "renda fixa" : "renda"}
+        hideOnly={!!incomes.find((i) => i.id === incomeToDelete)?.fixed}
+        onCancel={() => {
+          setShowWarning(false);
+          setIncomeToDelete(null);
+        }}
+        onConfirm={() => {
+          if (!incomeToDelete) return;
+          handleRemove(incomeToDelete);
+          setShowWarning(false);
+          setIncomeToDelete(null);
+        }}
+      />
 
       {fixedIncomes.length > 0 && (
         <div className="grid gap-3">

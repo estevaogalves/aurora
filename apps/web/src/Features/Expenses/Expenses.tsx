@@ -1,7 +1,4 @@
-import { useState } from "react";
 import { GoTag } from "react-icons/go";
-import { IoAddOutline } from "react-icons/io5";
-import { Button } from "../../components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,7 +7,6 @@ import {
   CardTitle,
 } from "../../components/ui/card";
 
-import AddExpenses from "./Components/AddExpenses";
 import ExpensesList from "./ExpensesList";
 import GraphicsExpenses from "./GraphicsExpenses";
 
@@ -21,8 +17,6 @@ import {
 } from "../../Store/selectors";
 
 export default function Expenses() {
-  const [showCard, setShowCard] = useState(false);
-
   // só o que vale no mês que está sendo visto
   const expenses = useMonthTransactions().filter((t) => t.type === "expense");
   const credit = useMonthCredit();
@@ -31,14 +25,6 @@ export default function Expenses() {
   const hasAnyExpenses =
     expenses.length > 0 || credit.length > 0 || hidden.length > 0;
   const hasVisibleExpenses = expenses.length > 0 || credit.length > 0;
-
-  const openCard = () => {
-    setShowCard(true);
-  };
-
-  const closeCard = () => {
-    setShowCard(false);
-  };
 
   return (
     <div className="mt-6">
@@ -56,13 +42,6 @@ export default function Expenses() {
               </CardDescription>
             </section>
 
-            <Button
-              onClick={openCard}
-              className="px-4 py-6 text-lg bg-primary hover:bg-primary/80 text-primary-foreground border border-primary"
-            >
-              <IoAddOutline className="!h-[30px] !w-[20px]"/>
-              Nova despesa
-            </Button>
           </div>
         </CardHeader>
 
@@ -81,14 +60,13 @@ export default function Expenses() {
                 </h1>
 
                 <p className="text-lg text-foreground/80 max-w-[350px] font-bold">
-                  Adicione uma nova despesa para começar
+                  Use o botão Lançar para adicionar uma despesa
                 </p>
               </div>
             </div>
           )}
         </CardContent>
 
-        {showCard && <AddExpenses onCloseCard={closeCard} />}
       </Card>
 
       {hasVisibleExpenses && <GraphicsExpenses />}

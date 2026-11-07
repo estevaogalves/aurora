@@ -11,7 +11,7 @@ import {
 } from "../../components/ui/card";
 import { formatBRL } from "../../lib/money";
 import { useMonthSummary, useMonthTransactions } from "../../Store/selectors";
-import AddIncome from "./AddIncome";
+import IncomeList from "./IncomeList";
 
 export default function Incomes() {
   const incomes = useMonthTransactions().filter((t) => t.type === "income");
@@ -30,14 +30,14 @@ export default function Incomes() {
                 Suas Rendas
               </CardTitle>
               <CardDescription className="text-lg text-foreground/80 font-sans font-medium">
-                 {incomes.length > 0 ? `Total: ${formatBRL(totalIncomes)} em ${incomes.length} ${incomes.length === 1 ? "fonte" : "fontes"}` :  "Adicione suas fontes de renda do mês"}
+                 {incomes.length > 0 ? `Total: ${formatBRL(totalIncomes)} em ${incomes.length} ${incomes.length === 1 ? "fonte" : "fontes"}` :  "Use o botão Lançar para adicionar uma renda"}
               </CardDescription>
               {/* Total: R$ 00,00 de x fonte */}
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <AddIncome />
+          <IncomeList />
         </CardContent>
       </Card>
     </div>

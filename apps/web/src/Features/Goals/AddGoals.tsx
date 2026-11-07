@@ -12,7 +12,7 @@ interface AddGoalsProps {
 export default function AddGoals({ onCloseCard }: AddGoalsProps) {
   return (
     <div className="flex items-center justify-center fixed inset-0 backdrop-blur-sm bg-black/90 z-50">
-      <Card className="w-[500px] rounded-xl bg-card border-border">
+      <Card className="w-full max-w-[500px] rounded-xl bg-card border-border">
         <CardHeader>
           <CardTitle className="font-bold text-2xl flex items-center justify-between mb-4">
             <h1 className="text-foreground">Nova Meta Financeira</h1>

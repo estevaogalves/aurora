@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FaExclamationTriangle } from "react-icons/fa";
+import ConfirmDeletion from "../../components/shared/ConfirmDeletion";
 import { Card } from "../../components/ui/card";
 import { formatBRL } from "../../lib/money";
 import type { Transaction } from "../../Store/FinanceStore";
@@ -12,54 +12,6 @@ import ExpenseCreditCard from "./Components/ExpenseCreditCard";
 
 interface ExpensesListProps {
   expenses: Transaction[];
-}
-
-interface ConfirmDeletionProps {
-  onCloseWarning: () => void;
-  onConfirm: () => void;
-  /** Fixa só some neste mês e pode ser restaurada. */
-  hideOnly?: boolean;
-}
-
-function ConfirmDeletion({
-  onCloseWarning,
-  onConfirm,
-  hideOnly,
-}: ConfirmDeletionProps) {
-  return (
-    <div className="flex items-center justify-center fixed inset-0 backdrop-blur-sm bg-black/90 z-50">
-      <div className="bg-card border border-border rounded-3xl shadow-2xl w-[520px] overflow-hidden">
-        <div className="bg-secondary flex items-center gap-3 px-6 py-3">
-          <FaExclamationTriangle className="text-foreground" size={20} />
-          <h1 className="text-foreground text-xl font-bold">Confirmar exclusão</h1>
-        </div>
-
-        <div className="p-6 flex flex-col gap-4">
-          <h2 className="text-foreground text-lg font-serif">
-            {hideOnly
-              ? "Esta despesa fixa será ocultada apenas neste mês e poderá ser restaurada. Deseja continuar?"
-              : "Este item será removido permanentemente. Deseja continuar?"}
-          </h2>
-
-          <div className="flex justify-end gap-4 mt-4">
-            <button
-              onClick={onCloseWarning}
-              className="bg-secondary text-foreground px-4 py-2 rounded-xl"
-            >
-              Cancelar
-            </button>
-
-            <button
-              onClick={onConfirm}
-              className="bg-destructive text-primary-foreground px-4 py-2 rounded-xl"
-            >
-              Confirmar
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default function ExpensesList({ expenses }: ExpensesListProps) {
@@ -154,17 +106,17 @@ export default function ExpensesList({ expenses }: ExpensesListProps) {
   // -----------------------------
   return (
     <div className="w-full flex flex-col gap-3">
-      {showWarning && expenseToDelete && (
-        <ConfirmDeletion
-          onCloseWarning={() => {
-            setShowWarning(false);
-            setExpenseToDelete(null);
-            setDeleteType(null);
-          }}
-          onConfirm={handleConfirmDelete}
-          hideOnly={deletingFixed}
-        />
-      )}
+      <ConfirmDeletion
+        open={showWarning && !!expenseToDelete}
+        itemLabel={deletingFixed ? "despesa fixa" : "despesa"}
+        hideOnly={deletingFixed}
+        onCancel={() => {
+          setShowWarning(false);
+          setExpenseToDelete(null);
+          setDeleteType(null);
+        }}
+        onConfirm={handleConfirmDelete}
+      />
 
       <ExpenseCreditCard
         expenses={creditExpenses}

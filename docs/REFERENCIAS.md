@@ -15,7 +15,7 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ] Ordem: front primeiro (dados locais), API depois, troca da fonte de dados por último
 - [ ] Visual: protótipo B "Aurora" (escuro, violeta e ciano, abas no topo, painel em blocos)
 - [ ] Confirmar o nome do produto (Aurora ou outro) antes da Fase 2
-- [ ] Uma única ação "Lançar" (modal com abas Despesa, Renda e Crédito); as listas não têm botões de adicionar
+- [ ok ] Uma única ação "Lançar" (modal com abas Despesa, Renda e Crédito); as listas não têm botões de adicionar
 
 ## Fase 0: Monorepo sem mudar comportamento
 
@@ -63,12 +63,15 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Rotas `/painel`, `/lancamentos`, `/projecao`, `/comparacao`, `/metas` e `/relatorios`
 - [ ok ] Seletor de mês global no cabeçalho
   - Avançar para meses futuros continua bloqueado (só até o mês atual); decidir se libera junto da Projeção.
-- [ ] Painel somente leitura (saldo, tendência, categorias, sugestão, metas, 5 últimas despesas)
-- [ ] Tela Lançamentos com rendas, despesas e parcelas
-- [ ] `TransactionForm` único em modal (substitui `AddExpenses` e `AddIncome`)
-- [ ] Componentes `StatCard`, `ConfirmDeletion` e `CategorySelect`
+- [ ok ] Painel somente leitura (saldo, tendência, categorias, sugestão, metas, 5 últimas despesas)
+  - O bloco de metas é um atalho para `/metas`; o acompanhamento real vem na Fase 4.
+- [ ok ] Tela Lançamentos com rendas, despesas e parcelas
+- [ ok ] `TransactionForm` único em modal (substitui `AddExpenses` e `AddIncome`)
+- [ ok ] Componentes `StatCard`, `ConfirmDeletion` e `CategorySelect`
 - [ ] Gráficos em Recharts usando os tokens
+  - Parcial: os gráficos do Painel usam os tokens. Os de Despesas, Projeção e Comparação ainda usam as cores de `categoryColors` (hex).
 - [ ] Sem rolagem horizontal em 400px
+  - Parcial: larguras fixas grandes removidas, mas falta conferir no navegador.
 
 ## Fase 4: Telas que hoje são mock
 

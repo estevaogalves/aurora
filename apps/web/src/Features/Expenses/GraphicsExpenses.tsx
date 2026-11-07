@@ -100,7 +100,7 @@ export default function GraphicsExpenses() {
                   <>
                     <ChartContainer
                       config={chartConfig}
-                      className="mx-auto aspect-square w-[350px]"
+                      className="mx-auto aspect-square w-full max-w-[350px]"
                     >
                       <PieChart>
                         <ChartTooltip
