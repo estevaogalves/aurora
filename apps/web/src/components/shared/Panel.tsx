@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import ScreenTour from "@/components/tour/ScreenTour";
+import type { TourStep } from "@/components/tour/types";
 
 interface PanelProps {
   title: string;
@@ -27,11 +29,14 @@ export default function Panel({ title, subtitle, action, children, className, to
   );
 }
 
-export function PageHeader({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) {
+export function PageHeader({ title, subtitle, action, tour }: { title: string; subtitle: string; action?: ReactNode; tour?: TourStep[] }) {
   return (
     <div className="mb-[22px] flex flex-wrap items-end justify-between gap-4">
       <div>
-        <h1 className="font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.025em] [text-wrap:balance]">{title}</h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="font-display text-[30px] font-semibold leading-[1.1] tracking-[-0.025em] [text-wrap:balance]">{title}</h1>
+          {tour && <ScreenTour steps={tour} />}
+        </div>
         <p className="mt-1.5 text-muted-foreground">{subtitle}</p>
       </div>
       {action}

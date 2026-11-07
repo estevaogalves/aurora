@@ -3,13 +3,15 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 
 interface Props {
   open: boolean;
+  title: string;
+  description: string;
   onStart: () => void;
   /** "Agora não", Esc ou fechar */
   onDecline: () => void;
 }
 
-/** Convite exibido na primeira visita de cada tela. */
-export default function TourInvite({ open, onStart, onDecline }: Props) {
+/** Convite exibido no primeiro acesso. */
+export default function TourInvite({ open, title, description, onStart, onDecline }: Props) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onDecline()}>
       <DialogContent className="max-w-[440px] gap-0 overflow-hidden p-0">
@@ -27,9 +29,9 @@ export default function TourInvite({ open, onStart, onDecline }: Props) {
           </svg>
         </div>
         <div className="p-6">
-          <DialogTitle className="font-display text-[21px] font-semibold tracking-[-0.02em]">Conheça esta tela!</DialogTitle>
+          <DialogTitle className="font-display text-[21px] font-semibold tracking-[-0.02em]">{title}</DialogTitle>
           <DialogDescription className="mt-2 text-[14px]">
-            Gostaria de fazer um tour rápido de aproximadamente 1 minuto para conhecer os principais recursos desta página?
+            {description}
           </DialogDescription>
           <div className="mt-5 flex flex-wrap gap-2.5">
             <button type="button" onClick={onStart} className={`${btnClass.primary} !px-4 !py-2.5 !text-[14px]`}>Começar tour</button>

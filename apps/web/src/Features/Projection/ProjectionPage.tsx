@@ -11,7 +11,6 @@ import { useFinanceStore, type ExtraExpense } from "@/Store/FinanceStore";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, monthsDifference } from "@/Utils/Date";
 import EditExtraDialog from "./EditExtraDialog";
-import ScreenTour from "@/components/tour/ScreenTour";
 import { PROJECAO_TOUR } from "./tour";
 
 const MONTHS_AHEAD = 6;
@@ -55,8 +54,8 @@ export default function ProjectionPage() {
 
   return (
     <>
-      <ScreenTour screen="projecao" steps={PROJECAO_TOUR} />
       <PageHeader
+        tour={PROJECAO_TOUR}
         title="Projeção futura"
         subtitle={`Os próximos ${MONTHS_AHEAD} meses com o que já está previsto.`}
       />

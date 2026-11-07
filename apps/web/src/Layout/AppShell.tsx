@@ -11,6 +11,7 @@ import ThemeToggle from "../theme/ThemeToggle";
 import GoalBell from "./GoalBell";
 import ImportBanner from "./ImportBanner";
 import MonthSelector from "./MonthSelector";
+import AppTour from "../components/tour/AppTour";
 import { NAV_ITEMS } from "./navigation";
 import UserMenu from "./UserMenu";
 
@@ -38,29 +39,11 @@ export default function AppShell() {
             {APP_NAME}
           </NavLink>
 
-          <nav
-            aria-label="Principal"
-            className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-card p-1 [scrollbar-width:none] min-[701px]:max-[1259px]:order-3 min-[701px]:max-[1259px]:w-full"
-          >
-            {NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-semibold ${
-                    isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
-                  }`
-                }
-              >
-                <Icon name={item.icon} size={16} />
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
+          <TopTabs />
 
-          <div className="ml-auto flex items-center gap-2 min-[701px]:max-[1259px]:order-2 max-[700px]:ml-0 max-[700px]:w-full max-[700px]:flex-wrap max-[700px]:justify-between">
-            <MonthSelector />
-            <div className="flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 min-[701px]:max-[1259px]:order-2 max-[700px]:contents">
+            <div className="max-[700px]:order-3 max-[700px]:w-full"><MonthSelector /></div>
+            <div className="flex items-center gap-2 max-[700px]:ml-auto">
               <GoalBell />
               <ThemeToggle />
               <UserMenu />
@@ -72,14 +55,71 @@ export default function AppShell() {
           </div>
         </div>
       </header>
+      <BottomTabs />
 
+      <AppTour />
       <ImportBanner />
       <ToastContainer />
       <TransactionForm />
 
-      <main className={`${CONTAINER} pb-[70px] pt-[26px] max-[700px]:pt-3.5`}>
+      <main className={`${CONTAINER} pb-[70px] pt-[26px] max-[700px]:pb-[104px] max-[700px]:pt-3.5`}>
         <Outlet />
       </main>
     </div>
+  );
+}
+
+/** Abas em pílulas no topo (telas a partir de 701 px). */
+function TopTabs() {
+  return (
+    <nav
+      aria-label="Principal"
+      data-tour="abas"
+      className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-card p-1 [scrollbar-width:none] max-[700px]:hidden min-[701px]:max-[1259px]:order-3 min-[701px]:max-[1259px]:w-full"
+    >
+      {NAV_ITEMS.map((item) => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          className={({ isActive }) =>
+            `flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-semibold ${
+              isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+            }`
+          }
+        >
+          <Icon name={item.icon} size={16} />
+          {item.label}
+        </NavLink>
+      ))}
+    </nav>
+  );
+}
+
+/**
+ * Abas fixas no rodapé (celular). Fica fora do <header> de propósito: o header ganha
+ * `backdrop-filter` ao rolar, e isso faria o rodapé "seguir" o header em vez da tela.
+ */
+function BottomTabs() {
+  return (
+    <nav
+      aria-label="Principal"
+      data-tour="abas"
+      className="fixed inset-x-0 bottom-0 z-30 flex justify-around border-t border-border bg-card/95 px-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] pt-1 backdrop-blur-[14px] min-[701px]:hidden"
+    >
+      {NAV_ITEMS.map((item) => (
+        <NavLink
+          key={item.path}
+          to={item.path}
+          className={({ isActive }) =>
+            `flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-[10px] font-semibold tracking-[-0.01em] ${
+              isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground"
+            }`
+          }
+        >
+          <Icon name={item.icon} size={18} />
+          {item.label}
+        </NavLink>
+      ))}
+    </nav>
   );
 }

@@ -1,11 +1,16 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { btnClass } from "@/components/shared/styles";
 import { cn } from "@/lib/utils";
 import { computePlacement, type Box, type Placement } from "./placement";
-import { findTarget, isUsable, type TourStep } from "./types";
+import { findTarget, isUsable, stepKey, type TourStep } from "./types";
 
 const PAD = 8;
+/** Acima disso, o progresso vira uma barra (os pontos não cabem no cartão). */
+const MAX_DOTS = 12;
+/** Quanto esperar (ms) o elemento de outra aba aparecer antes de pular a etapa. */
+const ROUTE_WAIT_MS = 2000;
 
 interface Props {
   steps: TourStep[];
@@ -16,8 +21,11 @@ interface Props {
 /**
  * Tour com spotlight: escurece a tela, destaca um elemento por vez com um halo
  * e mostra um cartão ao lado. Bloqueia cliques e rolagem da página enquanto está aberto.
+ * Etapas com `route` levam o usuário até a aba antes de destacar o elemento; as que não aparecem são puladas.
  */
 export default function SpotlightTour({ steps, onEnd }: Props) {
+  const navigate = useNavigate();
+  const [list, setList] = useState(steps);
   const [index, setIndex] = useState(0);
   const [rect, setRect] = useState<Box | null>(null);
   const [place, setPlace] = useState<Placement | null>(null);
@@ -25,55 +33,93 @@ export default function SpotlightTour({ steps, onEnd }: Props) {
   const blockRef = useRef<HTMLDivElement>(null);
   const nextRef = useRef<HTMLButtonElement>(null);
   const restoreFocus = useRef<Element | null>(document.activeElement);
+  const direction = useRef(1);
+  const scrolledFor = useRef("");
+  const waiting = useRef<{ key: string; since: number } | null>(null);
 
-  const step = steps[index];
-  const last = index === steps.length - 1;
-  const total = steps.length;
+  const step = list[index];
+  const key = stepKey(step);
+  const last = index === list.length - 1;
+  const total = list.length;
 
-  const next = useCallback(() => (last ? onEnd("done") : setIndex((i) => i + 1)), [last, onEnd]);
-  const prev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
+  const next = useCallback(() => {
+    direction.current = 1;
+    if (last) onEnd("done");
+    else setIndex((i) => i + 1);
+  }, [last, onEnd]);
+  const prev = useCallback(() => {
+    direction.current = -1;
+    setIndex((i) => Math.max(0, i - 1));
+  }, []);
 
-  /** Mede o elemento da etapa. Se ele sumiu, pula para a próxima etapa que existir. */
+  // etapa de outra aba: leva o usuário até ela
+  useEffect(() => {
+    if (step.route && window.location.pathname !== step.route) navigate(step.route);
+  }, [step.route, key, navigate]);
+
+  /** Tira da lista a etapa cujo elemento não existe e segue na direção em que o usuário vinha. */
+  const drop = useCallback(() => {
+    if (list.length <= 1 || (direction.current > 0 && index >= list.length - 1)) return onEnd("done");
+    setList((l) => l.filter((_, i) => i !== index));
+    if (direction.current < 0) setIndex((i) => Math.max(0, i - 1));
+  }, [list.length, index, onEnd]);
+
+  /** Mede o elemento da etapa. Devolve true se vale tentar de novo (a aba ainda está carregando). */
   const measure = useCallback(() => {
     const el = findTarget(step.target);
     if (!isUsable(el)) {
-      if (index < steps.length - 1) setIndex(index + 1);
-      else onEnd("done");
-      return;
+      if (step.route) {
+        const w = waiting.current?.key === key ? waiting.current : (waiting.current = { key, since: Date.now() });
+        if (Date.now() - w.since < ROUTE_WAIT_MS) return true;
+      }
+      drop();
+      return false;
     }
-    const r = el.getBoundingClientRect();
-    setRect({ left: r.left - PAD, top: r.top - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 });
-  }, [step.target, index, steps.length, onEnd]);
-
-  // ao trocar de etapa: traz o elemento para a tela
-  useLayoutEffect(() => {
-    const el = findTarget(step.target);
-    if (isUsable(el)) {
+    waiting.current = null;
+    // ao trocar de etapa: traz o elemento para a tela
+    if (scrolledFor.current !== key) {
+      scrolledFor.current = key;
       const tall = el.getBoundingClientRect().height > window.innerHeight * 0.6;
       el.scrollIntoView({ block: tall ? "start" : "center", inline: "nearest" });
     }
-  }, [step.target]);
+    const r = el.getBoundingClientRect();
+    setRect({ left: r.left - PAD, top: r.top - PAD, width: r.width + PAD * 2, height: r.height + PAD * 2 });
+    return false;
+  }, [step.target, step.route, key, drop]);
 
   // mede o elemento (uma vez por quadro) ao trocar de etapa e acompanha rolagem e redimensionamento
   useEffect(() => {
     let raf = 0;
-    const schedule = () => {
+    let retry = 0;
+    let observed: HTMLElement | null = null;
+    const observer = new ResizeObserver(() => schedule());
+    function run() {
+      const again = measure();
+      const el = findTarget(step.target);
+      if (isUsable(el) && el !== observed) {
+        observer.disconnect();
+        observer.observe(el);
+        observed = el;
+      }
+      if (again) retry = window.setTimeout(schedule, 100);
+    }
+    function schedule() {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(measure);
-    };
+      clearTimeout(retry);
+      raf = requestAnimationFrame(run);
+    }
     schedule();
     window.addEventListener("resize", schedule);
     window.addEventListener("scroll", schedule, true);
-    const el = findTarget(step.target);
-    const observer = el ? new ResizeObserver(schedule) : null;
-    if (el) observer?.observe(el);
     return () => {
       cancelAnimationFrame(raf);
+      clearTimeout(retry);
       window.removeEventListener("resize", schedule);
       window.removeEventListener("scroll", schedule, true);
-      observer?.disconnect();
+      observer.disconnect();
     };
   }, [measure, step.target]);
+
 
   // posiciona o cartão depois de saber o tamanho dele e o do destaque
   useLayoutEffect(() => {
@@ -172,11 +218,17 @@ export default function SpotlightTour({ steps, onEnd }: Props) {
         </div>
 
         <div className="flex items-center justify-between gap-2 px-4 pb-3.5 pt-3">
-          <div className="flex gap-[5px]" aria-hidden="true">
-            {steps.map((s, i) => (
-              <i key={s.target} className={cn("h-[7px] rounded-full transition-all", i === index ? "w-5 bg-primary" : i < index ? "w-[7px] bg-primary/50" : "w-[7px] bg-border-strong")} />
-            ))}
-          </div>
+          {total > MAX_DOTS ? (
+            <div className="h-[7px] min-w-0 flex-1 overflow-hidden rounded-full bg-border-strong" aria-hidden="true">
+              <i className="block h-full rounded-full bg-primary transition-all" style={{ width: `${((index + 1) / total) * 100}%` }} />
+            </div>
+          ) : (
+            <div className="flex gap-[5px]" aria-hidden="true">
+              {list.map((s, i) => (
+                <i key={stepKey(s)} className={cn("h-[7px] rounded-full transition-all", i === index ? "w-5 bg-primary" : i < index ? "w-[7px] bg-primary/50" : "w-[7px] bg-border-strong")} />
+              ))}
+            </div>
+          )}
           <div className="flex gap-1.5">
             <button type="button" onClick={prev} disabled={index === 0} className={`${btnClass.base} ${btnClass.sm} disabled:pointer-events-none disabled:opacity-40`}>Voltar</button>
             <button ref={nextRef} type="button" onClick={next} className={`${btnClass.primary} ${btnClass.sm}`}>{last ? "Finalizar" : "Próximo"}</button>

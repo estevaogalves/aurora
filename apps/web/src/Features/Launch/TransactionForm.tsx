@@ -1,4 +1,7 @@
-import { useState } from "react";
+import MonthPicker from "@/components/shared/MonthPicker";
+import { useEffect, useState } from "react";
+import TourHelpButton from "@/components/tour/TourHelpButton";
+import { btnClass } from "@/components/shared/styles";
 import CategorySelect from "@/components/shared/CategorySelect";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
@@ -14,38 +17,135 @@ import { changeMonth, formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 
 const tabClass =
-  "whitespace-nowrap rounded-[10px] px-1.5 py-2 text-[12.5px] max-sm:last:col-span-2 font-semibold text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
+  "min-h-10 whitespace-nowrap rounded-[10px] px-0.5 py-2 text-[12px] font-semibold sm:px-1.5 sm:text-[12.5px] text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
+
+const LAUNCH_TABS: LaunchTab[] = ["expense", "income", "credit", "extra", "goal"];
+
+/** Mini tour do modal: o que cada aba representa. */
+const TAB_HELP: Record<LaunchTab, { title: string; text: string }> = {
+  expense: { title: "Despesa", text: "Um gasto do mês, como aluguel, mercado ou internet. Marque “Despesa fixa” para repetir todo mês; sem marcar, vale só neste mês." },
+  income: { title: "Renda", text: "Dinheiro que entra, como salário ou freelance. A renda fixa repete todo mês; a variável vale só no mês em que foi lançada." },
+  credit: { title: "Crédito parcelado", text: "Compra no cartão em várias vezes. Informe o valor total e o número de parcelas: o app divide e lança uma parcela por mês, a partir deste." },
+  extra: { title: "Despesa extra", text: "Gasto que não se repete todo mês e que você quer planejar, como IPVA ou uma viagem. Escolha o mês futuro; ela aparece na aba Projeção." },
+  goal: { title: "Meta", text: "Um objetivo para juntar dinheiro, como a reserva de emergência. Informe o valor, o aporte mensal e o prazo (opcionais) e acompanhe na aba Metas." },
+};
+
+/** Chave em que se grava a resposta ao mini tour do modal. */
+const LAUNCH_TOUR_KEY = "lancar";
 
 /**
  * Ação única de lançamento: despesa, renda, compra parcelada ou despesa extra.
  * O modal fica aberto depois de cada lançamento para cadastrar vários em sequência;
  * fecha com Esc, no X ou clicando fora.
+ * No primeiro uso oferece um mini tour das abas (o usuário aceita ou não); o botão ? inicia ou refaz.
  */
 export default function TransactionForm() {
   const open = useUiStore((s) => s.launchOpen);
   const tab = useUiStore((s) => s.launchTab);
   const openLaunch = useUiStore((s) => s.openLaunch);
   const closeLaunch = useUiStore((s) => s.closeLaunch);
+  const hydrated = useFinanceStore((s) => s.hydrated);
+  const answered = useFinanceStore((s) => s.onboarding[LAUNCH_TOUR_KEY]);
+  const setOnboarding = useFinanceStore((s) => s.setOnboarding);
+  const [help, setHelp] = useState<number | null>(null);
+
+  function startHelp() {
+    setHelp(0);
+    openLaunch(LAUNCH_TABS[0]);
+  }
+
+  function goTo(i: number) {
+    setHelp(i);
+    openLaunch(LAUNCH_TABS[i]);
+  }
+
+  function endHelp(state: "done" | "dismissed") {
+    setHelp(null);
+    setOnboarding(LAUNCH_TOUR_KEY, state);
+  }
+
+  // primeira vez que o modal abre: só oferece o mini tour, sem iniciar
+  const invite = open && hydrated && !answered && help === null;
+
+  // setas navegam o mini tour (fora dos campos de texto)
+  useEffect(() => {
+    if (help === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      const el = e.target as HTMLElement | null;
+      if (el?.matches("input, textarea, select, [contenteditable='true']")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const to = help + (e.key === "ArrowRight" ? 1 : -1);
+      if (to < 0) return;
+      if (to >= LAUNCH_TABS.length) endHelp("done");
+      else goTo(to);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [help]);
+
+  function onOpenChange(next: boolean) {
+    if (next) return openLaunch();
+    if (help !== null) endHelp("dismissed");
+    closeLaunch();
+  }
+
+  const current = help === null ? null : TAB_HELP[LAUNCH_TABS[help]];
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? openLaunch() : closeLaunch())}>
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[680px]">
         <DialogHeader>
-          <DialogTitle>Novo lançamento</DialogTitle>
+          <div className="flex items-center gap-2.5">
+            <DialogTitle>Novo lançamento</DialogTitle>
+            <TourHelpButton onClick={startHelp} label="Entender cada aba" />
+          </div>
           <DialogDescription>Um só formulário para renda, despesa, compra parcelada, despesa extra e meta. A janela continua aberta para você lançar em sequência.</DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => openLaunch(v as LaunchTab)}>
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-md bg-secondary p-1 sm:grid-cols-5">
+          <TabsList className={`grid h-auto w-full grid-cols-5 gap-1 rounded-md bg-secondary p-1 ${help !== null ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""}`}>
             <TabsTrigger value="expense" className={tabClass}>Despesa</TabsTrigger>
             <TabsTrigger value="income" className={tabClass}>Renda</TabsTrigger>
-            <TabsTrigger value="credit" className={tabClass}>Crédito parcelado</TabsTrigger>
-            <TabsTrigger value="extra" className={tabClass}>Despesa extra</TabsTrigger>
+            <TabsTrigger value="credit" className={tabClass}><span className="sm:hidden">Crédito</span><span className="max-sm:hidden">Crédito parcelado</span></TabsTrigger>
+            <TabsTrigger value="extra" className={tabClass}><span className="sm:hidden">Extra</span><span className="max-sm:hidden">Despesa extra</span></TabsTrigger>
             <TabsTrigger value="goal" className={tabClass}>Meta</TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {open && <LaunchFields key={tab} kind={tab} onClose={closeLaunch} />}
+        {invite && (
+          <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border bg-secondary p-3.5">
+            <p className="text-[13.5px] text-muted-foreground">Quer uma explicação rápida do que cada aba significa?</p>
+            <div className="flex gap-1.5">
+              <button type="button" onClick={() => setOnboarding(LAUNCH_TOUR_KEY, "dismissed")} className={`${btnClass.base} ${btnClass.sm}`}>Agora não</button>
+              <button type="button" onClick={startHelp} className={`${btnClass.primary} ${btnClass.sm}`}>Ver explicação</button>
+            </div>
+          </div>
+        )}
+
+        {help !== null && current && (
+          <div role="status" className="rounded-md border border-primary/40 bg-primary/10 p-3.5">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-display text-[15px] font-semibold">
+                <span className="num text-primary">{help + 1}/{LAUNCH_TABS.length}</span> · {current.title}
+              </p>
+              <button type="button" onClick={() => endHelp("dismissed")} className="text-[12.5px] font-semibold text-muted-foreground underline underline-offset-[3px] hover:text-foreground">Pular</button>
+            </div>
+            <p className="mt-1 text-[13.5px] text-muted-foreground">{current.text}</p>
+            <div className="mt-3 flex justify-end gap-1.5">
+              <button type="button" onClick={() => goTo(help - 1)} disabled={help === 0} className={`${btnClass.base} ${btnClass.sm} disabled:pointer-events-none disabled:opacity-40`}>Voltar</button>
+              {help < LAUNCH_TABS.length - 1 ? (
+                <button type="button" onClick={() => goTo(help + 1)} className={`${btnClass.primary} ${btnClass.sm}`}>Próximo</button>
+              ) : (
+                <button type="button" onClick={() => endHelp("done")} className={`${btnClass.primary} ${btnClass.sm}`}>Entendi</button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {open && <LaunchFields key={tab} kind={tab} onClose={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   );
@@ -183,14 +283,14 @@ function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void 
             </Field>
           </div>
           <Field label="Prazo" hint="(opcional)" htmlFor="launch-goal-deadline">
-            <input id="launch-goal-deadline" type="month" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
+            <MonthPicker id="launch-goal-deadline" value={deadline} onChange={setDeadline} clearable placeholder="Sem prazo" />
           </Field>
         </>
       )}
 
       {kind === "extra" && (
         <Field label="Mês da despesa" htmlFor="launch-extra-month" hint="(aparece na Projeção)">
-          <input id="launch-extra-month" type="month" value={extraMonth} min={changeMonth(currentMonth, 1)} onChange={(e) => setExtraMonth(e.target.value)} className={inputClass} />
+          <MonthPicker id="launch-extra-month" value={extraMonth} min={changeMonth(currentMonth, 1)} onChange={setExtraMonth} />
         </Field>
       )}
 

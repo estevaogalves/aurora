@@ -10,7 +10,6 @@ import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { formatMonthShort } from "@/Utils/Date";
 import { ContributeDialog, GoalDialog } from "./GoalDialogs";
 import { deadlineStatus, useGoalAlerts } from "./goalAlerts";
-import ScreenTour from "@/components/tour/ScreenTour";
 import { METAS_TOUR } from "./tour";
 
 function deadlineLabel(deadline: string) {
@@ -85,8 +84,7 @@ export default function GoalsPage() {
 
   return (
     <>
-      <ScreenTour screen="metas" steps={METAS_TOUR} />
-      <PageHeader title="Metas" subtitle="Cada objetivo com progresso e previsão de conclusão. Para criar uma meta, use o botão Lançar." />
+      <PageHeader tour={METAS_TOUR} title="Metas" subtitle="Cada objetivo com progresso e previsão de conclusão. Para criar uma meta, use o botão Lançar." />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
         <StatCard tour="ativas" label="Metas ativas" value={String(summary.active)} hint={summary.nearlyDone ? `${summary.nearlyDone} perto de concluir` : "Nenhuma perto de concluir"} />

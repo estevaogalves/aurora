@@ -9,7 +9,6 @@ import { useFinanceStore } from "@/Store/FinanceStore";
 import { EXPENSE_CATEGORIES, type Category } from "@/Types/Category";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { compareMonths, formatMonth, formatMonthShort, getCurrentMonth, getMonthName } from "@/Utils/Date";
-import ScreenTour from "@/components/tour/ScreenTour";
 import { COMPARACAO_TOUR } from "./tour";
 
 const MAX_SELECTED = 5;
@@ -67,8 +66,7 @@ export default function ComparisonPage() {
 
   return (
     <>
-      <ScreenTour screen="comparacao" steps={COMPARACAO_TOUR} />
-      <PageHeader title="Comparação" subtitle="Escolha os meses e veja a diferença." />
+      <PageHeader tour={COMPARACAO_TOUR} title="Comparação" subtitle="Escolha os meses e veja a diferença." />
 
       {available.length >= 2 && (
         <Panel tour="meses" title="Meses" subtitle={`Até ${MAX_SELECTED} ao mesmo tempo`}>
@@ -80,7 +78,7 @@ export default function ComparisonPage() {
                 aria-pressed={selected.includes(m)}
                 disabled={atLimit && !selected.includes(m)}
                 onClick={() => toggle(m)}
-                className="rounded-full disabled:cursor-not-allowed disabled:opacity-40 border border-border-strong bg-card px-3.5 py-[7px] text-[13px] font-semibold text-ink2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-[0_6px_18px_color-mix(in_srgb,hsl(var(--primary))_35%,transparent)]"
+                className="rounded-full max-sm:min-h-10 disabled:cursor-not-allowed disabled:opacity-40 border border-border-strong bg-card px-3.5 py-[7px] text-[13px] font-semibold text-ink2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-[0_6px_18px_color-mix(in_srgb,hsl(var(--primary))_35%,transparent)]"
               >
                 {chipLabel(m)}
               </button>

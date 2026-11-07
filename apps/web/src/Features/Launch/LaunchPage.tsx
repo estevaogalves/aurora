@@ -11,7 +11,6 @@ import { useCategoryColor } from "@/Utils/categoryColors";
 import { showToast } from "../Warnings/toast";
 import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
 import { ProgressMini, Row } from "./rows";
-import ScreenTour from "@/components/tour/ScreenTour";
 import { LANCAMENTOS_TOUR } from "./tour";
 
 function TransactionRow({ t, onEdit, onDelete }: { t: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void }) {
@@ -239,14 +238,14 @@ function NotesPanel() {
 export default function LaunchPage() {
   return (
     <>
-      <ScreenTour screen="lancamentos" steps={LANCAMENTOS_TOUR} />
-      <PageHeader title="Lançamentos" subtitle="Rendas, despesas e parcelas do mês. Para cadastrar, use o botão Lançar." />
+      <PageHeader tour={LANCAMENTOS_TOUR} title="Lançamentos" subtitle="Rendas, despesas e parcelas do mês. Para cadastrar, use o botão Lançar." />
       <div className="grid grid-cols-12 items-start gap-3.5">
-        <div className="col-span-12 flex min-w-0 flex-col gap-3.5 lg:col-span-4">
-          <IncomesPanel />
-          <NotesPanel />
+        {/* no celular o wrapper some (contents) e os cards seguem a ordem: rendas, despesas, anotações */}
+        <div className="col-span-12 flex min-w-0 flex-col gap-3.5 max-lg:contents lg:col-span-4">
+          <div className="min-w-0 max-lg:order-1 max-lg:col-span-12"><IncomesPanel /></div>
+          <div className="min-w-0 max-lg:order-3 max-lg:col-span-12"><NotesPanel /></div>
         </div>
-        <div className="col-span-12 lg:col-span-8"><ExpensesPanel /></div>
+        <div className="col-span-12 max-lg:order-2 lg:col-span-8"><ExpensesPanel /></div>
       </div>
     </>
   );

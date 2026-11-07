@@ -1,18 +1,18 @@
 import SpotlightTour from "./SpotlightTour";
-import TourInvite from "./TourInvite";
+import TourHelpButton from "./TourHelpButton";
 import type { TourStep } from "./types";
 import { useScreenTour } from "./useScreenTour";
 
 /**
- * Coloque uma vez em cada página: `<ScreenTour screen="painel" steps={PAINEL_TOUR} />`.
+ * Botão ? que refaz o tour só desta tela. Fica no cabeçalho da página (veja `PageHeader`).
  * `steps` precisa ser uma constante (fora do componente) para não reiniciar o controle a cada render.
  */
-export default function ScreenTour({ screen, steps }: { screen: string; steps: TourStep[] }) {
-  const { phase, active, start, decline, end } = useScreenTour(screen, steps);
+export default function ScreenTour({ steps }: { steps: TourStep[] }) {
+  const { active, start, end } = useScreenTour(steps);
   return (
     <>
-      <TourInvite open={phase === "invite"} onStart={start} onDecline={decline} />
-      {phase === "tour" && <SpotlightTour steps={active} onEnd={end} />}
+      <TourHelpButton onClick={start} label="Refazer o tour desta tela" />
+      {active && <SpotlightTour steps={active} onEnd={end} />}
     </>
   );
 }

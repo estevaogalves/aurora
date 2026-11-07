@@ -3,51 +3,66 @@ import Icon from "@/components/Icon";
 import Panel, { PageHeader } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { buildCsv, buildTxt, getPeriodTotals, lastMonths } from "@/domain";
+import { buildCsv, buildTxt, getPeriodTotals } from "@/domain";
 import { formatBRLShort } from "@/lib/money";
 import { downloadText } from "@/Services/download";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import { formatMonth } from "@/Utils/Date";
+import { changeMonth, formatMonth, formatMonthShort, getCurrentMonth, getMonthsBetween, monthsDifference } from "@/Utils/Date";
+import { Field } from "@/components/shared/FormFields";
+import MonthPicker from "@/components/shared/MonthPicker";
 import { showToast } from "../Warnings/toast";
-import ScreenTour from "@/components/tour/ScreenTour";
 import { RELATORIOS_TOUR } from "./tour";
 
-type Period = 1 | 3 | 6;
 type Format = "PDF" | "CSV" | "TXT";
-
-const PERIODS: { value: Period; label: string }[] = [
-  { value: 1, label: "Mês visto" },
-  { value: 3, label: "Últimos 3 meses" },
-  { value: 6, label: "Últimos 6 meses" },
-];
 
 const CONTENT = [
   { key: "summary", label: "Resumo de renda, despesas e saldo" },
   { key: "entries", label: "Lista de lançamentos" },
   { key: "credit", label: "Parcelas do crédito" },
-  { key: "distribution", label: "Sugestão de distribuição do saldo (só PDF de um mês)" },
+  { key: "distribution", label: "Sugestão de distribuição do saldo (só PDF de um único mês)" },
 ] as const;
 
-const chip = "rounded-full border border-border-strong bg-card px-3.5 py-[7px] text-[13px] font-semibold text-ink2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground";
+const MAX_MONTHS = 6;
 
 export default function ReportsPage() {
   const current = useFinanceStore((s) => s.currentMonth);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
 
-  const [period, setPeriod] = useState<Period>(1);
+  // null = acompanha o seletor do cabeçalho (os 6 meses que terminam nele)
+  const [custom, setCustom] = useState<{ start: string; end: string } | null>(null);
   const [format, setFormat] = useState<Format>("PDF");
   const [content, setContent] = useState({ summary: true, entries: true, credit: true, distribution: false });
 
   const data = useMemo(() => ({ transactions, creditTransactions }), [transactions, creditTransactions]);
-  const sixMonths = useMemo(() => lastMonths(current, 6), [current]);
-  const six = useMemo(() => getPeriodTotals(data, sixMonths), [data, sixMonths]);
-  const avg = (v: number) => formatBRLShort(Math.round(v / 6));
+  const maxMonth = getCurrentMonth();
+  const range = custom ?? { start: changeMonth(current, -(MAX_MONTHS - 1)), end: current };
+  const months = useMemo(() => getMonthsBetween(range.start, range.end), [range.start, range.end]);
+  const total = useMemo(() => getPeriodTotals(data, months), [data, months]);
+  const count = months.length;
+  const avg = (v: number) => formatBRLShort(Math.round(v / count));
+
+  /** Ao mudar o início, o fim acompanha para manter no máximo 6 meses (e não passar do mês atual). */
+  function setStart(start: string) {
+    if (!start || monthsDifference(start, maxMonth) > 0) return;
+    let end = range.end;
+    if (monthsDifference(end, start) < 0) end = start;
+    if (monthsDifference(end, start) > MAX_MONTHS - 1) end = changeMonth(start, MAX_MONTHS - 1);
+    if (monthsDifference(end, maxMonth) > 0) end = maxMonth;
+    setCustom({ start, end });
+  }
+
+  /** Ao mudar o fim, o início acompanha pelo mesmo motivo. */
+  function setEnd(end: string) {
+    if (!end || monthsDifference(end, maxMonth) > 0) return;
+    let start = range.start;
+    if (monthsDifference(end, start) < 0) start = end;
+    if (monthsDifference(end, start) > MAX_MONTHS - 1) start = changeMonth(end, -(MAX_MONTHS - 1));
+    setCustom({ start, end });
+  }
 
   async function doExport() {
-    const months = lastMonths(current, period);
-    const totals = getPeriodTotals(data, months);
-    if (totals.income === 0 && totals.expense === 0) {
+    if (total.income === 0 && total.expense === 0) {
       showToast({ type: "error", text: "Não há lançamentos no período escolhido" });
       return;
     }
@@ -72,21 +87,41 @@ export default function ReportsPage() {
 
   return (
     <>
-      <ScreenTour screen="relatorios" steps={RELATORIOS_TOUR} />
-      <PageHeader title="Relatórios" subtitle="Resumo do semestre e exportação em PDF, CSV ou TXT." />
+      <PageHeader tour={RELATORIOS_TOUR} title="Relatórios" subtitle="Resumo de até 6 meses, à sua escolha, e exportação em PDF, CSV ou TXT." />
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
-        <StatCard tour="renda" label="Renda em 6 meses" value={formatBRLShort(six.income)} hint={`média de ${avg(six.income)} por mês`} />
-        <StatCard tour="despesas" label="Despesas em 6 meses" value={formatBRLShort(six.expense)} hint={`média de ${avg(six.expense)} por mês`} />
-        <StatCard tour="economia" label="Economia acumulada" value={formatBRLShort(six.balance)} hint={six.income > 0 ? `${Math.round((six.balance / six.income) * 100)}% da renda` : "Sem renda no período"} highlight />
-        <StatCard tour="categoria" label="Maior categoria" value={six.topCategory ? six.topCategory.category.replace("/Parcelado", "") : "—"} hint={six.topCategory ? `${formatBRLShort(six.topCategory.value)} no período` : "Sem despesas no período"} />
+      <Panel tour="periodo" title="Período" subtitle={`${formatMonth(range.start)} a ${formatMonth(range.end)} · ${count} ${count === 1 ? "mês" : "meses"}`}>
+        <div className="flex flex-wrap items-end gap-3.5">
+          <div className="w-full sm:w-48">
+            <Field label="Início" htmlFor="report-start">
+              <MonthPicker id="report-start" value={range.start} max={maxMonth} onChange={setStart} />
+            </Field>
+          </div>
+          <div className="w-full sm:w-48">
+            <Field label="Fim" htmlFor="report-end">
+              <MonthPicker id="report-end" value={range.end} max={maxMonth} onChange={setEnd} />
+            </Field>
+          </div>
+          {custom && (
+            <button type="button" onClick={() => setCustom(null)} className={btnClass.base}>Usar o mês do seletor</button>
+          )}
+        </div>
+        <p className="mt-2.5 text-[12.5px] text-muted-foreground">
+          {custom ? "Período escolhido por você." : "Acompanha o mês do seletor do topo (ele é o último mês)."} O intervalo vai de 1 a {MAX_MONTHS} meses, e os cartões, a tabela e a exportação usam este período.
+        </p>
+      </Panel>
+
+      <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
+        <StatCard tour="renda" label="Renda no período" value={formatBRLShort(total.income)} hint={`média de ${avg(total.income)} por mês`} />
+        <StatCard tour="despesas" label="Despesas no período" value={formatBRLShort(total.expense)} hint={`média de ${avg(total.expense)} por mês`} />
+        <StatCard tour="economia" label="Economia acumulada" value={formatBRLShort(total.balance)} hint={total.income > 0 ? `${Math.round((total.balance / total.income) * 100)}% da renda` : "Sem renda no período"} highlight />
+        <StatCard tour="categoria" label="Maior categoria" value={total.topCategory ? total.topCategory.category.replace("/Parcelado", "") : "—"} hint={total.topCategory ? `${formatBRLShort(total.topCategory.value)} no período` : "Sem despesas no período"} />
       </div>
 
       <div className="mt-3.5 grid grid-cols-12 items-start gap-3.5">
         <div className="col-span-12 min-w-0 lg:col-span-7">
           <Panel tour="resumo" title="Resumo mês a mês" subtitle="Base do relatório">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[420px] border-collapse text-[13.5px]">
+              <table className="w-full min-w-[300px] border-collapse text-[13.5px]">
                 <thead>
                   <tr className="text-left text-xs uppercase tracking-[0.06em] text-muted-foreground">
                     <th className="py-1.5 font-semibold">Mês</th>
@@ -96,9 +131,9 @@ export default function ReportsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {six.months.map((m) => (
+                  {total.months.map((m) => (
                     <tr key={m.month} className="border-t border-border">
-                      <td className="py-2.5 font-semibold">{formatMonth(m.month)}</td>
+                      <td className="py-2.5 font-semibold"><span className="sm:hidden">{formatMonthShort(m.month)}</span><span className="max-sm:hidden">{formatMonth(m.month)}</span></td>
                       <td className="num text-right">{formatBRLShort(m.totalIncome)}</td>
                       <td className="num text-right">{formatBRLShort(m.totalExpense)}</td>
                       <td className={`num text-right font-bold ${m.balance < 0 ? "text-destructive" : "text-success"}`}>{formatBRLShort(m.balance)}</td>
@@ -111,15 +146,8 @@ export default function ReportsPage() {
         </div>
 
         <div className="col-span-12 lg:col-span-5">
-          <Panel tour="exportar" title="Exportar relatório" subtitle="Escolha o período e o formato">
-            <p className="mb-2 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Período</p>
-            <div className="flex flex-wrap gap-2">
-              {PERIODS.map((p) => (
-                <button key={p.value} type="button" aria-pressed={period === p.value} onClick={() => setPeriod(p.value)} className={chip}>{p.label}</button>
-              ))}
-            </div>
-
-            <p className="mb-2 mt-[18px] text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Formato</p>
+          <Panel tour="exportar" title="Exportar relatório" subtitle={`${formatMonth(range.start)} a ${formatMonth(range.end)}`}>
+            <p className="mb-2 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Formato</p>
             <div className="flex flex-wrap gap-2">
               {(["PDF", "CSV", "TXT"] as Format[]).map((f) => (
                 <button

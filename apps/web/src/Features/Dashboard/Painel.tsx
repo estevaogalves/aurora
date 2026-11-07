@@ -8,13 +8,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { distributeBalance, getMonthSummary, goalPercent } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
+import { useUiStore } from "@/Store/UiStore";
 import { useCategoryTotals, useDistributionItems, useMonthCredit, useMonthSummary, useMonthTransactions } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
 import { deadlineStatus, paceHint, useGoalAlerts } from "../Goals/goalAlerts";
 import { DistributionDialog } from "./DistributionDialog";
-import ScreenTour from "@/components/tour/ScreenTour";
 import { PAINEL_TOUR } from "./tour";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
@@ -109,7 +109,7 @@ function Suggestion() {
   const menu = (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <button type="button" aria-label="Opções da sugestão" className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary">
+        <button type="button" aria-label="Opções da sugestão" className="grid h-10 w-10 place-items-center sm:h-8 sm:w-8 rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary">
           <Icon name="dots" size={18} />
         </button>
       </DropdownMenuTrigger>
@@ -159,6 +159,7 @@ function Suggestion() {
 
 function GoalsMini() {
   const goals = useFinanceStore((s) => s.goals);
+  const openLaunch = useUiStore((s) => s.openLaunch);
 
   return (
     <Panel tour="metas" title="Metas" subtitle="Progresso geral">
@@ -180,7 +181,11 @@ function GoalsMini() {
           );
         })
       )}
-      <Link to="/metas" className="mt-1 inline-block text-[13px] font-bold text-primary">{goals.length === 0 ? "Criar uma meta" : "Ver todas as metas"} →</Link>
+      {goals.length === 0 ? (
+        <button type="button" onClick={() => openLaunch("goal")} className="mt-1 inline-flex min-h-10 items-center text-[13px] font-bold text-primary">Criar uma meta →</button>
+      ) : (
+        <Link to="/metas" className="mt-1 inline-flex min-h-10 items-center text-[13px] font-bold text-primary">Ver todas as metas →</Link>
+      )}
     </Panel>
   );
 }
@@ -204,7 +209,7 @@ function RecentExpenses() {
   return (
     <Panel tour="despesas" title="Despesas do mês" subtitle={`${lines.length} ${lines.length === 1 ? "lançamento" : "lançamentos"} · 5 mais recentes`}>
       {lines.length === 0 ? <Empty>Nenhuma despesa neste mês.</Empty> : lines.slice(0, 5).map((l) => <ExpenseStaticRow key={l.id} line={l} />)}
-      <Link to="/lancamentos" className="mt-3 inline-block text-[13px] font-bold text-primary">Ver todos os lançamentos →</Link>
+      <Link to="/lancamentos" className="mt-1 inline-flex min-h-10 items-center text-[13px] font-bold text-primary">Ver todos os lançamentos →</Link>
     </Panel>
   );
 }
@@ -269,8 +274,7 @@ export default function Painel() {
 
   return (
     <>
-      <ScreenTour screen="painel" steps={PAINEL_TOUR} />
-      <PageHeader title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui só leitura; cadastre pelo botão “Lançar”.`} />
+      <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui só leitura; cadastre pelo botão “Lançar”.`} />
       <GoalDeadlines />
       <div className="grid grid-cols-12 items-start gap-3.5">
         <div className="col-span-12 lg:col-span-4"><Hero /></div>
