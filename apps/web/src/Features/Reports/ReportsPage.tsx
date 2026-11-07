@@ -6,7 +6,6 @@ import StatCard from "@/components/shared/StatCard";
 import { buildCsv, buildTxt, getPeriodTotals, lastMonths } from "@/domain";
 import { formatBRLShort } from "@/lib/money";
 import { downloadText } from "@/Services/download";
-import { exportPDF } from "@/Services/exportPDF";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { formatMonth } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
@@ -43,7 +42,7 @@ export default function ReportsPage() {
   const six = useMemo(() => getPeriodTotals(data, sixMonths), [data, sixMonths]);
   const avg = (v: number) => formatBRLShort(Math.round(v / 6));
 
-  function doExport() {
+  async function doExport() {
     const months = lastMonths(current, period);
     const totals = getPeriodTotals(data, months);
     if (totals.income === 0 && totals.expense === 0) {
@@ -58,7 +57,11 @@ export default function ReportsPage() {
     const options = { summary: content.summary, entries: content.entries, credit: content.credit };
     const name = `relatorio-${months[0]}${months.length > 1 ? `_a_${months[months.length - 1]}` : ""}`;
 
-    if (format === "PDF") exportPDF(months, { ...options, distribution: content.distribution });
+    // o gerador de PDF é pesado: só é carregado quando alguém pede um PDF
+    if (format === "PDF") {
+      const { exportPDF } = await import("@/Services/exportPDF");
+      exportPDF(months, { ...options, distribution: content.distribution });
+    }
     else if (format === "CSV") downloadText(`${name}.csv`, buildCsv(data, months, options), "text/csv", true);
     else downloadText(`${name}.txt`, buildTxt(data, months, options), "text/plain");
 

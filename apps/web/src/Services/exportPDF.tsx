@@ -67,6 +67,10 @@ export function exportPDF(months: string[], options: PdfOptions) {
       headStyles: { fillColor: VIOLET, textColor: [255, 255, 255] },
       alternateRowStyles: { fillColor: SOFT },
       columnStyles: Object.fromEntries(right.map((i) => [i, { halign: "right" as const }])),
+      // o cabeçalho acompanha o alinhamento da coluna
+      didParseCell: (cell) => {
+        if (cell.section === "head" && right.includes(cell.column.index)) cell.cell.styles.halign = "right";
+      },
     });
     y = (doc as unknown as LastTable).lastAutoTable.finalY + 10;
   };
