@@ -23,13 +23,16 @@ import type { Category } from "@/Types/Category";
 import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/ToastContainer";
 
+const tabClass =
+  "rounded-[10px] py-2 text-[13px] font-semibold text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
+
 const inputClass =
-  "h-10 w-full rounded-lg border border-input bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-70";
+  "w-full rounded-md border border-border-strong bg-secondary px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-70";
 
 function Field({ label, htmlFor, hint, children }: { label: string; htmlFor?: string; hint?: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={htmlFor} className="text-sm font-medium text-foreground">
+      <label htmlFor={htmlFor} className="text-[12.5px] font-bold text-ink2">
         {label}
         {hint && <span className="ml-1 font-normal text-muted-foreground">{hint}</span>}
       </label>
@@ -67,15 +70,15 @@ export default function TransactionForm() {
     <Dialog open={open} onOpenChange={(next) => (next ? openLaunch() : closeLaunch())}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Lançar</DialogTitle>
-          <DialogDescription>Registre um lançamento no mês visto.</DialogDescription>
+          <DialogTitle>Novo lançamento</DialogTitle>
+          <DialogDescription>Um só formulário para renda, despesa e compra parcelada.</DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => openLaunch(v as LaunchTab)}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="expense">Despesa</TabsTrigger>
-            <TabsTrigger value="income">Renda</TabsTrigger>
-            <TabsTrigger value="credit">Crédito</TabsTrigger>
+          <TabsList className="grid h-auto w-full grid-cols-3 gap-1 rounded-md bg-secondary p-1">
+            <TabsTrigger value="expense" className={tabClass}>Despesa</TabsTrigger>
+            <TabsTrigger value="income" className={tabClass}>Renda</TabsTrigger>
+            <TabsTrigger value="credit" className={tabClass}>Crédito parcelado</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -214,13 +217,13 @@ function LaunchFields({ kind, onDone }: { kind: LaunchTab; onDone: () => void })
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Anotações sobre esta despesa..."
-            className="min-h-[80px] bg-background"
+            className="min-h-[64px] rounded-md border-border-strong bg-secondary"
           />
         </Field>
       )}
 
       {kind !== "credit" && (
-        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-secondary/50 p-3">
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
           <Checkbox checked={fixed} onCheckedChange={(c) => setFixed(Boolean(c))} className="mt-0.5" />
           <span>
             <span className="block text-sm font-medium text-foreground">
@@ -237,7 +240,7 @@ function LaunchFields({ kind, onDone }: { kind: LaunchTab; onDone: () => void })
         <Button type="button" variant="secondary" onClick={onDone}>
           Cancelar
         </Button>
-        <Button type="submit">Lançar</Button>
+        <Button type="submit">Adicionar</Button>
       </div>
     </form>
   );

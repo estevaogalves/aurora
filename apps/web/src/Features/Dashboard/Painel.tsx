@@ -1,42 +1,46 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import { FaArrowTrendDown, FaArrowTrendUp } from "react-icons/fa6";
-import { LuTarget, LuWallet } from "react-icons/lu";
-import StatCard from "@/components/shared/StatCard";
-import { getMonthSummary } from "@/domain";
-import { formatBRL, formatBRLShort, toReais } from "@/lib/money";
+import ChartDonut from "@/components/charts/ChartDonut";
+import ChartLine from "@/components/charts/ChartLine";
+import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
+import { DISTRIBUTION, getDistribution, getMonthSummary } from "@/domain";
+import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import {
-  useCategoryTotals,
-  useMonthCredit,
-  useMonthSummary,
-  useMonthTransactions,
-} from "@/Store/selectors";
+import { useCategoryTotals, useMonthCredit, useMonthSummary, useMonthTransactions } from "@/Store/selectors";
 import { categoryColors } from "@/Utils/categoryColors";
-import { changeMonth, formatMonthShort, formatMonthTitle } from "@/Utils/Date";
-import MoneyCard from "../Observations/MoneyCard";
+import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
+import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
 
-function Block({ title, subtitle, children, className = "" }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
+const DIST_COLORS = ["--k1", "--k2", "--k3", "--k4", "--k5"];
+
+function Hero() {
+  const month = useFinanceStore((s) => s.currentMonth);
+  const { totalIncome, totalExpense, balance, expensePercentage } = useMonthSummary();
+  const pct = Math.round(expensePercentage);
+
   return (
-    <section className={`rounded-2xl border border-border bg-card p-5 ${className}`}>
-      <h2 className="font-display text-lg font-semibold text-foreground">{title}</h2>
-      {subtitle && <p className="text-sm text-muted-foreground">{subtitle}</p>}
-      <div className="mt-4">{children}</div>
+    <section className="flex flex-col gap-1.5 rounded-lg border border-border-strong bg-[linear-gradient(155deg,color-mix(in_srgb,hsl(var(--primary))_38%,hsl(var(--card))),hsl(var(--card))_70%)] p-6 shadow-[var(--shadow-card)]">
+      <span className="text-xs font-bold uppercase tracking-[0.1em] text-ink2">Saldo de {getMonthName(month)}</span>
+      <span className={`num text-[40px] font-semibold leading-[1.1] tracking-[-0.03em] max-[700px]:text-[34px] ${balance < 0 ? "text-destructive" : ""}`}>
+        {formatBRL(balance)}
+      </span>
+      <span className="text-[13.5px] text-ink2">{pct}% da renda comprometida</span>
+      <div className="mt-3.5 h-2 overflow-hidden rounded-full bg-background/50">
+        <i className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+      <div className="mt-3.5 grid grid-cols-2 gap-2.5">
+        {[
+          ["Renda", totalIncome],
+          ["Despesas", totalExpense],
+        ].map(([label, value]) => (
+          <div key={label} className="rounded-md bg-background/40 px-3 py-2.5">
+            <small className="block text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">{label}</small>
+            <b className="num text-base">{formatBRLShort(value as number)}</b>
+          </div>
+        ))}
+      </div>
     </section>
   );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return <p className="py-6 text-center text-sm text-muted-foreground">{children}</p>;
 }
 
 function Trend() {
@@ -44,63 +48,86 @@ function Trend() {
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
 
-  // saldo dos últimos 6 meses terminando no mês visto
-  const data = useMemo(
-    () =>
-      Array.from({ length: 6 }, (_, i) => changeMonth(month, i - 5)).map((m) => {
-        const s = getMonthSummary({ transactions, creditTransactions }, m);
-        return { label: formatMonthShort(m), saldo: toReais(s.balance), cents: s.balance };
-      }),
-    [month, transactions, creditTransactions],
-  );
-
-  if (data.every((d) => d.cents === 0)) return <Empty>Sem movimentação nos últimos 6 meses.</Empty>;
+  const { labels, income, expense } = useMemo(() => {
+    const months = Array.from({ length: 6 }, (_, i) => changeMonth(month, i - 5));
+    const sums = months.map((m) => getMonthSummary({ transactions, creditTransactions }, m));
+    return {
+      labels: months.map((m) => { const t = formatMonthShort(m).split(" ")[0]; return t.charAt(0).toUpperCase() + t.slice(1); }),
+      income: sums.map((s) => s.totalIncome),
+      expense: sums.map((s) => s.totalExpense),
+    };
+  }, [month, transactions, creditTransactions]);
 
   return (
-    <div className="h-56 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="trend" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="hsl(var(--chart-1))" stopOpacity={0.45} />
-              <stop offset="100%" stopColor="hsl(var(--chart-1))" stopOpacity={0} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid vertical={false} stroke="hsl(var(--border))" />
-          <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} />
-          <YAxis width={56} tickLine={false} axisLine={false} tick={{ fill: "hsl(var(--muted-foreground))", fontSize: 12 }} tickFormatter={(v: number) => formatBRLShort(Math.round(v * 100))} />
-          <Tooltip
-            cursor={{ stroke: "hsl(var(--border))" }}
-            contentStyle={{ background: "hsl(var(--popover))", border: "1px solid hsl(var(--border))", borderRadius: 12, color: "hsl(var(--popover-foreground))" }}
-            formatter={(_v, _n, item) => [formatBRL(item.payload.cents), "Saldo"]}
-          />
-          <Area type="monotone" dataKey="saldo" stroke="hsl(var(--chart-1))" strokeWidth={2.5} fill="url(#trend)" />
-        </AreaChart>
-      </ResponsiveContainer>
-    </div>
+    <Panel title="Últimos 6 meses" subtitle="Renda e despesas">
+      <ChartLine
+        labels={labels}
+        series={[
+          { name: "Renda", color: "hsl(var(--inc))", values: income },
+          { name: "Despesas", color: "hsl(var(--exp))", values: expense },
+        ]}
+      />
+      <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px] text-ink2">
+        <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-inc" />Renda</span>
+        <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-exp" />Despesas</span>
+      </div>
+    </Panel>
   );
 }
 
 function Categories() {
+  const month = useFinanceStore((s) => s.currentMonth);
   const totals = useCategoryTotals();
-  const max = Math.max(...totals.map((t) => t.value), 1);
-
-  if (totals.length === 0) return <Empty>Nenhuma despesa neste mês.</Empty>;
 
   return (
-    <ul className="space-y-3">
-      {totals.slice(0, 6).map(({ category, value }) => (
-        <li key={category}>
-          <div className="mb-1 flex justify-between gap-2 text-sm">
-            <span className="truncate text-foreground">{category}</span>
-            <span className="shrink-0 font-medium text-foreground">{formatBRL(value)}</span>
-          </div>
-          <div className="h-2 overflow-hidden rounded-full bg-secondary">
-            <div className="h-full rounded-full" style={{ width: `${(value / max) * 100}%`, backgroundColor: categoryColors[category] }} />
-          </div>
-        </li>
+    <Panel title="Despesas por categoria" subtitle={getMonthName(month).replace(/^./, (c) => c.toUpperCase())}>
+      {totals.length === 0 ? (
+        <Empty>Nenhuma despesa neste mês.</Empty>
+      ) : (
+        <ChartDonut slices={totals.map((t) => ({ label: t.category.replace("/Parcelado", ""), value: t.value, color: categoryColors[t.category] }))} />
+      )}
+    </Panel>
+  );
+}
+
+function Suggestion() {
+  const { balance } = useMonthSummary();
+  const dist = useMemo(() => getDistribution(balance), [balance]);
+
+  if (balance <= 0) {
+    return (
+      <Panel title="Sugestão do saldo">
+        <div className="rounded-md bg-bad-bg px-3 py-2.5 text-[13px] font-semibold text-destructive">
+          {balance === 0 ? "Seu saldo está zerado. Não há o que distribuir." : "Seu saldo está negativo. Revise despesas variáveis antes de investir."}
+        </div>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Sugestão para o saldo" subtitle={`Como dividir ${formatBRLShort(balance)}`}>
+      <div className="mb-3.5 flex h-3.5 gap-0.5 overflow-hidden rounded-full">
+        {DISTRIBUTION.map((d, i) => (
+          <i key={d.key} className="block min-w-1" style={{ flex: d.percent, background: `hsl(var(${DIST_COLORS[i]}))` }} title={`${d.label}: ${formatBRL(dist[d.key])}`} />
+        ))}
+      </div>
+      {DISTRIBUTION.map((d, i) => (
+        <div key={d.key} className="flex items-center gap-2.5 border-t border-border py-2 text-[13.5px] first:border-t-0">
+          <i className="h-2.5 w-2.5 rounded-[3px]" style={{ background: `hsl(var(${DIST_COLORS[i]}))` }} />
+          {d.label} <small className="text-muted-foreground">{d.percent}%</small>
+          <b className="num ml-auto">{formatBRL(dist[d.key])}</b>
+        </div>
       ))}
-    </ul>
+    </Panel>
+  );
+}
+
+function GoalsMini() {
+  return (
+    <Panel title="Metas" subtitle="Progresso geral">
+      <Empty>Você ainda não criou metas.</Empty>
+      <Link to="/metas" className="mt-3 inline-block text-[13px] font-bold text-primary">Ir para Metas →</Link>
+    </Panel>
   );
 }
 
@@ -108,74 +135,65 @@ function RecentExpenses() {
   const expenses = useMonthTransactions().filter((t) => t.type === "expense");
   const credit = useMonthCredit();
 
-  // mais recentes primeiro (ordem de cadastro); parcelas do crédito entram no fim
-  const rows = [
-    ...[...expenses].reverse().map((e) => ({ id: e.id, name: e.name, category: e.category, amount: e.amount, extra: e.fixed ? "Fixa" : "" })),
-    ...credit.map((c) => ({ id: c.id, name: c.name, category: c.category, amount: c.installmentValue, extra: `${c.currentInstallment}/${c.installments}` })),
-  ].slice(0, 5);
-
-  if (rows.length === 0) return <Empty>Nenhuma despesa neste mês.</Empty>;
+  const lines: ExpenseLine[] = [
+    ...[...expenses].reverse().map((e) => ({ id: e.id, name: e.name, category: e.category, amount: e.amount, fixed: e.fixed })),
+    ...credit.map((c) => ({
+      id: c.id,
+      name: c.name,
+      category: c.category,
+      amount: c.installmentValue,
+      installment: `${c.currentInstallment}/${c.installments}`,
+      progress: { value: c.currentInstallment, max: c.installments },
+    })),
+  ];
 
   return (
-    <ul className="divide-y divide-border">
-      {rows.map((r) => (
-        <li key={r.id} className="flex items-center justify-between gap-3 py-2.5">
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: categoryColors[r.category] }} />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-foreground">{r.name}</p>
-              <p className="text-xs text-muted-foreground">{r.category}{r.extra && ` · ${r.extra}`}</p>
+    <Panel title="Despesas do mês" subtitle={`${lines.length} ${lines.length === 1 ? "lançamento" : "lançamentos"} · 5 mais recentes`}>
+      {lines.length === 0 ? <Empty>Nenhuma despesa neste mês.</Empty> : lines.slice(0, 5).map((l) => <ExpenseStaticRow key={l.id} line={l} />)}
+      <Link to="/lancamentos" className="mt-3 inline-block text-[13px] font-bold text-primary">Ver todos os lançamentos →</Link>
+    </Panel>
+  );
+}
+
+function NotesReadOnly() {
+  const month = useFinanceStore((s) => s.currentMonth);
+  const notes = useFinanceStore((s) => s.notes).filter((n) => n.month === month);
+  const sorted = [...notes].sort((a, b) => Number(b.pinned) - Number(a.pinned));
+
+  return (
+    <Panel title="Anotações" subtitle="Lembretes do mês">
+      {sorted.length === 0 ? (
+        <Empty>Nenhuma anotação neste mês.</Empty>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          {sorted.slice(0, 4).map((n) => (
+            <div key={n.id} className="flex flex-col gap-1 rounded-md border border-border bg-secondary px-3.5 py-3 text-[13.5px]">
+              {n.content}
+              <small className="text-xs text-muted-foreground">{n.pinned ? "Fixada · " : ""}{n.date}</small>
             </div>
-          </div>
-          <span className="shrink-0 text-sm font-semibold text-foreground">{formatBRL(r.amount)}</span>
-        </li>
-      ))}
-    </ul>
+          ))}
+        </div>
+      )}
+    </Panel>
   );
 }
 
 /** Painel somente leitura: tudo o que se edita fica em Lançamentos. */
 export default function Painel() {
   const month = useFinanceStore((s) => s.currentMonth);
-  const { totalIncome, totalExpense, balance, expensePercentage } = useMonthSummary();
 
   return (
-    <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-2xl font-bold text-foreground">Painel</h1>
-        <p className="text-muted-foreground">{formatMonthTitle(month)}</p>
-      </header>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Renda total" value={formatBRL(totalIncome)} hint="Soma de todas as fontes" icon={<LuWallet />} tone="primary" />
-        <StatCard label="Despesas" value={formatBRL(totalExpense)} hint={`${expensePercentage.toFixed(1).replace(".", ",")}% da renda`} icon={<FaArrowTrendDown />} tone="danger" />
-        <StatCard label="Saldo" value={formatBRL(balance)} hint={balance < 0 ? "Gastou mais do que ganhou" : "Disponível para uso"} icon={<FaArrowTrendUp />} tone={balance < 0 ? "danger" : "success"} />
+    <>
+      <PageHeader title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui só leitura; cadastre pelo botão “Lançar”.`} />
+      <div className="grid grid-cols-12 items-start gap-3.5">
+        <div className="col-span-12 lg:col-span-4"><Hero /></div>
+        <div className="col-span-12 lg:col-span-8"><Trend /></div>
+        <div className="col-span-12 lg:col-span-4"><Categories /></div>
+        <div className="col-span-12 lg:col-span-4"><Suggestion /></div>
+        <div className="col-span-12 lg:col-span-4"><GoalsMini /></div>
+        <div className="col-span-12 lg:col-span-8"><RecentExpenses /></div>
+        <div className="col-span-12 lg:col-span-4"><NotesReadOnly /></div>
       </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Block title="Tendência" subtitle="Saldo dos últimos 6 meses" className="lg:col-span-2">
-          <Trend />
-        </Block>
-        <Block title="Gastos por categoria">
-          <Categories />
-        </Block>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <MoneyCard />
-        </div>
-        <Block title="Últimas despesas" subtitle="5 mais recentes do mês" className="lg:col-span-1">
-          <RecentExpenses />
-        </Block>
-        <Block title="Metas" subtitle="Seus objetivos financeiros" className="lg:col-span-1">
-          <div className="flex flex-col items-start gap-3 py-2">
-            <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent/10 text-xl text-accent"><LuTarget /></span>
-            <p className="text-sm text-muted-foreground">O acompanhamento de metas no painel chega junto da tela de Metas.</p>
-            <Link to="/metas" className="text-sm font-medium text-primary hover:underline">Ir para Metas</Link>
-          </div>
-        </Block>
-      </div>
-    </div>
+    </>
   );
 }

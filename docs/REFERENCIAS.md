@@ -73,6 +73,19 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Sem rolagem horizontal em 400px
   - Conferido no navegador (Playwright) nas 6 rotas, em claro e escuro. Telas mock (Projeção, Comparação, Relatórios) foram só ajustadas; serão refeitas na Fase 4.
 
+## Fase 3.5: Fidelidade ao protótipo B (artefato claude.ai/artifact/6SxZzgW4u5jYVHB1Duzxnp)
+
+- [ ok ] Paleta exata (hex do protótipo) nos temas claro e escuro, em `src/index.css`
+- [ ok ] Fontes Sora (títulos e números) e Figtree (texto), raios 20px/12px e brilho radial de fundo
+- [ ok ] Cabeçalho: marca em gradiente, abas em pílula com ícones, tema e botão Lançar
+- [ ok ] Painel igual ao protótipo (saldo em destaque, 6 meses, rosca, sugestão, metas, despesas, anotações)
+- [ ok ] Lançamentos igual ao protótipo (rendas + anotações à esquerda, despesas à direita)
+- [ ok ] Modal "Novo lançamento" (Despesa, Renda, Crédito parcelado)
+- [ ok ] Gráficos de linha e rosca portados do protótipo, com tooltip
+- [ ] Projeção, Comparação, Metas e Relatórios no layout do protótipo (feitos junto da Fase 4, que dá a lógica)
+- [ ] Gráficos de barras agrupadas e radar do protótipo (Fase 4)
+  - Diferenças assumidas: o seletor de mês global fica no cabeçalho (o protótipo não tem); o título do Painel é "Painel", sem o nome do usuário; o bloco de metas do Painel mostra estado vazio até a Fase 4. Os botões "Nova renda" e "Nova despesa" nos cartões seguem o protótipo (a decisão anterior de listas sem botões foi substituída).
+
 ## Fase 4: Telas que hoje são mock
 
 - [ ] Metas: tipo `Goal`, criar, editar, excluir e aportar

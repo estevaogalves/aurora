@@ -12,8 +12,8 @@ export default {
   		},
   		borderRadius: {
   			lg: 'var(--radius)',
-  			md: 'calc(var(--radius) - 2px)',
-  			sm: 'calc(var(--radius) - 4px)'
+  			md: '0.75rem',
+  			sm: '0.5rem'
   		},
   		colors: {
   			background: 'hsl(var(--background))',
@@ -50,6 +50,13 @@ export default {
   				DEFAULT: 'hsl(var(--success))',
   				foreground: 'hsl(var(--success-foreground))'
   			},
+  			'border-strong': 'hsl(var(--border-strong))',
+  			ink2: 'hsl(var(--ink2))',
+  			'good-bg': 'hsl(var(--good-bg))',
+  			'bad-bg': 'hsl(var(--bad-bg))',
+  			pill: { DEFAULT: 'hsl(var(--pill-bg))', foreground: 'hsl(var(--pill-ink))' },
+  			inc: 'hsl(var(--inc))',
+  			exp: 'hsl(var(--exp))',
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
