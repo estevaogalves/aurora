@@ -23,10 +23,10 @@ export default function MonthSelector() {
   const canGoForward = compareMonths(currentMonth, realCurrentMonth) < 0;
 
   const arrow =
-    "grid h-9 w-9 place-items-center rounded-md border border-border-strong bg-card text-foreground transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-40";
+    "grid h-10 w-10 place-items-center sm:h-9 sm:w-9 rounded-md border border-border-strong bg-card text-foreground transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-40";
 
   return (
-    <div data-tour="mes" className="flex items-center gap-1.5">
+    <div data-tour="mes" className="flex items-center gap-1.5 max-[700px]:w-full max-[700px]:justify-between">
       <button type="button" aria-label="Mês anterior" className={arrow} disabled={!canGoBack} onClick={() => setCurrentMonth(changeMonth(currentMonth, -1))}>
         <Icon name="chevronL" size={16} />
       </button>

@@ -22,7 +22,7 @@ export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLab
         <button
           type="button"
           aria-label={`Ações de ${label}`}
-          className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground"
+          className="grid h-10 w-10 place-items-center sm:h-8 sm:w-8 rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary data-[state=open]:text-foreground"
         >
           <Icon name="dots" size={18} />
         </button>

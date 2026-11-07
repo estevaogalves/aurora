@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import Icon from "@/components/Icon";
 import { Pill } from "@/components/shared/Panel";
@@ -37,14 +38,15 @@ export default function GoalBell() {
   const count = unseen.length;
   const urgent = unseen.some((a) => a.level !== "soon");
   const none = count === 0 && seen.length === 0;
+  const [open, setOpen] = useState(false);
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           type="button"
           aria-label={count ? `Avisos de metas: ${count} novos` : "Avisos de metas: nenhum novo"}
-          className="relative grid h-9 w-9 place-items-center rounded-md border border-border-strong bg-card text-foreground transition-colors hover:bg-secondary data-[state=open]:bg-secondary"
+          className="relative grid h-10 w-10 place-items-center sm:h-9 sm:w-9 rounded-md border border-border-strong bg-card text-foreground transition-colors hover:bg-secondary data-[state=open]:bg-secondary"
         >
           <Icon name="bell" size={16} />
           {count > 0 && (
@@ -83,7 +85,7 @@ export default function GoalBell() {
             </div>
           )}
         </div>
-        <Link to="/metas" className="mt-3 inline-block text-[13px] font-bold text-primary">Ir para Metas →</Link>
+        <Link to="/metas" onClick={() => setOpen(false)} className="mt-3 inline-flex min-h-10 items-center text-[13px] font-bold text-primary">Ir para Metas →</Link>
       </PopoverContent>
     </Popover>
   );

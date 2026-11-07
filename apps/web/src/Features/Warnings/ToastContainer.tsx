@@ -20,7 +20,7 @@ export function ToastContainer() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed bottom-5 left-1/2 z-[70] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 flex-col items-center gap-2"
+      className="pointer-events-none fixed bottom-5 max-[700px]:bottom-24 left-1/2 z-[70] flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 flex-col items-center gap-2"
     >
       {toasts.map((toast) => (
         <div
