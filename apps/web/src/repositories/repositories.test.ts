@@ -67,8 +67,8 @@ describe("migrateLegacy", () => {
 
 describe("migrateStored", () => {
   it("aceita o envelope atual", () => {
-    const data = migrateStored({ version: 5, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] } });
-    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] });
+    const data = migrateStored({ version: 6, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] } });
+    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
   });
 
   it("recusa versão futura e lixo", () => {
@@ -87,6 +87,7 @@ describe("migrateStored", () => {
       customCategories: [],
       distribution: null,
       seenAlerts: [],
+      onboarding: {},
     });
   });
 
@@ -102,7 +103,7 @@ describe("migrateStored", () => {
 describe("LocalRepository", () => {
   it("começa vazio sem nenhum dado salvo", async () => {
     const repo = new LocalRepository(fakeStorage());
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
   });
 
   it("importa o formato antigo uma vez e mantém o backup intacto", async () => {
@@ -114,7 +115,7 @@ describe("LocalRepository", () => {
 
     expect(data.transactions[0].amount).toBe(500050);
     expect(storage.map.get(LEGACY_STORAGE_KEY)).toBe(original);
-    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(5);
+    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(6);
   });
 
   it("depois de migrar, ignora o formato antigo", async () => {
@@ -171,6 +172,7 @@ describe("LocalRepository", () => {
       customCategories: [],
       distribution: null,
       seenAlerts: [],
+      onboarding: {},
     });
   });
 
@@ -248,6 +250,11 @@ describe("LocalRepository", () => {
 
     expect(migrateStored({ version: 4, data: { distribution: null } })?.seenAlerts).toEqual([]);
     expect(migrateStored({ version: 5, data: { seenAlerts: ["a", 3, "b"] } })?.seenAlerts).toEqual(["a", "b"]);
+
+    // v5 -> v6: onboarding entra vazio; só respostas válidas são aceitas
+    expect(migrateStored({ version: 5, data: {} })?.onboarding).toEqual({});
+    expect(migrateStored({ version: 6, data: { onboarding: { painel: "done", metas: "dismissed", x: "talvez", y: 1 } } })?.onboarding).toEqual({ painel: "done", metas: "dismissed" });
+    expect(migrateStored({ version: 6, data: { onboarding: ["painel"] } })?.onboarding).toEqual({});
   });
 
   it("funciona sem storage disponível", async () => {
@@ -259,9 +266,23 @@ describe("LocalRepository", () => {
         throw new Error("bloqueado");
       },
     });
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
     await expect(
       repo.addNote({ id: "1", content: "a", date: "d", pinned: false, month: "2026-03" }),
     ).resolves.toBeUndefined();
   });
 });
+
+describe("onboarding", () => {
+  it("grava a resposta por tela e sobrevive a um novo carregamento", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.setOnboarding("painel", "done");
+    await repo.setOnboarding("metas", "dismissed");
+    await repo.setOnboarding("painel", "dismissed"); // mudar uma tela não apaga as outras
+
+    expect((await new LocalRepository(storage).load()).onboarding).toEqual({ painel: "dismissed", metas: "dismissed" });
+  });
+});
+

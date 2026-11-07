@@ -451,3 +451,27 @@ func (s *Server) putSeenAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// putOnboarding: PUT /settings/onboarding/{screen} com {"state":"done"|"dismissed"}.
+func (s *Server) putOnboarding(w http.ResponseWriter, r *http.Request) {
+	screen := chi.URLParam(r, "screen")
+	var in struct {
+		State string `json:"state"`
+	}
+	if !decode(w, r, &in, maxBody) {
+		return
+	}
+	if !screenRe.MatchString(screen) {
+		writeError(w, http.StatusBadRequest, "Tela inválida.")
+		return
+	}
+	if in.State != "done" && in.State != "dismissed" {
+		writeError(w, http.StatusBadRequest, "O estado deve ser done ou dismissed.")
+		return
+	}
+	if err := s.store.SetOnboarding(r.Context(), userID(r), screen, in.State); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

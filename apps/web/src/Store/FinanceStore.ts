@@ -15,6 +15,7 @@ import {
   type ExtraExpense,
   type Goal,
   type Note,
+  type OnboardingState,
   type Transaction,
 } from "../domain";
 import { repository } from "../repositories";
@@ -48,6 +49,9 @@ interface FinanceState {
   distribution: DistributionItem[] | null;
   /** chaves dos avisos de meta já vistos */
   seenAlerts: string[];
+  /** resposta ao tour de cada tela */
+  onboarding: Record<string, OnboardingState>;
+  setOnboarding: (screen: string, state: OnboardingState) => void;
 
   addTransaction: (transaction: Transaction) => void;
   removeTransaction: (id: string) => void;
@@ -132,6 +136,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         customCategories: [],
         distribution: null,
         seenAlerts: [],
+        onboarding: {},
       }),
 
     currentMonth: getCurrentMonth(),
@@ -145,6 +150,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     customCategories: [],
     distribution: null,
     seenAlerts: [],
+    onboarding: {},
+
+    setOnboarding: (screen, state) => {
+      set((s) => ({ onboarding: { ...s.onboarding, [screen]: state } }));
+      sync(repository.setOnboarding(screen, state));
+    },
 
     addTransaction: (transaction) => {
       set((state) => ({ transactions: [...state.transactions, transaction] }));

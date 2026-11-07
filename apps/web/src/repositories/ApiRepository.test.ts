@@ -31,6 +31,7 @@ describe("normalizeFinanceData (omitempty da API)", () => {
     expect(data.distribution).toBeNull();
     expect(data.seenAlerts).toEqual([]);
     expect(data.notes).toEqual([]);
+    expect(data.onboarding).toEqual({});
   });
 });
 
@@ -73,6 +74,13 @@ describe("ApiRepository", () => {
     release();
     await Promise.all([add, patch]);
     expect(calls.map((c) => c.method)).toEqual(["POST", "PATCH"]);
+  });
+
+  it("grava a resposta do tour de uma tela só com a chave dela", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 204 }));
+    await new ApiRepository().setOnboarding("painel", "done");
+    expect(calls[0]).toMatchObject({ url: "/api/v1/settings/onboarding/painel", method: "PUT", body: { state: "done" } });
   });
 
   it("uma gravação que falha não trava as seguintes", async () => {

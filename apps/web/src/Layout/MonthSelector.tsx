@@ -26,7 +26,7 @@ export default function MonthSelector() {
     "grid h-9 w-9 place-items-center rounded-md border border-border-strong bg-card text-foreground transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-40";
 
   return (
-    <div className="flex items-center gap-1.5">
+    <div data-tour="mes" className="flex items-center gap-1.5">
       <button type="button" aria-label="Mês anterior" className={arrow} disabled={!canGoBack} onClick={() => setCurrentMonth(changeMonth(currentMonth, -1))}>
         <Icon name="chevronL" size={16} />
       </button>

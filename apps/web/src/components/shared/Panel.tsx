@@ -7,12 +7,14 @@ interface PanelProps {
   action?: ReactNode;
   children: ReactNode;
   className?: string;
+  /** id do destaque no tour da tela (vira data-tour) */
+  tour?: string;
 }
 
 /** Cartão do protótipo B: título, subtítulo e uma ação opcional no canto. */
-export default function Panel({ title, subtitle, action, children, className }: PanelProps) {
+export default function Panel({ title, subtitle, action, children, className, tour }: PanelProps) {
   return (
-    <section className={cn("min-w-0 rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-card)]", className)}>
+    <section data-tour={tour} className={cn("min-w-0 rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-card)]", className)}>
       <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="font-display text-[17px] font-semibold">{title}</h3>

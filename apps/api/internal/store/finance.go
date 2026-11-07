@@ -396,7 +396,18 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 		if seen == nil {
 			seen = []string{}
 		}
-		return q.SetSeenAlerts(ctx, sqlcgen.SetSeenAlertsParams{UserID: userID, SeenAlerts: seen})
+		if err := q.SetSeenAlerts(ctx, sqlcgen.SetSeenAlertsParams{UserID: userID, SeenAlerts: seen}); err != nil {
+			return err
+		}
+		// quem já viu os tours no navegador não precisa vê-los de novo na conta
+		if len(d.Onboarding) > 0 {
+			raw, err := jsonMarshal(d.Onboarding)
+			if err != nil {
+				return err
+			}
+			return q.MergeOnboarding(ctx, sqlcgen.MergeOnboardingParams{UserID: userID, Onboarding: raw})
+		}
+		return nil
 	})
 	if err != nil {
 		return domain.FinanceData{}, mapErr(err)

@@ -7,11 +7,12 @@ import type {
   FinanceData,
   Goal,
   Note,
+  OnboardingState,
   Transaction,
 } from "../domain/types";
 
 /** Versão atual do formato salvo. Aumente ao mudar o formato e trate em `migrateStored`. */
-export const CURRENT_VERSION = 5;
+export const CURRENT_VERSION = 6;
 
 /** Onde os dados vivem hoje. */
 export const STORAGE_KEY = "aurora:finance";
@@ -33,6 +34,7 @@ export const emptyData = (): FinanceData => ({
   customCategories: [],
   distribution: null,
   seenAlerts: [],
+  onboarding: {},
 });
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
@@ -70,7 +72,17 @@ export function migrateLegacy(raw: unknown): FinanceData | null {
 
   const notes = asArray<Note>(state.notes);
 
-  return { transactions, creditTransactions, notes, goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] };
+  return { transactions, creditTransactions, notes, goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} };
+}
+
+/** Só aceita respostas válidas; qualquer outra coisa é ignorada. */
+export function parseOnboarding(raw: unknown): Record<string, OnboardingState> {
+  if (!isRecord(raw)) return {};
+  const out: Record<string, OnboardingState> = {};
+  for (const [screen, state] of Object.entries(raw)) {
+    if (state === "done" || state === "dismissed") out[screen] = state;
+  }
+  return out;
 }
 
 /** Lê o formato atual. Devolve null se o texto não for um envelope válido. */
@@ -79,7 +91,7 @@ export function migrateStored(raw: unknown): FinanceData | null {
     return null;
   }
 
-  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`; v3 -> v4: `distribution`; v4 -> v5: `seenAlerts`.
+  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`; v3 -> v4: `distribution`; v4 -> v5: `seenAlerts`; v5 -> v6: `onboarding`.
   // Quem não tem esses campos recebe listas vazias abaixo.
   if (raw.version > CURRENT_VERSION) return null;
 
@@ -92,6 +104,7 @@ export function migrateStored(raw: unknown): FinanceData | null {
     customCategories: asArray<CustomCategory>(raw.data.customCategories),
     distribution: Array.isArray(raw.data.distribution) ? (raw.data.distribution as DistributionItem[]) : null,
     seenAlerts: asArray<string>(raw.data.seenAlerts).filter((k) => typeof k === "string"),
+    onboarding: parseOnboarding(raw.data.onboarding),
   };
 }
 

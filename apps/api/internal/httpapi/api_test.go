@@ -634,3 +634,42 @@ func TestClientGeneratedIDs(t *testing.T) {
 		t.Errorf("id de meta = %q", g.ID)
 	}
 }
+
+func TestOnboarding(t *testing.T) {
+	e := setup(t)
+	a, b := e.register(t, "").AccessToken, e.register(t, "").AccessToken
+
+	read := func(tk string) map[string]string {
+		var d struct{ Onboarding map[string]string }
+		e.do(t, "GET", "/api/v1/data", tk, nil).json(t, &d)
+		return d.Onboarding
+	}
+	if got := read(a); got == nil || len(got) != 0 {
+		t.Fatalf("conta nova deveria vir com mapa vazio, veio %#v", got)
+	}
+
+	want(t, e.do(t, "PUT", "/api/v1/settings/onboarding/painel", a, map[string]string{"state": "done"}), 204)
+	want(t, e.do(t, "PUT", "/api/v1/settings/onboarding/metas", a, map[string]string{"state": "dismissed"}), 204)
+	// mudar uma tela não apaga as outras
+	want(t, e.do(t, "PUT", "/api/v1/settings/onboarding/painel", a, map[string]string{"state": "dismissed"}), 204)
+	got := read(a)
+	if len(got) != 2 || got["painel"] != "dismissed" || got["metas"] != "dismissed" {
+		t.Errorf("onboarding = %#v", got)
+	}
+	if len(read(b)) != 0 {
+		t.Error("o onboarding de A apareceu para B")
+	}
+
+	want(t, e.do(t, "PUT", "/api/v1/settings/onboarding/painel", a, map[string]string{"state": "talvez"}), 400)
+	want(t, e.do(t, "PUT", "/api/v1/settings/onboarding/Tela_Ruim", a, map[string]string{"state": "done"}), 400)
+	want(t, e.do(t, "PUT", "/api/v1/settings/onboarding/painel", "", map[string]string{"state": "done"}), 401)
+
+	// importação: respostas dos tours do navegador entram na conta
+	imp := map[string]any{"onboarding": map[string]string{"projecao": "done"}}
+	want(t, e.do(t, "POST", "/api/v1/import", b, imp), 201)
+	if got := read(b); got["projecao"] != "done" {
+		t.Errorf("após importar: %#v", got)
+	}
+	bad := map[string]any{"onboarding": map[string]string{"painel": "x"}}
+	want(t, e.do(t, "POST", "/api/v1/import?replace=true", b, bad), 400)
+}

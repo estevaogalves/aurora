@@ -174,3 +174,32 @@ input[type=number] {
     font-family: "Sora Variable", "Segoe UI", sans-serif;
   }
 }
+
+/* Spotlight Tour: o recorte escurece o resto da tela e o halo pulsa no elemento destacado */
+@layer components {
+  .tour-spot {
+    position: fixed;
+    pointer-events: none;
+    border-radius: 16px;
+    box-shadow: 0 0 0 9999px hsl(228 30% 5% / 0.74);
+    transition: left 0.3s cubic-bezier(0.3, 0.7, 0.2, 1), top 0.3s cubic-bezier(0.3, 0.7, 0.2, 1),
+      width 0.3s cubic-bezier(0.3, 0.7, 0.2, 1), height 0.3s cubic-bezier(0.3, 0.7, 0.2, 1);
+  }
+  .tour-spot::after {
+    content: "";
+    position: absolute;
+    inset: -4px;
+    border-radius: 20px;
+    border: 2px solid hsl(var(--primary));
+    box-shadow: 0 0 26px hsl(var(--primary) / 0.7);
+    animation: tour-halo 1.9s ease-in-out infinite;
+  }
+  @keyframes tour-halo {
+    0%, 100% { transform: scale(1); opacity: 1; }
+    50% { transform: scale(1.025); opacity: 0.55; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tour-spot { transition: none; }
+    .tour-spot::after { animation: none; }
+  }
+}

@@ -9,6 +9,8 @@ import { downloadText } from "@/Services/download";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { formatMonth } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
+import ScreenTour from "@/components/tour/ScreenTour";
+import { RELATORIOS_TOUR } from "./tour";
 
 type Period = 1 | 3 | 6;
 type Format = "PDF" | "CSV" | "TXT";
@@ -70,18 +72,19 @@ export default function ReportsPage() {
 
   return (
     <>
+      <ScreenTour screen="relatorios" steps={RELATORIOS_TOUR} />
       <PageHeader title="Relatórios" subtitle="Resumo do semestre e exportação em PDF, CSV ou TXT." />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
-        <StatCard label="Renda em 6 meses" value={formatBRLShort(six.income)} hint={`média de ${avg(six.income)} por mês`} />
-        <StatCard label="Despesas em 6 meses" value={formatBRLShort(six.expense)} hint={`média de ${avg(six.expense)} por mês`} />
-        <StatCard label="Economia acumulada" value={formatBRLShort(six.balance)} hint={six.income > 0 ? `${Math.round((six.balance / six.income) * 100)}% da renda` : "Sem renda no período"} highlight />
-        <StatCard label="Maior categoria" value={six.topCategory ? six.topCategory.category.replace("/Parcelado", "") : "—"} hint={six.topCategory ? `${formatBRLShort(six.topCategory.value)} no período` : "Sem despesas no período"} />
+        <StatCard tour="renda" label="Renda em 6 meses" value={formatBRLShort(six.income)} hint={`média de ${avg(six.income)} por mês`} />
+        <StatCard tour="despesas" label="Despesas em 6 meses" value={formatBRLShort(six.expense)} hint={`média de ${avg(six.expense)} por mês`} />
+        <StatCard tour="economia" label="Economia acumulada" value={formatBRLShort(six.balance)} hint={six.income > 0 ? `${Math.round((six.balance / six.income) * 100)}% da renda` : "Sem renda no período"} highlight />
+        <StatCard tour="categoria" label="Maior categoria" value={six.topCategory ? six.topCategory.category.replace("/Parcelado", "") : "—"} hint={six.topCategory ? `${formatBRLShort(six.topCategory.value)} no período` : "Sem despesas no período"} />
       </div>
 
       <div className="mt-3.5 grid grid-cols-12 items-start gap-3.5">
         <div className="col-span-12 min-w-0 lg:col-span-7">
-          <Panel title="Resumo mês a mês" subtitle="Base do relatório">
+          <Panel tour="resumo" title="Resumo mês a mês" subtitle="Base do relatório">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[420px] border-collapse text-[13.5px]">
                 <thead>
@@ -108,7 +111,7 @@ export default function ReportsPage() {
         </div>
 
         <div className="col-span-12 lg:col-span-5">
-          <Panel title="Exportar relatório" subtitle="Escolha o período e o formato">
+          <Panel tour="exportar" title="Exportar relatório" subtitle="Escolha o período e o formato">
             <p className="mb-2 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Período</p>
             <div className="flex flex-wrap gap-2">
               {PERIODS.map((p) => (

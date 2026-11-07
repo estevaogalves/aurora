@@ -9,6 +9,8 @@ import { useFinanceStore } from "@/Store/FinanceStore";
 import { EXPENSE_CATEGORIES, type Category } from "@/Types/Category";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { compareMonths, formatMonth, formatMonthShort, getCurrentMonth, getMonthName } from "@/Utils/Date";
+import ScreenTour from "@/components/tour/ScreenTour";
+import { COMPARACAO_TOUR } from "./tour";
 
 const MAX_SELECTED = 5;
 const MAX_MONTHS = 12;
@@ -65,10 +67,11 @@ export default function ComparisonPage() {
 
   return (
     <>
+      <ScreenTour screen="comparacao" steps={COMPARACAO_TOUR} />
       <PageHeader title="Comparação" subtitle="Escolha os meses e veja a diferença." />
 
       {available.length >= 2 && (
-        <Panel title="Meses" subtitle={`Até ${MAX_SELECTED} ao mesmo tempo`}>
+        <Panel tour="meses" title="Meses" subtitle={`Até ${MAX_SELECTED} ao mesmo tempo`}>
           <div className="flex flex-wrap gap-2" role="group" aria-label="Meses comparados">
             {available.map((m) => (
               <button
@@ -108,14 +111,14 @@ export default function ComparisonPage() {
       ) : (
         <>
           <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
-            <StatCard label="Saldo médio" value={formatBRL(avg)} hint={`${bySelected.length} ${bySelected.length === 1 ? "mês" : "meses"}`} />
-            <StatCard label="Melhor mês" value={cap(getMonthName(best.month))} tone="good" hint={formatBRL(best.balance)} />
-            <StatCard label="Pior mês" value={cap(getMonthName(worst.month))} hint={formatBRL(worst.balance)} />
+            <StatCard tour="saldo-medio" label="Saldo médio" value={formatBRL(avg)} hint={`${bySelected.length} ${bySelected.length === 1 ? "mês" : "meses"}`} />
+            <StatCard tour="melhor" label="Melhor mês" value={cap(getMonthName(best.month))} tone="good" hint={formatBRL(best.balance)} />
+            <StatCard tour="pior" label="Pior mês" value={cap(getMonthName(worst.month))} hint={formatBRL(worst.balance)} />
           </div>
 
           <div className="mt-3.5 grid grid-cols-12 items-start gap-3.5">
             <div className="col-span-12 lg:col-span-4">
-              <Panel title="Ranking de saldo" subtitle="Do melhor ao pior mês">
+              <Panel tour="ranking" title="Ranking de saldo" subtitle="Do melhor ao pior mês">
                 <div className="flex flex-col gap-2.5">
                   {ranking.map((m, i) => (
                     <div key={m.month} className="grid grid-cols-[28px_54px_1fr_auto] items-center gap-2.5 text-[13.5px]">
@@ -131,7 +134,7 @@ export default function ComparisonPage() {
               </Panel>
             </div>
             <div className="col-span-12 lg:col-span-8">
-              <Panel title="Renda e despesa" subtitle="Meses selecionados">
+              <Panel tour="renda-despesa" title="Renda e despesa" subtitle="Meses selecionados">
                 <ChartGroupBars
                   labels={bySelected.map((m) => shortLabel(m.month))}
                   series={[
@@ -147,7 +150,7 @@ export default function ComparisonPage() {
             </div>
 
             <div className="col-span-12 lg:col-span-6">
-              <Panel title="Perfil de gastos" subtitle="Onde cada mês pesou mais">
+              <Panel tour="perfil" title="Perfil de gastos" subtitle="Onde cada mês pesou mais">
                 <ChartRadar
                   axes={RADAR_AXES.map((c) => c.replace("/Parcelado", "").replace("Crédito", "Crédito"))}
                   series={bySelected.map((m, i) => ({ name: formatMonth(m.month), color: SERIES_COLORS[i], values: RADAR_AXES.map((c) => m.byCategory[c] ?? 0) }))}
@@ -156,7 +159,7 @@ export default function ComparisonPage() {
               </Panel>
             </div>
             <div className="col-span-12 lg:col-span-6">
-              <Panel title="Categorias lado a lado" subtitle="Valor gasto em cada uma">
+              <Panel tour="categorias" title="Categorias lado a lado" subtitle="Valor gasto em cada uma">
                 <div className="flex flex-col gap-3">
                   {CATEGORIES.map((c) => (
                     <div key={c} className="grid grid-cols-[110px_1fr] items-center gap-3 text-[13px]">

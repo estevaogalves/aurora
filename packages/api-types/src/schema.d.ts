@@ -1045,6 +1045,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/onboarding/{screen}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Registra a resposta do usuário ao tour de uma tela
+         * @description Muda só a tela informada; as outras respostas ficam como estão.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Identificador da tela, ex. painel */
+                    screen: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        state: components["schemas"]["OnboardingState"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Salvo */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/summary/{month}": {
         parameters: {
             query?: never;
@@ -1308,6 +1355,11 @@ export interface components {
             percent: number;
             custom?: boolean;
         };
+        /**
+         * @description done = viu o tour até o fim; dismissed = recusou o convite, fechou ou pulou
+         * @enum {string}
+         */
+        OnboardingState: "done" | "dismissed";
         FinanceData: {
             transactions: components["schemas"]["Transaction"][];
             creditTransactions: components["schemas"]["CreditTransaction"][];
@@ -1318,6 +1370,10 @@ export interface components {
             /** @description Percentuais escolhidos; null = padrão */
             distribution: components["schemas"]["DistributionItem"][] | null;
             seenAlerts: string[];
+            /** @description Resposta ao tour de cada tela (chave = tela). Tela ausente = ainda não convidado. */
+            onboarding: {
+                [key: string]: components["schemas"]["OnboardingState"];
+            };
         };
         MonthSummary: {
             month: components["schemas"]["Month"];

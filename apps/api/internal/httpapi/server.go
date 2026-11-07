@@ -111,6 +111,7 @@ func (s *Server) Router() http.Handler {
 			})
 			r.Put("/settings/distribution", s.putDistribution)
 			r.Put("/settings/seen-alerts", s.putSeenAlerts)
+			r.Put("/settings/onboarding/{screen}", s.putOnboarding)
 
 			r.Get("/summary/{month}", s.summary)
 			r.Get("/projection", s.projection)

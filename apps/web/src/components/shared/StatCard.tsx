@@ -8,12 +8,15 @@ interface StatCardProps {
   highlight?: boolean;
   tone?: "default" | "good" | "bad";
   className?: string;
+  /** id do destaque no tour da tela (vira data-tour) */
+  tour?: string;
 }
 
 /** Indicador do protótipo B: rótulo em caixa alta, valor grande e apoio. */
-export default function StatCard({ label, value, hint, highlight, tone = "default", className }: StatCardProps) {
+export default function StatCard({ label, value, hint, highlight, tone = "default", className, tour }: StatCardProps) {
   return (
     <div
+      data-tour={tour}
       className={cn(
         "flex min-w-0 flex-col gap-1 rounded-lg border px-[18px] py-4 shadow-[var(--shadow-card)]",
         highlight

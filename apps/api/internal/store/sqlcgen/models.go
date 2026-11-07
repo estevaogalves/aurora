@@ -100,4 +100,5 @@ type UserSetting struct {
 	UserID       uuid.UUID
 	Distribution []byte
 	SeenAlerts   []string
+	Onboarding   []byte
 }

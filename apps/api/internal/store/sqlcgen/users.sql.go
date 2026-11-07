@@ -107,13 +107,18 @@ func (q *Queries) GetRefreshToken(ctx context.Context, tokenHash string) (Refres
 }
 
 const getSettings = `-- name: GetSettings :one
-SELECT user_id, distribution, seen_alerts FROM user_settings WHERE user_id = $1
+SELECT user_id, distribution, seen_alerts, onboarding FROM user_settings WHERE user_id = $1
 `
 
 func (q *Queries) GetSettings(ctx context.Context, userID uuid.UUID) (UserSetting, error) {
 	row := q.db.QueryRow(ctx, getSettings, userID)
 	var i UserSetting
-	err := row.Scan(&i.UserID, &i.Distribution, &i.SeenAlerts)
+	err := row.Scan(
+		&i.UserID,
+		&i.Distribution,
+		&i.SeenAlerts,
+		&i.Onboarding,
+	)
 	return i, err
 }
 
@@ -184,6 +189,21 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const mergeOnboarding = `-- name: MergeOnboarding :exec
+INSERT INTO user_settings (user_id, onboarding) VALUES ($1, $2)
+ON CONFLICT (user_id) DO UPDATE SET onboarding = user_settings.onboarding || EXCLUDED.onboarding
+`
+
+type MergeOnboardingParams struct {
+	UserID     uuid.UUID
+	Onboarding []byte
+}
+
+func (q *Queries) MergeOnboarding(ctx context.Context, arg MergeOnboardingParams) error {
+	_, err := q.db.Exec(ctx, mergeOnboarding, arg.UserID, arg.Onboarding)
+	return err
+}
+
 const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
 UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL
 `
@@ -231,6 +251,25 @@ type SetDistributionParams struct {
 
 func (q *Queries) SetDistribution(ctx context.Context, arg SetDistributionParams) error {
 	_, err := q.db.Exec(ctx, setDistribution, arg.UserID, arg.Distribution)
+	return err
+}
+
+const setOnboardingScreen = `-- name: SetOnboardingScreen :exec
+INSERT INTO user_settings (user_id, onboarding)
+VALUES ($1, jsonb_build_object($2::text, $3::text))
+ON CONFLICT (user_id) DO UPDATE
+SET onboarding = user_settings.onboarding || jsonb_build_object($2::text, $3::text)
+`
+
+type SetOnboardingScreenParams struct {
+	UserID uuid.UUID
+	Screen string
+	State  string
+}
+
+// Muda só a chave da tela, para dois dispositivos não apagarem as respostas um do outro.
+func (q *Queries) SetOnboardingScreen(ctx context.Context, arg SetOnboardingScreenParams) error {
+	_, err := q.db.Exec(ctx, setOnboardingScreen, arg.UserID, arg.Screen, arg.State)
 	return err
 }
 

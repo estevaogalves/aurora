@@ -14,6 +14,8 @@ import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
 import { deadlineStatus, paceHint, useGoalAlerts } from "../Goals/goalAlerts";
 import { DistributionDialog } from "./DistributionDialog";
+import ScreenTour from "@/components/tour/ScreenTour";
+import { PAINEL_TOUR } from "./tour";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
 const sliceColor = (items: { id: string }[], id: string) => `hsl(var(--k${(items.findIndex((i) => i.id === id) % 9) + 1}))`;
@@ -24,7 +26,7 @@ function Hero() {
   const pct = Math.round(expensePercentage);
 
   return (
-    <section className="flex flex-col gap-1.5 rounded-lg border border-border-strong bg-[linear-gradient(155deg,color-mix(in_srgb,hsl(var(--primary))_38%,hsl(var(--card))),hsl(var(--card))_70%)] p-6 shadow-[var(--shadow-card)]">
+    <section data-tour="saldo" className="flex flex-col gap-1.5 rounded-lg border border-border-strong bg-[linear-gradient(155deg,color-mix(in_srgb,hsl(var(--primary))_38%,hsl(var(--card))),hsl(var(--card))_70%)] p-6 shadow-[var(--shadow-card)]">
       <span className="text-xs font-bold uppercase tracking-[0.1em] text-ink2">Saldo de {getMonthName(month)}</span>
       <span className={`num text-[40px] font-semibold leading-[1.1] tracking-[-0.03em] max-[700px]:text-[34px] ${balance < 0 ? "text-destructive" : ""}`}>
         {formatBRL(balance)}
@@ -64,7 +66,7 @@ function Trend() {
   }, [month, transactions, creditTransactions]);
 
   return (
-    <Panel title="Últimos 6 meses" subtitle="Renda e despesas">
+    <Panel tour="tendencia" title="Últimos 6 meses" subtitle="Renda e despesas">
       <ChartLine
         labels={labels}
         series={[
@@ -86,7 +88,7 @@ function Categories() {
   const colorOf = useCategoryColor();
 
   return (
-    <Panel title="Despesas por categoria" subtitle={getMonthName(month).replace(/^./, (c) => c.toUpperCase())}>
+    <Panel tour="categorias" title="Despesas por categoria" subtitle={getMonthName(month).replace(/^./, (c) => c.toUpperCase())}>
       {totals.length === 0 ? (
         <Empty>Nenhuma despesa neste mês.</Empty>
       ) : (
@@ -129,13 +131,13 @@ function Suggestion() {
   return (
     <>
       {balance <= 0 ? (
-        <Panel title="Sugestão do saldo" action={menu}>
+        <Panel tour="sugestao" title="Sugestão do saldo" action={menu}>
           <div className="rounded-md bg-bad-bg px-3 py-2.5 text-[13px] font-semibold text-destructive">
             {balance === 0 ? "Seu saldo está zerado. Não há o que distribuir." : "Seu saldo está negativo. Revise despesas variáveis antes de investir."}
           </div>
         </Panel>
       ) : (
-        <Panel title="Sugestão para o saldo" subtitle={`Como dividir ${formatBRLShort(balance)}`} action={menu}>
+        <Panel tour="sugestao" title="Sugestão para o saldo" subtitle={`Como dividir ${formatBRLShort(balance)}`} action={menu}>
           <div className="mb-3.5 flex h-3.5 gap-0.5 overflow-hidden rounded-full">
             {parts.filter((p) => p.item.percent > 0).map((p) => (
               <i key={p.item.id} className="block min-w-1" style={{ flex: p.item.percent, background: sliceColor(items, p.item.id) }} title={`${p.item.label}: ${formatBRL(p.value)}`} />
@@ -159,7 +161,7 @@ function GoalsMini() {
   const goals = useFinanceStore((s) => s.goals);
 
   return (
-    <Panel title="Metas" subtitle="Progresso geral">
+    <Panel tour="metas" title="Metas" subtitle="Progresso geral">
       {goals.length === 0 ? (
         <Empty>Você ainda não criou metas.</Empty>
       ) : (
@@ -200,7 +202,7 @@ function RecentExpenses() {
   ];
 
   return (
-    <Panel title="Despesas do mês" subtitle={`${lines.length} ${lines.length === 1 ? "lançamento" : "lançamentos"} · 5 mais recentes`}>
+    <Panel tour="despesas" title="Despesas do mês" subtitle={`${lines.length} ${lines.length === 1 ? "lançamento" : "lançamentos"} · 5 mais recentes`}>
       {lines.length === 0 ? <Empty>Nenhuma despesa neste mês.</Empty> : lines.slice(0, 5).map((l) => <ExpenseStaticRow key={l.id} line={l} />)}
       <Link to="/lancamentos" className="mt-3 inline-block text-[13px] font-bold text-primary">Ver todos os lançamentos →</Link>
     </Panel>
@@ -213,7 +215,7 @@ function NotesReadOnly() {
   const sorted = [...notes].sort((a, b) => Number(b.pinned) - Number(a.pinned));
 
   return (
-    <Panel title="Anotações" subtitle="Lembretes do mês">
+    <Panel tour="anotacoes" title="Anotações" subtitle="Lembretes do mês">
       {sorted.length === 0 ? (
         <Empty>Nenhuma anotação neste mês.</Empty>
       ) : (
@@ -236,7 +238,7 @@ function GoalDeadlines() {
   const urgent = alerts.some((a) => a.level !== "soon");
 
   return (
-    <section role="alert" className={`mb-3.5 rounded-lg border px-5 py-4 ${urgent ? "border-destructive/50 bg-bad-bg" : "border-[hsl(var(--k3)/0.5)] bg-[hsl(var(--k3)/0.12)]"}`}>
+    <section role="alert" data-tour="prazos" className={`mb-3.5 rounded-lg border px-5 py-4 ${urgent ? "border-destructive/50 bg-bad-bg" : "border-[hsl(var(--k3)/0.5)] bg-[hsl(var(--k3)/0.12)]"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="flex items-center gap-2 font-display text-[15px] font-semibold">
           <Icon name="bell" size={16} />
@@ -267,6 +269,7 @@ export default function Painel() {
 
   return (
     <>
+      <ScreenTour screen="painel" steps={PAINEL_TOUR} />
       <PageHeader title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui só leitura; cadastre pelo botão “Lançar”.`} />
       <GoalDeadlines />
       <div className="grid grid-cols-12 items-start gap-3.5">

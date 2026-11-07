@@ -7,6 +7,7 @@ import type {
   FinanceData,
   Goal,
   Note,
+  OnboardingState,
   Transaction,
 } from "../domain/types";
 import type { FinanceRepository } from "./FinanceRepository";
@@ -47,6 +48,7 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
     customCategories: raw.customCategories ?? [],
     distribution: raw.distribution ?? null,
     seenAlerts: raw.seenAlerts ?? [],
+    onboarding: raw.onboarding ?? {},
   };
 }
 
@@ -98,4 +100,6 @@ export class ApiRepository implements FinanceRepository {
 
   setDistribution = (items: DistributionItem[] | null) => this.enqueue(() => api.put("/settings/distribution", { items }));
   setSeenAlerts = (keys: string[]) => this.enqueue(() => api.put("/settings/seen-alerts", { keys }));
+  setOnboarding = (screen: string, state: OnboardingState) =>
+    this.enqueue(() => api.put(`/settings/onboarding/${encodeURIComponent(screen)}`, { state }));
 }

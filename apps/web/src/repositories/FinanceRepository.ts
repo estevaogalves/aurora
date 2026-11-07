@@ -6,6 +6,7 @@ import type {
   FinanceData,
   Goal,
   Note,
+  OnboardingState,
   Transaction,
 } from "../domain/types";
 
@@ -45,4 +46,7 @@ export interface FinanceRepository {
 
   /** Lista completa dos avisos de meta marcados como vistos. */
   setSeenAlerts(keys: string[]): Promise<void>;
+
+  /** Grava a resposta ao tour de uma tela, sem mexer nas outras. */
+  setOnboarding(screen: string, state: OnboardingState): Promise<void>;
 }

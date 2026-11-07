@@ -11,6 +11,8 @@ import { useFinanceStore, type ExtraExpense } from "@/Store/FinanceStore";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, monthsDifference } from "@/Utils/Date";
 import EditExtraDialog from "./EditExtraDialog";
+import ScreenTour from "@/components/tour/ScreenTour";
+import { PROJECAO_TOUR } from "./tour";
 
 const MONTHS_AHEAD = 6;
 
@@ -53,21 +55,22 @@ export default function ProjectionPage() {
 
   return (
     <>
+      <ScreenTour screen="projecao" steps={PROJECAO_TOUR} />
       <PageHeader
         title="Projeção futura"
         subtitle={`Os próximos ${MONTHS_AHEAD} meses com o que já está previsto.`}
       />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
-        <StatCard label="Despesa fixa mensal" value={formatBRL(fixedMonthly)} hint="Despesas marcadas como fixas" />
-        <StatCard label={`Parcelas até ${shortLabel(months[months.length - 1]).toLowerCase()}`} value={formatBRL(creditTotal)} hint="Compras no crédito em curso" />
-        <StatCard label="Pior mês" value={shortLabel(worst.month)} tone={worst.balance < 0 ? "bad" : "default"} hint={`Saldo de ${formatBRL(worst.balance)}`} />
-        <StatCard label={`Saldo em ${MONTHS_AHEAD} meses`} value={formatBRL(total)} hint={`${shortLabel(months[0])} a ${shortLabel(months[months.length - 1])}`} highlight />
+        <StatCard tour="fixa" label="Despesa fixa mensal" value={formatBRL(fixedMonthly)} hint="Despesas marcadas como fixas" />
+        <StatCard tour="parcelas-total" label={`Parcelas até ${shortLabel(months[months.length - 1]).toLowerCase()}`} value={formatBRL(creditTotal)} hint="Compras no crédito em curso" />
+        <StatCard tour="pior" label="Pior mês" value={shortLabel(worst.month)} tone={worst.balance < 0 ? "bad" : "default"} hint={`Saldo de ${formatBRL(worst.balance)}`} />
+        <StatCard tour="saldo-total" label={`Saldo em ${MONTHS_AHEAD} meses`} value={formatBRL(total)} hint={`${shortLabel(months[0])} a ${shortLabel(months[months.length - 1])}`} highlight />
       </div>
 
       <div className="mt-3.5 grid grid-cols-12 items-start gap-3.5">
         <div className="col-span-12">
-          <Panel title="Renda × despesa projetadas" subtitle={`Próximos ${MONTHS_AHEAD} meses`}>
+          <Panel tour="renda-despesa" title="Renda × despesa projetadas" subtitle={`Próximos ${MONTHS_AHEAD} meses`}>
             <ChartGroupBars
               labels={labels}
               series={[
@@ -84,13 +87,13 @@ export default function ProjectionPage() {
         </div>
 
         <div className="col-span-12 lg:col-span-4">
-          <Panel title="Saldo acumulado" subtitle="Quanto sobra somando os meses">
+          <Panel tour="acumulado" title="Saldo acumulado" subtitle="Quanto sobra somando os meses">
             <ChartLine labels={labels} series={[{ name: "Saldo acumulado", color: "hsl(var(--primary))", area: true, values: projection.map((p) => p.accumulated) }]} height={230} />
           </Panel>
         </div>
 
         <div className="col-span-12 lg:col-span-4">
-          <Panel title="Despesas extras planejadas" subtitle="Gastos que não se repetem todo mês. Cadastre pelo botão Lançar.">
+          <Panel tour="extras" title="Despesas extras planejadas" subtitle="Gastos que não se repetem todo mês. Cadastre pelo botão Lançar.">
             {extrasInWindow.length === 0 ? (
               <Empty>Nenhuma despesa extra nos próximos meses. Use Lançar → Despesa extra.</Empty>
             ) : (
@@ -107,7 +110,7 @@ export default function ProjectionPage() {
         </div>
 
         <div className="col-span-12 lg:col-span-4">
-          <Panel title="Parcelas no crédito" subtitle="O que ainda vai cair">
+          <Panel tour="creditos" title="Parcelas no crédito" subtitle="O que ainda vai cair">
             {activeCredits.length === 0 ? (
               <Empty>Nenhuma compra parcelada em curso.</Empty>
             ) : (

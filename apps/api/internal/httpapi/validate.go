@@ -12,6 +12,21 @@ const (
 	maxNotes = 500
 )
 
+var screenRe = regexp.MustCompile(`^[a-z][a-z0-9-]{0,39}$`)
+
+// validateOnboarding confere o pacote de respostas dos tours (importação).
+func validateOnboarding(m map[string]string) string {
+	if len(m) > 50 {
+		return "Telas demais em onboarding."
+	}
+	for screen, state := range m {
+		if !screenRe.MatchString(screen) || (state != "done" && state != "dismissed") {
+			return "Onboarding inválido."
+		}
+	}
+	return ""
+}
+
 var colorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
 
 // Cada validador devolve a mensagem do problema ou "" se está tudo certo.
@@ -167,7 +182,7 @@ func validateData(d domain.FinanceData) string {
 			return m
 		}
 	}
-	return ""
+	return validateOnboarding(d.Onboarding)
 }
 
 func quote(s string) string { return "\"" + strings.TrimSpace(s) + "\"" }

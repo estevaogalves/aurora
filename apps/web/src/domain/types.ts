@@ -98,6 +98,9 @@ export interface DistributionItem {
   custom?: boolean;
 }
 
+/** Resposta ao tour de uma tela: viu até o fim (done) ou recusou, fechou ou pulou (dismissed). */
+export type OnboardingState = "done" | "dismissed";
+
 /** Tudo o que o app guarda. É o que o repositório carrega e salva. */
 export interface FinanceData {
   transactions: Transaction[];
@@ -110,6 +113,8 @@ export interface FinanceData {
   distribution: DistributionItem[] | null;
   /** Avisos de prazo de metas que o usuário já marcou como vistos (veja `goalAlertKey`). */
   seenAlerts: string[];
+  /** Resposta ao tour de cada tela, por id da tela. Tela ausente = ainda não convidada. */
+  onboarding: Record<string, OnboardingState>;
 }
 
 export interface MonthSummary {

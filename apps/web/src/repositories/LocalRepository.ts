@@ -6,6 +6,7 @@ import type {
   FinanceData,
   Goal,
   Note,
+  OnboardingState,
   Transaction,
 } from "../domain/types";
 import type { FinanceRepository } from "./FinanceRepository";
@@ -150,6 +151,11 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async setOnboarding(screen: string, state: OnboardingState) {
+    this.data.onboarding = { ...this.data.onboarding, [screen]: state };
+    this.persist();
+  }
+
   /* ---------- internos ---------- */
 
   private snapshot(): FinanceData {
@@ -162,6 +168,7 @@ export class LocalRepository implements FinanceRepository {
       customCategories: this.data.customCategories,
       distribution: this.data.distribution,
       seenAlerts: this.data.seenAlerts,
+      onboarding: this.data.onboarding,
     };
   }
 

@@ -64,7 +64,7 @@ export default function AppShell() {
               <GoalBell />
               <ThemeToggle />
               <UserMenu />
-              <button type="button" onClick={() => openLaunch()} className={btnClass.primary}>
+              <button type="button" data-tour="lancar" onClick={() => openLaunch()} className={btnClass.primary}>
                 <Icon name="plus" size={16} />
                 Lançar
               </button>

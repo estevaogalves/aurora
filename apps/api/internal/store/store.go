@@ -175,6 +175,11 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 	}
 	if err == nil {
 		d.SeenAlerts = settings.SeenAlerts
+		if len(settings.Onboarding) > 0 {
+			if err := json.Unmarshal(settings.Onboarding, &d.Onboarding); err != nil {
+				return d, err
+			}
+		}
 		if len(settings.Distribution) > 0 {
 			if err := json.Unmarshal(settings.Distribution, &d.Distribution); err != nil {
 				return d, err

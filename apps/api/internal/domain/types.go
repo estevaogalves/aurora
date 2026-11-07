@@ -84,6 +84,8 @@ type FinanceData struct {
 	CustomCategories   []CustomCategory    `json:"customCategories"`
 	Distribution       []DistributionItem  `json:"distribution"`
 	SeenAlerts         []string            `json:"seenAlerts"`
+	// Resposta ao tour de cada tela: "done" (viu até o fim) ou "dismissed" (recusou, fechou ou pulou).
+	Onboarding map[string]string `json:"onboarding"`
 }
 
 // Normalize troca listas nil por vazias, para o JSON nunca sair com null.
@@ -108,6 +110,9 @@ func (d *FinanceData) Normalize() {
 	}
 	if d.SeenAlerts == nil {
 		d.SeenAlerts = []string{}
+	}
+	if d.Onboarding == nil {
+		d.Onboarding = map[string]string{}
 	}
 }
 

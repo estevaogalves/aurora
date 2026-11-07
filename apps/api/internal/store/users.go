@@ -90,3 +90,8 @@ func (s *Store) SetSeenAlerts(ctx context.Context, userID uuid.UUID, keys []stri
 	}
 	return s.q.SetSeenAlerts(ctx, sqlcgen.SetSeenAlertsParams{UserID: userID, SeenAlerts: keys})
 }
+
+// SetOnboarding grava a resposta de uma tela, sem mexer nas outras.
+func (s *Store) SetOnboarding(ctx context.Context, userID uuid.UUID, screen, state string) error {
+	return s.q.SetOnboardingScreen(ctx, sqlcgen.SetOnboardingScreenParams{UserID: userID, Screen: screen, State: state})
+}

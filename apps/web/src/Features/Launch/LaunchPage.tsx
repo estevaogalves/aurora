@@ -11,6 +11,8 @@ import { useCategoryColor } from "@/Utils/categoryColors";
 import { showToast } from "../Warnings/toast";
 import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
 import { ProgressMini, Row } from "./rows";
+import ScreenTour from "@/components/tour/ScreenTour";
+import { LANCAMENTOS_TOUR } from "./tour";
 
 function TransactionRow({ t, onEdit, onDelete }: { t: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void }) {
   const toggleFixed = useFinanceStore((s) => s.toggleTransactionFixed);
@@ -77,7 +79,7 @@ function IncomesPanel() {
   const target = incomes.find((i) => i.id === toDelete);
 
   return (
-    <Panel title="Rendas" subtitle="Fontes do mês">
+    <Panel tour="rendas" title="Rendas" subtitle="Fontes do mês">
       {incomes.length === 0 ? <Empty>Nenhuma renda cadastrada. Use o botão Lançar.</Empty> : incomes.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}
       <HiddenList kind="income" />
       <EditTransactionDialog transaction={editing} onClose={() => setEditing(null)} />
@@ -127,7 +129,7 @@ function ExpensesPanel() {
   const count = expenses.length + credit.length;
 
   return (
-    <Panel title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
+    <Panel tour="despesas" title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
       {sorted.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={(id) => setToDelete({ id, credit: false })} />)}
       {credit.map((c) => (
@@ -179,7 +181,7 @@ function NotesPanel() {
   }
 
   return (
-    <Panel title="Anotações" subtitle="Lembretes do mês">
+    <Panel tour="anotacoes" title="Anotações" subtitle="Lembretes do mês">
       <div className="flex flex-col gap-2.5">
         {notes.map((n) => (
           <div key={n.id} className="flex flex-col gap-1 rounded-md border border-border bg-secondary px-3.5 py-3 text-[13.5px]">
@@ -237,6 +239,7 @@ function NotesPanel() {
 export default function LaunchPage() {
   return (
     <>
+      <ScreenTour screen="lancamentos" steps={LANCAMENTOS_TOUR} />
       <PageHeader title="Lançamentos" subtitle="Rendas, despesas e parcelas do mês. Para cadastrar, use o botão Lançar." />
       <div className="grid grid-cols-12 items-start gap-3.5">
         <div className="col-span-12 flex min-w-0 flex-col gap-3.5 lg:col-span-4">

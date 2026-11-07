@@ -45,3 +45,14 @@ ON CONFLICT (user_id) DO UPDATE SET distribution = EXCLUDED.distribution;
 -- name: SetSeenAlerts :exec
 INSERT INTO user_settings (user_id, seen_alerts) VALUES ($1, $2)
 ON CONFLICT (user_id) DO UPDATE SET seen_alerts = EXCLUDED.seen_alerts;
+
+-- name: SetOnboardingScreen :exec
+-- Muda só a chave da tela, para dois dispositivos não apagarem as respostas um do outro.
+INSERT INTO user_settings (user_id, onboarding)
+VALUES ($1, jsonb_build_object(sqlc.arg(screen)::text, sqlc.arg(state)::text))
+ON CONFLICT (user_id) DO UPDATE
+SET onboarding = user_settings.onboarding || jsonb_build_object(sqlc.arg(screen)::text, sqlc.arg(state)::text);
+
+-- name: MergeOnboarding :exec
+INSERT INTO user_settings (user_id, onboarding) VALUES ($1, $2)
+ON CONFLICT (user_id) DO UPDATE SET onboarding = user_settings.onboarding || EXCLUDED.onboarding;

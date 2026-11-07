@@ -311,6 +311,26 @@ paths:
         "204": { description: Salvo }
         "400": { $ref: "#/components/responses/Error" }
 
+  /settings/onboarding/{screen}:
+    put:
+      tags: [configurações]
+      summary: Registra a resposta do usuário ao tour de uma tela
+      description: Muda só a tela informada; as outras respostas ficam como estão.
+      parameters:
+        - { name: screen, in: path, required: true, description: "Identificador da tela, ex. painel", schema: { type: string, pattern: '^[a-z][a-z0-9-]{0,39}$' } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [state]
+              properties:
+                state: { $ref: "#/components/schemas/OnboardingState" }
+      responses:
+        "204": { description: Salvo }
+        "400": { $ref: "#/components/responses/Error" }
+
   /summary/{month}:
     get:
       tags: [relatórios]
@@ -509,9 +529,13 @@ components:
         percent: { type: integer, minimum: 0, maximum: 100 }
         custom: { type: boolean }
 
+    OnboardingState:
+      type: string
+      enum: [done, dismissed]
+      description: "done = viu o tour até o fim; dismissed = recusou o convite, fechou ou pulou"
     FinanceData:
       type: object
-      required: [transactions, creditTransactions, notes, goals, extraExpenses, customCategories, distribution, seenAlerts]
+      required: [transactions, creditTransactions, notes, goals, extraExpenses, customCategories, distribution, seenAlerts, onboarding]
       properties:
         transactions: { type: array, items: { $ref: "#/components/schemas/Transaction" } }
         creditTransactions: { type: array, items: { $ref: "#/components/schemas/CreditTransaction" } }
@@ -525,6 +549,10 @@ components:
           description: Percentuais escolhidos; null = padrão
           items: { $ref: "#/components/schemas/DistributionItem" }
         seenAlerts: { type: array, items: { type: string } }
+        onboarding:
+          type: object
+          description: Resposta ao tour de cada tela (chave = tela). Tela ausente = ainda não convidado.
+          additionalProperties: { $ref: "#/components/schemas/OnboardingState" }
 
     MonthSummary:
       type: object
