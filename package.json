@@ -5,6 +5,9 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "lint": "pnpm --filter web lint",
-    "test": "pnpm --filter web test"
-  }
+    "test": "pnpm --filter web test",
+    "typecheck": "pnpm --filter web exec tsc -b",
+    "generate": "pnpm --filter @aurora/api-types generate"
+  },
+  "packageManager": "pnpm@11.17.0"
 }

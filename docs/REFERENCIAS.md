@@ -175,10 +175,14 @@ Acompanhamento da refatoração do Aurora (antes OrganizaGrana): monorepo, novo 
 
 ## Fase 8: CI e documentação
 
-- [ ] GitHub Actions: lint, `tsc -b`, Vitest, `go vet` e `go test`
-- [ ] `Makefile` com `make dev`
-- [ ] `.env.example`
-- [ ] README atualizado
+- [ ok ] GitHub Actions: lint, `tsc -b`, Vitest, `go vet` e `go test`
+- [ ok ] `Makefile` com `make dev`
+- [ ok ] `.env.example`
+- [ ok ] README atualizado
+  - O CI também confere `pnpm --filter @aurora/api-types check` (tipos gerados em dia com o `openapi.yaml`) e `sqlc diff` (código gerado em dia com as queries). Os testes de integração da API rodam contra um Postgres 17 de verdade (service do job).
+  - `packageManager: pnpm@11.17.0` no `package.json` raiz, para o CI e o Dockerfile usarem a mesma versão do pnpm.
+  - `make test-api` roda `go vet` e `go test` no Docker com um Postgres descartável, sem precisar de Go instalado.
+  - O workflow não foi executado no GitHub (só conferido localmente, passo a passo). Vale olhar a primeira execução no PR.
 
 ## Correções apontadas na auditoria
 

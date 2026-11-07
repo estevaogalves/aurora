@@ -1,73 +1,73 @@
-# React + TypeScript + Vite
+# Aurora
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Controle financeiro pessoal: rendas, despesas (fixas e comuns), compras no crédito, metas, projeção, comparação entre meses e relatórios em PDF.
 
-Currently, two official plugins are available:
+Monorepo pnpm:
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+| Pasta | O que é |
+|---|---|
+| `apps/web` | Front: React 19, TypeScript, Vite, Tailwind, Zustand |
+| `apps/api` | Backend: Go (chi, pgx, sqlc, goose), Postgres e Redis. Detalhes em [`apps/api/README.md`](apps/api/README.md) |
+| `packages/api-types` | Tipos TypeScript gerados de `docs/openapi.yaml` |
+| `docs` | Contrato da API (`openapi.yaml`) e o acompanhamento das fases (`REFERENCIAS.md`) |
 
-## React Compiler
+## Começando
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Pré-requisitos: Node 22+, pnpm 11 (`corepack enable`) e Docker. Go não precisa estar instalado.
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cp .env.example .env     # opcional: os padrões já funcionam em desenvolvimento
+make up                  # tudo no Docker: http://localhost:8080
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Para desenvolver o front com recarga automática, contra a API no Docker:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+make dev                 # Postgres + Redis + API no Docker, front em http://localhost:5173
 ```
+
+Só o front, sem backend (dados no `localStorage`, sem login):
+
+```bash
+pnpm install
+pnpm dev
+```
+
+## Modos de dados
+
+O front escolhe de onde vêm os dados por `VITE_DATA_SOURCE` (veja `apps/web/.env.example`):
+
+- `local` (padrão do `pnpm dev`): `localStorage`, sem conta.
+- `api`: backend Go, com cadastro e login. É o que o `docker compose` usa.
+
+Quem já tinha dados no navegador pode levá-los para a conta em **Importar dados locais** (menu do usuário). Os dados do navegador não são apagados.
+
+## Comandos
+
+`make help` lista todos. Os principais:
+
+| Comando | O que faz |
+|---|---|
+| `make up` / `make down` | Sobe e para tudo no Docker |
+| `make dev` | API no Docker e front em modo dev |
+| `make test` | Testes do front (Vitest) e da API (Go, com Postgres no Docker) |
+| `make check` | O que o CI roda no front: lint, `tsc -b`, testes, build e tipos da API |
+| `make generate` | Regenera os tipos (`openapi.yaml`) e o código do sqlc |
+| `make clean` | Para tudo e apaga o banco do Docker |
+
+## Contrato da API
+
+`docs/openapi.yaml` descreve a API. Depois de mudar o YAML, rode `make generate` e faça commit de `packages/api-types/src/schema.d.ts`. O CI falha se os tipos estiverem fora de sincronia. O YAML é escrito à mão: o backend não o valida, então atualize-o junto com qualquer mudança nos endpoints.
+
+## CI
+
+`.github/workflows/ci.yml`, em todo push na `main` e em pull requests:
+
+- **Front:** tipos gerados em dia, `eslint`, `tsc -b`, Vitest e build.
+- **API:** `go vet`, `go test` (com Postgres de verdade, incluindo os testes de integração) e `sqlc diff`.
+
+## Variáveis de ambiente
+
+- Raiz (`docker compose`): veja `.env.example`. Em produção troque `JWT_SECRET` e ligue `COOKIE_SECURE`.
+- API: tabela completa em `apps/api/README.md`.
+- Front: `apps/web/.env.example`.
