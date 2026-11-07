@@ -32,6 +32,7 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_WINDOW` | `5` / `15m` | limite de logins com falha |
 | `HASH_MAX_CONCURRENCY` | automático | hashes de senha (argon2id, 64 MiB cada) ao mesmo tempo; automático = 40% do limite de memória / 64 MiB, no máximo o nº de CPUs |
 | `HASH_MAX_QUEUE` / `HASH_QUEUE_TIMEOUT` | `4×` a concorrência / `3s` | fila de espera por uma vaga de hash; fila cheia ou tempo esgotado => `503` + `Retry-After` |
+| `REGISTRATION_ENABLED` | `true` | `false` fecha o cadastro: `POST /auth/register` responde `403` ("O cadastro está fechado no momento…"); o login não muda. Só `true`/`false` (outro valor impede a API de iniciar) |
 | `REGISTER_MAX_PER_IP` / `REGISTER_WINDOW` | `5` / `1h` | cadastros por IP na janela; passou => `429` + `Retry-After` (a chave é o IP: veja `TRUST_PROXY`) |
 | `DB_MAX_CONNS` | `10` | conexões do pool da API; reduzido sozinho para caber no `max_connections` do servidor (descontadas as reservadas e 20% de margem). Com várias réplicas: valor × réplicas deve caber |
 | `DB_STATEMENT_TIMEOUT` | `15s` | `statement_timeout` **só do pool da API** (migrations usam outra conexão, sem limite). `0` desliga (pooler em modo transação que rejeita o parâmetro: use `ALTER ROLE ... SET statement_timeout`) |
@@ -92,6 +93,25 @@ A API só precisa de `DATABASE_URL`; as migrations rodam ao iniciar. O Redis con
 - O Supabase Auth não é usado: o Aurora tem usuários e sessões próprios.
 
 Em produção: `APP_ENV=production`, `COOKIE_SECURE=true` (obrigatório), `JWT_SECRET` forte e `CORS_ORIGINS` com o domínio real. Nunca aponte `TEST_DATABASE_URL` para o banco real, pois os testes criam dados.
+
+## Abrir e fechar o cadastro
+
+`REGISTRATION_ENABLED` (padrão `true`) controla se novas pessoas podem se cadastrar. Para **fechar** (ex.: ambiente ainda não pronto para clientes,
+ou um incidente em andamento):
+
+```bash
+# .env
+REGISTRATION_ENABLED=false
+docker compose up -d            # recria a API com o valor novo
+```
+
+- `POST /api/v1/auth/register` responde `403` com `{"error":"O cadastro está fechado no momento. Quem já tem conta pode entrar normalmente."}` (o app mostra essa frase na tela de cadastro).
+- A decisão vem **antes** de ler o corpo, contar o limite por IP ou gastar um hash de senha: pedidos de cadastro fechado não custam nada.
+- Login, renovação de sessão, logout e todo o uso da API por quem já tem conta continuam iguais. Contas existentes e `api admin promote` não são afetados.
+- Para **reabrir**: apague a variável ou ponha `true` e rode `docker compose up -d`.
+- Valores que não sejam `true`/`false` (por exemplo `nao`, `off`) impedem a API de iniciar com a mensagem `REGISTRATION_ENABLED="nao" inválido: use true ou false`: um erro de digitação nunca deixa o cadastro aberto sem ninguém perceber.
+- **Como comprovar:** com `false`, `curl -i -X POST http://localhost:8080/api/v1/auth/register -H 'Content-Type: application/json' -d '{"email":"a@b.com","name":"x","password":"senha-forte-123"}'` → `403`; com a variável ausente → `201`.
+- Observação: a tela de cadastro do app continua visível e mostra a mensagem acima ao tentar; esconder a aba é uma melhoria de interface, não feita aqui.
 
 ## Administração (papel de admin)
 

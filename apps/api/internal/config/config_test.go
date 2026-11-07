@@ -171,3 +171,35 @@ func TestRedisURLHasPassword(t *testing.T) {
 		}
 	}
 }
+
+func TestRegistrationEnabled(t *testing.T) {
+	baseEnv(t)
+
+	// padrão: aberto (variável ausente ou vazia, como o compose repassa quando não definida)
+	for _, v := range []string{"", "  "} {
+		t.Setenv("REGISTRATION_ENABLED", v)
+		if c, err := Load(); err != nil || c.RegistrationDisabled {
+			t.Errorf("REGISTRATION_ENABLED=%q deveria deixar o cadastro aberto: %+v %v", v, c.RegistrationDisabled, err)
+		}
+	}
+	for _, v := range []string{"true", "TRUE", "1", "t"} {
+		t.Setenv("REGISTRATION_ENABLED", v)
+		if c, err := Load(); err != nil || c.RegistrationDisabled {
+			t.Errorf("REGISTRATION_ENABLED=%q deveria manter aberto: %v", v, err)
+		}
+	}
+	for _, v := range []string{"false", "FALSE", "0", "f"} {
+		t.Setenv("REGISTRATION_ENABLED", v)
+		if c, err := Load(); err != nil || !c.RegistrationDisabled {
+			t.Errorf("REGISTRATION_ENABLED=%q deveria fechar o cadastro: %v", v, err)
+		}
+	}
+
+	// valor que não é booleano: a API NÃO sobe (nunca deixa o cadastro aberto por engano)
+	for _, v := range []string{"nao", "não", "off", "no", "desligado", "2"} {
+		t.Setenv("REGISTRATION_ENABLED", v)
+		if _, err := Load(); err == nil || !strings.Contains(err.Error(), "REGISTRATION_ENABLED") {
+			t.Errorf("REGISTRATION_ENABLED=%q deveria dar erro de inicialização, erro=%v", v, err)
+		}
+	}
+}

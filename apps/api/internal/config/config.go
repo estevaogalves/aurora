@@ -39,6 +39,9 @@ type Config struct {
 	// Cadastros por IP na janela (429 ao passar). A chave é o IP: com proxy na frente, TRUST_PROXY deve estar ligado.
 	RegisterMaxPerIP int
 	RegisterWindow   time.Duration
+	// REGISTRATION_ENABLED=false fecha o cadastro (403 com mensagem clara). Guardado ao contrário para que o
+	// valor zero (testes, Config montada à mão) continue significando "cadastro aberto".
+	RegistrationDisabled bool
 
 	// Pool do banco da API. DBMaxConns é reduzido na inicialização se passar do max_connections do
 	// servidor (com margem); multiplique por réplica ao dimensionar. DBStatementTimeout vale só para o
@@ -93,6 +96,14 @@ func Load() (Config, error) {
 	}
 
 	var problems []error
+	// Valor inválido NÃO pode deixar o cadastro aberto por engano (ex.: "nao" ou "off" digitados para fechá-lo).
+	if v := strings.TrimSpace(os.Getenv("REGISTRATION_ENABLED")); v != "" {
+		enabled, err := strconv.ParseBool(v)
+		if err != nil {
+			problems = append(problems, fmt.Errorf("REGISTRATION_ENABLED=%q inválido: use true ou false", v))
+		}
+		c.RegistrationDisabled = err == nil && !enabled
+	}
 	switch c.AppEnv {
 	case "production":
 		if !c.CookieSecure {

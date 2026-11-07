@@ -34,6 +34,7 @@ e, na API, `go vet ./... && go test ./...` (com `TEST_DATABASE_URL`).
 | `API_MEM_LIMIT` | `512m` | Memória real da API. Dela sai a concorrência de hashes de senha (40% ÷ 64 MiB; 512m → 3). |
 | `TRUST_PROXY` | `true` no compose | Só deixe `true` se a API for alcançável **apenas** pelo nginx. Se houver CDN/balanceador na frente, configure `real-ip.conf` (veja `docs/ip-real-atras-de-proxy.md`). |
 | `CORS_ORIGINS` | localhost | Domínio real, se front e API não ficarem no mesmo endereço. |
+| `REGISTRATION_ENABLED` | `true` | `false` **fecha o cadastro** (`403` com mensagem clara); o login de quem já tem conta não muda. Só aceita `true`/`false` (outro valor impede a API de iniciar). Use `false` até cumprir os "Requisitos antes de abrir para clientes" (seção abaixo) ou durante um incidente; para reabrir, apague a variável e `docker compose up -d`. |
 | `WEB_PORT` / `API_PORT` | `8080` / `8081` | portas publicadas no host (a API só em `127.0.0.1`). |
 
 ### Novas, opcionais (vazio = padrão)
@@ -95,6 +96,11 @@ Esperado: `aurora_refresh=…; Path=/api/v1/auth; HttpOnly; Secure; SameSite=Lax
 - [ ] Repita as 6 tentativas enviando `-H 'X-Forwarded-For: 1.2.3.4'` e `-H 'X-Real-IP: 5.6.7.8'` com valores diferentes a cada vez: **continua** dando `429` na 6ª (forjar não escapa).
 - [ ] Com CDN/balanceador: faça as tentativas de duas redes diferentes (ex.: Wi-Fi e 4G). Cada rede tem o seu contador; uma não bloqueia a outra.
 - [ ] Log da API: o IP registrado/limitado é o do cliente, não o do proxy.
+
+**Cadastro aberto/fechado (`REGISTRATION_ENABLED`)**
+- [ ] Ambiente ainda **não** liberado para clientes: `REGISTRATION_ENABLED=false` e `curl -i -X POST https://app.exemplo.com/api/v1/auth/register -H 'Content-Type: application/json' -d '{"email":"a@b.com","name":"x","password":"senha-forte-123"}'` dá `403` com "O cadastro está fechado no momento…". O login de quem já tem conta continua funcionando.
+- [ ] Ambiente liberado: a variável ausente (ou `true`) e o mesmo `curl` com um e-mail de teste dá `201` (apague a conta de teste depois).
+- [ ] Log de inicialização sem erro `REGISTRATION_ENABLED=… inválido` (a API só aceita `true`/`false`).
 
 **Cadastro e seu limite**
 - [ ] Cadastro normal funciona e devolve `role: "user"`.
