@@ -53,3 +53,35 @@ func (l *LoginLimiter) Fail(ctx context.Context, key string) error {
 func (l *LoginLimiter) Reset(ctx context.Context, key string) error {
 	return l.rdb.Del(ctx, limitKey(key)).Err()
 }
+
+// RateLimiter conta TODAS as tentativas por chave (ex.: IP) numa janela fixa, no Redis.
+// Diferente do LoginLimiter, que só conta falhas.
+type RateLimiter struct {
+	rdb    *redis.Client
+	prefix string
+	max    int
+	window time.Duration
+}
+
+func NewRateLimiter(rdb *redis.Client, prefix string, max int, window time.Duration) *RateLimiter {
+	return &RateLimiter{rdb: rdb, prefix: prefix, max: max, window: window}
+}
+
+// Hit registra uma tentativa. allowed=false quando passou do máximo; wait diz quando libera.
+func (l *RateLimiter) Hit(ctx context.Context, key string) (allowed bool, wait time.Duration, err error) {
+	k := "ratelimit:" + l.prefix + ":" + key
+	pipe := l.rdb.TxPipeline()
+	incr := pipe.Incr(ctx, k)
+	pipe.ExpireNX(ctx, k, l.window)
+	if _, err := pipe.Exec(ctx); err != nil {
+		return false, 0, err
+	}
+	if incr.Val() <= int64(l.max) {
+		return true, 0, nil
+	}
+	ttl, err := l.rdb.TTL(ctx, k).Result()
+	if err != nil || ttl <= 0 {
+		ttl = l.window
+	}
+	return false, ttl, nil
+}

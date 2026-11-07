@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -20,6 +21,7 @@ import (
 	"aurora/api/internal/cache"
 	"aurora/api/internal/config"
 	"aurora/api/internal/store"
+	"aurora/api/internal/sysmem"
 )
 
 type Server struct {
@@ -33,6 +35,10 @@ type Server struct {
 	log     *slog.Logger
 	// hash usado para gastar o mesmo tempo quando o e-mail não existe (evita revelar quem tem conta)
 	dummyHash string
+	// limita os hashes argon2id simultâneos (cada um usa 64 MiB)
+	hasher *auth.HashLimiter
+	// cadastros por IP; nil = sem limite (RegisterMaxPerIP <= 0)
+	registerLimiter *auth.RateLimiter
 }
 
 func New(cfg config.Config, st *store.Store, rdb *redis.Client, log *slog.Logger) (*Server, error) {
@@ -40,13 +46,43 @@ func New(cfg config.Config, st *store.Store, rdb *redis.Client, log *slog.Logger
 	if err != nil {
 		return nil, err
 	}
-	return &Server{
+
+	slots := cfg.HashMaxConcurrency
+	if slots <= 0 {
+		slots = auth.AutoConcurrency(sysmem.Limit(), runtime.NumCPU())
+	}
+	queue := cfg.HashMaxQueue
+	if queue <= 0 {
+		queue = 4 * slots
+	}
+	timeout := cfg.HashQueueTimeout
+	if timeout <= 0 {
+		timeout = 3 * time.Second
+	}
+	log.Info("limite de hashing", "concorrencia", slots, "fila", queue, "timeout", timeout.String())
+
+	s := &Server{
 		cfg: cfg, store: st, rdb: rdb, log: log, dummyHash: dummy,
 		jwt:     auth.NewJWT(cfg.JWTSecret, cfg.AccessTTL),
 		refresh: auth.NewRefresh(rdb, cfg.RefreshTTL),
 		limiter: auth.NewLoginLimiter(rdb, cfg.LoginMaxAttempts, cfg.LoginWindow),
 		cache:   cache.NewSummaries(rdb),
-	}, nil
+		hasher:  auth.NewHashLimiter(slots, queue, timeout),
+	}
+	if cfg.RegisterMaxPerIP > 0 {
+		window := cfg.RegisterWindow
+		if window <= 0 {
+			window = time.Hour
+		}
+		s.registerLimiter = auth.NewRateLimiter(rdb, "register", cfg.RegisterMaxPerIP, window)
+	}
+	return s, nil
+}
+
+// busy responde 503 quando a fila de hashing está cheia ou demorou demais.
+func (s *Server) busy(w http.ResponseWriter) {
+	w.Header().Set("Retry-After", "2")
+	writeError(w, http.StatusServiceUnavailable, "Servidor ocupado. Tente novamente em instantes.")
 }
 
 func (s *Server) Router() http.Handler {

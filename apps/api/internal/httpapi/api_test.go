@@ -32,7 +32,7 @@ type env struct {
 	cfg config.Config
 }
 
-func setup(t *testing.T) *env {
+func setup(t *testing.T, opts ...func(*config.Config)) *env {
 	t.Helper()
 	url := os.Getenv("TEST_DATABASE_URL")
 	if url == "" {
@@ -56,6 +56,9 @@ func setup(t *testing.T) *env {
 		JWTSecret: strings.Repeat("k", 32), AccessTTL: 15 * time.Minute, RefreshTTL: time.Hour,
 		LoginMaxAttempts: 3, LoginWindow: time.Minute, AllowedOrigin: []string{"http://localhost:5173"},
 		AdminEmail: "admin@aurora.test",
+	}
+	for _, o := range opts {
+		o(&cfg)
 	}
 	srv, err := httpapi.New(cfg, store.New(pool), rdb, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {

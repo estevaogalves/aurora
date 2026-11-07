@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"aurora/api/internal/db"
 	"aurora/api/internal/httpapi"
 	"aurora/api/internal/store"
+	"aurora/api/internal/sysmem"
 )
 
 func main() {
@@ -31,6 +33,12 @@ func run(log *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+
+	// Cada hash de senha aloca 64 MiB. Com limite de memória no container e sem GOMEMLIMIT definido,
+	// faz o coletor de lixo apertar antes de o kernel matar o processo (OOM).
+	if lim := sysmem.Limit(); lim > 0 && os.Getenv("GOMEMLIMIT") == "" {
+		debug.SetMemoryLimit(int64(lim / 100 * 85))
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
