@@ -13,7 +13,7 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ] Redis: refresh tokens, rate limit de login e cache dos resumos mensais
 - [ ] Login por e-mail e senha (argon2id + JWT), com papéis `user` e `admin`
 - [ ] Ordem: front primeiro (dados locais), API depois, troca da fonte de dados por último
-- [ ] Visual: protótipo B "Aurora" (escuro, violeta e ciano, abas no topo, painel em blocos)
+- [ ok ] Visual: protótipo B "Aurora" (escuro, violeta e ciano, abas no topo, painel em blocos)
 - [ ] Confirmar o nome do produto (Aurora ou outro) antes da Fase 2
 - [ ok ] Uma única ação "Lançar" (modal com abas Despesa, Renda e Crédito); as listas não têm botões de adicionar
 
@@ -97,7 +97,7 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Despesa extra cadastrada pelo Lançar (aba Despesa extra); botões removidos da Projeção
 - [ ok ] Comparação: só meses com movimentação, aviso com menos de 2 meses, até 5 meses
 - [ ok ] Cabeçalho sem a caixa atrás dos botões (transparente no topo, com fundo só ao rolar)
-- [ ] Nova opção no Crédito parcelado (aguardando a descrição)
+- [ ] ~~Nova opção no Crédito parcelado~~ (descartada)
   - Repositório na versão 3 (`customCategories`), com migração de v1 e v2.
 
 ## Fase 4: Telas que hoje são mock
@@ -111,15 +111,15 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 
 ## Fase 5: Limpeza e correções
 
-- Feito junto da Fase 4: telas antigas, mocks, sidebar, componentes `ui` sem uso, `tsc -b` zerado e a maior parte do lint. Resta o aviso de `ui/button.tsx` (exporta `buttonVariants` junto do componente).
+- Fase concluída. Também saíram dependências sem uso (`recharts`, `@recharts/devtools`, `react-icons`, radix separator e tooltip) e o gerador de PDF passou a ser carregado só quando se exporta (pacote principal de 918 KB para 495 KB).
 
 - [ ok ] Remover `Navbar.tsx`, `EditableAmount.tsx`, `Mocks/*`, `Types/Incomes.tsx`, `SideBarStore.ts` e `ListExtraExpenses.tsx`
 - [ ok ] Remover `console.log` e blocos comentados
 - [ ok ] Corrigir `EditableName` (a edição não fecha depois de salvar) (feito na Fase 1)
 - [ ok ] Corrigir `grid-cols-[auto,1fr,auto]` em `ExpenseCard.tsx`
 - [ ok ] Zerar os erros de TypeScript (`tsc -b`)
-- [ ] Zerar os avisos do `pnpm lint`
-  - Falta 1: `components/ui/button.tsx` (react-refresh/only-export-components).
+- [ ok ] Zerar os avisos do `pnpm lint`
+  - `pnpm lint`, `tsc -b` e `pnpm build` passam sem avisos.
 
 ## Fase 6: Backend em Go
 
@@ -162,8 +162,8 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Edição inline com `type="number"` rejeitando vírgula
 - [ ok ] Renda fixa editada alterando todos os meses
 - [ ok ] Lixeira desabilitada para despesa e renda fixas
-- [ ] Navegação entre meses limitada (sem futuro, bloqueada por mês vazio)
-  - Parcial: mês vazio no meio não trava mais a volta (usa `getAvailableMonths`). Avançar para meses futuros fica para o seletor global da Fase 3.
+- [ ok ] Navegação entre meses limitada (sem futuro, bloqueada por mês vazio)
+  - O seletor global não passa do mês atual e mês vazio no meio não trava a volta.
 - [ ok ] `MoneyCard` e `SummaryCard` sem reagir à troca de mês
 - [ ok ] Percentuais de distribuição duplicados em `getDistribuition` e `CardPositive`
 - [ ok ] Nomes trocados entre arquivo e função (`BarsGraph`, `CategoryGraph`)
