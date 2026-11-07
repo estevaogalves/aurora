@@ -1,3 +1,4 @@
+import MonthPicker from "@/components/shared/MonthPicker";
 import { useState } from "react";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,7 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
           <MoneyInput id="goal-saved" value={saved} onChange={setSaved} />
         </Field>
         <Field label="Prazo" hint="(opcional)" htmlFor="goal-deadline">
-          <input id="goal-deadline" type="month" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
+          <MonthPicker id="goal-deadline" value={deadline} onChange={setDeadline} clearable placeholder="Sem prazo" />
         </Field>
       </div>
       <div className="flex justify-end gap-2 pt-1">

@@ -20,6 +20,7 @@ const PATHS = {
   chevronR: "M9 6l6 6-6 6",
   user: "M12 12a4 4 0 100-8 4 4 0 000 8zM4 21a8 8 0 0116 0",
   logout: "M9 4H5v16h4M16 8l4 4-4 4M20 12H9",
+  calendar: "M5 5h14v15H5zM5 9h14M9 3v4M15 3v4",
   upload: "M12 16V4M6 10l6-6 6 6M5 21h14",
 } as const;
 

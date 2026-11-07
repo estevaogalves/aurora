@@ -1,3 +1,4 @@
+import MonthPicker from "@/components/shared/MonthPicker";
 import { useState } from "react";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
@@ -49,7 +50,7 @@ function Fields({ extra, onClose }: { extra: ExtraExpense; onClose: () => void }
           <MoneyInput id="edit-extra-amount" value={amount} onChange={setAmount} />
         </Field>
         <Field label="Mês" htmlFor="edit-extra-month">
-          <input id="edit-extra-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className={inputClass} />
+          <MonthPicker id="edit-extra-month" value={month} onChange={setMonth} />
         </Field>
       </div>
       <div className="flex justify-end gap-2">
