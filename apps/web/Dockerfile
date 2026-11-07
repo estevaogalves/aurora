@@ -17,5 +17,6 @@ RUN pnpm --filter web build
 FROM nginx:alpine
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
 COPY apps/web/security-headers.conf /etc/nginx/snippets/security-headers.conf
+COPY apps/web/real-ip.conf /etc/nginx/snippets/real-ip.conf
 COPY --from=build /repo/apps/web/dist /usr/share/nginx/html
 EXPOSE 80

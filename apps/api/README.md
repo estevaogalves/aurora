@@ -31,7 +31,10 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 | `CORS_ORIGINS` | `http://localhost:5173` | origens permitidas, separadas por vírgula |
 | `ADMIN_EMAIL` | vazio | quem se cadastra com este e-mail vira `admin` |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_WINDOW` | `5` / `15m` | limite de logins com falha |
-| `TRUST_PROXY` | `false` | confiar em `X-Forwarded-For` (só atrás de um proxy seu) |
+| `HASH_MAX_CONCURRENCY` | automático | hashes de senha (argon2id, 64 MiB cada) ao mesmo tempo; automático = 40% do limite de memória / 64 MiB, no máximo o nº de CPUs |
+| `HASH_MAX_QUEUE` / `HASH_QUEUE_TIMEOUT` | `4×` a concorrência / `3s` | fila de espera por uma vaga de hash; fila cheia ou tempo esgotado => `503` + `Retry-After` |
+| `REGISTER_MAX_PER_IP` / `REGISTER_WINDOW` | `5` / `1h` | cadastros por IP na janela; passou => `429` + `Retry-After` (a chave é o IP: veja `TRUST_PROXY`) |
+| `TRUST_PROXY` | `false` (no compose: `true`) | ler o IP do cliente de `X-Real-IP`/`X-Forwarded-For`. **Só ligue se a API for alcançável apenas por um proxy que sobrescreve esses cabeçalhos** (o nginx do projeto faz isso); senão qualquer cliente forja o IP e escapa dos limites. Veja `docs/ip-real-atras-de-proxy.md` |
 
 ## Como funciona
 

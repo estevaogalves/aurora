@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/mail"
@@ -61,7 +63,28 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hash, err := auth.HashPassword(in.Password)
+	// Só tentativas que chegam até o hash (o passo caro) contam para o limite por IP.
+	if s.registerLimiter != nil {
+		allowed, wait, err := s.registerLimiter.Hit(r.Context(), clientIP(r))
+		if err != nil {
+			s.fail(w, r, err)
+			return
+		}
+		if !allowed {
+			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+			writeError(w, http.StatusTooManyRequests, "Muitos cadastros deste endereço. Tente novamente mais tarde.")
+			return
+		}
+	}
+
+	hash, err := s.hasher.Hash(r.Context(), in.Password)
+	if errors.Is(err, auth.ErrBusy) {
+		s.busy(w)
+		return
+	}
+	if errors.Is(err, context.Canceled) {
+		return // o cliente desistiu
+	}
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -118,7 +141,14 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	ok, _ := auth.VerifyPassword(in.Password, hash)
+	ok, verr := s.hasher.Verify(ctx, in.Password, hash)
+	if errors.Is(verr, auth.ErrBusy) {
+		s.busy(w) // sobrecarga não conta como tentativa errada do usuário
+		return
+	}
+	if errors.Is(verr, context.Canceled) {
+		return // o cliente desistiu
+	}
 	if err != nil || !ok {
 		if ferr := s.limiter.Fail(ctx, key); ferr != nil {
 			s.log.Warn("falha ao registrar tentativa de login", "err", ferr)

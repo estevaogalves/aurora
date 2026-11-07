@@ -89,3 +89,33 @@ func TestUnknownAppEnvIsRejected(t *testing.T) {
 		t.Fatalf("APP_ENV desconhecido deveria falhar, erro=%v", err)
 	}
 }
+
+func TestAbuseProtectionDefaults(t *testing.T) {
+	baseEnv(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.RegisterMaxPerIP != 5 || c.RegisterWindow.String() != "1h0m0s" {
+		t.Errorf("cadastro por IP: %d / %v", c.RegisterMaxPerIP, c.RegisterWindow)
+	}
+	if c.HashMaxConcurrency != 0 || c.HashMaxQueue != 0 || c.HashQueueTimeout.String() != "3s" {
+		t.Errorf("hash: %d / %d / %v", c.HashMaxConcurrency, c.HashMaxQueue, c.HashQueueTimeout)
+	}
+
+	// valores vazios vindos do compose (VAR=) continuam valendo os padrões
+	t.Setenv("HASH_MAX_CONCURRENCY", "")
+	t.Setenv("REGISTER_MAX_PER_IP", "")
+	t.Setenv("HASH_QUEUE_TIMEOUT", "")
+	if c2, err := Load(); err != nil || c2.RegisterMaxPerIP != 5 || c2.HashQueueTimeout.String() != "3s" {
+		t.Errorf("vazio deveria cair no padrão: %+v %v", c2, err)
+	}
+
+	t.Setenv("HASH_MAX_CONCURRENCY", "2")
+	t.Setenv("REGISTER_MAX_PER_IP", "9")
+	t.Setenv("HASH_QUEUE_TIMEOUT", "500ms")
+	c3, _ := Load()
+	if c3.HashMaxConcurrency != 2 || c3.RegisterMaxPerIP != 9 || c3.HashQueueTimeout.String() != "500ms" {
+		t.Errorf("sobrescrita: %+v", c3)
+	}
+}

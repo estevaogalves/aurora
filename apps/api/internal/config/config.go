@@ -30,6 +30,16 @@ type Config struct {
 	// Limite de tentativas de login por e-mail+IP na janela.
 	LoginMaxAttempts int
 	LoginWindow      time.Duration
+
+	// Hashing de senha (argon2id usa 64 MiB por hash). 0 = calcular pelo limite de memória do processo.
+	HashMaxConcurrency int
+	// Quantos pedidos podem esperar por uma vaga de hash. 0 = 4 x a concorrência.
+	HashMaxQueue int
+	// Tempo máximo na fila; depois disso a API responde 503.
+	HashQueueTimeout time.Duration
+	// Cadastros por IP na janela (429 ao passar). A chave é o IP: com proxy na frente, TRUST_PROXY deve estar ligado.
+	RegisterMaxPerIP int
+	RegisterWindow   time.Duration
 }
 
 func Load() (Config, error) {
@@ -47,6 +57,12 @@ func Load() (Config, error) {
 		AdminEmail:         strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
 		LoginMaxAttempts:   envInt("LOGIN_MAX_ATTEMPTS", 5),
 		LoginWindow:        envDuration("LOGIN_WINDOW", 15*time.Minute),
+
+		HashMaxConcurrency: envInt("HASH_MAX_CONCURRENCY", 0),
+		HashMaxQueue:       envInt("HASH_MAX_QUEUE", 0),
+		HashQueueTimeout:   envDuration("HASH_QUEUE_TIMEOUT", 3*time.Second),
+		RegisterMaxPerIP:   envInt("REGISTER_MAX_PER_IP", 5),
+		RegisterWindow:     envDuration("REGISTER_WINDOW", time.Hour),
 	}
 	for _, o := range strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ",") {
 		if o = strings.TrimSpace(o); o != "" {
