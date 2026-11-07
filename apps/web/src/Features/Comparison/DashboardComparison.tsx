@@ -62,7 +62,7 @@ export default function DashboardComparison() {
         {openCard && (
           <>
             <CardContent>
-              <div className="grid grid-cols-7 gap-3">
+              <div className="grid grid-cols-3 sm:grid-cols-7 gap-3">
                 {items.map((item) => {
                   return (
                     <button
@@ -102,7 +102,7 @@ export default function DashboardComparison() {
       </Card>
 
       {/* Cards de comparação - so mostrar se tiver pelo menos 2 meses selecionados */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <Card className="rounded-xl bg-card border-border mt-6 pt-8">
           <CardHeader>
             <CardTitle className="text-lg font-bold text-muted-foreground">

@@ -22,7 +22,7 @@ import {
   useMonthTransactions,
 } from "@/Store/selectors";
 import { categoryColors } from "@/Utils/categoryColors";
-import { changeMonth, formatMonth, formatMonthShort } from "@/Utils/Date";
+import { changeMonth, formatMonthShort, formatMonthTitle } from "@/Utils/Date";
 import MoneyCard from "../Observations/MoneyCard";
 
 function Block({ title, subtitle, children, className = "" }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
@@ -143,7 +143,7 @@ export default function Painel() {
     <div className="space-y-6">
       <header>
         <h1 className="font-display text-2xl font-bold text-foreground">Painel</h1>
-        <p className="capitalize text-muted-foreground">{formatMonth(month)}</p>
+        <p className="text-muted-foreground">{formatMonthTitle(month)}</p>
       </header>
 
       <div className="grid gap-4 md:grid-cols-3">

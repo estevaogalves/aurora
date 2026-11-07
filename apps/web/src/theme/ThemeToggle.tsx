@@ -10,9 +10,9 @@ export default function ThemeToggle({ showLabel = true }: { showLabel?: boolean 
       type="button"
       onClick={toggleTheme}
       aria-label={isDark ? "Ativar modo claro" : "Ativar modo escuro"}
-      className="flex w-full items-center justify-start gap-2 rounded-lg px-4 py-2 font-medium hover:bg-secondary"
+      className={`flex items-center gap-2 rounded-lg text-sm font-medium text-foreground transition-colors hover:bg-secondary ${showLabel ? "w-full px-4 py-2" : "h-9 w-9 justify-center border border-border bg-card"}`}
     >
-      {isDark ? <LuSun className="text-lg" /> : <LuMoon className="text-lg" />}
+      {isDark ? <LuSun className="text-base" /> : <LuMoon className="text-base" />}
       {showLabel && <span>{isDark ? "Modo claro" : "Modo escuro"}</span>}
     </button>
   );

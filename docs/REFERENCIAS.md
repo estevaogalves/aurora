@@ -70,8 +70,8 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Componentes `StatCard`, `ConfirmDeletion` e `CategorySelect`
 - [ ] Gráficos em Recharts usando os tokens
   - Parcial: os gráficos do Painel usam os tokens. Os de Despesas, Projeção e Comparação ainda usam as cores de `categoryColors` (hex).
-- [ ] Sem rolagem horizontal em 400px
-  - Parcial: larguras fixas grandes removidas, mas falta conferir no navegador.
+- [ ok ] Sem rolagem horizontal em 400px
+  - Conferido no navegador (Playwright) nas 6 rotas, em claro e escuro. Telas mock (Projeção, Comparação, Relatórios) foram só ajustadas; serão refeitas na Fase 4.
 
 ## Fase 4: Telas que hoje são mock
 

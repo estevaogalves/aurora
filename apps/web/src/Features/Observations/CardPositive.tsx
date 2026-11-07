@@ -133,13 +133,13 @@ export default function CardPositive() {
                       type="category"
                       tickLine={false}
                       axisLine={false}
-                      tick={{ fill: "#ffffff", fontSize: 10 }}
-                      style={{ fill: "#fff" }}
+                      tick={{ fill: "hsl(var(--foreground))", fontSize: 10 }}
+                      style={{ fill: "hsl(var(--foreground))" }}
                     />
                     <XAxis
                       type="number"
-                      tick={{ fill: "#ffffff", fontSize: 12 }}
-                      style={{ fill: "#fff" }}
+                      tick={{ fill: "hsl(var(--foreground))", fontSize: 12 }}
+                      style={{ fill: "hsl(var(--foreground))" }}
                       axisLine={{ stroke: "#ffffff" }}
                       tickLine={{ stroke: "#ffffff" }}
                       tickFormatter={(value) => formatBRL(value)}

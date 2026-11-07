@@ -33,9 +33,7 @@ export default function AppShell() {
             >
               <LuPlus aria-hidden="true" /> Lançar
             </button>
-            <div className="w-10">
-              <ThemeToggle showLabel={false} />
-            </div>
+            <ThemeToggle showLabel={false} />
           </div>
 
           <nav

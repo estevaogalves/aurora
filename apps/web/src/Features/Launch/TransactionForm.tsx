@@ -20,7 +20,7 @@ import {
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore, type LaunchTab } from "@/Store/UiStore";
 import type { Category } from "@/Types/Category";
-import { formatMonth } from "@/Utils/Date";
+import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/ToastContainer";
 
 const inputClass =
@@ -197,7 +197,7 @@ function LaunchFields({ kind, onDone }: { kind: LaunchTab; onDone: () => void })
       {kind === "credit" && (
         <p className="text-sm text-muted-foreground">
           Parcela de <strong className="text-foreground">R$ {centsToInput(installmentValue) || "0,00"}</strong>,
-          começando em <span className="capitalize">{formatMonth(currentMonth)}</span>.
+          começando em {formatMonthTitle(currentMonth)}.
         </p>
       )}
 

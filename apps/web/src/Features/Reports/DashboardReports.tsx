@@ -19,7 +19,7 @@ export default function DashboardReports() {
       </div>
 
       {/* Cards de resumo - 3 cards lado a lado igual ao SummaryCard */}
-      <div className="grid grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
         {/* Meses registrados */}
         <Card className="rounded-xl bg-card border-border">
           <CardHeader >
@@ -29,7 +29,7 @@ export default function DashboardReports() {
                   <CiCalendar className="text-2xl" />
                 </div>
                 <section>
-                  <h1 className="text-base text-muted-foreground font-medium mr-16">Meses registrados</h1>
+                  <h1 className="text-base text-muted-foreground font-medium">Meses registrados</h1>
                   <p className="text-2xl text-foreground font-bold">0</p>
                 </section>
               </div>
@@ -46,7 +46,7 @@ export default function DashboardReports() {
                   <GrDocumentText className="text-xl" />
                 </div>
                 <section>
-                  <h1 className="text-base text-muted-foreground font-medium mr-16">Total de receitas</h1>
+                  <h1 className="text-base text-muted-foreground font-medium">Total de receitas</h1>
                   <p className="text-2xl text-foreground font-bold">R$: 0,00</p>
                 </section>
               </div>
@@ -63,7 +63,7 @@ export default function DashboardReports() {
                   <GrDocumentText className="text-xl" />
                 </div>
                 <section>
-                  <h1 className="text-base text-muted-foreground font-medium mr-16">Total de despesas</h1>
+                  <h1 className="text-base text-muted-foreground font-medium">Total de despesas</h1>
                   <p className="text-2xl text-foreground font-bold">R$: 0,00</p>
                 </section>
               </div>

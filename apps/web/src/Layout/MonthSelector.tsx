@@ -5,7 +5,7 @@ import { useFinanceStore } from "../Store/FinanceStore";
 import {
   changeMonth,
   compareMonths,
-  formatMonth,
+  formatMonthTitle,
   getCurrentMonth,
 } from "../Utils/Date";
 
@@ -48,8 +48,8 @@ export default function MonthSelector() {
       </button>
 
       <div className="min-w-[8.5rem] text-center">
-        <p className="font-display text-sm font-semibold capitalize leading-tight text-foreground">
-          {formatMonth(currentMonth)}
+        <p className="font-display text-sm font-semibold leading-tight text-foreground">
+          {formatMonthTitle(currentMonth)}
         </p>
         {currentMonth !== realCurrentMonth && (
           <button

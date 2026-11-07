@@ -28,7 +28,7 @@ export default function ExportReports() {
         <CardContent>
           {/* Formatos de exportaçao */}
           <h1 className="text-base text-foreground font-bold mb-3 mt-3">Formato</h1>
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Button
               onClick={() => setFormato("pdf")}
               className={`h-auto p-6 rounded-xl border ${
@@ -81,7 +81,7 @@ export default function ExportReports() {
 
           {/* Meses escolhidos */}
           <h1 className="text-base text-foreground font-bold mb-3 mt-6">Meses</h1>
-          <div className="grid grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
             <Button
               onClick={() => setMes("atual")}
               className={`h-auto p-4 rounded-xl border ${

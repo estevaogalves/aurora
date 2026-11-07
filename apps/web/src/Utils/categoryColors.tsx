@@ -1,7 +1,7 @@
 import type { Category } from "../Types/Category";
 
 export const categoryColors: Record<Category, string> = {
-  Moradia: "#334155",
+  Moradia: "#64748B",
   Transporte: "#22C55E",
   Alimentação: "#3B82F6",
   Saúde: "#F97316",

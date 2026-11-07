@@ -183,3 +183,9 @@ export function isValidMonth(month: string) {
   const regex = /^\d{4}-(0[1-9]|1[0-2])$/;
   return regex.test(month);
 }
+
+/** "novembro de 2026" -> "Novembro de 2026" (só a primeira letra) */
+export function formatMonthTitle(month: string) {
+  const text = formatMonth(month);
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

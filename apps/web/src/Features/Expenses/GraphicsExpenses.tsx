@@ -84,7 +84,7 @@ export default function GraphicsExpenses() {
             </TabsList>
             <TabsContent
               value="category"
-              className="grid grid-cols-2 gap-8 items-center mt-6"
+              className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center mt-6"
             >
               {(() => {
                 // cria uma cópia e ordena do maior para o menor
@@ -131,7 +131,7 @@ export default function GraphicsExpenses() {
                           1,
                         );
                         return (
-                          <div key={index} className="flex items-center gap-3">
+                          <div key={index} className="flex flex-wrap items-center gap-x-3 gap-y-1">
                             <span
                               className="h-4 w-4 rounded-full"
                               style={{ backgroundColor: item.fill }}
