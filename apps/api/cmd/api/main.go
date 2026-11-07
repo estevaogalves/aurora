@@ -36,13 +36,20 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
+	if cfg.MigrateDatabaseURL != "" {
+		if err := db.MigrateURL(ctx, cfg.MigrateDatabaseURL); err != nil {
+			return err
+		}
+	}
 	pool, err := db.Connect(ctx, cfg.DatabaseURL)
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
-	if err := db.Migrate(ctx, pool); err != nil {
-		return err
+	if cfg.MigrateDatabaseURL == "" {
+		if err := db.Migrate(ctx, pool); err != nil {
+			return err
+		}
 	}
 
 	opt, err := redis.ParseURL(cfg.RedisURL)

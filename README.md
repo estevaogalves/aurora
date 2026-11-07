@@ -33,6 +33,10 @@ pnpm install
 pnpm dev
 ```
 
+## Banco externo
+
+Para usar um Postgres local ou o Supabase em vez do container, veja `.env.example` e a seção "Banco externo" em [`apps/api/README.md`](apps/api/README.md).
+
 ## Modos de dados
 
 O front escolhe de onde vêm os dados por `VITE_DATA_SOURCE` (veja `apps/web/.env.example`):

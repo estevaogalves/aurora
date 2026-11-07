@@ -184,6 +184,16 @@ Acompanhamento da refatoração do Aurora (antes OrganizaGrana): monorepo, novo 
   - `make test-api` roda `go vet` e `go test` no Docker com um Postgres descartável, sem precisar de Go instalado.
   - O workflow não foi executado no GitHub (só conferido localmente, passo a passo). Vale olhar a primeira execução no PR.
 
+## Banco externo (Postgres local e Supabase)
+
+- [ ok ] `DATABASE_URL`, `REDIS_URL` e `MIGRATE_DATABASE_URL` configuráveis pelo `.env` no compose; `host.docker.internal` liberado no serviço `api`
+- [ ok ] Migration `00002_enable_rls.sql`: RLS ligado (sem policies) em todas as tabelas, inclusive `goose_db_version`
+- [ ok ] `MIGRATE_DATABASE_URL`: migrations por conexão própria, para usar com pooler em modo transação
+- [ ok ] Documentação em `apps/api/README.md` e `.env.example`
+  - Conferido com um Postgres separado (usuário sem superusuário, como no Supabase) e a API do compose apontando para ele: migrations até a versão 2, RLS em 11/11 tabelas, um papel `anon` com `GRANT SELECT` lê 0 linhas e o dono da API lê as dele. Também conferido o caminho com `MIGRATE_DATABASE_URL` e `default_query_exec_mode=simple_protocol`.
+  - Não testado contra um projeto Supabase real (sem credenciais aqui) nem contra Redis com TLS.
+  - O Compose desta versão não aceita `${A:-...${B}...}` aninhado, então o padrão de `DATABASE_URL` usa `aurora/aurora/aurora` literais: quem mudar `POSTGRES_*` deve definir `DATABASE_URL` também.
+
 ## Correções apontadas na auditoria
 
 - [ ok ] Despesas e rendas de outros meses aparecendo no mês atual

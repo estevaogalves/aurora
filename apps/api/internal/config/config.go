@@ -11,13 +11,15 @@ import (
 )
 
 type Config struct {
-	Addr         string
-	DatabaseURL  string
-	RedisURL     string
-	JWTSecret    string
-	AccessTTL    time.Duration
-	RefreshTTL   time.Duration
-	CookieSecure bool
+	Addr        string
+	DatabaseURL string
+	// Opcional: conexão direta só para as migrations (use quando DatabaseURL passa por um pooler em modo transação).
+	MigrateDatabaseURL string
+	RedisURL           string
+	JWTSecret          string
+	AccessTTL          time.Duration
+	RefreshTTL         time.Duration
+	CookieSecure       bool
 	// Confia em X-Forwarded-For/X-Real-IP (só ligue atrás de um proxy seu).
 	TrustProxy    bool
 	AllowedOrigin []string
@@ -30,17 +32,18 @@ type Config struct {
 
 func Load() (Config, error) {
 	c := Config{
-		Addr:             env("API_ADDR", ":8080"),
-		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		RedisURL:         env("REDIS_URL", "redis://localhost:6379/0"),
-		JWTSecret:        os.Getenv("JWT_SECRET"),
-		AccessTTL:        envDuration("ACCESS_TTL", 15*time.Minute),
-		RefreshTTL:       envDuration("REFRESH_TTL", 30*24*time.Hour),
-		CookieSecure:     envBool("COOKIE_SECURE", false),
-		TrustProxy:       envBool("TRUST_PROXY", false),
-		AdminEmail:       strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
-		LoginMaxAttempts: envInt("LOGIN_MAX_ATTEMPTS", 5),
-		LoginWindow:      envDuration("LOGIN_WINDOW", 15*time.Minute),
+		Addr:               env("API_ADDR", ":8080"),
+		DatabaseURL:        os.Getenv("DATABASE_URL"),
+		MigrateDatabaseURL: os.Getenv("MIGRATE_DATABASE_URL"),
+		RedisURL:           env("REDIS_URL", "redis://localhost:6379/0"),
+		JWTSecret:          os.Getenv("JWT_SECRET"),
+		AccessTTL:          envDuration("ACCESS_TTL", 15*time.Minute),
+		RefreshTTL:         envDuration("REFRESH_TTL", 30*24*time.Hour),
+		CookieSecure:       envBool("COOKIE_SECURE", false),
+		TrustProxy:         envBool("TRUST_PROXY", false),
+		AdminEmail:         strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
+		LoginMaxAttempts:   envInt("LOGIN_MAX_ATTEMPTS", 5),
+		LoginWindow:        envDuration("LOGIN_WINDOW", 15*time.Minute),
 	}
 	for _, o := range strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ",") {
 		if o = strings.TrimSpace(o); o != "" {
