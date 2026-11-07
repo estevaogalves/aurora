@@ -33,6 +33,16 @@ pnpm install
 pnpm dev
 ```
 
+O servidor de desenvolvimento só escuta em `localhost` e só aceita `localhost`/IPs no cabeçalho `Host` (protege contra DNS
+rebinding). Abrir de outro aparelho é opt-in, a cada execução:
+
+```bash
+pnpm dev --host                                   # abre na rede local (celular): http://<IP-do-computador>:5173
+DEV_ALLOWED_HOSTS=meu-app.ngrok.app pnpm dev      # túnel (ngrok, Cloudflare Tunnel): libera só esse nome
+#   PowerShell: $env:DEV_ALLOWED_HOSTS="meu-app.ngrok.app"; pnpm dev
+```
+`DEV_ALLOWED_HOSTS` aceita vários nomes separados por vírgula (`.ngrok.app` com ponto libera subdomínios); curingas são recusados.
+
 ## Banco externo
 
 Para usar um Postgres local ou o Supabase em vez do container, veja `.env.example` e a seção "Banco externo" em [`apps/api/README.md`](apps/api/README.md).
