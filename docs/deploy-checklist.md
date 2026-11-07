@@ -23,6 +23,7 @@ e, na API, `go vet ./... && go test ./...` (com `TEST_DATABASE_URL`).
 |---|---|
 | `JWT_SECRET` | `openssl rand -hex 32`. **Sem valor padrão**; a API recusa curto, de exemplo ou de pouca variedade. Se o ambiente antigo usava o padrão do compose, o segredo está comprometido: trocar invalida as sessões (todos fazem login de novo). |
 | `POSTGRES_PASSWORD` | `openssl rand -hex 24` (só letras e números: ela entra na URL). **Sem valor padrão** (o compose recusa subir sem ela). **Atenção em ambiente existente:** o Postgres só lê a senha ao criar o volume; para trocar a de um volume que já existe, siga `docs/trocar-senha-postgres.md` (sem perder dados). Se o `.env` antigo não tinha a variável, ponha a senha que o volume tem hoje (era `aurora`) para a stack subir e depois troque. Com banco externo, defina qualquer valor (o compose exige a variável). |
+| `REDIS_PASSWORD` | `openssl rand -hex 24` (só letras e números). **Sem valor padrão** (o compose recusa subir sem ela). Está na `REDIS_URL` padrão do compose. Com Redis externo, defina qualquer valor aqui e ponha a senha real na `REDIS_URL` (`redis://:SENHA@host:6379/0`). Em produção a API avisa no log se a `REDIS_URL` não tiver senha. Para trocar depois: `apps/api/README.md` (seção "Senha do Redis"); desloga todos. |
 | `DATABASE_URL` | já existia (sem ela, o compose monta a URL com `POSTGRES_USER/PASSWORD/DB`) |
 | `APP_ENV` | `production` (padrão). Em produção, `COOKIE_SECURE=false` impede a API de iniciar. |
 | `COOKIE_SECURE` | `true` (padrão). **Exige HTTPS**: com cookie `Secure` em HTTP o navegador descarta o refresh token e o usuário perde a sessão a cada recarga. |
@@ -111,6 +112,8 @@ docker compose exec -T postgres psql -U aurora -d aurora -tAc 'select 1'   # fun
 ```
 - [ ] Postgres e Redis **sem** porta publicada no host (`docker compose ps` não mostra `0.0.0.0:5432` nem `:6379`).
 - [ ] A senha antiga `aurora` é recusada (veja o passo 6 de `docs/trocar-senha-postgres.md`).
+- [ ] O Redis recusa quem não tem a senha: `docker run --rm --network <pasta>_default redis:7-alpine redis-cli -h redis ping` → `NOAUTH`.
+- [ ] Log de inicialização da API **sem** o aviso "REDIS_URL sem senha".
 
 **Logs de auditoria (SEC-13)**
 ```sh

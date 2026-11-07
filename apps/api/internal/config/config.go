@@ -4,6 +4,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -108,6 +109,16 @@ func Load() (Config, error) {
 		problems = append(problems, err)
 	}
 	return c, errors.Join(problems...)
+}
+
+// RedisURLHasPassword diz se a URL do Redis traz senha (redis://:senha@host ou redis://usuario:senha@host).
+func RedisURLHasPassword(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil || u.User == nil {
+		return false
+	}
+	pw, ok := u.User.Password()
+	return ok && pw != ""
 }
 
 // weakSecretMarkers são trechos que denunciam segredos de exemplo (do .env.example, do README, de tutoriais).

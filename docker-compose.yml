@@ -31,7 +31,19 @@ services:
 
   redis:
     image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
-    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    # Senha obrigatória, sem valor padrão (openssl rand -hex 24). Vai como argumento do redis-server (e não via
+    # `sh -c`) para o entrypoint continuar largando o root antes de iniciar o Redis.
+    command:
+      - redis-server
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --requirepass
+      - ${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env (openssl rand -hex 24)}
+    environment:
+      # o redis-cli do healthcheck lê a senha daqui (não aparece na linha de comando)
+      REDISCLI_AUTH: ${REDIS_PASSWORD}
     read_only: true
     cap_drop: [ALL]
     cap_add: [CHOWN, SETUID, SETGID]
@@ -51,12 +63,12 @@ services:
       redis: { condition: service_healthy }
     environment:
       API_ADDR: ":8080"
-      # Para usar outro banco (Postgres no host, Supabase...), defina DATABASE_URL no .env
+      # Para usar outro banco (Postgres no host, Supabase...) ou outro Redis, defina DATABASE_URL / REDIS_URL no .env
       # e suba sem os containers de banco: docker compose up --build --no-deps api web.
       # Sem DATABASE_URL, usa o Postgres do compose com POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB.
       DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-aurora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aurora}?sslmode=disable}
       MIGRATE_DATABASE_URL: ${MIGRATE_DATABASE_URL:-}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379/0}
       # obrigatório, sem valor padrão: gere com `openssl rand -hex 32` (ou `make env`) e ponha no .env
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env (openssl rand -hex 32)}
       # produção (padrão): HTTPS e cookie Secure. Em desenvolvimento local, o .env define APP_ENV=development e COOKIE_SECURE=false.

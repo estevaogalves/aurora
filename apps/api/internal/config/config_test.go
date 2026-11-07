@@ -150,3 +150,24 @@ func TestLimitsAndPoolDefaults(t *testing.T) {
 		t.Errorf("inválidos deveriam cair no padrão: %v / %d", c.DBStatementTimeout, c.DBMaxConns)
 	}
 }
+
+func TestRedisURLHasPassword(t *testing.T) {
+	cases := []struct {
+		url  string
+		want bool
+	}{
+		{"redis://:s3nha@redis:6379/0", true},
+		{"redis://default:s3nha@redis:6379/0", true},
+		{"rediss://:s3nha@host.upstash.io:6379", true},
+		{"redis://redis:6379/0", false},
+		{"redis://usuario@redis:6379/0", false}, // usuário sem senha
+		{"redis://:@redis:6379/0", false},       // senha vazia
+		{"", false},
+		{"://lixo", false},
+	}
+	for _, c := range cases {
+		if got := RedisURLHasPassword(c.url); got != c.want {
+			t.Errorf("RedisURLHasPassword(%q) = %v, esperado %v", c.url, got, c.want)
+		}
+	}
+}

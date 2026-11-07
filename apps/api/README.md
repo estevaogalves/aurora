@@ -133,3 +133,27 @@ docker compose logs api | grep '"event":"auth.refresh_reuse"'                # p
 
 Para detectar força bruta, procure muitos `auth.login_failed`/`auth.login_blocked` do mesmo `ip` (com `TRUST_PROXY` correto,
 veja `docs/ip-real-atras-de-proxy.md`) ou do mesmo `user_id`. O log não tem rotação própria: configure no Docker/orquestrador.
+
+## Senha do Redis
+
+O Redis guarda refresh tokens (só o hash), contadores de limite e cache. Por isso exige senha: no compose, `REDIS_PASSWORD`
+é **obrigatória** (sem valor padrão; `make env` gera), o `redis-server` sobe com `--requirepass`, e a `REDIS_URL` padrão da API
+já leva a senha (`redis://:SENHA@redis:6379/0`). Com Redis externo, informe a senha na `REDIS_URL` (e defina `REDIS_PASSWORD` com
+qualquer valor: o compose exige a variável). Em `APP_ENV=production`, a API registra um aviso se a `REDIS_URL` não tiver senha.
+
+**Como comprovar:**
+```bash
+docker compose exec redis sh -c 'redis-cli ping'                     # PONG  (o healthcheck usa REDISCLI_AUTH)
+docker run --rm --network <pasta>_default redis:7-alpine redis-cli -h redis ping      # NOAUTH Authentication required.
+docker run --rm --network <pasta>_default redis:7-alpine redis-cli -h redis -a errada ping   # WRONGPASS
+```
+
+**Trocar a senha** (procedimento executado e verificado). O Redis do compose não persiste dados (`--save ""`), então não há o que
+migrar: trocar a senha **desloga todos** (todos fazem login de novo, o que já acontece a cada reinício do Redis).
+```bash
+NEW=$(openssl rand -hex 24)                                   # só letras e números (vai dentro da URL)
+sed -i "s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=$NEW/" .env
+docker compose up -d                                          # recria redis e api com a senha nova
+docker compose ps                                             # todos "healthy"
+```
+Com Redis externo: troque no provedor e atualize a `REDIS_URL`.
