@@ -14,7 +14,7 @@ import { changeMonth, formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 
 const tabClass =
-  "rounded-[10px] px-2 py-2 text-[13px] font-semibold text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
+  "whitespace-nowrap rounded-[10px] px-2 py-2 text-[12.5px] font-semibold text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
 
 /**
  * Ação única de lançamento: despesa, renda, compra parcelada ou despesa extra.
@@ -29,7 +29,7 @@ export default function TransactionForm() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? openLaunch() : closeLaunch())}>
-      <DialogContent>
+      <DialogContent className="max-w-[560px]">
         <DialogHeader>
           <DialogTitle>Novo lançamento</DialogTitle>
           <DialogDescription>Um só formulário para renda, despesa, compra parcelada e despesa extra. A janela continua aberta para você lançar em sequência.</DialogDescription>

@@ -38,20 +38,21 @@ export default function ComparisonPage() {
   }, [transactions, creditTransactions, notes, data]);
   const available = useMemo(() => summaries.map((s) => s.month), [summaries]);
 
+  // sem escolha do usuário: os últimos meses (até o limite); meses que sumiram são ignorados
   const [picked, setPicked] = useState<string[] | null>(null);
-  // sem escolha do usuário: os 3 últimos meses; escolhas de meses que sumiram são ignoradas
-  const selected = useMemo(() => {
-    const valid = (picked ?? available.slice(-3)).filter((m) => available.includes(m));
-    return valid.sort(compareMonths);
-  }, [picked, available]);
+  const selected = useMemo(
+    () => (picked ?? available.slice(-MAX_SELECTED)).filter((m) => available.includes(m)).sort(compareMonths),
+    [picked, available],
+  );
+  const atLimit = selected.length >= MAX_SELECTED;
+
+  // no limite, o mês novo só entra depois que o usuário desmarcar outro (nada some sozinho)
+  function toggle(month: string) {
+    if (selected.includes(month)) setPicked(selected.filter((m) => m !== month));
+    else if (!atLimit) setPicked([...selected, month]);
+  }
 
   const bySelected = summaries.filter((s) => selected.includes(s.month));
-
-  function toggle(month: string) {
-    const base = picked ?? selected;
-    if (base.includes(month)) setPicked(base.filter((m) => m !== month));
-    else setPicked([...base, month].slice(-MAX_SELECTED));
-  }
 
   const CATEGORIES = [...BASE_CATEGORIES, ...customCategories.map((c) => c.name)];
   const avg = bySelected.length ? Math.round(bySelected.reduce((s, m) => s + m.balance, 0) / bySelected.length) : 0;
@@ -74,14 +75,17 @@ export default function ComparisonPage() {
                 key={m}
                 type="button"
                 aria-pressed={selected.includes(m)}
+                disabled={atLimit && !selected.includes(m)}
                 onClick={() => toggle(m)}
-                className="rounded-full border border-border-strong bg-card px-3.5 py-[7px] text-[13px] font-semibold text-ink2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-[0_6px_18px_color-mix(in_srgb,hsl(var(--primary))_35%,transparent)]"
+                className="rounded-full disabled:cursor-not-allowed disabled:opacity-40 border border-border-strong bg-card px-3.5 py-[7px] text-[13px] font-semibold text-ink2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-[0_6px_18px_color-mix(in_srgb,hsl(var(--primary))_35%,transparent)]"
               >
                 {chipLabel(m)}
               </button>
             ))}
           </div>
-          <p className="mt-2 text-[13px] text-muted-foreground">Escolha até {MAX_SELECTED} meses.</p>
+          <p className="mt-2 text-[13px] text-muted-foreground">
+            {selected.length} de {MAX_SELECTED} selecionados{atLimit ? ". Desmarque um mês para escolher outro." : ""}
+          </p>
         </Panel>
       )}
 
@@ -95,8 +99,12 @@ export default function ComparisonPage() {
             </Empty>
           </Panel>
         </div>
-      ) : bySelected.length === 0 ? (
-        <div className="mt-3.5"><Panel title="Nenhum mês escolhido"><Empty>Selecione ao menos um mês para comparar.</Empty></Panel></div>
+      ) : bySelected.length < 2 ? (
+        <div className="mt-3.5">
+          <Panel title="Escolha pelo menos 2 meses" subtitle="A comparação exige no mínimo dois meses com movimentações">
+            <Empty>{bySelected.length === 0 ? "Nenhum mês selecionado." : `Só ${formatMonth(bySelected[0].month)} está selecionado.`} Marque outro mês acima para ver a comparação.</Empty>
+          </Panel>
+        </div>
       ) : (
         <>
           <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
