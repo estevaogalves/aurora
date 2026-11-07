@@ -61,7 +61,7 @@ para a faixa e o nome do cabeçalho.
 ## PROXY protocol (balanceador TCP, ex.: NLB, HAProxy)
 
 ```nginx
-# no listen do nginx: listen 80 proxy_protocol;
+# no listen do nginx: listen 8080 proxy_protocol;
 real_ip_header proxy_protocol;
 set_real_ip_from 10.0.0.0/8;
 ```

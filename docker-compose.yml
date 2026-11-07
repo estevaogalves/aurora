@@ -1,29 +1,48 @@
-# Aurora: Postgres, Redis, API (Go) e web (nginx).
-#   docker compose up --build        -> http://localhost:8080 (web) e http://localhost:8081 (API direta)
-# Variáveis podem vir de um arquivo .env na raiz (veja .env.example).
+# Aurora: Postgres, Redis, API (Go) e web (nginx sem root).
+#   docker compose up --build        -> http://localhost:8080 (web) e http://localhost:8081 (API direta, só loopback)
+# Variáveis vêm de um arquivo .env na raiz (veja .env.example; `make env` o cria com segredos aleatórios).
+#
+# Imagens fixadas por digest (tag@sha256): o build não muda sozinho quando a tag é republicada. O Dependabot
+# (.github/dependabot.yml) propõe as atualizações. Para atualizar à mão: docker pull <imagem> e copie o novo
+# digest de `docker inspect --format '{{index .RepoDigests 0}}' <imagem>`.
 services:
   postgres:
-    image: postgres:17
+    image: postgres:17@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-aurora}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-aurora}
+      # Obrigatória, sem valor padrão. Use só letras e números (ela entra na DATABASE_URL): openssl rand -hex 24.
+      # ATENÇÃO: o Postgres só lê esta variável quando CRIA o volume. Para trocar a senha de um volume que já
+      # existe, veja docs/trocar-senha-postgres.md. (Com banco externo, defina qualquer valor: o compose exige a variável.)
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (openssl rand -hex 24)}
       POSTGRES_DB: ${POSTGRES_DB:-aurora}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # o entrypoint começa como root (ajusta o dono do volume) e troca para o usuário postgres
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aurora} -d ${POSTGRES_DB:-aurora}"]
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
     command: ["redis-server", "--save", "", "--appendonly", "no"]
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID]
+    security_opt:
+      - no-new-privileges:true
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: unless-stopped
 
   api:
     build: ./apps/api
@@ -34,8 +53,8 @@ services:
       API_ADDR: ":8080"
       # Para usar outro banco (Postgres no host, Supabase...), defina DATABASE_URL no .env
       # e suba sem os containers de banco: docker compose up --build --no-deps api web.
-      # O padrão acompanha os valores padrão de POSTGRES_*: se mudá-los, defina DATABASE_URL também.
-      DATABASE_URL: ${DATABASE_URL:-postgres://aurora:aurora@postgres:5432/aurora?sslmode=disable}
+      # Sem DATABASE_URL, usa o Postgres do compose com POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB.
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-aurora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aurora}?sslmode=disable}
       MIGRATE_DATABASE_URL: ${MIGRATE_DATABASE_URL:-}
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       # obrigatório, sem valor padrão: gere com `openssl rand -hex 32` (ou `make env`) e ponha no .env
@@ -70,8 +89,22 @@ services:
       - "host.docker.internal:host-gateway"
     # base do cálculo de quantos hashes de senha podem rodar juntos (40% disso / 64 MiB por hash)
     mem_limit: ${API_MEM_LIMIT:-512m}
+    pids_limit: 256
+    # binário estático, usuário sem privilégios (uid 10001), sem escrita no disco e sem capabilities
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 15s
     ports:
-      - "127.0.0.1:8081:8080"
+      - "127.0.0.1:${API_PORT:-8081}:8080"
     restart: unless-stopped
 
   web:
@@ -79,9 +112,23 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
     depends_on:
-      - api
+      api: { condition: service_healthy }
+    mem_limit: 256m
+    pids_limit: 128
+    # nginx sem root (uid 101), escutando em 8080; só escreve em /tmp
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
     ports:
-      - "8080:80"
+      - "${WEB_PORT:-8080}:8080"
     restart: unless-stopped
 
 volumes:
