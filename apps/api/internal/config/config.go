@@ -1,0 +1,90 @@
+// Package config lê a configuração da API das variáveis de ambiente.
+package config
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"strconv"
+	"strings"
+	"time"
+)
+
+type Config struct {
+	Addr         string
+	DatabaseURL  string
+	RedisURL     string
+	JWTSecret    string
+	AccessTTL    time.Duration
+	RefreshTTL   time.Duration
+	CookieSecure bool
+	// Confia em X-Forwarded-For/X-Real-IP (só ligue atrás de um proxy seu).
+	TrustProxy    bool
+	AllowedOrigin []string
+	// Se preenchido, o usuário com este e-mail vira admin ao se cadastrar.
+	AdminEmail string
+	// Limite de tentativas de login por e-mail+IP na janela.
+	LoginMaxAttempts int
+	LoginWindow      time.Duration
+}
+
+func Load() (Config, error) {
+	c := Config{
+		Addr:             env("API_ADDR", ":8080"),
+		DatabaseURL:      os.Getenv("DATABASE_URL"),
+		RedisURL:         env("REDIS_URL", "redis://localhost:6379/0"),
+		JWTSecret:        os.Getenv("JWT_SECRET"),
+		AccessTTL:        envDuration("ACCESS_TTL", 15*time.Minute),
+		RefreshTTL:       envDuration("REFRESH_TTL", 30*24*time.Hour),
+		CookieSecure:     envBool("COOKIE_SECURE", false),
+		TrustProxy:       envBool("TRUST_PROXY", false),
+		AdminEmail:       strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
+		LoginMaxAttempts: envInt("LOGIN_MAX_ATTEMPTS", 5),
+		LoginWindow:      envDuration("LOGIN_WINDOW", 15*time.Minute),
+	}
+	for _, o := range strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			c.AllowedOrigin = append(c.AllowedOrigin, o)
+		}
+	}
+
+	var problems []error
+	if c.DatabaseURL == "" {
+		problems = append(problems, errors.New("DATABASE_URL é obrigatória"))
+	}
+	if len(c.JWTSecret) < 32 {
+		problems = append(problems, errors.New("JWT_SECRET é obrigatória e precisa ter ao menos 32 caracteres"))
+	}
+	return c, errors.Join(problems...)
+}
+
+func env(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
+
+func envBool(key string, def bool) bool {
+	if v, err := strconv.ParseBool(os.Getenv(key)); err == nil {
+		return v
+	}
+	return def
+}
+
+func envInt(key string, def int) int {
+	if v, err := strconv.Atoi(os.Getenv(key)); err == nil && v > 0 {
+		return v
+	}
+	return def
+}
+
+func envDuration(key string, def time.Duration) time.Duration {
+	if v := os.Getenv(key); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			return d
+		}
+		fmt.Fprintf(os.Stderr, "aviso: %s=%q inválido, usando %s\n", key, v, def)
+	}
+	return def
+}

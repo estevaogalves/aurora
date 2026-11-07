@@ -1,0 +1,173 @@
+package httpapi
+
+import (
+	"regexp"
+	"strings"
+
+	"aurora/api/internal/domain"
+)
+
+const (
+	maxName  = 120
+	maxNotes = 500
+)
+
+var colorRe = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+
+// Cada validador devolve a mensagem do problema ou "" se está tudo certo.
+
+func checkName(name string) string {
+	switch n := len([]rune(strings.TrimSpace(name))); {
+	case n == 0:
+		return "Informe um nome."
+	case n > maxName:
+		return "O nome é grande demais."
+	}
+	return ""
+}
+
+func checkMonth(m string) string {
+	if !domain.IsValidMonth(m) {
+		return "Mês inválido. Use o formato AAAA-MM."
+	}
+	return ""
+}
+
+func checkNotes(n string) string {
+	if len([]rune(n)) > maxNotes {
+		return "A observação é grande demais."
+	}
+	return ""
+}
+
+func checkAmount(v int64) string {
+	if v < 0 {
+		return "O valor não pode ser negativo."
+	}
+	return ""
+}
+
+func first(msgs ...string) string {
+	for _, m := range msgs {
+		if m != "" {
+			return m
+		}
+	}
+	return ""
+}
+
+func checkMonthMap(hidden []string, values map[string]int64) string {
+	for _, m := range hidden {
+		if msg := checkMonth(m); msg != "" {
+			return msg
+		}
+	}
+	for m, v := range values {
+		if msg := first(checkMonth(m), checkAmount(v)); msg != "" {
+			return msg
+		}
+	}
+	return ""
+}
+
+func validateTransaction(t domain.Transaction) string {
+	if t.Type != "income" && t.Type != "expense" {
+		return "O tipo deve ser income ou expense."
+	}
+	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
+		checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues))
+}
+
+func checkCategory(c string) string {
+	if strings.TrimSpace(c) == "" {
+		return "Informe a categoria."
+	}
+	if len([]rune(c)) > 60 {
+		return "O nome da categoria é grande demais."
+	}
+	return ""
+}
+
+func validateCredit(c domain.CreditTransaction) string {
+	if c.Installments < 1 || c.Installments > 360 {
+		return "O número de parcelas deve ficar entre 1 e 360."
+	}
+	return first(checkName(c.Name), checkAmount(c.TotalAmount), checkMonth(c.StartMonth), checkCategory(c.Category))
+}
+
+func validateGoal(g domain.Goal) string {
+	msg := first(checkName(g.Name), checkAmount(g.Target), checkAmount(g.Saved), checkAmount(g.Monthly))
+	if msg == "" && g.Deadline != nil {
+		msg = checkMonth(*g.Deadline)
+	}
+	return msg
+}
+
+func validateExtra(e domain.ExtraExpense) string {
+	return first(checkName(e.Name), checkAmount(e.Amount), checkMonth(e.Month))
+}
+
+func validateNote(n domain.Note) string {
+	if strings.TrimSpace(n.Content) == "" {
+		return "A anotação não pode ficar vazia."
+	}
+	if len([]rune(n.Content)) > 2000 {
+		return "A anotação é grande demais."
+	}
+	return checkMonth(n.Month)
+}
+
+func validateCategoryInput(c domain.CustomCategory) string {
+	if !colorRe.MatchString(c.Color) {
+		return "A cor deve ser um hexadecimal no formato #RRGGBB."
+	}
+	return first(checkName(c.Name), checkCategory(c.Name))
+}
+
+// validateData confere um pacote completo (importação).
+func validateData(d domain.FinanceData) string {
+	for _, t := range d.Transactions {
+		if m := validateTransaction(t); m != "" {
+			return "Lançamento " + quote(t.Name) + ": " + m
+		}
+	}
+	for _, c := range d.CreditTransactions {
+		if m := validateCredit(c); m != "" {
+			return "Crédito " + quote(c.Name) + ": " + m
+		}
+	}
+	for _, n := range d.Notes {
+		if m := validateNote(n); m != "" {
+			return "Anotação: " + m
+		}
+	}
+	for _, g := range d.Goals {
+		if m := validateGoal(g); m != "" {
+			return "Meta " + quote(g.Name) + ": " + m
+		}
+	}
+	for _, e := range d.ExtraExpenses {
+		if m := validateExtra(e); m != "" {
+			return "Despesa extra " + quote(e.Name) + ": " + m
+		}
+	}
+	seen := map[string]bool{}
+	for _, c := range d.CustomCategories {
+		if m := validateCategoryInput(c); m != "" {
+			return "Categoria " + quote(c.Name) + ": " + m
+		}
+		key := strings.ToLower(strings.TrimSpace(c.Name))
+		if seen[key] {
+			return "Categoria " + quote(c.Name) + ": nome repetido."
+		}
+		seen[key] = true
+	}
+	if d.Distribution != nil {
+		if m := domain.ValidateDistribution(d.Distribution); m != "" {
+			return m
+		}
+	}
+	return ""
+}
+
+func quote(s string) string { return "\"" + strings.TrimSpace(s) + "\"" }
