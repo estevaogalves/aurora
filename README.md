@@ -16,7 +16,7 @@ Monorepo pnpm:
 Pré-requisitos: Node 22+, pnpm 11 (`corepack enable`) e Docker. Go não precisa estar instalado.
 
 ```bash
-cp .env.example .env     # opcional: os padrões já funcionam em desenvolvimento
+make env                # cria o .env com um JWT_SECRET aleatório (obrigatório; sem valor padrão)
 make up                  # tudo no Docker: http://localhost:8080
 ```
 
@@ -72,6 +72,6 @@ Quem já tinha dados no navegador pode levá-los para a conta em **Importar dado
 
 ## Variáveis de ambiente
 
-- Raiz (`docker compose`): veja `.env.example`. Em produção troque `JWT_SECRET` e ligue `COOKIE_SECURE`.
+- Raiz (`docker compose`): veja `.env.example`. Em produção use `APP_ENV=production` (padrão), um `JWT_SECRET` próprio e HTTPS: a API recusa `COOKIE_SECURE=false` nesse modo.
 - API: tabela completa em `apps/api/README.md`.
 - Front: `apps/web/.env.example`.

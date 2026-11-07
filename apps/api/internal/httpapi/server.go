@@ -54,7 +54,7 @@ func (s *Server) Router() http.Handler {
 	if s.cfg.TrustProxy {
 		r.Use(middleware.RealIP)
 	}
-	r.Use(middleware.RequestID, middleware.Recoverer, s.accessLog)
+	r.Use(middleware.RequestID, middleware.Recoverer, apiHeaders, s.accessLog)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   s.cfg.AllowedOrigin,
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
