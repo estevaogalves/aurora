@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 
+	"aurora/api/internal/audit"
 	"aurora/api/internal/auth"
 	"aurora/api/internal/cache"
 	"aurora/api/internal/config"
@@ -40,6 +41,7 @@ type Server struct {
 	// cadastros por IP; nil = sem limite (RegisterMaxPerIP <= 0)
 	registerLimiter *auth.RateLimiter
 	lim             Limits
+	audit           *audit.Logger
 }
 
 func New(cfg config.Config, st *store.Store, rdb *redis.Client, log *slog.Logger) (*Server, error) {
@@ -70,6 +72,7 @@ func New(cfg config.Config, st *store.Store, rdb *redis.Client, log *slog.Logger
 		cache:   cache.NewSummaries(rdb),
 		hasher:  auth.NewHashLimiter(slots, queue, timeout),
 		lim:     limitsFrom(cfg),
+		audit:   audit.New(log),
 	}
 	if cfg.RegisterMaxPerIP > 0 {
 		window := cfg.RegisterWindow

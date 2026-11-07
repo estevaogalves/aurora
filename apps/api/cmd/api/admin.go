@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"os"
 	"strings"
 
+	"aurora/api/internal/audit"
 	"aurora/api/internal/db"
 	"aurora/api/internal/store"
 )
@@ -26,7 +28,7 @@ func adminMain(args []string) int {
 		return 1
 	}
 	defer pool.Close()
-	return runAdmin(ctx, store.New(pool), args, os.Stdout, os.Stderr)
+	return runAdmin(ctx, store.New(pool), audit.New(slog.New(slog.NewJSONHandler(os.Stdout, nil))), args, os.Stdout, os.Stderr)
 }
 
 // adminStore é o que o comando `api admin` precisa do banco (facilita o teste).
@@ -45,7 +47,7 @@ Quem já está com a sessão aberta só passa a valer como admin no próximo log
 
 // runAdmin executa `api admin <promote|demote> <e-mail>` e devolve o código de saída
 // (0 ok, 1 falha, 2 uso incorreto).
-func runAdmin(ctx context.Context, st adminStore, args []string, out, errOut io.Writer) int {
+func runAdmin(ctx context.Context, st adminStore, aud *audit.Logger, args []string, out, errOut io.Writer) int {
 	if len(args) != 2 || (args[0] != "promote" && args[0] != "demote") {
 		fmt.Fprintln(errOut, adminUsage)
 		return 2
@@ -77,6 +79,14 @@ func runAdmin(ctx context.Context, st adminStore, args []string, out, errOut io.
 	case err != nil:
 		fmt.Fprintf(errOut, "erro: %v\n", err)
 		return 1
+	}
+
+	if changed && aud != nil {
+		ev := audit.AdminPromote
+		if args[0] == "demote" {
+			ev = audit.AdminDemote
+		}
+		aud.Log(ctx, ev, u.ID, "cli") // só o id do usuário afetado, nunca o e-mail
 	}
 
 	switch {

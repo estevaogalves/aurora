@@ -10,6 +10,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
+
+	"aurora/api/internal/audit"
 	"aurora/api/internal/auth"
 	"aurora/api/internal/store"
 )
@@ -71,6 +74,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !allowed {
+			s.audit.Log(r.Context(), audit.RegisterRateLimited, uuid.Nil, clientIP(r))
 			w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 			writeError(w, http.StatusTooManyRequests, "Muitos cadastros deste endereço. Tente novamente mais tarde.")
 			return
@@ -99,6 +103,7 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	s.audit.Log(r.Context(), audit.Register, user.ID, clientIP(r))
 	s.startSession(w, r, user, http.StatusCreated)
 }
 
@@ -125,6 +130,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if blocked {
+		s.audit.Log(ctx, audit.LoginBlocked, uuid.Nil, clientIP(r))
 		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
 		writeError(w, http.StatusTooManyRequests, "Muitas tentativas. Tente novamente em alguns minutos.")
 		return
@@ -150,11 +156,14 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		if ferr := s.limiter.Fail(ctx, key); ferr != nil {
 			s.log.Warn("falha ao registrar tentativa de login", "err", ferr)
 		}
+		// user.ID é o id do dono do e-mail, ou uuid.Nil se o e-mail não existe (nunca registramos o e-mail)
+		s.audit.Log(ctx, audit.LoginFailed, user.ID, clientIP(r))
 		writeError(w, http.StatusUnauthorized, "E-mail ou senha incorretos.")
 		return
 	}
 
 	_ = s.limiter.Reset(ctx, key)
+	s.audit.Log(ctx, audit.LoginSuccess, user.ID, clientIP(r))
 	s.startSession(w, r, user, http.StatusOK)
 }
 
@@ -201,9 +210,11 @@ func (s *Server) refreshSession(w http.ResponseWriter, r *http.Request) {
 	uid, hash, err := s.refresh.Consume(ctx, c.Value)
 	if err == auth.ErrRefreshInvalid {
 		if owner, revoked, derr := s.store.RefreshTokenWasRevoked(ctx, hash); derr == nil && revoked {
-			s.log.Warn("refresh token reutilizado: encerrando as sessões do usuário", "user", owner)
+			s.audit.Log(ctx, audit.RefreshReuse, owner, clientIP(r))
 			_ = s.refresh.RevokeAll(ctx, owner)
 			_ = s.store.RevokeUserRefreshTokens(ctx, owner)
+		} else {
+			s.audit.Log(ctx, audit.RefreshInvalid, uuid.Nil, clientIP(r))
 		}
 		s.clearRefreshCookie(w)
 		writeError(w, http.StatusUnauthorized, "Sessão expirada. Faça login novamente.")
@@ -225,12 +236,15 @@ func (s *Server) refreshSession(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
+	s.audit.Log(ctx, audit.Refresh, user.ID, clientIP(r))
 	s.startSession(w, r, user, http.StatusOK)
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	if c, err := r.Cookie(refreshCookie); err == nil && c.Value != "" {
-		_, _ = s.refresh.Revoke(r.Context(), c.Value)
+		if id, _ := s.refresh.Revoke(r.Context(), c.Value); id != uuid.Nil {
+			s.audit.Log(r.Context(), audit.Logout, id, clientIP(r))
+		}
 		_ = s.store.RevokeRefreshToken(r.Context(), auth.HashToken(c.Value))
 	}
 	s.clearRefreshCookie(w)
@@ -247,6 +261,7 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request) {
+	s.audit.Log(r.Context(), audit.AdminListUsers, userID(r), clientIP(r))
 	users, err := s.store.ListUsers(r.Context())
 	if err != nil {
 		s.fail(w, r, err)
