@@ -3,7 +3,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,8 +10,6 @@ import (
 	"runtime/debug"
 	"syscall"
 	"time"
-
-	"github.com/redis/go-redis/v9"
 
 	"aurora/api/internal/config"
 	"aurora/api/internal/db"
@@ -73,15 +70,15 @@ func run(log *slog.Logger) error {
 			"pedido", cfg.DBMaxConns, "efetivo", poolInfo.MaxConns)
 	}
 
-	opt, err := redis.ParseURL(cfg.RedisURL)
+	if cfg.AppEnv == "production" && !config.RedisURLHasPassword(cfg.RedisURL) {
+		log.Warn("REDIS_URL sem senha: quem alcançar o Redis lê/escreve refresh tokens e contadores. " +
+			"Exija senha no Redis e informe-a na URL (redis://:senha@host:6379/0)")
+	}
+	rdb, err := connectRedis(ctx, cfg.RedisURL)
 	if err != nil {
 		return err
 	}
-	rdb := redis.NewClient(opt)
 	defer rdb.Close()
-	if err := rdb.Ping(ctx).Err(); err != nil {
-		return errors.Join(errors.New("redis indisponível"), err)
-	}
 
 	st := store.New(pool)
 	srv, err := httpapi.New(cfg, st, rdb, log)

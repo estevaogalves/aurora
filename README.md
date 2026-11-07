@@ -16,7 +16,7 @@ Monorepo pnpm:
 Pré-requisitos: Node 22+, pnpm 11 (`corepack enable`) e Docker. Go não precisa estar instalado.
 
 ```bash
-make env                # cria o .env com JWT_SECRET e POSTGRES_PASSWORD aleatórios (obrigatórios; sem valor padrão)
+make env                # cria o .env com JWT_SECRET, POSTGRES_PASSWORD e REDIS_PASSWORD aleatórios (obrigatórios; sem valor padrão)
 make up                  # tudo no Docker: http://localhost:8080
 ```
 
@@ -32,6 +32,16 @@ Só o front, sem backend (dados no `localStorage`, sem login):
 pnpm install
 pnpm dev
 ```
+
+O servidor de desenvolvimento só escuta em `localhost` e só aceita `localhost`/IPs no cabeçalho `Host` (protege contra DNS
+rebinding). Abrir de outro aparelho é opt-in, a cada execução:
+
+```bash
+pnpm dev --host                                   # abre na rede local (celular): http://<IP-do-computador>:5173
+DEV_ALLOWED_HOSTS=meu-app.ngrok.app pnpm dev      # túnel (ngrok, Cloudflare Tunnel): libera só esse nome
+#   PowerShell: $env:DEV_ALLOWED_HOSTS="meu-app.ngrok.app"; pnpm dev
+```
+`DEV_ALLOWED_HOSTS` aceita vários nomes separados por vírgula (`.ngrok.app` com ponto libera subdomínios); curingas são recusados.
 
 ## Banco externo
 
@@ -72,6 +82,6 @@ Quem já tinha dados no navegador pode levá-los para a conta em **Importar dado
 
 ## Variáveis de ambiente
 
-- Raiz (`docker compose`): veja `.env.example`. Em produção use `APP_ENV=production` (padrão), um `JWT_SECRET` e uma `POSTGRES_PASSWORD` próprios e HTTPS: a API recusa `COOKIE_SECURE=false` nesse modo.
+- Raiz (`docker compose`): veja `.env.example`. Em produção use `APP_ENV=production` (padrão), um `JWT_SECRET`, uma `POSTGRES_PASSWORD` e uma `REDIS_PASSWORD` próprios e HTTPS: a API recusa `COOKIE_SECURE=false` nesse modo.
 - API: tabela completa em `apps/api/README.md`.
 - Front: `apps/web/.env.example`.

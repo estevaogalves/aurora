@@ -36,7 +36,8 @@ case "${1:-}" in
     docker build -q -t aurora-lab-web -f apps/web/Dockerfile . >/dev/null
     docker network create "$NET" >/dev/null
     docker run -d --name lab-pg --network "$NET" -e POSTGRES_PASSWORD=lab -e POSTGRES_DB=lab postgres:17 >/dev/null
-    docker run -d --name lab-redis --network "$NET" redis:7-alpine redis-server --save "" >/dev/null
+    REDIS_PW=$(node -e 'process.stdout.write(require("crypto").randomBytes(16).toString("hex"))')
+    docker run -d --name lab-redis --network "$NET" redis:7-alpine redis-server --save "" --requirepass "$REDIS_PW" >/dev/null
     sleep 6
     SECRET=$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')
     EXTRA=""
@@ -44,7 +45,7 @@ case "${1:-}" in
     # TRUST_PROXY=true por padrão, como no compose (o nginx do laboratório é a única entrada)
     # shellcheck disable=SC2086
     docker run -d --name lab-api --network "$NET" --network-alias api --memory "$MEM" --memory-swap "$MEM" \
-      -e DATABASE_URL="postgres://postgres:lab@lab-pg:5432/lab?sslmode=disable" -e REDIS_URL=redis://lab-redis:6379/0 \
+      -e DATABASE_URL="postgres://postgres:lab@lab-pg:5432/lab?sslmode=disable" -e REDIS_URL="redis://:$REDIS_PW@lab-redis:6379/0" \
       -e JWT_SECRET="$SECRET" -e APP_ENV=development -e COOKIE_SECURE=false -e TRUST_PROXY=true $EXTRA aurora-lab-api >/dev/null
     docker run -d --name lab-web --network "$NET" -p "127.0.0.1:$PORT:8080" aurora-lab-web >/dev/null
     # 401 em /api/v1/me = nginx e API no ar

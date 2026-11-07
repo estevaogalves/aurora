@@ -91,7 +91,19 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
   return rows;
 }
 
-const csvCell = (value: string) => (/[;"\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
+/**
+ * Injeção de fórmula (CSV injection): o Excel/LibreOffice executam como fórmula uma célula de texto que começa com
+ * `=`, `+`, `-` ou `@` (ou com TAB/CR, e também após espaços). Um nome de lançamento como `=HYPERLINK(...)` viraria
+ * um link ou comando ao abrir a planilha. A defesa padrão (OWASP) é prefixar uma aspa simples, que torna a célula
+ * texto. Vale só para texto do usuário (nome, categoria, observação); valores numéricos como `-800,00` não passam aqui.
+ */
+const FORMULA_START = /^[\t\r ]*[=+\-@]|^[\t\r]/;
+export const neutralizeFormula = (value: string) => (FORMULA_START.test(value) ? `'${value}` : value);
+
+const csvCell = (raw: string) => {
+  const value = neutralizeFormula(raw);
+  return /[;"\n\r]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+};
 const reais = (cents: number) => (cents / 100).toFixed(2).replace(".", ",");
 
 /** CSV com ponto e vírgula e vírgula decimal (abre direto no Excel em português). */
@@ -111,7 +123,7 @@ export function buildCsv(data: Source, months: Month[], options: ReportOptions):
     lines.push("Lançamentos");
     lines.push(["Mês", "Nome", "Categoria", "Tipo", "Valor", "Observação"].join(";"));
     for (const r of getReportRows(data, months, options)) {
-      lines.push([r.month, csvCell(r.name), r.category, r.type, reais(r.amount), csvCell(r.note)].join(";"));
+      lines.push([r.month, csvCell(r.name), csvCell(r.category), r.type, reais(r.amount), csvCell(r.note)].join(";"));
     }
   }
 

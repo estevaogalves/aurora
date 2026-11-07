@@ -43,4 +43,14 @@ Esperado: nos 4 cenários (sem forja, `X-Real-IP`, `X-Forwarded-For`, `True-Clie
 e-mail dá `429`. Sem a correção e com `TRUST_PROXY=true`, os cenários forjados nunca bloqueavam.
 Se for atrás de CDN/balanceador, veja `docs/ip-real-atras-de-proxy.md`.
 
+## SEC-18 — servidor de desenvolvimento do Vite
+
+```sh
+node scripts/security/sec18-vite-dev.mjs
+```
+
+Sobe o Vite numa porta de teste e confere, só na sua máquina: por padrão o IP da rede local é recusado e `Host: evil.example` leva
+`403`; `DEV_ALLOWED_HOSTS` libera só o nome informado; `--host` abre a rede mas continua bloqueando nomes desconhecidos.
+(Não usa o laboratório Docker.) Antes da correção, `evil.example` recebia `200` e o servidor atendia pelo IP da rede.
+
 Código de saída: `0` = correção comprovada; `1` = falhou; `2` = alvo recusado (não local).

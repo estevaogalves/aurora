@@ -38,6 +38,32 @@ describe("sem senha padrão do Postgres", () => {
   });
 });
 
+describe("Redis com senha (SEC-14)", () => {
+  it("o compose exige REDIS_PASSWORD (sem valor padrão) e o redis-server a usa", () => {
+    expect(compose).toMatch(/\$\{REDIS_PASSWORD:\?/);
+    expect(compose).not.toMatch(/REDIS_PASSWORD:-/);
+    const redis = service("redis");
+    expect(redis).toMatch(/- --requirepass\n\s+- \$\{REDIS_PASSWORD:\?/);
+  });
+
+  it("a REDIS_URL padrão da API leva a senha, e o healthcheck autentica sem pôr a senha na linha de comando", () => {
+    expect(service("api")).toContain("REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379/0}");
+    const redis = service("redis");
+    expect(redis).toContain("REDISCLI_AUTH: ${REDIS_PASSWORD}");
+    expect(redis).not.toMatch(/redis-cli[^\n]*(-a|--pass)/);
+  });
+
+  it("nenhuma URL do Redis sem senha como padrão e .env.example deixa a senha vazia", () => {
+    expect(compose).not.toMatch(/redis:\/\/redis:6379/);
+    expect(envExample).toMatch(/^REDIS_PASSWORD=$/m);
+  });
+
+  it("o redis-server é o primeiro argumento do comando (o entrypoint só larga o root assim)", () => {
+    expect(service("redis")).toMatch(/command:\n\s+- redis-server\n/);
+    expect(service("redis")).not.toMatch(/command:.*\bsh\b/);
+  });
+});
+
 describe("api e web endurecidos", () => {
   for (const name of ["api", "web"]) {
     it(`${name}: somente leitura, sem capabilities, sem novos privilégios, com healthcheck e limites`, () => {
