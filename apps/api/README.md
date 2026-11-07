@@ -14,6 +14,7 @@ Sem Docker, com Go 1.26+ e um Postgres/Redis locais:
 ```bash
 export DATABASE_URL=postgres://aurora:aurora@localhost:5432/aurora?sslmode=disable
 export JWT_SECRET=$(openssl rand -hex 32)
+export APP_ENV=development COOKIE_SECURE=false   # só em dev local, sem HTTPS
 go run ./cmd/api          # aplica as migrations ao iniciar
 ```
 
@@ -25,7 +26,8 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 | `REDIS_URL` | `redis://localhost:6379/0` | refresh tokens, rate limit, cache |
 | `API_ADDR` | `:8080` | endereço do servidor |
 | `ACCESS_TTL` / `REFRESH_TTL` | `15m` / `720h` | validade dos tokens |
-| `COOKIE_SECURE` | `false` | cookie só por HTTPS (ligue em produção) |
+| `APP_ENV` | `production` | `production` ou `development`; em `production` a API não inicia com `COOKIE_SECURE=false` |
+| `COOKIE_SECURE` | `true` | cookie de refresh só por HTTPS (`false` só com `APP_ENV=development`) |
 | `CORS_ORIGINS` | `http://localhost:5173` | origens permitidas, separadas por vírgula |
 | `ADMIN_EMAIL` | vazio | quem se cadastra com este e-mail vira `admin` |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_WINDOW` | `5` / `15m` | limite de logins com falha |
@@ -81,4 +83,4 @@ A API só precisa de `DATABASE_URL`; as migrations rodam ao iniciar. O Redis con
 - A migration 2 liga o RLS (sem policies) em todas as tabelas, para que a API REST do Supabase, que expõe o schema `public`, não devolva nada com a chave pública. A API conecta como dono das tabelas e não é afetada.
 - O Supabase Auth não é usado: o Aurora tem usuários e sessões próprios.
 
-Em produção: `COOKIE_SECURE=true`, `JWT_SECRET` forte e `CORS_ORIGINS` com o domínio real. Nunca aponte `TEST_DATABASE_URL` para o banco real, pois os testes criam dados.
+Em produção: `APP_ENV=production`, `COOKIE_SECURE=true` (obrigatório), `JWT_SECRET` forte e `CORS_ORIGINS` com o domínio real. Nunca aponte `TEST_DATABASE_URL` para o banco real, pois os testes criam dados.

@@ -39,3 +39,53 @@ func TestLoadRejectsExampleSecret(t *testing.T) {
 		t.Fatalf("segredo forte deveria passar: %v", err)
 	}
 }
+
+const strongSecret = "3f9a1c7e5b2d48860e1fa3c9d7b45e2a91c06d8b7f3e4a5c2d1b0e9f8a7c6d5b"
+
+func baseEnv(t *testing.T) {
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", strongSecret)
+	t.Setenv("APP_ENV", "")
+	t.Setenv("COOKIE_SECURE", "")
+}
+
+func TestCookieSecureDefaultsToTrue(t *testing.T) {
+	baseEnv(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.CookieSecure || c.AppEnv != "production" {
+		t.Fatalf("padrões: CookieSecure=%v AppEnv=%q", c.CookieSecure, c.AppEnv)
+	}
+}
+
+func TestProductionRefusesInsecureCookie(t *testing.T) {
+	baseEnv(t)
+	t.Setenv("COOKIE_SECURE", "false")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "COOKIE_SECURE") {
+		t.Fatalf("produção com COOKIE_SECURE=false deveria falhar, erro=%v", err)
+	}
+	t.Setenv("APP_ENV", "production")
+	if _, err := Load(); err == nil {
+		t.Fatal("APP_ENV=production explícito também deveria falhar")
+	}
+}
+
+func TestDevelopmentAllowsInsecureCookie(t *testing.T) {
+	baseEnv(t)
+	t.Setenv("APP_ENV", "development")
+	t.Setenv("COOKIE_SECURE", "false")
+	c, err := Load()
+	if err != nil || c.CookieSecure {
+		t.Fatalf("dev deveria permitir cookie sem Secure: err=%v secure=%v", err, c.CookieSecure)
+	}
+}
+
+func TestUnknownAppEnvIsRejected(t *testing.T) {
+	baseEnv(t)
+	t.Setenv("APP_ENV", "staging")
+	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "APP_ENV") {
+		t.Fatalf("APP_ENV desconhecido deveria falhar, erro=%v", err)
+	}
+}

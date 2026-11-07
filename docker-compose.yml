@@ -40,7 +40,9 @@ services:
       REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
       # obrigatório, sem valor padrão: gere com `openssl rand -hex 32` (ou `make env`) e ponha no .env
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env (openssl rand -hex 32)}
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      # produção (padrão): HTTPS e cookie Secure. Em desenvolvimento local, o .env define APP_ENV=development e COOKIE_SECURE=false.
+      APP_ENV: ${APP_ENV:-production}
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
     # permite alcançar um Postgres/Redis que rodam na própria máquina (host.docker.internal)

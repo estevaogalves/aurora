@@ -11,6 +11,8 @@ import (
 )
 
 type Config struct {
+	// "production" (padrão) ou "development". Em produção, COOKIE_SECURE=false é recusado.
+	AppEnv      string
 	Addr        string
 	DatabaseURL string
 	// Opcional: conexão direta só para as migrations (use quando DatabaseURL passa por um pooler em modo transação).
@@ -32,6 +34,7 @@ type Config struct {
 
 func Load() (Config, error) {
 	c := Config{
+		AppEnv:             strings.ToLower(env("APP_ENV", "production")),
 		Addr:               env("API_ADDR", ":8080"),
 		DatabaseURL:        os.Getenv("DATABASE_URL"),
 		MigrateDatabaseURL: os.Getenv("MIGRATE_DATABASE_URL"),
@@ -39,7 +42,7 @@ func Load() (Config, error) {
 		JWTSecret:          os.Getenv("JWT_SECRET"),
 		AccessTTL:          envDuration("ACCESS_TTL", 15*time.Minute),
 		RefreshTTL:         envDuration("REFRESH_TTL", 30*24*time.Hour),
-		CookieSecure:       envBool("COOKIE_SECURE", false),
+		CookieSecure:       envBool("COOKIE_SECURE", true),
 		TrustProxy:         envBool("TRUST_PROXY", false),
 		AdminEmail:         strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
 		LoginMaxAttempts:   envInt("LOGIN_MAX_ATTEMPTS", 5),
@@ -52,6 +55,15 @@ func Load() (Config, error) {
 	}
 
 	var problems []error
+	switch c.AppEnv {
+	case "production":
+		if !c.CookieSecure {
+			problems = append(problems, errors.New("COOKIE_SECURE=false não é permitido com APP_ENV=production: sirva por HTTPS ou use APP_ENV=development só em desenvolvimento local"))
+		}
+	case "development":
+	default:
+		problems = append(problems, fmt.Errorf("APP_ENV deve ser production ou development, recebi %q", c.AppEnv))
+	}
 	if c.DatabaseURL == "" {
 		problems = append(problems, errors.New("DATABASE_URL é obrigatória"))
 	}
