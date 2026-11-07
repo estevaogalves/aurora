@@ -12,7 +12,9 @@ const html = read("index.html");
 
 describe("cabeçalhos de segurança do nginx", () => {
   it("a CSP libera exatamente os scripts inline de index.html (hash sha256)", () => {
-    const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    // O navegador normaliza CRLF/CR para LF ao ler o HTML (spec do HTML), então o hash da CSP vale para o
+    // texto com LF. Sem isto, um checkout com CRLF (Windows, autocrlf) daria um hash diferente.
+    const inline = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1].replace(/\r\n?/g, "\n"));
     expect(inline.length).toBeGreaterThan(0);
     for (const code of inline) {
       const hash = `'sha256-${createHash("sha256").update(code).digest("base64")}'`;
