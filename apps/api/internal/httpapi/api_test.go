@@ -33,6 +33,7 @@ type env struct {
 	mr  *miniredis.Miniredis
 	cfg config.Config
 	st  *store.Store
+	logs *syncBuffer
 }
 
 func setup(t *testing.T, opts ...func(*config.Config)) *env {
@@ -63,13 +64,14 @@ func setup(t *testing.T, opts ...func(*config.Config)) *env {
 		o(&cfg)
 	}
 	st := store.New(pool)
-	srv, err := httpapi.New(cfg, st, rdb, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	logs := &syncBuffer{}
+	srv, err := httpapi.New(cfg, st, rdb, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ts := httptest.NewServer(srv.Router())
 	t.Cleanup(ts.Close)
-	return &env{srv: ts, mr: mr, cfg: cfg, st: st}
+	return &env{srv: ts, mr: mr, cfg: cfg, st: st, logs: logs}
 }
 
 type resp struct {

@@ -8,8 +8,8 @@ PG_IMAGE  ?= postgres:17
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
 
-env: ## Cria o .env a partir do exemplo, com um JWT_SECRET aleatório (não sobrescreve)
-	@test -f .env && echo ".env já existe, nada a fazer" || { 	  sed "s/^JWT_SECRET=.*/JWT_SECRET=$$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')/" .env.example > .env; 	  echo ".env criado com um JWT_SECRET novo"; }
+env: ## Cria o .env a partir do exemplo, com JWT_SECRET e POSTGRES_PASSWORD aleatórios (não sobrescreve)
+	@test -f .env && echo ".env já existe, nada a fazer" || { sed -e "s/^JWT_SECRET=.*/JWT_SECRET=$$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')/" -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$$(node -e 'process.stdout.write(require("crypto").randomBytes(24).toString("hex"))')/" .env.example > .env; echo ".env criado com JWT_SECRET e POSTGRES_PASSWORD novos"; }
 
 install: ## Instala as dependências do front
 	pnpm install

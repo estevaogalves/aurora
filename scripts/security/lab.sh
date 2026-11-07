@@ -46,7 +46,7 @@ case "${1:-}" in
     docker run -d --name lab-api --network "$NET" --network-alias api --memory "$MEM" --memory-swap "$MEM" \
       -e DATABASE_URL="postgres://postgres:lab@lab-pg:5432/lab?sslmode=disable" -e REDIS_URL=redis://lab-redis:6379/0 \
       -e JWT_SECRET="$SECRET" -e APP_ENV=development -e COOKIE_SECURE=false -e TRUST_PROXY=true $EXTRA aurora-lab-api >/dev/null
-    docker run -d --name lab-web --network "$NET" -p "127.0.0.1:$PORT:80" aurora-lab-web >/dev/null
+    docker run -d --name lab-web --network "$NET" -p "127.0.0.1:$PORT:8080" aurora-lab-web >/dev/null
     # 401 em /api/v1/me = nginx e API no ar
     for _ in $(seq 1 40); do
       [ "$(curl -s -o /dev/null -w '%{http_code}' "http://localhost:$PORT/api/v1/me" || true)" = "401" ] && break

@@ -108,3 +108,28 @@ docker compose exec api api admin demote  voce@dominio.com
 - O papel viaja no token de acesso: vale a partir do próximo login (ou em até `ACCESS_TTL`, 15 min).
 - Sem Docker: `DATABASE_URL=... go run ./cmd/api admin promote voce@dominio.com`.
 - A variável antiga `ADMIN_EMAIL` não tem mais efeito (a API só registra um aviso se ela estiver definida).
+
+## Logs de auditoria
+
+Eventos de segurança saem no stdout como JSON, com `"msg":"audit"` e **somente** quatro informações: hora (`time`),
+tipo (`event`), id do usuário (`user_id`, ausente quando não se sabe quem é) e IP (`ip`; `cli` nos comandos de `api admin`).
+Nunca entram senha, e-mail, nome, token, cookie nem corpo de requisição (o pacote `internal/audit` não aceita outros campos).
+
+| `event` | Quando |
+|---|---|
+| `auth.register` / `auth.register_rate_limited` | cadastro criado / recusado pelo limite por IP |
+| `auth.login_success` / `auth.login_failed` | login ok / senha errada (`user_id` presente se o e-mail existe, ausente se não existe) |
+| `auth.login_blocked` | bloqueado pelo limite de tentativas |
+| `auth.refresh` / `auth.refresh_invalid` / `auth.refresh_reuse` | renovação / token desconhecido / **token já gasto reapareceu** (sessões do usuário encerradas) |
+| `auth.logout` | logout com token válido |
+| `admin.list_users` | acesso a `GET /admin/users` |
+| `admin.promote` / `admin.demote` | `api admin promote|demote` (`user_id` = a pessoa afetada) |
+
+```bash
+docker compose logs api | grep '"msg":"audit"'                               # todos os eventos
+docker compose logs api | grep '"event":"auth.login_failed"'                 # logins falhos
+docker compose logs api | grep '"event":"auth.refresh_reuse"'                # possível roubo de sessão
+```
+
+Para detectar força bruta, procure muitos `auth.login_failed`/`auth.login_blocked` do mesmo `ip` (com `TRUST_PROXY` correto,
+veja `docs/ip-real-atras-de-proxy.md`) ou do mesmo `user_id`. O log não tem rotação própria: configure no Docker/orquestrador.
