@@ -25,8 +25,6 @@ type Config struct {
 	// Confia em X-Forwarded-For/X-Real-IP (só ligue atrás de um proxy seu).
 	TrustProxy    bool
 	AllowedOrigin []string
-	// Se preenchido, o usuário com este e-mail vira admin ao se cadastrar.
-	AdminEmail string
 	// Limite de tentativas de login por e-mail+IP na janela.
 	LoginMaxAttempts int
 	LoginWindow      time.Duration
@@ -40,6 +38,20 @@ type Config struct {
 	// Cadastros por IP na janela (429 ao passar). A chave é o IP: com proxy na frente, TRUST_PROXY deve estar ligado.
 	RegisterMaxPerIP int
 	RegisterWindow   time.Duration
+
+	// Pool do banco da API. DBMaxConns é reduzido na inicialização se passar do max_connections do
+	// servidor (com margem); multiplique por réplica ao dimensionar. DBStatementTimeout vale só para o
+	// pool da API (as migrations usam outra conexão, sem timeout); 0 desliga.
+	DBMaxConns         int
+	DBStatementTimeout time.Duration
+
+	// Tetos de requisição (calibragem em httpapi/limits.go).
+	MaxBodyBytes         int64 // corpo de uma requisição comum
+	MaxImportBytes       int64 // corpo da importação
+	MaxImportItems       int   // itens por coleção na importação
+	MaxMonthOverrides    int   // hiddenMonths + monthlyValues de UMA despesa fixa
+	MaxCustomCategories  int   // categorias próprias na importação
+	MaxDistributionItems int   // itens da distribuição do saldo
 }
 
 func Load() (Config, error) {
@@ -54,7 +66,6 @@ func Load() (Config, error) {
 		RefreshTTL:         envDuration("REFRESH_TTL", 30*24*time.Hour),
 		CookieSecure:       envBool("COOKIE_SECURE", true),
 		TrustProxy:         envBool("TRUST_PROXY", false),
-		AdminEmail:         strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
 		LoginMaxAttempts:   envInt("LOGIN_MAX_ATTEMPTS", 5),
 		LoginWindow:        envDuration("LOGIN_WINDOW", 15*time.Minute),
 
@@ -63,6 +74,16 @@ func Load() (Config, error) {
 		HashQueueTimeout:   envDuration("HASH_QUEUE_TIMEOUT", 3*time.Second),
 		RegisterMaxPerIP:   envInt("REGISTER_MAX_PER_IP", 5),
 		RegisterWindow:     envDuration("REGISTER_WINDOW", time.Hour),
+
+		DBMaxConns:         envInt("DB_MAX_CONNS", 10),
+		DBStatementTimeout: envDurationAllowZero("DB_STATEMENT_TIMEOUT", 15*time.Second),
+
+		MaxBodyBytes:         int64(envInt("MAX_BODY_BYTES", 256<<10)),
+		MaxImportBytes:       int64(envInt("MAX_IMPORT_BYTES", 10<<20)),
+		MaxImportItems:       envInt("MAX_IMPORT_ITEMS", 25000),
+		MaxMonthOverrides:    envInt("MAX_MONTH_OVERRIDES", 600),
+		MaxCustomCategories:  envInt("MAX_CUSTOM_CATEGORIES", 200),
+		MaxDistributionItems: envInt("MAX_DISTRIBUTION_ITEMS", 50),
 	}
 	for _, o := range strings.Split(env("CORS_ORIGINS", "http://localhost:5173"), ",") {
 		if o = strings.TrimSpace(o); o != "" {
@@ -139,6 +160,17 @@ func envBool(key string, def bool) bool {
 func envInt(key string, def int) int {
 	if v, err := strconv.Atoi(os.Getenv(key)); err == nil && v > 0 {
 		return v
+	}
+	return def
+}
+
+// envDurationAllowZero é como envDuration, mas aceita "0" (desligar); valores negativos viram o padrão.
+func envDurationAllowZero(key string, def time.Duration) time.Duration {
+	if os.Getenv(key) == "0" {
+		return 0
+	}
+	if d := envDuration(key, def); d >= 0 {
+		return d
 	}
 	return def
 }

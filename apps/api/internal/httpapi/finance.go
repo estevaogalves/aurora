@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -32,14 +33,14 @@ func trimmed(p *string) *string {
 
 func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) {
 	var in domain.Transaction
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
 	if !in.Fixed {
 		in.HiddenMonths, in.MonthlyValues = nil, nil
 	}
-	if bad(w, validateTransaction(in)) {
+	if bad(w, s.lim.validateTransaction(in)) {
 		return
 	}
 	out, err := s.store.CreateTransaction(r.Context(), userID(r), in)
@@ -63,7 +64,7 @@ type transactionPatchReq struct {
 
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	var in transactionPatchReq
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	msg := ""
@@ -87,7 +88,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	if in.MonthlyValues != nil {
 		values = *in.MonthlyValues
 	}
-	if bad(w, first(msg, checkMonthMap(hidden, values))) {
+	if bad(w, first(msg, checkMonthMap(hidden, values, s.lim.MonthOverrides))) {
 		return
 	}
 
@@ -116,7 +117,7 @@ func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createCredit(w http.ResponseWriter, r *http.Request) {
 	var in domain.CreditTransaction
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
@@ -142,7 +143,7 @@ type creditPatchReq struct {
 
 func (s *Server) updateCredit(w http.ResponseWriter, r *http.Request) {
 	var in creditPatchReq
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	msg := ""
@@ -189,7 +190,7 @@ func (s *Server) deleteCredit(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createGoal(w http.ResponseWriter, r *http.Request) {
 	var in domain.Goal
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
@@ -217,7 +218,7 @@ type goalPatchReq struct {
 
 func (s *Server) updateGoal(w http.ResponseWriter, r *http.Request) {
 	var in goalPatchReq
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	patch := store.GoalPatch{Name: trimmed(in.Name), Target: in.Target, Saved: in.Saved, Monthly: in.Monthly, YieldTotal: in.YieldTotal}
@@ -269,7 +270,7 @@ func (s *Server) deleteGoal(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createExtra(w http.ResponseWriter, r *http.Request) {
 	var in domain.ExtraExpense
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
@@ -293,7 +294,7 @@ type extraPatchReq struct {
 
 func (s *Server) updateExtra(w http.ResponseWriter, r *http.Request) {
 	var in extraPatchReq
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	msg := ""
@@ -332,7 +333,7 @@ func (s *Server) deleteExtra(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createNote(w http.ResponseWriter, r *http.Request) {
 	var in domain.Note
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	if bad(w, validateNote(in)) {
@@ -356,7 +357,7 @@ type notePatchReq struct {
 
 func (s *Server) updateNote(w http.ResponseWriter, r *http.Request) {
 	var in notePatchReq
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	msg := ""
@@ -392,7 +393,7 @@ func (s *Server) deleteNote(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) createCategory(w http.ResponseWriter, r *http.Request) {
 	var in domain.CustomCategory
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
@@ -421,7 +422,11 @@ func (s *Server) putDistribution(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Items []domain.DistributionItem `json:"items"` // null volta ao padrão
 	}
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	if len(in.Items) > s.lim.DistributionItems {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Categorias demais na distribuição (máximo %d).", s.lim.DistributionItems))
 		return
 	}
 	if in.Items != nil && bad(w, domain.ValidateDistribution(in.Items)) {
@@ -438,7 +443,7 @@ func (s *Server) putSeenAlerts(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Keys []string `json:"keys"`
 	}
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	if len(in.Keys) > 1000 {
@@ -458,7 +463,7 @@ func (s *Server) putOnboarding(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		State string `json:"state"`
 	}
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	if !screenRe.MatchString(screen) {

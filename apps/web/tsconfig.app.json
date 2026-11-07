@@ -28,5 +28,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // testes que leem arquivos com fs (ambiente Node) são verificados em tsconfig.node.json
+  "exclude": ["src/security"]
 }

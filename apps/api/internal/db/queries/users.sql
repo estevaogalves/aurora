@@ -56,3 +56,10 @@ SET onboarding = user_settings.onboarding || jsonb_build_object(sqlc.arg(screen)
 -- name: MergeOnboarding :exec
 INSERT INTO user_settings (user_id, onboarding) VALUES ($1, $2)
 ON CONFLICT (user_id) DO UPDATE SET onboarding = user_settings.onboarding || EXCLUDED.onboarding;
+
+-- name: LockAdmins :many
+-- Trava as linhas dos admins até o fim da transação (evita rebaixar os dois últimos ao mesmo tempo).
+SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE;
+
+-- name: SetUserRole :one
+UPDATE users SET role = $2 WHERE id = $1 RETURNING *;

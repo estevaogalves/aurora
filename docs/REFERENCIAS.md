@@ -150,7 +150,7 @@ Acompanhamento da refatoração do Aurora (antes OrganizaGrana): monorepo, novo 
 - [ ok ] `docker-compose` com Postgres, Redis, API e web
 - [ ok ] Testes em Go
   - Além das 8 tabelas da lista, há `custom_categories` e `user_settings` (distribuição do saldo e avisos vistos), que o front já guarda. O JSON da API segue o `FinanceData` do front, em centavos.
-  - Papéis: `admin` vem de `ADMIN_EMAIL` no cadastro; hoje só protege `GET /admin/users`.
+  - Papéis: `admin` só é concedido pelo comando `api admin promote <e-mail>` (nunca pelo cadastro); hoje só protege `GET /admin/users`.
   - Refresh token gasto que reaparece encerra todas as sessões do usuário.
   - Testes: domínio (conta idêntica ao front), auth (argon2, JWT, rotação, rate limit, com miniredis) e 9 testes de integração da API contra Postgres real (`TEST_DATABASE_URL`; sem ele são pulados).
   - Conferido com `docker compose` de ponta a ponta (Redis real, nginx servindo o front e fazendo proxy de `/api`): cache `MISS`/`HIT`/`MISS` após escrita, rotação e reuso do refresh, `429` no login.

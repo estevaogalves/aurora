@@ -29,11 +29,16 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 | `APP_ENV` | `production` | `production` ou `development`; em `production` a API não inicia com `COOKIE_SECURE=false` |
 | `COOKIE_SECURE` | `true` | cookie de refresh só por HTTPS (`false` só com `APP_ENV=development`) |
 | `CORS_ORIGINS` | `http://localhost:5173` | origens permitidas, separadas por vírgula |
-| `ADMIN_EMAIL` | vazio | quem se cadastra com este e-mail vira `admin` |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_WINDOW` | `5` / `15m` | limite de logins com falha |
 | `HASH_MAX_CONCURRENCY` | automático | hashes de senha (argon2id, 64 MiB cada) ao mesmo tempo; automático = 40% do limite de memória / 64 MiB, no máximo o nº de CPUs |
 | `HASH_MAX_QUEUE` / `HASH_QUEUE_TIMEOUT` | `4×` a concorrência / `3s` | fila de espera por uma vaga de hash; fila cheia ou tempo esgotado => `503` + `Retry-After` |
 | `REGISTER_MAX_PER_IP` / `REGISTER_WINDOW` | `5` / `1h` | cadastros por IP na janela; passou => `429` + `Retry-After` (a chave é o IP: veja `TRUST_PROXY`) |
+| `DB_MAX_CONNS` | `10` | conexões do pool da API; reduzido sozinho para caber no `max_connections` do servidor (descontadas as reservadas e 20% de margem). Com várias réplicas: valor × réplicas deve caber |
+| `DB_STATEMENT_TIMEOUT` | `15s` | `statement_timeout` **só do pool da API** (migrations usam outra conexão, sem limite). `0` desliga (pooler em modo transação que rejeita o parâmetro: use `ALTER ROLE ... SET statement_timeout`) |
+| `MAX_BODY_BYTES` / `MAX_IMPORT_BYTES` | `256 KiB` / `10 MiB` | corpo máximo de uma requisição / da importação (413 ao passar) |
+| `MAX_IMPORT_ITEMS` | `25000` | itens por coleção na importação (400 ao passar) |
+| `MAX_MONTH_OVERRIDES` | `600` | `hiddenMonths` + `monthlyValues` de uma despesa fixa (50 anos) |
+| `MAX_CUSTOM_CATEGORIES` / `MAX_DISTRIBUTION_ITEMS` | `200` / `50` | categorias próprias na importação / itens da distribuição do saldo |
 | `TRUST_PROXY` | `false` (no compose: `true`) | ler o IP do cliente de `X-Real-IP`/`X-Forwarded-For`. **Só ligue se a API for alcançável apenas por um proxy que sobrescreve esses cabeçalhos** (o nginx do projeto faz isso); senão qualquer cliente forja o IP e escapa dos limites. Veja `docs/ip-real-atras-de-proxy.md` |
 
 ## Como funciona
@@ -87,3 +92,19 @@ A API só precisa de `DATABASE_URL`; as migrations rodam ao iniciar. O Redis con
 - O Supabase Auth não é usado: o Aurora tem usuários e sessões próprios.
 
 Em produção: `APP_ENV=production`, `COOKIE_SECURE=true` (obrigatório), `JWT_SECRET` forte e `CORS_ORIGINS` com o domínio real. Nunca aponte `TEST_DATABASE_URL` para o banco real, pois os testes criam dados.
+
+## Administração (papel de admin)
+
+O papel `admin` **nunca** é concedido pelo cadastro (o e-mail não é verificado). Só por comando, no servidor, com
+acesso ao banco, depois de a pessoa se cadastrar:
+
+```bash
+docker compose exec api api admin promote voce@dominio.com
+docker compose exec api api admin demote  voce@dominio.com
+```
+
+- `promote` falha com mensagem clara se o e-mail não existe; é idempotente.
+- `demote` recusa rebaixar o **último** admin (travado em transação: dois rebaixamentos simultâneos não zeram a lista).
+- O papel viaja no token de acesso: vale a partir do próximo login (ou em até `ACCESS_TTL`, 15 min).
+- Sem Docker: `DATABASE_URL=... go run ./cmd/api admin promote voce@dominio.com`.
+- A variável antiga `ADMIN_EMAIL` não tem mais efeito (a API só registra um aviso se ela estiver definida).

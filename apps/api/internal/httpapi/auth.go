@@ -41,7 +41,7 @@ type credentials struct {
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	var in credentials
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(in.Email))
@@ -89,11 +89,8 @@ func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	role := "user"
-	if s.cfg.AdminEmail != "" && email == s.cfg.AdminEmail {
-		role = "admin"
-	}
-	user, err := s.store.CreateUser(r.Context(), email, name, hash, role)
+	// O papel de admin nunca vem do cadastro (e-mail não é verificado): só pelo comando `api admin promote`.
+	user, err := s.store.CreateUser(r.Context(), email, name, hash, "user")
 	if err == store.ErrDuplicate {
 		writeError(w, http.StatusConflict, "Já existe uma conta com esse e-mail.")
 		return
@@ -115,7 +112,7 @@ func clientIP(r *http.Request) string {
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var in credentials
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(in.Email))

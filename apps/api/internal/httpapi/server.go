@@ -39,6 +39,7 @@ type Server struct {
 	hasher *auth.HashLimiter
 	// cadastros por IP; nil = sem limite (RegisterMaxPerIP <= 0)
 	registerLimiter *auth.RateLimiter
+	lim             Limits
 }
 
 func New(cfg config.Config, st *store.Store, rdb *redis.Client, log *slog.Logger) (*Server, error) {
@@ -68,6 +69,7 @@ func New(cfg config.Config, st *store.Store, rdb *redis.Client, log *slog.Logger
 		limiter: auth.NewLoginLimiter(rdb, cfg.LoginMaxAttempts, cfg.LoginWindow),
 		cache:   cache.NewSummaries(rdb),
 		hasher:  auth.NewHashLimiter(slots, queue, timeout),
+		lim:     limitsFrom(cfg),
 	}
 	if cfg.RegisterMaxPerIP > 0 {
 		window := cfg.RegisterWindow
@@ -230,8 +232,6 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, map[string]string{"error": msg})
 }
-
-const maxBody = 1 << 20 // 1 MiB
 
 func decode(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
 	r.Body = http.MaxBytesReader(w, r.Body, limit)

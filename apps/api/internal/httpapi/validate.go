@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -71,7 +72,10 @@ func first(msgs ...string) string {
 	return ""
 }
 
-func checkMonthMap(hidden []string, values map[string]int64) string {
+func checkMonthMap(hidden []string, values map[string]int64, maxEntries int) string {
+	if len(hidden)+len(values) > maxEntries {
+		return fmt.Sprintf("Meses ajustados demais em uma despesa fixa (máximo %d).", maxEntries)
+	}
 	for _, m := range hidden {
 		if msg := checkMonth(m); msg != "" {
 			return msg
@@ -85,12 +89,12 @@ func checkMonthMap(hidden []string, values map[string]int64) string {
 	return ""
 }
 
-func validateTransaction(t domain.Transaction) string {
+func (l Limits) validateTransaction(t domain.Transaction) string {
 	if t.Type != "income" && t.Type != "expense" {
 		return "O tipo deve ser income ou expense."
 	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues))
+		checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides))
 }
 
 func checkCategory(c string) string {
@@ -140,9 +144,28 @@ func validateCategoryInput(c domain.CustomCategory) string {
 }
 
 // validateData confere um pacote completo (importação).
-func validateData(d domain.FinanceData) string {
+func (l Limits) validateData(d domain.FinanceData) string {
+	// tetos de volume antes de qualquer validação item a item
+	for _, c := range []struct {
+		name   string
+		n, max int
+	}{
+		{"lançamentos", len(d.Transactions), l.ImportItems},
+		{"compras no crédito", len(d.CreditTransactions), l.ImportItems},
+		{"anotações", len(d.Notes), l.ImportItems},
+		{"metas", len(d.Goals), l.ImportItems},
+		{"despesas extras", len(d.ExtraExpenses), l.ImportItems},
+		{"categorias próprias", len(d.CustomCategories), l.CustomCategories},
+		{"itens da distribuição", len(d.Distribution), l.DistributionItems},
+		{"avisos vistos", len(d.SeenAlerts), l.SeenAlerts},
+	} {
+		if c.n > c.max {
+			return fmt.Sprintf("Importação grande demais: %d %s (máximo %d).", c.n, c.name, c.max)
+		}
+	}
+
 	for _, t := range d.Transactions {
-		if m := validateTransaction(t); m != "" {
+		if m := l.validateTransaction(t); m != "" {
 			return "Lançamento " + quote(t.Name) + ": " + m
 		}
 	}

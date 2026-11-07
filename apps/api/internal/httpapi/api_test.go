@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -30,6 +32,7 @@ type env struct {
 	srv *httptest.Server
 	mr  *miniredis.Miniredis
 	cfg config.Config
+	st  *store.Store
 }
 
 func setup(t *testing.T, opts ...func(*config.Config)) *env {
@@ -55,18 +58,18 @@ func setup(t *testing.T, opts ...func(*config.Config)) *env {
 	cfg := config.Config{
 		JWTSecret: strings.Repeat("k", 32), AccessTTL: 15 * time.Minute, RefreshTTL: time.Hour,
 		LoginMaxAttempts: 3, LoginWindow: time.Minute, AllowedOrigin: []string{"http://localhost:5173"},
-		AdminEmail: "admin@aurora.test",
 	}
 	for _, o := range opts {
 		o(&cfg)
 	}
-	srv, err := httpapi.New(cfg, store.New(pool), rdb, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	st := store.New(pool)
+	srv, err := httpapi.New(cfg, st, rdb, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
 	ts := httptest.NewServer(srv.Router())
 	t.Cleanup(ts.Close)
-	return &env{srv: ts, mr: mr, cfg: cfg}
+	return &env{srv: ts, mr: mr, cfg: cfg, st: st}
 }
 
 type resp struct {
@@ -225,23 +228,118 @@ func TestLoginAndRateLimit(t *testing.T) {
 	want(t, login("senha-forte-123"), 200)
 }
 
+// SEC-08: o papel de admin não vem do cadastro (o e-mail não é verificado). Só `api admin promote`.
 func TestAdminRole(t *testing.T) {
 	e := setup(t)
-	user := e.register(t, "")
-	want(t, e.do(t, "GET", "/api/v1/admin/users", user.AccessToken, nil), 403)
+	ctx := context.Background()
+	login := func(email string) session {
+		r := e.do(t, "POST", "/api/v1/auth/login", "", map[string]string{"email": email, "password": "senha-forte-123"})
+		want(t, r, 200)
+		var s session
+		r.json(t, &s)
+		return s
+	}
+	adminsEndpoint := func(s session) int {
+		return e.do(t, "GET", "/api/v1/admin/users", s.AccessToken, nil).Status
+	}
 
-	// o admin é definido por ADMIN_EMAIL; o e-mail pode já existir de uma execução anterior
-	r := e.do(t, "POST", "/api/v1/auth/login", "", map[string]string{"email": e.cfg.AdminEmail, "password": "senha-forte-123"})
-	var admin session
-	if r.Status == 200 {
-		r.json(t, &admin)
-	} else {
-		admin = e.register(t, e.cfg.AdminEmail)
+	// 1) Brecha fechada: ninguém vira admin se cadastrando, nem com o e-mail "de admin" de antes
+	//    (ADMIN_EMAIL já não existe) nem com variações dele.
+	for _, email := range []string{"admin@aurora.test", "ADMIN@aurora.test", "root@aurora.test"} {
+		email = fmt.Sprintf("%d-%s", time.Now().UnixNano(), email)
+		s := e.register(t, email)
+		if s.User.Role != "user" {
+			t.Fatalf("%s: o cadastro deu papel %q", email, s.User.Role)
+		}
+		want(t, e.do(t, "GET", "/api/v1/admin/users", s.AccessToken, nil), 403)
 	}
-	if admin.User.Role != "admin" {
-		t.Fatalf("papel: %q", admin.User.Role)
+
+	// 2) Promover um e-mail que não existe falha com ErrNotFound
+	if _, _, err := e.st.PromoteAdmin(ctx, "ninguem-"+fmt.Sprint(time.Now().UnixNano())+"@aurora.test"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("promover inexistente: %v", err)
 	}
-	want(t, e.do(t, "GET", "/api/v1/admin/users", admin.AccessToken, nil), 200)
+
+	// 3) Promover vale no próximo login (o papel viaja no token)
+	a := e.register(t, "")
+	b := e.register(t, "")
+	if _, changed, err := e.st.PromoteAdmin(ctx, a.User.Email); err != nil || !changed {
+		t.Fatalf("promover: changed=%v err=%v", changed, err)
+	}
+	if _, changed, err := e.st.PromoteAdmin(ctx, a.User.Email); err != nil || changed {
+		t.Fatalf("promover de novo deveria ser no-op: changed=%v err=%v", changed, err)
+	}
+	if got := adminsEndpoint(a); got != 403 {
+		t.Errorf("o token antigo ainda não carrega o papel novo: %d", got)
+	}
+	a2 := login(a.User.Email)
+	if a2.User.Role != "admin" || adminsEndpoint(a2) != 200 {
+		t.Fatalf("depois de promover e logar de novo: papel %q", a2.User.Role)
+	}
+
+	// 4) Rebaixar um admin comum funciona e vale no próximo login
+	if _, _, err := e.st.PromoteAdmin(ctx, b.User.Email); err != nil {
+		t.Fatal(err)
+	}
+	if _, changed, err := e.st.DemoteAdmin(ctx, b.User.Email); err != nil || !changed {
+		t.Fatalf("rebaixar: changed=%v err=%v", changed, err)
+	}
+	if b2 := login(b.User.Email); b2.User.Role != "user" || adminsEndpoint(b2) != 403 {
+		t.Fatalf("depois de rebaixar: papel %q", b2.User.Role)
+	}
+	// rebaixar quem não é admin é no-op; e-mail inexistente dá ErrNotFound
+	if _, changed, err := e.st.DemoteAdmin(ctx, b.User.Email); err != nil || changed {
+		t.Fatalf("rebaixar não-admin: changed=%v err=%v", changed, err)
+	}
+	if _, _, err := e.st.DemoteAdmin(ctx, "ninguem@aurora.test"); !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("rebaixar inexistente: %v", err)
+	}
+}
+
+// O último admin não pode ser rebaixado, nem por duas chamadas simultâneas.
+func TestCannotDemoteLastAdmin(t *testing.T) {
+	e := setup(t)
+	ctx := context.Background()
+	// o banco de teste é compartilhado: começa com um conjunto limpo de admins
+	if _, err := e.st.Pool().Exec(ctx, "UPDATE users SET role = 'user' WHERE role = 'admin'"); err != nil {
+		t.Fatal(err)
+	}
+	a := e.register(t, "")
+	b := e.register(t, "")
+	for _, u := range []session{a, b} {
+		if _, _, err := e.st.PromoteAdmin(ctx, u.User.Email); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+	for i, u := range []session{a, b} {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _, errs[i] = e.st.DemoteAdmin(ctx, u.User.Email)
+		}()
+	}
+	wg.Wait()
+
+	ok, refused := 0, 0
+	for _, err := range errs {
+		switch {
+		case err == nil:
+			ok++
+		case errors.Is(err, store.ErrLastAdmin):
+			refused++
+		default:
+			t.Fatalf("erro inesperado: %v", err)
+		}
+	}
+	if ok != 1 || refused != 1 {
+		t.Fatalf("de dois rebaixamentos simultâneos, exatamente um deve passar: ok=%d recusados=%d", ok, refused)
+	}
+	var n int
+	if err := e.st.Pool().QueryRow(ctx, "SELECT count(*) FROM users WHERE role = 'admin'").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("deveria sobrar 1 admin: n=%d err=%v", n, err)
+	}
 }
 
 type tx struct {
