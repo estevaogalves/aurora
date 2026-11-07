@@ -1,6 +1,7 @@
 import type {
   CreditTransaction,
   CustomCategory,
+  DistributionItem,
   ExtraExpense,
   FinanceData,
   Goal,
@@ -119,6 +120,11 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async updateExtraExpense(id: string, patch: Partial<ExtraExpense>) {
+    this.data.extraExpenses = this.data.extraExpenses.map((e) => (e.id === id ? { ...e, ...patch } : e));
+    this.persist();
+  }
+
   async removeExtraExpense(id: string) {
     this.data.extraExpenses = this.data.extraExpenses.filter((e) => e.id !== id);
     this.persist();
@@ -134,6 +140,11 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async setDistribution(items: DistributionItem[] | null) {
+    this.data.distribution = items;
+    this.persist();
+  }
+
   /* ---------- internos ---------- */
 
   private snapshot(): FinanceData {
@@ -144,6 +155,7 @@ export class LocalRepository implements FinanceRepository {
       goals: this.data.goals,
       extraExpenses: this.data.extraExpenses,
       customCategories: this.data.customCategories,
+      distribution: this.data.distribution,
     };
   }
 

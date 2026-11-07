@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-export type LaunchTab = "expense" | "income" | "credit" | "extra";
+export type LaunchTab = "expense" | "income" | "credit" | "extra" | "goal";
 
 interface UiState {
   launchOpen: boolean;

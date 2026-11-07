@@ -14,7 +14,7 @@ import { changeMonth, formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 
 const tabClass =
-  "whitespace-nowrap rounded-[10px] px-2 py-2 text-[12.5px] font-semibold text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
+  "whitespace-nowrap rounded-[10px] px-1.5 py-2 text-[12.5px] max-sm:last:col-span-2 font-semibold text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
 
 /**
  * Ação única de lançamento: despesa, renda, compra parcelada ou despesa extra.
@@ -29,18 +29,19 @@ export default function TransactionForm() {
 
   return (
     <Dialog open={open} onOpenChange={(next) => (next ? openLaunch() : closeLaunch())}>
-      <DialogContent className="max-w-[560px]">
+      <DialogContent className="max-w-[680px]">
         <DialogHeader>
           <DialogTitle>Novo lançamento</DialogTitle>
-          <DialogDescription>Um só formulário para renda, despesa, compra parcelada e despesa extra. A janela continua aberta para você lançar em sequência.</DialogDescription>
+          <DialogDescription>Um só formulário para renda, despesa, compra parcelada, despesa extra e meta. A janela continua aberta para você lançar em sequência.</DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => openLaunch(v as LaunchTab)}>
-          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-md bg-secondary p-1 sm:grid-cols-4">
+          <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-md bg-secondary p-1 sm:grid-cols-5">
             <TabsTrigger value="expense" className={tabClass}>Despesa</TabsTrigger>
             <TabsTrigger value="income" className={tabClass}>Renda</TabsTrigger>
             <TabsTrigger value="credit" className={tabClass}>Crédito parcelado</TabsTrigger>
             <TabsTrigger value="extra" className={tabClass}>Despesa extra</TabsTrigger>
+            <TabsTrigger value="goal" className={tabClass}>Meta</TabsTrigger>
           </TabsList>
         </Tabs>
 
@@ -55,6 +56,7 @@ const LABELS = {
   income: { name: "Nome da renda", placeholder: "Ex.: Salário, freelance...", amount: "Valor deste mês" },
   credit: { name: "Nome da compra", placeholder: "Ex.: Notebook", amount: "Valor total da compra" },
   extra: { name: "Descrição", placeholder: "Ex.: Seguro do carro", amount: "Valor" },
+  goal: { name: "Nome da meta", placeholder: "Ex.: Viagem de férias", amount: "Valor da meta" },
 } as const;
 
 function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void }) {
@@ -62,6 +64,7 @@ function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void 
   const addTransaction = useFinanceStore((s) => s.addTransaction);
   const addCreditTransaction = useFinanceStore((s) => s.addCreditTransaction);
   const addExtraExpense = useFinanceStore((s) => s.addExtraExpense);
+  const addGoal = useFinanceStore((s) => s.addGoal);
 
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -70,6 +73,9 @@ function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void 
   const [notes, setNotes] = useState("");
   const [installments, setInstallments] = useState(2);
   const [extraMonth, setExtraMonth] = useState(changeMonth(currentMonth, 1));
+  const [monthly, setMonthly] = useState("");
+  const [saved, setSaved] = useState("");
+  const [deadline, setDeadline] = useState("");
   // muda a cada lançamento: reinicia o foco e o campo de nome sem fechar o modal
   const [round, setRound] = useState(0);
 
@@ -82,6 +88,9 @@ function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void 
     setNotes("");
     setFixed(false);
     setInstallments(2);
+    setMonthly("");
+    setSaved("");
+    setDeadline("");
     setRound((r) => r + 1);
   }
 
@@ -94,7 +103,17 @@ function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void 
     const cents = parseBRL(amount);
     if (!cents) return showToast({ type: "error", text: "Informe um valor maior que zero" });
 
-    if (kind === "credit") {
+    if (kind === "goal") {
+      addGoal({
+        id: crypto.randomUUID(),
+        name: trimmed,
+        target: cents,
+        saved: parseBRL(saved) ?? 0,
+        monthly: parseBRL(monthly) ?? 0,
+        deadline: deadline || null,
+      });
+      showToast({ type: "success", text: `Meta "${trimmed}" criada` });
+    } else if (kind === "credit") {
       addCreditTransaction({
         id: crypto.randomUUID(),
         name: trimmed,
@@ -151,6 +170,22 @@ function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void 
         <p className="text-sm text-muted-foreground">
           Parcela de <strong className="text-foreground">R$ {centsToInput(installmentValue) || "0,00"}</strong>, começando em {formatMonthTitle(currentMonth)}.
         </p>
+      )}
+
+      {kind === "goal" && (
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Aporte mensal" hint="(opcional)" htmlFor="launch-goal-monthly">
+              <MoneyInput id="launch-goal-monthly" value={monthly} onChange={setMonthly} placeholder="500,00" />
+            </Field>
+            <Field label="Já guardado" hint="(opcional)" htmlFor="launch-goal-saved">
+              <MoneyInput id="launch-goal-saved" value={saved} onChange={setSaved} />
+            </Field>
+          </div>
+          <Field label="Prazo" hint="(opcional)" htmlFor="launch-goal-deadline">
+            <input id="launch-goal-deadline" type="month" value={deadline} onChange={(e) => setDeadline(e.target.value)} className={inputClass} />
+          </Field>
+        </>
       )}
 
       {kind === "extra" && (

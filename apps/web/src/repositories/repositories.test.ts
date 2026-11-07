@@ -67,8 +67,8 @@ describe("migrateLegacy", () => {
 
 describe("migrateStored", () => {
   it("aceita o envelope atual", () => {
-    const data = migrateStored({ version: 3, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [] } });
-    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [] });
+    const data = migrateStored({ version: 4, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null } });
+    expect(data).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null });
   });
 
   it("recusa versão futura e lixo", () => {
@@ -78,13 +78,14 @@ describe("migrateStored", () => {
   });
 
   it("completa listas que faltam", () => {
-    expect(migrateStored({ version: 3, data: {} })).toEqual({
+    expect(migrateStored({ version: 4, data: {} })).toEqual({
       transactions: [],
       creditTransactions: [],
       notes: [],
       goals: [],
       extraExpenses: [],
       customCategories: [],
+      distribution: null,
     });
   });
 
@@ -100,7 +101,7 @@ describe("migrateStored", () => {
 describe("LocalRepository", () => {
   it("começa vazio sem nenhum dado salvo", async () => {
     const repo = new LocalRepository(fakeStorage());
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [] });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null });
   });
 
   it("importa o formato antigo uma vez e mantém o backup intacto", async () => {
@@ -112,7 +113,7 @@ describe("LocalRepository", () => {
 
     expect(data.transactions[0].amount).toBe(500050);
     expect(storage.map.get(LEGACY_STORAGE_KEY)).toBe(original);
-    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(3);
+    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(4);
   });
 
   it("depois de migrar, ignora o formato antigo", async () => {
@@ -167,6 +168,7 @@ describe("LocalRepository", () => {
       goals: [],
       extraExpenses: [],
       customCategories: [],
+      distribution: null,
     });
   });
 
@@ -212,6 +214,29 @@ describe("LocalRepository", () => {
     expect(data?.customCategories).toEqual([]);
   });
 
+  it("guarda a distribuição personalizada, edita despesa extra e volta ao padrão com null", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    const items = [{ id: "emergency", label: "Reserva", percent: 100 }];
+    await repo.setDistribution(items);
+    await repo.addExtraExpense({ id: "e1", name: "IPVA", amount: 1000, month: "2027-01" });
+    await repo.updateExtraExpense("e1", { amount: 2000, month: "2027-02" });
+
+    const reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.distribution).toEqual(items);
+    expect(reloaded.extraExpenses[0]).toMatchObject({ amount: 2000, month: "2027-02" });
+
+    await repo.setDistribution(null);
+    expect((await new LocalRepository(storage).load()).distribution).toBeNull();
+  });
+
+  it("migra a v3 (sem distribuição) para o padrão", () => {
+    const data = migrateStored({ version: 3, data: { customCategories: [{ id: "k", name: "Pets", color: "#fff" }] } });
+    expect(data?.distribution).toBeNull();
+    expect(data?.customCategories).toHaveLength(1);
+  });
+
   it("funciona sem storage disponível", async () => {
     const repo = new LocalRepository({
       getItem: () => {
@@ -221,7 +246,7 @@ describe("LocalRepository", () => {
         throw new Error("bloqueado");
       },
     });
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [] });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null });
     await expect(
       repo.addNote({ id: "1", content: "a", date: "d", pinned: false, month: "2026-03" }),
     ).resolves.toBeUndefined();

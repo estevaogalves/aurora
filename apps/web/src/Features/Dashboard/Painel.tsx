@@ -1,17 +1,21 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import ChartDonut from "@/components/charts/ChartDonut";
 import ChartLine from "@/components/charts/ChartLine";
+import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
-import { DISTRIBUTION, getDistribution, getMonthSummary, goalPercent } from "@/domain";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { distributeBalance, getMonthSummary, goalPercent } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import { useCategoryTotals, useMonthCredit, useMonthSummary, useMonthTransactions } from "@/Store/selectors";
+import { useCategoryTotals, useDistributionItems, useMonthCredit, useMonthSummary, useMonthTransactions } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
+import { DistributionDialog } from "./DistributionDialog";
 
-const DIST_COLORS = ["--k1", "--k2", "--k3", "--k4", "--k5"];
+/** Cor da fatia pela posição na lista (repete depois de 9). */
+const sliceColor = (items: { id: string }[], id: string) => `hsl(var(--k${(items.findIndex((i) => i.id === id) % 9) + 1}))`;
 
 function Hero() {
   const month = useFinanceStore((s) => s.currentMonth);
@@ -93,33 +97,60 @@ function Categories() {
 
 function Suggestion() {
   const { balance } = useMonthSummary();
-  const dist = useMemo(() => getDistribution(balance), [balance]);
+  const items = useDistributionItems();
+  const setDistribution = useFinanceStore((s) => s.setDistribution);
+  const customized = useFinanceStore((s) => s.distribution) !== null;
+  const parts = useMemo(() => distributeBalance(balance, items), [balance, items]);
+  const [editing, setEditing] = useState(false);
 
-  if (balance <= 0) {
-    return (
-      <Panel title="Sugestão do saldo">
-        <div className="rounded-md bg-bad-bg px-3 py-2.5 text-[13px] font-semibold text-destructive">
-          {balance === 0 ? "Seu saldo está zerado. Não há o que distribuir." : "Seu saldo está negativo. Revise despesas variáveis antes de investir."}
-        </div>
-      </Panel>
-    );
-  }
+  const menu = (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger asChild>
+        <button type="button" aria-label="Opções da sugestão" className="grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground data-[state=open]:bg-secondary">
+          <Icon name="dots" size={18} />
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => setEditing(true)}>
+          <Icon name="edit" size={15} />
+          Personalizar percentuais
+        </DropdownMenuItem>
+        {customized && (
+          <DropdownMenuItem onSelect={() => setDistribution(null)}>
+            <Icon name="restore" size={15} />
+            Restaurar padrão
+          </DropdownMenuItem>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   return (
-    <Panel title="Sugestão para o saldo" subtitle={`Como dividir ${formatBRLShort(balance)}`}>
-      <div className="mb-3.5 flex h-3.5 gap-0.5 overflow-hidden rounded-full">
-        {DISTRIBUTION.map((d, i) => (
-          <i key={d.key} className="block min-w-1" style={{ flex: d.percent, background: `hsl(var(${DIST_COLORS[i]}))` }} title={`${d.label}: ${formatBRL(dist[d.key])}`} />
-        ))}
-      </div>
-      {DISTRIBUTION.map((d, i) => (
-        <div key={d.key} className="flex items-center gap-2.5 border-t border-border py-2 text-[13.5px] first:border-t-0">
-          <i className="h-2.5 w-2.5 rounded-[3px]" style={{ background: `hsl(var(${DIST_COLORS[i]}))` }} />
-          {d.label} <small className="text-muted-foreground">{d.percent}%</small>
-          <b className="num ml-auto">{formatBRL(dist[d.key])}</b>
-        </div>
-      ))}
-    </Panel>
+    <>
+      {balance <= 0 ? (
+        <Panel title="Sugestão do saldo" action={menu}>
+          <div className="rounded-md bg-bad-bg px-3 py-2.5 text-[13px] font-semibold text-destructive">
+            {balance === 0 ? "Seu saldo está zerado. Não há o que distribuir." : "Seu saldo está negativo. Revise despesas variáveis antes de investir."}
+          </div>
+        </Panel>
+      ) : (
+        <Panel title="Sugestão para o saldo" subtitle={`Como dividir ${formatBRLShort(balance)}`} action={menu}>
+          <div className="mb-3.5 flex h-3.5 gap-0.5 overflow-hidden rounded-full">
+            {parts.filter((p) => p.item.percent > 0).map((p) => (
+              <i key={p.item.id} className="block min-w-1" style={{ flex: p.item.percent, background: sliceColor(items, p.item.id) }} title={`${p.item.label}: ${formatBRL(p.value)}`} />
+            ))}
+          </div>
+          {parts.map((p) => (
+            <div key={p.item.id} className="flex items-center gap-2.5 border-t border-border py-2 text-[13.5px] first:border-t-0">
+              <i className="h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: sliceColor(items, p.item.id) }} />
+              <span className="min-w-0 break-words">{p.item.label}</span> <small className="text-muted-foreground">{p.item.percent}%</small>
+              <b className="num ml-auto">{formatBRL(p.value)}</b>
+            </div>
+          ))}
+        </Panel>
+      )}
+      <DistributionDialog open={editing} onClose={() => setEditing(false)} />
+    </>
   );
 }
 

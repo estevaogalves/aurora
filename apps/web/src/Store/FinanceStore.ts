@@ -11,6 +11,7 @@ import {
   patchContribution,
   type CreditTransaction,
   type CustomCategory,
+  type DistributionItem,
   type ExtraExpense,
   type Goal,
   type Note,
@@ -20,7 +21,7 @@ import { repository } from "../repositories";
 import type { Category } from "../Types/Category";
 import { getCurrentMonth } from "../Utils/Date";
 
-export type { CreditInstallment, CreditTransaction, CustomCategory, ExtraExpense, Goal, Note, Transaction };
+export type { CreditInstallment, CreditTransaction, CustomCategory, DistributionItem, ExtraExpense, Goal, Note, Transaction };
 
 /**
  * Estado do app. Os dados vêm do repositório (hoje o localStorage) e a store
@@ -41,6 +42,8 @@ interface FinanceState {
   goals: Goal[];
   extraExpenses: ExtraExpense[];
   customCategories: CustomCategory[];
+  /** null = percentuais padrão */
+  distribution: DistributionItem[] | null;
 
   addTransaction: (transaction: Transaction) => void;
   removeTransaction: (id: string) => void;
@@ -64,14 +67,16 @@ interface FinanceState {
 
   addGoal: (goal: Goal) => void;
   updateGoal: (id: string, patch: Partial<Goal>) => void;
-  /** Soma um aporte (centavos) ao guardado da meta. */
-  contributeToGoal: (id: string, cents: number) => void;
+  /** Registra aporte e rendimento (centavos) na meta. */
+  contributeToGoal: (id: string, cents: number, yieldCents?: number) => void;
   removeGoal: (id: string) => void;
 
   addCategory: (category: CustomCategory) => void;
   removeCategory: (id: string) => void;
 
   addExtraExpense: (extra: ExtraExpense) => void;
+  updateExtraExpense: (id: string, patch: Partial<ExtraExpense>) => void;
+  setDistribution: (items: DistributionItem[] | null) => void;
   removeExtraExpense: (id: string) => void;
 
   getTransactionsByMonth: (month: string) => Transaction[];
@@ -119,6 +124,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     goals: [],
     extraExpenses: [],
     customCategories: [],
+    distribution: null,
 
     addTransaction: (transaction) => {
       set((state) => ({ transactions: [...state.transactions, transaction] }));
@@ -220,9 +226,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       sync(repository.updateGoal(id, patch));
     },
 
-    contributeToGoal: (id, cents) => {
+    contributeToGoal: (id, cents, yieldCents = 0) => {
       const goal = get().goals.find((g) => g.id === id);
-      if (goal) get().updateGoal(id, patchContribution(goal, cents));
+      if (goal) get().updateGoal(id, patchContribution(goal, cents, yieldCents));
     },
 
     removeGoal: (id) => {
@@ -243,6 +249,18 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     addExtraExpense: (extra) => {
       set((state) => ({ extraExpenses: [...state.extraExpenses, extra] }));
       sync(repository.addExtraExpense(extra));
+    },
+
+    updateExtraExpense: (id, patch) => {
+      set((state) => ({
+        extraExpenses: state.extraExpenses.map((e) => (e.id === id ? { ...e, ...patch } : e)),
+      }));
+      sync(repository.updateExtraExpense(id, patch));
+    },
+
+    setDistribution: (items) => {
+      set({ distribution: items });
+      sync(repository.setDistribution(items));
     },
 
     removeExtraExpense: (id) => {

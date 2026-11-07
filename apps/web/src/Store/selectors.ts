@@ -1,7 +1,8 @@
 import { useMemo } from "react";
 import {
   getCreditByMonth,
-  getDistribution,
+  DEFAULT_DISTRIBUTION,
+  distributeBalance,
   getExpensesByCategory,
   getHiddenTransactionsByMonth,
   getMonthSummary,
@@ -60,7 +61,15 @@ export function useCategoryTotals(month?: string) {
   return useMemo(() => getExpensesByCategory(summary), [summary]);
 }
 
+/** Percentuais em uso (os do usuário ou os padrão). */
+export function useDistributionItems() {
+  const custom = useFinanceStore((s) => s.distribution);
+  return custom ?? DEFAULT_DISTRIBUTION;
+}
+
+/** Sugestão de divisão do saldo do mês, já com os percentuais do usuário. */
 export function useDistribution(month?: string) {
   const { balance } = useMonthSummary(month);
-  return useMemo(() => getDistribution(balance), [balance]);
+  const items = useDistributionItems();
+  return useMemo(() => distributeBalance(balance, items), [balance, items]);
 }

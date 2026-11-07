@@ -1,14 +1,16 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import ChartGroupBars from "@/components/charts/ChartGroupBars";
 import ChartLine from "@/components/charts/ChartLine";
-import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
+import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
+import RowMenu from "@/components/shared/RowMenu";
 import StatCard from "@/components/shared/StatCard";
 import { getProjection } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
-import { useFinanceStore } from "@/Store/FinanceStore";
+import { useFinanceStore, type ExtraExpense } from "@/Store/FinanceStore";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, monthsDifference } from "@/Utils/Date";
+import EditExtraDialog from "./EditExtraDialog";
 
 const MONTHS_AHEAD = 6;
 
@@ -22,6 +24,8 @@ export default function ProjectionPage() {
   const extras = useFinanceStore((s) => s.extraExpenses);
   const removeExtra = useFinanceStore((s) => s.removeExtraExpense);
   const colorOf = useCategoryColor();
+  const [editing, setEditing] = useState<ExtraExpense | null>(null);
+  const [deleting, setDeleting] = useState<ExtraExpense | null>(null);
 
   // do mês seguinte ao que está sendo visto
   const start = changeMonth(current, 1);
@@ -95,9 +99,7 @@ export default function ProjectionPage() {
                   <Pill>{shortLabel(e.month)}</Pill>
                   <span className="min-w-0 break-words font-semibold">{e.name}</span>
                   <span className="num font-bold">{formatBRL(e.amount)}</span>
-                  <button type="button" aria-label={`Remover ${e.name}`} onClick={() => removeExtra(e.id)} className="grid h-8 w-8 place-items-center rounded-md border border-border-strong text-muted-foreground transition-colors hover:border-destructive hover:text-destructive">
-                    <Icon name="trash" size={15} />
-                  </button>
+                  <RowMenu label={e.name} onEdit={() => setEditing(e)} onDelete={() => setDeleting(e)} />
                 </div>
               ))
             )}
@@ -130,6 +132,16 @@ export default function ProjectionPage() {
         </div>
       </div>
 
+      <EditExtraDialog extra={editing} onClose={() => setEditing(null)} />
+      <ConfirmDeletion
+        open={!!deleting}
+        itemLabel={deleting ? `despesa extra "${deleting.name}" (${formatBRL(deleting.amount)})` : "despesa extra"}
+        onCancel={() => setDeleting(null)}
+        onConfirm={() => {
+          if (deleting) removeExtra(deleting.id);
+          setDeleting(null);
+        }}
+      />
     </>
   );
 }

@@ -26,9 +26,15 @@ export function goalMonthsLeft(goal: Goal): number | null {
   return Math.ceil(remaining / goal.monthly);
 }
 
-/** Soma um aporte (centavos, pode ser negativo para retirada) sem deixar o guardado ficar negativo. */
-export function patchContribution(goal: Goal, cents: number): Partial<Goal> {
-  return { saved: Math.max(0, goal.saved + cents) };
+/**
+ * Registra um aporte (centavos, pode ser negativo para retirada) e, opcionalmente,
+ * o rendimento do que já estava guardado. O rendimento entra no guardado e também
+ * no total de rendimentos da meta. O guardado nunca fica negativo.
+ */
+export function patchContribution(goal: Goal, cents: number, yieldCents = 0): Partial<Goal> {
+  const patch: Partial<Goal> = { saved: Math.max(0, goal.saved + cents + yieldCents) };
+  if (yieldCents !== 0) patch.yieldTotal = (goal.yieldTotal ?? 0) + yieldCents;
+  return patch;
 }
 
 /** Totais para o resumo da tela de metas. */

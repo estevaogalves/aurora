@@ -39,6 +39,10 @@ function GoalCard({ goal, onContribute, onEdit, onDelete }: { goal: Goal; onCont
         <span>{formatBRLShort(goal.saved)} guardados</span>
         <span>meta {formatBRLShort(goal.target)}</span>
       </div>
+      <div className="flex flex-wrap justify-between gap-2 text-[12.5px]">
+        <span className="text-muted-foreground">Rendimentos acumulados</span>
+        <b className={`num ${(goal.yieldTotal ?? 0) > 0 ? "text-success" : "text-muted-foreground"}`}>{formatBRL(goal.yieldTotal ?? 0)}</b>
+      </div>
       <div className="border-t border-border pt-2.5 text-[12.5px] text-ink2">
         {done
           ? "Meta atingida. Parabéns!"
@@ -68,22 +72,15 @@ export default function GoalsPage() {
   const removeGoal = useFinanceStore((s) => s.removeGoal);
   const summary = getGoalsSummary(goals);
 
-  const [dialog, setDialog] = useState<{ goal: Goal | null } | null>(null);
+  const [editing, setEditing] = useState<Goal | null>(null);
+  // a meta fica guardada ao fechar para o título não piscar vazio durante a animação
   const [contributing, setContributing] = useState<Goal | null>(null);
+  const [contributeOpen, setContributeOpen] = useState(false);
   const [deleting, setDeleting] = useState<Goal | null>(null);
 
   return (
     <>
-      <PageHeader
-        title="Metas"
-        subtitle="Cada objetivo com progresso e previsão de conclusão."
-        action={
-          <button type="button" onClick={() => setDialog({ goal: null })} className={`${btnClass.primary} ${btnClass.sm}`}>
-            <Icon name="plus" size={16} />
-            Nova meta
-          </button>
-        }
-      />
+      <PageHeader title="Metas" subtitle="Cada objetivo com progresso e previsão de conclusão. Para criar uma meta, use o botão Lançar." />
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
         <StatCard label="Metas ativas" value={String(summary.active)} hint={summary.nearlyDone ? `${summary.nearlyDone} perto de concluir` : "Nenhuma perto de concluir"} />
@@ -94,19 +91,19 @@ export default function GoalsPage() {
       <div className="mt-3.5">
         {goals.length === 0 ? (
           <Panel title="Nenhuma meta ainda" subtitle="Comece pelo que mais importa agora">
-            <Empty>Crie uma meta, como a reserva de emergência, e acompanhe o progresso aqui.</Empty>
+            <Empty>Use Lançar → Meta para criar uma, como a reserva de emergência, e acompanhe o progresso aqui.</Empty>
           </Panel>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
             {goals.map((g) => (
-              <GoalCard key={g.id} goal={g} onContribute={() => setContributing(g)} onEdit={() => setDialog({ goal: g })} onDelete={() => setDeleting(g)} />
+              <GoalCard key={g.id} goal={g} onContribute={() => { setContributing(g); setContributeOpen(true); }} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
             ))}
           </div>
         )}
       </div>
 
-      <GoalDialog open={!!dialog} goal={dialog?.goal ?? null} onClose={() => setDialog(null)} />
-      <ContributeDialog goal={contributing} onClose={() => setContributing(null)} />
+      <GoalDialog open={!!editing} goal={editing} onClose={() => setEditing(null)} />
+      <ContributeDialog goal={contributing ? goals.find((g) => g.id === contributing.id) ?? contributing : null} open={contributeOpen} onClose={() => setContributeOpen(false)} />
       <ConfirmDeletion
         open={!!deleting}
         itemLabel={deleting ? `meta "${deleting.name}" (${formatBRL(deleting.saved)} guardados)` : "meta"}

@@ -86,14 +86,14 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
   );
 }
 
-/** Soma um aporte ao valor guardado. */
-export function ContributeDialog({ goal, onClose }: { goal: Goal | null; onClose: () => void }) {
+/** Registra, juntos ou separados, o rendimento do que já estava guardado e um novo aporte. */
+export function ContributeDialog({ goal, open, onClose }: { goal: Goal | null; open: boolean; onClose: () => void }) {
   return (
-    <Dialog open={!!goal} onOpenChange={(next) => !next && onClose()}>
+    <Dialog open={open && !!goal} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Aportar em “{goal?.name}”</DialogTitle>
-          <DialogDescription>Guardado hoje: {goal ? formatBRL(goal.saved) : ""}</DialogDescription>
+          <DialogDescription>Guardado hoje: {goal ? formatBRL(goal.saved) : ""}. Preencha o rendimento, o aporte ou os dois.</DialogDescription>
         </DialogHeader>
         {goal && <ContributeFields key={goal.id} goal={goal} onClose={onClose} />}
       </DialogContent>
@@ -103,25 +103,43 @@ export function ContributeDialog({ goal, onClose }: { goal: Goal | null; onClose
 
 function ContributeFields({ goal, onClose }: { goal: Goal; onClose: () => void }) {
   const contribute = useFinanceStore((s) => s.contributeToGoal);
+  const [yieldAmount, setYieldAmount] = useState("");
   const [amount, setAmount] = useState(goal.monthly ? centsToInput(goal.monthly) : "");
+
+  const yieldCents = parseBRL(yieldAmount) ?? 0;
+  const contributionCents = parseBRL(amount) ?? 0;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    const cents = parseBRL(amount);
-    if (!cents) return showToast({ type: "error", text: "Informe um valor maior que zero" });
-    contribute(goal.id, cents);
-    showToast({ type: "success", text: `${formatBRL(cents)} guardados em "${goal.name}"` });
+    if (yieldCents === 0 && contributionCents === 0) {
+      return showToast({ type: "error", text: "Informe o rendimento, o aporte ou os dois" });
+    }
+    contribute(goal.id, contributionCents, yieldCents);
+
+    const parts = [
+      contributionCents > 0 ? `aporte de ${formatBRL(contributionCents)}` : "",
+      yieldCents > 0 ? `rendimento de ${formatBRL(yieldCents)}` : "",
+    ].filter(Boolean);
+    showToast({ type: "success", text: `Registrado em "${goal.name}": ${parts.join(" e ")}` });
     onClose();
   }
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <Field label="Valor do aporte" htmlFor="contribute-amount">
-        <MoneyInput id="contribute-amount" value={amount} onChange={setAmount} />
+      <Field label="Valor do rendimento" hint="(opcional)" htmlFor="contribute-yield">
+        <MoneyInput id="contribute-yield" value={yieldAmount} onChange={setYieldAmount} />
+        <span className="text-xs text-muted-foreground">Quanto o dinheiro já guardado rendeu desde o último registro.</span>
       </Field>
+      <Field label="Valor do aporte" hint="(opcional)" htmlFor="contribute-amount">
+        <MoneyInput id="contribute-amount" value={amount} onChange={setAmount} />
+        <span className="text-xs text-muted-foreground">Quanto você está adicionando à meta agora.</span>
+      </Field>
+      <p className="rounded-md bg-secondary px-3 py-2 text-[13px] text-ink2">
+        Novo guardado: <strong className="text-foreground">{formatBRL(goal.saved + contributionCents + yieldCents)}</strong>
+      </p>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-        <Button type="submit">Aportar</Button>
+        <Button type="submit">Registrar</Button>
       </div>
     </form>
   );

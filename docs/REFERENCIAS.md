@@ -14,7 +14,7 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ] Login por e-mail e senha (argon2id + JWT), com papéis `user` e `admin`
 - [ ] Ordem: front primeiro (dados locais), API depois, troca da fonte de dados por último
 - [ ok ] Visual: protótipo B "Aurora" (escuro, violeta e ciano, abas no topo, painel em blocos)
-- [ ] Confirmar o nome do produto (Aurora ou outro) antes da Fase 2
+- [ ok ] Confirmar o nome do produto (Aurora ou outro) antes da Fase 2
 - [ ok ] Uma única ação "Lançar" (modal com abas Despesa, Renda e Crédito); as listas não têm botões de adicionar
 
 ## Fase 0: Monorepo sem mudar comportamento
@@ -99,6 +99,16 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Cabeçalho sem a caixa atrás dos botões (transparente no topo, com fundo só ao rolar)
 - [ ] ~~Nova opção no Crédito parcelado~~ (descartada)
   - Repositório na versão 3 (`customCategories`), com migração de v1 e v2.
+
+## Ajustes pedidos depois da Fase 5
+
+- [ ok ] Despesas extras planejadas com menu ⋮ (Editar e Excluir com confirmação)
+- [ ok ] "Nova meta" movida para o Lançar (aba Meta); botão removido da tela de Metas
+- [ ok ] Sugestão para o saldo personalizável (menu ⋮): cinco categorias obrigatórias, categorias novas, soma sempre 100%; o PDF usa os mesmos percentuais
+- [ ok ] Rendimento no Aportar (rendimento e aporte separados; total de rendimentos no card da meta)
+- [ ] Novo visual do PDF (3 propostas em artefatos para escolher)
+  - Repositório na versão 4 (`distribution`, `yieldTotal` nas metas), com migração das anteriores.
+- Decisão: o nome do produto é **Aurora**, definitivo.
 
 ## Fase 4: Telas que hoje são mock
 

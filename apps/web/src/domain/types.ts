@@ -84,6 +84,18 @@ export interface Goal {
   monthly: number;
   /** Mês em que quer concluir, ou null. */
   deadline: Month | null;
+  /** centavos: soma dos rendimentos registrados (já incluídos em `saved`). Ausente = 0. */
+  yieldTotal?: number;
+}
+
+/** Uma fatia da sugestão de distribuição do saldo. */
+export interface DistributionItem {
+  id: string;
+  label: string;
+  /** percentual inteiro, 0 a 100 */
+  percent: number;
+  /** criada pelo usuário (as cinco padrão não podem ser apagadas) */
+  custom?: boolean;
 }
 
 /** Tudo o que o app guarda. É o que o repositório carrega e salva. */
@@ -94,6 +106,8 @@ export interface FinanceData {
   goals: Goal[];
   extraExpenses: ExtraExpense[];
   customCategories: CustomCategory[];
+  /** Percentuais escolhidos pelo usuário; null = padrão. */
+  distribution: DistributionItem[] | null;
 }
 
 export interface MonthSummary {

@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { getDistribution, getPeriodTotals, getReportRows, type ReportOptions } from "../domain";
+import { DEFAULT_DISTRIBUTION, distributeBalance, getPeriodTotals, getReportRows, type ReportOptions } from "../domain";
 import { formatBRL } from "../lib/money";
 import { useFinanceStore } from "../Store/FinanceStore";
 import { formatMonth, getToday } from "../Utils/Date";
@@ -87,18 +87,11 @@ export function exportPDF(months: string[], options: PdfOptions) {
   if (options.distribution && !multi) {
     const balance = totals.months[0].balance;
     if (balance > 0) {
-      const d = getDistribution(balance);
-      const pct = (v: number) => `${((v / balance) * 100).toFixed(1)}%`;
+      const parts = distributeBalance(balance, store.distribution ?? DEFAULT_DISTRIBUTION).filter((p) => p.item.percent > 0);
       table(
         "Sugestão de distribuição do saldo",
         ["Destino", "%", "Valor"],
-        [
-          ["Reserva de emergência", pct(d.emergency), formatBRL(d.emergency)],
-          ["Investimentos", pct(d.invest), formatBRL(d.invest)],
-          ["Lazer", pct(d.leisure), formatBRL(d.leisure)],
-          ["Educação", pct(d.education), formatBRL(d.education)],
-          ["Gastos pessoais", pct(d.costs), formatBRL(d.costs)],
-        ],
+        parts.map((p) => [p.item.label, `${p.item.percent}%`, formatBRL(p.value)]),
         [1, 2],
       );
     } else {
