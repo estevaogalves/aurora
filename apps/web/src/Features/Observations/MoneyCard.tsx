@@ -1,18 +1,14 @@
 import CardEmpty from "./CardEmpty"
 import CardPositive from "./CardPositive"
 import CardNegative from "./CardNegative"
-import { useFinanceStore } from "@/Store/FinanceStore"
+import { useMonthSummary } from "@/Store/selectors"
 
 export default function MoneyCard() {
 
-    useFinanceStore((state) => state.transactions);
-
-    const { balance } = useFinanceStore
-    .getState()
-    .getTotals();
+    const { balance } = useMonthSummary();
 
     // card neutro
-    if(balance === undefined || balance === 0) {
+    if(balance === 0) {
         return <CardEmpty/>
     }
 

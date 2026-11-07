@@ -16,20 +16,15 @@ import {
 } from "recharts";
 import { FaArrowTrendUp, FaRegLightbulb } from "react-icons/fa6";
 import { IoMdCheckmarkCircleOutline } from "react-icons/io";
-import { useFinanceStore } from "../../Store/FinanceStore";
+import { formatBRL } from "../../lib/money";
+import { DISTRIBUTION } from "../../domain";
+import { useDistribution, useMonthSummary } from "../../Store/selectors";
 
 export default function CardPositive() {
-  const getTotals = useFinanceStore((state) => state.getTotals);
-  const getDistribuition = useFinanceStore((state) => state.getDistribuition);
-
-  const { balance } = getTotals();
-  const { emergency, education, invest, costs, leisure } = getDistribuition();
-
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
+  const { balance } = useMonthSummary();
+  const { emergency, education, invest, costs, leisure } = useDistribution();
+  const percentOf = (key: (typeof DISTRIBUTION)[number]["key"]) =>
+    DISTRIBUTION.find((d) => d.key === key)!.percent;
 
   // 🟢 DADOS UNIFICADOS para um único gráfico
   const chartData = [
@@ -37,17 +32,17 @@ export default function CardPositive() {
       category: "Reserva de Emergência",
       value: emergency,
       fill: "#3b82f6",
-      percent: 30,
+      percent: percentOf("emergency"),
     },
-    { category: "Investimentos", value: invest, fill: "#22c55e", percent: 20 },
+    { category: "Investimentos", value: invest, fill: "#22c55e", percent: percentOf("invest") },
     {
       category: "Lazer e Bem-estar",
       value: leisure,
       fill: "#a855f7",
-      percent: 20,
+      percent: percentOf("leisure"),
     },
-    { category: "Educação", value: education, fill: "#eab308", percent: 15 },
-    { category: "Gastos Pessoais", value: costs, fill: "#ef4444", percent: 15 },
+    { category: "Educação", value: education, fill: "#eab308", percent: percentOf("education") },
+    { category: "Gastos Pessoais", value: costs, fill: "#ef4444", percent: percentOf("costs") },
   ].sort((a, b) => b.value - a.value);
 
   // 🟢 Tooltip personalizado
@@ -58,7 +53,7 @@ export default function CardPositive() {
         <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
           <p className="text-white font-medium text-sm mb-1">{data.category}</p>
           <p className="text-emerald-400 font-bold">
-            {formatCurrency(data.value)}
+            {formatBRL(data.value)}
           </p>
           <p className="text-gray-400 text-xs mt-1">
             {data.percent}% do saldo
@@ -84,7 +79,7 @@ export default function CardPositive() {
               <CardDescription className="text-md font-sans font-medium text-gray-300">
                 Você tem{" "}
                 <span>
-                  <strong>{formatCurrency(balance)}</strong>
+                  <strong>{formatBRL(balance)}</strong>
                 </span>{" "}
                 para distribuir
               </CardDescription>
@@ -147,7 +142,7 @@ export default function CardPositive() {
                       style={{ fill: "#fff" }}
                       axisLine={{ stroke: "#ffffff" }}
                       tickLine={{ stroke: "#ffffff" }}
-                      tickFormatter={(value) => formatCurrency(value)}
+                      tickFormatter={(value) => formatBRL(value)}
                     />
                     
                     <Tooltip 
@@ -183,7 +178,7 @@ export default function CardPositive() {
                       {item.category}
                     </span>
                     <span className="text-sm text-white font-medium ml-auto">
-                      {formatCurrency(item.value)} ({item.percent}%)
+                      {formatBRL(item.value)} ({item.percent}%)
                     </span>
                   </div>
                 ))}

@@ -1,6 +1,8 @@
+import { useRef } from "react";
 import { FaTrash } from "react-icons/fa";
 import { PiPushPinDuotone } from "react-icons/pi";
 import { Card } from "../../components/ui/card";
+import { centsToInput, formatBRL, parseBRL, sanitizeAmountInput } from "../../lib/money";
 
 export default function IncomeCard({
   income,
@@ -21,6 +23,22 @@ export default function IncomeCard({
   setIncomeToDelete,
   setShowWarning,
 }: any) {
+  // Esc cancela: o blur que vem junto não pode salvar o texto descartado
+  const cancelled = useRef(false);
+
+  const commitAmount = () => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
+    const cents = parseBRL(tempAmount);
+    // vazio ou inválido: mantém o valor que já estava
+    if (cents !== null && cents !== income.amount) {
+      handleUpdateAmount(income.id, cents);
+    }
+    setEditingAmount(null);
+  };
+
   return (
     <Card
       className="hover:bg-slate-800/20 bg-slate-900 border-slate-600 relative"
@@ -80,17 +98,16 @@ export default function IncomeCard({
                 R$
               </span>
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 value={tempAmount}
                 autoFocus
-                onChange={(e) => setTempAmount(e.target.value)}
-                onBlur={() => {
-                  handleUpdateAmount(income.id, Number(tempAmount) || 0);
-                  setEditingAmount(null);
-                }}
+                onChange={(e) => setTempAmount(sanitizeAmountInput(e.target.value))}
+                onBlur={commitAmount}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    handleUpdateAmount(income.id, Number(tempAmount) || 0);
+                  if (e.key === "Enter") e.currentTarget.blur();
+                  if (e.key === "Escape") {
+                    cancelled.current = true;
                     setEditingAmount(null);
                   }
                 }}
@@ -101,14 +118,11 @@ export default function IncomeCard({
             <span
               onClick={() => {
                 setEditingAmount(income.id);
-                setTempAmount(String(income.amount ?? ""));
+                setTempAmount(centsToInput(income.amount ?? 0));
               }}
               className="font-bold text-lg text-white hover:text-green-600 cursor-pointer transition-all duration-300"
             >
-              {new Intl.NumberFormat("pt-BR", {
-                style: "currency",
-                currency: "BRL",
-              }).format(income.amount ?? 0)}
+              {formatBRL(income.amount ?? 0)}
             </span>
           )}
 
@@ -136,12 +150,8 @@ export default function IncomeCard({
               setIncomeToDelete(income.id);
               setShowWarning(true);
             }}
-            disabled={income.fixed}
-            className={`p-2 rounded-lg border ${
-              income.fixed
-                ? "opacity-30 cursor-not-allowed"
-                : "hover:bg-red-900 hover:border-red-400"
-            }`}
+            title={income.fixed ? "Ocultar neste mês" : "Remover"}
+            className="p-2 rounded-lg border hover:bg-red-900 hover:border-red-400"
           >
             <FaTrash className="text-white" />
           </button>

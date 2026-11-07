@@ -19,53 +19,32 @@ import {
   TabsList,
   TabsTrigger,
 } from "../../components/ui/tabs";
-import { useFinanceStore } from "../../Store/FinanceStore";
-import { Category } from "../../Types/Category";
+import { formatBRL, toCents, toReais } from "../../lib/money";
+import {
+  useCategoryTotals,
+  useMonthCredit,
+  useMonthSummary,
+  useMonthTransactions,
+} from "../../Store/selectors";
 import { categoryColors } from "../../Utils/categoryColors";
 
 export default function GraphicsExpenses() {
-  const transactions = useFinanceStore((state) => state.transactions);
-  const getTotals = useFinanceStore((state) => state.getTotals);
+  const { totalExpense } = useMonthSummary();
+  const categoryTotals = useCategoryTotals();
 
-  const totals = getTotals();
-  const totalExpense = totals.totalExpense;
+  const expensesCount =
+    useMonthTransactions().filter((t) => t.type === "expense").length +
+    useMonthCredit().length;
 
-  const creditTransactions = useFinanceStore(
-    (state) => state.creditTransactions
-  )
+  // `value` em reais só serve de escala para os gráficos; os textos usam centavos
+  const chartData = categoryTotals.map(({ category, value }) => ({
+    category,
+    cents: value,
+    value: toReais(value),
+    fill: categoryColors[category],
+  }));
 
-  const creditExpenses = creditTransactions.map((credit) => ({
-    amount: credit.totalAmount / credit.installments,
-    category: "Crédito/Parcelado" as Category
-  }))
-
-  const allExpenses = [
-    ...transactions.filter((t) => t.type === "expense"),
-    ...creditExpenses
-  ]
-
-  const chartData = Object.values(
-    allExpenses.reduce(
-      (acc, expense) => {
-        if (!acc[expense.category]) {
-          acc[expense.category] = {
-            category: expense.category,
-            value: 0,
-            fill: categoryColors[expense.category],
-          };
-        }
-        console.log(expense.category, categoryColors[expense.category]);
-        
-
-        acc[expense.category].value += expense.amount;
-
-        return acc;
-      },
-      {} as Record<string, { category: string; value: number; fill: string }>,
-    ),
-  );
-
-  console.log(transactions);
+  const money = (reais: number) => formatBRL(toCents(reais));
 
   const chartConfig = {
     value: {
@@ -81,8 +60,8 @@ export default function GraphicsExpenses() {
             Visão geral dos gastos
           </CardTitle>
           <CardDescription className="text-base font-sans font-medium text-gray-300">
-            Total: R$ {totalExpense.toLocaleString("pt-BR")} em{" "}
-            {allExpenses.length} despesas
+            Total: {formatBRL(totalExpense)} em {expensesCount}{" "}
+            {expensesCount === 1 ? "despesa" : "despesas"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -161,7 +140,7 @@ export default function GraphicsExpenses() {
                               {item.category}
                             </span>
                             <span className="font-mono text-lg text-white">
-                              R$ {item.value.toLocaleString("pt-BR")}
+                              {formatBRL(item.cents)}
                             </span>
                             <span className="w-14 text-right font-mono font-medium text-slate-300 text-base text-muted-foreground">
                               {percentage}%
@@ -206,9 +185,7 @@ export default function GraphicsExpenses() {
                         style={{ fill: "#fff" }}
                         axisLine={{ stroke: "#ffffff" }}
                         tickLine={{ stroke: "#ffffff" }}
-                        tickFormatter={(value: number) =>
-                          `R$ ${value.toLocaleString("pt-BR")}`
-                        }
+                        tickFormatter={(value: number) => money(value)}
                       />
                       <ChartTooltip
                         cursor={false}
@@ -221,7 +198,7 @@ export default function GraphicsExpenses() {
                             <div className="bg-white border rounded-md p-2 shadow-sm text-sm">
                               <p className="font-medium">{data.category}</p>
                               <p className="font-mono">
-                                R$ {data.value.toLocaleString("pt-BR")}
+                                {formatBRL(data.cents)}
                               </p>
                             </div>
                           );

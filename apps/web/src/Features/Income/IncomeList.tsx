@@ -2,16 +2,24 @@ import { useState } from "react";
 import { FaExclamationTriangle } from "react-icons/fa";
 import { IoIosArrowDown, IoIosArrowUp } from "react-icons/io";
 import { PiPushPinDuotone, PiPushPinSlashFill } from "react-icons/pi";
+import { formatBRL } from "../../lib/money";
 import { useFinanceStore } from "../../Store/FinanceStore";
+import { useHiddenTransactions, useMonthTransactions } from "../../Store/selectors";
 import { showToast } from "../Warnings/ToastContainer";
 import IncomeCard from "./IncomeCard";
 
 interface ConfirmDeletionProps {
   onCloseWarning: () => void;
   onConfirm: () => void;
+  /** Fixa só some neste mês e pode ser restaurada. */
+  hideOnly?: boolean;
 }
 
-function ConfirmDeletion({ onCloseWarning, onConfirm }: ConfirmDeletionProps) {
+function ConfirmDeletion({
+  onCloseWarning,
+  onConfirm,
+  hideOnly,
+}: ConfirmDeletionProps) {
   return (
     <div className="flex items-center justify-center fixed inset-0 backdrop-blur-sm bg-black/90 z-50">
       <div className="bg-slate-900 border border-slate-600 rounded-3xl shadow-2xl w-[520px] overflow-hidden">
@@ -24,8 +32,9 @@ function ConfirmDeletion({ onCloseWarning, onConfirm }: ConfirmDeletionProps) {
         {/* Conteúdo */}
         <div className="p-6 flex flex-col gap-4">
           <h2 className="text-gray-200 text-lg font-serif">
-            Este item será removido permanentemente. Realmente deseja
-            prosseguir?
+            {hideOnly
+              ? "Esta renda fixa será ocultada apenas neste mês e poderá ser restaurada. Deseja continuar?"
+              : "Este item será removido permanentemente. Realmente deseja prosseguir?"}
           </h2>
 
           <div className="flex justify-end gap-4 mt-4">
@@ -49,17 +58,23 @@ function ConfirmDeletion({ onCloseWarning, onConfirm }: ConfirmDeletionProps) {
 }
 
 export default function IncomeList() {
-  const transactions = useFinanceStore((state) => state.transactions);
-  const incomes = transactions.filter((t) => t.type === "income");
+  const currentMonth = useFinanceStore((state) => state.currentMonth);
+  const incomes = useMonthTransactions().filter((t) => t.type === "income");
+  const hiddenIncomes = useHiddenTransactions().filter((t) => t.type === "income");
 
   const fixedIncomes = incomes.filter((i) => i.fixed);
   const variableIncomes = incomes.filter((i) => !i.fixed);
   const [openCardFixed, setOpenCardFixed] = useState(false);
   const [openCardVariable, setOpenCardVariable] = useState(false);
 
-  const removeTransaction = useFinanceStore((state) => state.removeTransaction);
-  const updateTransactionAmount = useFinanceStore(
-    (state) => state.updateTransactionAmount,
+  const removeTransactionByMonth = useFinanceStore(
+    (state) => state.removeTransactionByMonth,
+  );
+  const restoreTransactionByMonth = useFinanceStore(
+    (state) => state.restoreTransactionByMonth,
+  );
+  const updateTransactionAmountForMonth = useFinanceStore(
+    (state) => state.updateTransactionAmountForMonth,
   );
   const updateTransactionName = useFinanceStore(
     (state) => state.updateTransactionName,
@@ -80,16 +95,20 @@ export default function IncomeList() {
   const handleRemove = (incomeId: string) => {
     const income = incomes.find((i) => i.id === incomeId);
 
-    removeTransaction(incomeId);
+    // fixa: oculta só neste mês; comum: remove de vez
+    removeTransactionByMonth(incomeId, currentMonth);
 
     showToast({
       type: "success",
-      text: `Renda "${income?.name}" removida`,
+      text: income?.fixed
+        ? `Renda "${income.name}" ocultada neste mês`
+        : `Renda "${income?.name}" removida`,
     });
   };
 
+  /** newAmount em centavos */
   const handleUpdateAmount = (incomeId: string, newAmount: number) => {
-    updateTransactionAmount(incomeId, newAmount);
+    updateTransactionAmountForMonth(incomeId, currentMonth, newAmount);
 
     showToast({
       type: "success",
@@ -119,12 +138,6 @@ export default function IncomeList() {
     });
   };
 
-  // const sortedIncomes = [...incomes].sort((a, b) => {
-  //   if (a.fixed && !b.fixed) return -1;
-  //   if (!a.fixed && b.fixed) return 1;
-  //   return (b.amount ?? 0) - (a.amount ?? 0);
-  // });
-
   const sortedFixed = [...fixedIncomes].sort(
     (a, b) => (b.amount ?? 0) - (a.amount ?? 0),
   );
@@ -145,8 +158,9 @@ export default function IncomeList() {
             if (!incomeToDelete) return;
             handleRemove(incomeToDelete);
             setShowWarning(false);
-            null;
+            setIncomeToDelete(null);
           }}
+          hideOnly={!!incomes.find((i) => i.id === incomeToDelete)?.fixed}
         />
       )}
 
@@ -228,6 +242,33 @@ export default function IncomeList() {
               ))}
             </>
           )}
+        </div>
+      )}
+
+      {hiddenIncomes.length > 0 && (
+        <div className="mt-3 space-y-3">
+          <h2 className="text-gray-400 text-sm">Rendas ocultas neste mês</h2>
+
+          {hiddenIncomes.map((income) => (
+            <div
+              key={income.id}
+              className="flex items-center justify-between rounded-xl border border-slate-600 bg-slate-900 p-4 opacity-70"
+            >
+              <div>
+                <h2 className="text-white font-bold">{income.name}</h2>
+                <p className="text-gray-400">
+                  {formatBRL(income.monthlyValues?.[currentMonth] ?? income.amount)}
+                </p>
+              </div>
+
+              <button
+                onClick={() => restoreTransactionByMonth(income.id, currentMonth)}
+                className="text-emerald-400 font-medium"
+              >
+                Restaurar
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>

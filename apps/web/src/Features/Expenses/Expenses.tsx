@@ -14,21 +14,23 @@ import AddExpenses from "./Components/AddExpenses";
 import ExpensesList from "./ExpensesList";
 import GraphicsExpenses from "./GraphicsExpenses";
 
-import { useFinanceStore } from "../../Store/FinanceStore";
+import {
+  useHiddenTransactions,
+  useMonthCredit,
+  useMonthTransactions,
+} from "../../Store/selectors";
 
 export default function Expenses() {
   const [showCard, setShowCard] = useState(false);
 
-  // pega todas transações do zustand
-  const transactions = useFinanceStore((state) => state.transactions);
-  const creditTransactions = useFinanceStore(
-    (state) => state.creditTransactions
-  )
-  const expenses = transactions.filter((t) => t.type === "expense");
+  // só o que vale no mês que está sendo visto
+  const expenses = useMonthTransactions().filter((t) => t.type === "expense");
+  const credit = useMonthCredit();
+  const hidden = useHiddenTransactions().filter((t) => t.type === "expense");
 
-  const hasAnyExpenses = expenses.length > 0 || creditTransactions.length > 0
-
-  // filtra apenas despesas
+  const hasAnyExpenses =
+    expenses.length > 0 || credit.length > 0 || hidden.length > 0;
+  const hasVisibleExpenses = expenses.length > 0 || credit.length > 0;
 
   const openCard = () => {
     setShowCard(true);
@@ -49,7 +51,8 @@ export default function Expenses() {
               </CardTitle>
 
               <CardDescription className="text-lg font-sans text-zinc-300 font-medium">
-                {expenses.length} despesas cadastradas
+                {expenses.length + credit.length}{" "}
+                {expenses.length + credit.length === 1 ? "despesa cadastrada" : "despesas cadastradas"}
               </CardDescription>
             </section>
 
@@ -88,7 +91,7 @@ export default function Expenses() {
         {showCard && <AddExpenses onCloseCard={closeCard} />}
       </Card>
 
-      {hasAnyExpenses && <GraphicsExpenses />}
+      {hasVisibleExpenses && <GraphicsExpenses />}
     </div>
   );
 }

@@ -10,12 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
+import { parseBRL, sanitizeAmountInput } from "../../lib/money";
 import { useFinanceStore } from "../../Store/FinanceStore";
 import { showToast } from "../Warnings/ToastContainer";
 import IncomeList from "./IncomeList";
 
 export default function IncomeForm() {
   const addTransaction = useFinanceStore((state) => state.addTransaction);
+  const currentMonth = useFinanceStore((state) => state.currentMonth);
 
   const [isFixed, setIsFixed] = useState(false);
 
@@ -24,16 +26,18 @@ export default function IncomeForm() {
 
     const formData = new FormData(e.currentTarget);
 
-    const nameIncome = formData.get("nameIncome") as string;
-    const rawValue = formData.get("price") as string;
-    const priceIncome = Number(rawValue.replace(",", "."));
+    const nameIncome = ((formData.get("nameIncome") as string) ?? "").trim();
+    const priceIncome = parseBRL(formData.get("price") as string);
 
-    setIsFixed(false)
+    if (!nameIncome) {
+      showToast({ type: "error", text: "Preencha o nome da renda" });
+      return;
+    }
 
-    if (!nameIncome || !priceIncome) {
+    if (!priceIncome) {
       showToast({
         type: "error",
-        text: "Preencha nome e valor da renda",
+        text: "Informe um valor válido maior que zero",
       });
       return;
     }
@@ -45,7 +49,7 @@ export default function IncomeForm() {
       type: "income",
       fixed: isFixed,
       category: "Renda",
-      month: new Date().toISOString().slice(0, 7),
+      month: currentMonth,
     });
 
     showToast({
@@ -53,6 +57,7 @@ export default function IncomeForm() {
       text: `Renda "${nameIncome}" adicionada`,
     });
 
+    setIsFixed(false);
     e.currentTarget.reset();
   }
 
@@ -96,6 +101,9 @@ export default function IncomeForm() {
                   name="price"
                   required
                   inputMode="decimal"
+                  onChange={(e) => {
+                    e.target.value = sanitizeAmountInput(e.target.value);
+                  }}
                   placeholder="00,00"
                   className="appearance-none border rounded-lg 
                   pl-12 pr-4 py-3 w-full

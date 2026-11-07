@@ -1,0 +1,76 @@
+import { compareMonths } from "../Utils/Date";
+import type { Month, Transaction } from "./types";
+
+/** Uma transação fixa vale do mês em que foi criada em diante, menos nos meses ocultados. */
+export function isFixedActiveIn(t: Transaction, month: Month): boolean {
+  if (!t.fixed) return false;
+  if (compareMonths(month, t.month) < 0) return false;
+  return !t.hiddenMonths?.includes(month);
+}
+
+/** Transações que valem em um mês, já com o valor específico daquele mês aplicado. */
+export function getTransactionsByMonth(
+  transactions: Transaction[],
+  month: Month,
+): Transaction[] {
+  return transactions
+    .filter((t) => (t.fixed ? isFixedActiveIn(t, month) : t.month === month))
+    .map((t) => {
+      const override = t.fixed ? t.monthlyValues?.[month] : undefined;
+      // 0 é um valor válido: só ignora quando não há valor definido
+      return override !== undefined ? { ...t, amount: override } : t;
+    });
+}
+
+/** Fixas que o usuário ocultou neste mês (para poder restaurar). */
+export function getHiddenTransactionsByMonth(
+  transactions: Transaction[],
+  month: Month,
+): Transaction[] {
+  return transactions.filter(
+    (t) => t.fixed && compareMonths(month, t.month) >= 0 && t.hiddenMonths?.includes(month),
+  );
+}
+
+/* ---------- alterações: devolvem o patch a aplicar na transação ---------- */
+
+/** Novo valor a partir de um mês: fixa guarda por mês, normal troca o valor. */
+export function patchAmountForMonth(
+  t: Transaction,
+  month: Month,
+  cents: number,
+): Partial<Transaction> {
+  if (t.fixed) {
+    return { monthlyValues: { ...t.monthlyValues, [month]: cents } };
+  }
+  return { amount: cents };
+}
+
+/** Fixa: oculta neste mês. Normal: não há patch, quem chama deve remover. */
+export function patchHideInMonth(
+  t: Transaction,
+  month: Month,
+): Partial<Transaction> | null {
+  if (!t.fixed) return null;
+  if (t.hiddenMonths?.includes(month)) return {};
+  return { hiddenMonths: [...(t.hiddenMonths ?? []), month] };
+}
+
+export function patchRestoreInMonth(
+  t: Transaction,
+  month: Month,
+): Partial<Transaction> {
+  if (!t.fixed) return {};
+  return { hiddenMonths: (t.hiddenMonths ?? []).filter((m) => m !== month) };
+}
+
+/**
+ * Alterna fixa/não fixa. Ao fixar, a transação passa a valer a partir do mês em
+ * que foi criada. Ao desfixar, os valores e ocultações por mês deixam de existir.
+ */
+export function patchToggleFixed(t: Transaction): Partial<Transaction> {
+  if (!t.fixed) {
+    return { fixed: true, hiddenMonths: [] };
+  }
+  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined };
+}

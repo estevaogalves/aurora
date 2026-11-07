@@ -28,19 +28,21 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 
 ## Fase 1: Fundação da lógica (front)
 
-- [ ] `src/lib/money.ts`: `parseBRL`, `formatBRL` e valores em centavos inteiros
-- [ ] Remover os 3 `formatCurrency` duplicados
-- [ ] Camada de domínio pura em `src/domain/` (sem React e sem Zustand)
-- [ ] Listas, contadores e gráficos filtrados por mês
-- [ ] Crédito parcelado incluído nos totais, no saldo e no PDF
-- [ ] Despesa e renda fixas respeitando o mês de início
-- [ ] Valor `0` por mês tratado como válido em `monthlyValues`
-- [ ] Renda fixa com ocultar e restaurar por mês, como a despesa fixa
-- [ ] Cadastros e notas usando `currentMonth` da store, não `new Date()`
-- [ ] Vitest configurado e testes do domínio
-- [ ] Interface `FinanceRepository` e `LocalRepository`
-- [ ] Zustand guardando só estado de tela e cache
-- [ ] `persist` com `version` e `migrate` para não perder os dados atuais
+- [ ok ] `src/lib/money.ts`: `parseBRL`, `formatBRL` e valores em centavos inteiros
+- [ ok ] Remover os 3 `formatCurrency` duplicados
+- [ ok ] Camada de domínio pura em `src/domain/` (sem React e sem Zustand)
+- [ ok ] Listas, contadores e gráficos filtrados por mês
+- [ ok ] Crédito parcelado incluído nos totais, no saldo e no PDF
+- [ ok ] Despesa e renda fixas respeitando o mês de início
+- [ ok ] Valor `0` por mês tratado como válido em `monthlyValues`
+- [ ok ] Renda fixa com ocultar e restaurar por mês, como a despesa fixa
+- [ ok ] Cadastros e notas usando `currentMonth` da store, não `new Date()`
+- [ ok ] Vitest configurado e testes do domínio
+  - 55 testes: dinheiro, domínio e repositório/migração.
+- [ ok ] Interface `FinanceRepository` e `LocalRepository`
+- [ ok ] Zustand guardando só estado de tela e cache
+- [ ok ] `persist` com `version` e `migrate` para não perder os dados atuais
+  - O versionamento ficou no `LocalRepository` (chave `aurora:finance`, versão 1, valores em centavos). Os dados antigos (`finance-storage`, em reais) são convertidos uma vez e o backup é mantido.
 
 ## Fase 2: Tema Aurora
 
@@ -77,7 +79,7 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 
 - [ ] Remover `Navbar.tsx`, `EditableAmount.tsx`, `Mocks/*`, `Types/Incomes.tsx`, `SideBarStore.ts` e `ListExtraExpenses.tsx`
 - [ ] Remover `console.log` e blocos comentados
-- [ ] Corrigir `EditableName` (a edição não fecha depois de salvar)
+- [ ok ] Corrigir `EditableName` (a edição não fecha depois de salvar) (feito na Fase 1)
 - [ ] Corrigir `grid-cols-[auto,1fr,auto]` em `ExpenseCard.tsx`
 - [ ] Zerar os erros de TypeScript (`tsc -b`)
 - [ ] Zerar os avisos do `pnpm lint`
@@ -116,16 +118,17 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 
 ## Correções apontadas na auditoria
 
-- [ ] Despesas e rendas de outros meses aparecendo no mês atual
-- [ ] Gráfico de despesas com totais incoerentes
-- [ ] `NaN` ao digitar valores como "1.234,56"
-- [ ] `pattern="[0-9]*"` bloqueando centavos no formulário de despesa
-- [ ] Edição inline com `type="number"` rejeitando vírgula
-- [ ] Renda fixa editada alterando todos os meses
-- [ ] Lixeira desabilitada para despesa e renda fixas
+- [ ok ] Despesas e rendas de outros meses aparecendo no mês atual
+- [ ok ] Gráfico de despesas com totais incoerentes
+- [ ok ] `NaN` ao digitar valores como "1.234,56"
+- [ ok ] `pattern="[0-9]*"` bloqueando centavos no formulário de despesa
+- [ ok ] Edição inline com `type="number"` rejeitando vírgula
+- [ ok ] Renda fixa editada alterando todos os meses
+- [ ok ] Lixeira desabilitada para despesa e renda fixas
 - [ ] Navegação entre meses limitada (sem futuro, bloqueada por mês vazio)
-- [ ] `MoneyCard` e `SummaryCard` sem reagir à troca de mês
-- [ ] Percentuais de distribuição duplicados em `getDistribuition` e `CardPositive`
+  - Parcial: mês vazio no meio não trava mais a volta (usa `getAvailableMonths`). Avançar para meses futuros fica para o seletor global da Fase 3.
+- [ ok ] `MoneyCard` e `SummaryCard` sem reagir à troca de mês
+- [ ok ] Percentuais de distribuição duplicados em `getDistribuition` e `CardPositive`
 - [ ] Nomes trocados entre arquivo e função (`BarsGraph`, `CategoryGraph`)
 - [ ] Botão "Cancelar" da despesa extra enviando o formulário
 - [ ] Botão "Criar Meta" recarregando a página

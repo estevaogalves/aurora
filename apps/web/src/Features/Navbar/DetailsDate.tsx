@@ -1,6 +1,8 @@
+import { useMemo } from "react";
 import { IoChevronBack, IoChevronForward } from "react-icons/io5";
 import { SlCalender } from "react-icons/sl";
 import { Button } from "../../components/ui/button";
+import { getAvailableMonths } from "../../domain";
 import { useFinanceStore } from "../../Store/FinanceStore";
 import {
   changeMonth,
@@ -11,11 +13,10 @@ import {
   isCurrentMonth,
 } from "../../Utils/Date";
 
-// 🟢 IMPORT CORRETO da função do serviço
-
 export default function DetailsDate() {
   const { currentMonth, setCurrentMonth } = useFinanceStore();
   const transactions = useFinanceStore((state) => state.transactions);
+  const creditTransactions = useFinanceStore((state) => state.creditTransactions);
   const notes = useFinanceStore((state) => state.notes);
 
   const realCurrentMonth = getCurrentMonth();
@@ -25,40 +26,17 @@ export default function DetailsDate() {
     ? "Mês atual"
     : "Mês anterior";
 
-  function hasDataInMonth(month: string) {
-    const hasTransaction = transactions.some((t) => {
-      if (t.fixed) {
-        return !t.hiddenMonths?.includes(month);
-      }
-      return t.month === month;
-    });
+  // meses do primeiro dado até hoje, sem buracos: mês vazio no meio não trava a navegação
+  const availableMonths = useMemo(() => {
+    const months = getAvailableMonths(
+      { transactions, creditTransactions, notes: [] },
+      realCurrentMonth,
+    );
+    const noteMonths = notes.map((n) => n.month);
+    return [...new Set([...months, ...noteMonths])].sort(compareMonths);
+  }, [transactions, creditTransactions, notes, realCurrentMonth]);
 
-    const hasNotes = notes.some((n) => n.month === month);
-
-    return hasTransaction || hasNotes;
-  }
-
-  function getOldestMonthWithData() {
-    const monthsWithData = new Set<string>();
-
-    transactions.forEach((t) => {
-      if (t.fixed) {
-        monthsWithData.add(t.month);
-
-        if (t.monthlyValues) {
-          Object.keys(t.monthlyValues).forEach((m) => monthsWithData.add(m));
-        }
-      } else {
-        monthsWithData.add(t.month);
-      }
-    });
-
-    notes.forEach((n) => monthsWithData.add(n.month));
-
-    if (monthsWithData.size === 0) return null;
-
-    return Array.from(monthsWithData).sort(compareMonths)[0];
-  }
+  const oldestMonth = availableMonths[0] ?? null;
 
   function goToCurrentMonth() {
     setCurrentMonth(realCurrentMonth);
@@ -72,22 +50,13 @@ export default function DetailsDate() {
     }
   }
 
-  function handlePrev() {
-    const prev = changeMonth(currentMonth, -1);
-
-    if (hasDataInMonth(prev)) {
-      setCurrentMonth(prev);
-    }
-  }
-
-  // 🟢 REMOVA a função exportPDF daqui (a que está dentro do componente)
-
-  const previousMonthHasData = hasDataInMonth(changeMonth(currentMonth, -1));
-  const oldestMonth = getOldestMonthWithData();
-
   const canGoBack = oldestMonth
     ? compareMonths(oldestMonth, currentMonth) < 0
     : false;
+
+  function handlePrev() {
+    if (canGoBack) setCurrentMonth(changeMonth(currentMonth, -1));
+  }
 
   const canGoForward = compareMonths(currentMonth, realCurrentMonth) < 0;
 
@@ -119,7 +88,7 @@ export default function DetailsDate() {
           <section className="flex items-center gap-2">
             <Button
               onClick={handlePrev}
-              disabled={!previousMonthHasData || !canGoBack}
+              disabled={!canGoBack}
               className="bg-green-800 text-white border border-emerald-600 hover:bg-green-900"
             >
               <IoChevronBack />

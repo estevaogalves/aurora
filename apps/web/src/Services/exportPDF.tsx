@@ -2,22 +2,39 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { formatMonth, getToday } from "../Utils/Date";
 import { useFinanceStore } from "../Store/FinanceStore";
+import {
+  CREDIT_CATEGORY,
+  getCreditByMonth,
+  getDistribution,
+  getMonthSummary,
+  getTransactionsByMonth,
+} from "../domain";
+import { formatBRL } from "../lib/money";
 
+/** Gera o PDF do mês informado (formato "YYYY-MM"), com as parcelas do crédito. */
 export function exportPDF(currentMonth: string) {
   const doc = new jsPDF();
   const store = useFinanceStore.getState();
+  const data = {
+    transactions: store.transactions,
+    creditTransactions: store.creditTransactions,
+  };
 
-  const monthTransactions = store.getTransactionsByMonth(currentMonth);
-  const totals = store.getTotals();
-  const distribution = store.getDistribuition();
+  const summary = getMonthSummary(data, currentMonth);
+  const totals = {
+    totalIncome: summary.totalIncome,
+    totalExpense: summary.totalExpense,
+    balance: summary.balance,
+  };
 
-  const { emergency, invest, leisure, education, costs } = distribution;
+  const monthTransactions = getTransactionsByMonth(store.transactions, currentMonth);
+  const installments = getCreditByMonth(store.creditTransactions, currentMonth);
 
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
+  const { emergency, invest, leisure, education, costs } = getDistribution(
+    summary.balance,
+  );
+
+  const formatCurrency = formatBRL;
 
   // ================= HEADER =================
   doc.setFillColor(16, 185, 129);
@@ -100,9 +117,7 @@ export function exportPDF(currentMonth: string) {
   } else {
     doc.setFontSize(11);
     doc.setTextColor(120);
-    doc.setFont("helvetica", "bold")
     doc.text("Sem saldo disponível para distribuição", 14, currentY);
-    doc.setFont("helvetica", "bold")
     currentY += 10;
     doc.setTextColor(0);
   }
@@ -111,7 +126,23 @@ export function exportPDF(currentMonth: string) {
   doc.setFontSize(13);
   doc.text("Transações do mês", 14, currentY);
 
-  const sortedTransactions = [...monthTransactions].sort((a, b) => {
+  // parcelas do crédito entram como despesas do mês
+  const monthRows = [
+    ...monthTransactions.map((t) => ({
+      name: t.name,
+      category: t.category as string,
+      type: t.type,
+      amount: t.amount,
+    })),
+    ...installments.map((c) => ({
+      name: `${c.name} (${c.currentInstallment}/${c.installments})`,
+      category: CREDIT_CATEGORY as string,
+      type: "expense" as const,
+      amount: c.installmentValue,
+    })),
+  ];
+
+  const sortedTransactions = [...monthRows].sort((a, b) => {
     if (a.type === "income" && b.type === "expense") return -1;
     if (a.type === "expense" && b.type === "income") return 1;
     return 0;

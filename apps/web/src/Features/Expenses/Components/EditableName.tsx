@@ -1,3 +1,5 @@
+import { useRef } from "react";
+
 interface Props {
   expenseId: string;
   name: string;
@@ -20,6 +22,9 @@ export default function EditableName({
   setTempName,
   onUpdate,
 }: Props) {
+  // Esc cancela: o blur que vem junto não pode salvar o texto descartado
+  const cancelled = useRef(false);
+
   if (editingName === expenseId) {
     return (
       <input
@@ -27,10 +32,22 @@ export default function EditableName({
         value={tempName}
         autoFocus
         onChange={(e) => setTempName(e.target.value)}
-        onBlur={() => onUpdate(expenseId, tempName)}
+        onBlur={() => {
+          if (cancelled.current) {
+            cancelled.current = false;
+            return;
+          }
+          onUpdate(expenseId, tempName);
+          setEditingName(null);
+        }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
-            onUpdate(expenseId, tempName);
+            e.currentTarget.blur();
+          }
+          if (e.key === "Escape") {
+            cancelled.current = true;
+            setTempName(name);
+            setEditingName(null);
           }
         }}
         className="bg-slate-800 text-white font-bold text-lg px-2 py-1 rounded border border-emerald-600 outline-none w-[200px]"

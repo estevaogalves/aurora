@@ -1,8 +1,11 @@
+import { useRef } from "react";
 import { FaTrash } from "react-icons/fa6";
 import { PiPushPinDuotone } from "react-icons/pi";
+import { centsToInput, formatBRL, parseBRL, sanitizeAmountInput } from "../../../lib/money";
+import type { Transaction } from "../../../Store/FinanceStore";
 
 interface Props {
-  expense: any;
+  expense: Transaction;
 
   editingAmount: string | null;
   tempAmount: string;
@@ -10,6 +13,7 @@ interface Props {
   setEditingAmount: (id: string | null) => void;
   setTempAmount: (value: string) => void;
 
+  /** value em centavos */
   onUpdateAmount: (id: string, value: number) => void;
   onToggleFixed: (id: string) => void;
 
@@ -27,6 +31,22 @@ export default function Actions({
   onDelete,
 }: Props) {
   const isEditing = editingAmount === expense.id;
+  // Esc cancela: o blur que vem junto não pode salvar o texto descartado
+  const cancelled = useRef(false);
+
+  const commit = () => {
+    if (cancelled.current) {
+      cancelled.current = false;
+      return;
+    }
+
+    const cents = parseBRL(tempAmount);
+    // texto vazio ou inválido: mantém o valor que já estava
+    if (cents !== null && cents !== expense.amount) {
+      onUpdateAmount(expense.id, cents);
+    }
+    setEditingAmount(null);
+  };
 
   return (
     <div className="flex items-center gap-4">
@@ -36,13 +56,18 @@ export default function Actions({
         <div className="flex items-center border-2 text-white bg-slate-900 border-emerald-600 rounded-lg px-3 py-2">
           <span className="mr-1">R$</span>
           <input
-            type="number"
+            type="text"
+            inputMode="decimal"
             value={tempAmount}
             autoFocus
-            onChange={(e) => setTempAmount(e.target.value)}
-            onBlur={() => {
-              onUpdateAmount(expense.id, Number(tempAmount) || 0);
-              setEditingAmount(null);
+            onChange={(e) => setTempAmount(sanitizeAmountInput(e.target.value))}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") e.currentTarget.blur();
+              if (e.key === "Escape") {
+                cancelled.current = true;
+                setEditingAmount(null);
+              }
             }}
             className="bg-transparent outline-none w-24"
           />
@@ -51,14 +76,11 @@ export default function Actions({
         <span
           onClick={() => {
             setEditingAmount(expense.id);
-            setTempAmount(String(expense.amount ?? ""));
+            setTempAmount(centsToInput(expense.amount));
           }}
           className="font-bold text-lg text-white cursor-pointer"
         >
-          R${" "}
-          {(expense.amount ?? 0).toLocaleString("pt-BR", {
-            minimumFractionDigits: 2,
-          })}
+          {formatBRL(expense.amount)}
         </span>
       )}
 
@@ -76,15 +98,11 @@ export default function Actions({
         />
       </button>
 
-      {/* REMOVER */}
+      {/* REMOVER (fixa: oculta só neste mês) */}
       <button
         onClick={() => onDelete(expense.id)}
-        disabled={expense.fixed}
-        className={`p-2 rounded-lg border ${
-          expense.fixed
-            ? "opacity-30 cursor-not-allowed"
-            : "hover:bg-red-900 hover:border-red-400"
-        }`}
+        title={expense.fixed ? "Ocultar neste mês" : "Remover"}
+        className="p-2 rounded-lg border hover:bg-red-900 hover:border-red-400"
       >
         <FaTrash className="text-white" />
       </button>

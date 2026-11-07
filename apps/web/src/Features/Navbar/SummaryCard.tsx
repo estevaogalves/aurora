@@ -6,22 +6,12 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { useFinanceStore } from "../../Store/FinanceStore";
+import { formatBRL } from "../../lib/money";
+import { useMonthSummary } from "../../Store/selectors";
 
 export default function SummaryCard() {
-  useFinanceStore((state) => state.transactions);
-
-  const { totalIncome, totalExpense, balance } = useFinanceStore
-    .getState()
-    .getTotals();
-
-  const expensePercentage = useFinanceStore.getState().getExpensePercentage();
-
-  const formatCurrency = (value: number) =>
-    new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency: "BRL",
-    }).format(value);
+  const { totalIncome, totalExpense, balance, expensePercentage } =
+    useMonthSummary();
 
   return (
     <div className="mx-44 pt-6">
@@ -39,7 +29,7 @@ export default function SummaryCard() {
                   Renda Total
                 </CardTitle>
                 <h1 className="text-2xl font-bold font-sans text-white">
-                  {formatCurrency(totalIncome)}
+                  {formatBRL(totalIncome)}
                 </h1>
                 <CardDescription className="text-lg text-zinc-300 font-sans font-medium">
                   Soma de todas as fontes
@@ -62,7 +52,7 @@ export default function SummaryCard() {
                   Total de Despesas
                 </CardTitle>
                 <h1 className="text-2xl font-bold font-sans text-white">
-                  {formatCurrency(totalExpense)}
+                  {formatBRL(totalExpense)}
                 </h1>
                 <CardDescription className="text-lg text-zinc-300 font-sans font-medium">
                   {expensePercentage.toFixed(2)}% da renda
@@ -85,7 +75,7 @@ export default function SummaryCard() {
                   Saldo Restante
                 </CardTitle>
                 <h1 className="text-2xl font-bold font-sans text-white">
-                  {formatCurrency(balance)}
+                  {formatBRL(balance)}
                 </h1>
                 <CardDescription className="text-lg text-zinc-300 font-sans font-medium">
                   Disponivel para uso

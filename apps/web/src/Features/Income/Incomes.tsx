@@ -9,17 +9,13 @@ import {
   CardHeader,
   CardTitle,
 } from "../../components/ui/card";
-import { useFinanceStore } from "../../Store/FinanceStore";
+import { formatBRL } from "../../lib/money";
+import { useMonthSummary, useMonthTransactions } from "../../Store/selectors";
 import AddIncome from "./AddIncome";
 
 export default function Incomes() {
-  const transactions = useFinanceStore((state) => state.transactions);
-  const incomes = transactions.filter((t) => t.type === "income");
-
-  const getTotals = useFinanceStore((state) => state.getTotals);
-
-  const totals = getTotals();
-  const totalIncomes = totals.totalIncome;
+  const incomes = useMonthTransactions().filter((t) => t.type === "income");
+  const { totalIncome: totalIncomes } = useMonthSummary();
 
   return (
     <div className="">
@@ -34,7 +30,7 @@ export default function Incomes() {
                 Suas Rendas
               </CardTitle>
               <CardDescription className="text-lg text-zinc-300 font-sans font-medium">
-                 {incomes.length > 0 ? `Total: R$ ${totalIncomes.toLocaleString("pt-BR")} em ${incomes.length} fonte` :  "Adicione suas fontes de renda do mês"}
+                 {incomes.length > 0 ? `Total: ${formatBRL(totalIncomes)} em ${incomes.length} ${incomes.length === 1 ? "fonte" : "fontes"}` :  "Adicione suas fontes de renda do mês"}
               </CardDescription>
               {/* Total: R$ 00,00 de x fonte */}
             </div>

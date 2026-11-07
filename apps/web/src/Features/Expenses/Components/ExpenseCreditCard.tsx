@@ -1,6 +1,7 @@
 import { FaTrash } from "react-icons/fa6";
 import { LuClock4 } from "react-icons/lu";
 import { Card } from "../../../components/ui/card";
+import { formatBRL } from "../../../lib/money";
 
 interface CreditItem {
   id: string;
@@ -48,10 +49,7 @@ export default function ExpenseCreditCard({ expenses, onDelete }: Props) {
 
               <section className="flex items-center gap-3 text-white">
                 <span className="font-bold text-lg">
-                  R${" "}
-                  {expense.installmentValue.toLocaleString("pt-BR", {
-                    minimumFractionDigits: 2,
-                  }) ?? "0,00"}
+                  {formatBRL(expense.installmentValue)}
                 </span>
 
                 <button 
@@ -80,10 +78,7 @@ export default function ExpenseCreditCard({ expenses, onDelete }: Props) {
             {/* TOTAL */}
             <div className="flex items-start mt-3">
               <h1 className="text-slate-400 font-medium">
-                Total da compra: R${" "}
-               {(expense.totalAmount ?? 0).toLocaleString("pt-BR", {
-                minimumFractionDigits: 2
-               })}
+                Total da compra: {formatBRL(expense.totalAmount ?? 0)}
               </h1>
             </div>
           </Card>

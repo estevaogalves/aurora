@@ -27,7 +27,7 @@ export default function Notes() {
   const [page, setPage] = useState(1);
 
   const NOTES_PER_PAGE = 3;
-  const currentMonth = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const currentMonth = useFinanceStore((state) => state.currentMonth);
 
   const allNotes = useFinanceStore((state) => state.notes);
 
