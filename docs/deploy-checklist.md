@@ -1,0 +1,111 @@
+# Checklist de deploy — correções de segurança (SEC-01 a SEC-09, SEC-19)
+
+## 1. Ordem de merge
+
+Mescle nesta ordem, uma de cada vez, rodando o CI entre elas:
+
+1. `deps/atualizar-jspdf-router-dompurify` — jsPDF, react-router-dom, dompurify (SEC-05)
+2. `security/fase-1` — SEC-01 (segredo), SEC-03 (cookie/`APP_ENV`), SEC-06 (cabeçalhos e CSP report-only)
+3. `security/fase-2` — SEC-02 (limite de hash e de cadastro), SEC-04 (IP real)
+4. `security/fase-3` — SEC-08 (admin por comando), SEC-09 (tetos e pool), SEC-19 (dependências de dev)
+
+Conflitos: simulei (`git merge-tree`) cada branch contra a `main` e a ordem completa: **sem conflito**. A fase 3 contém uma
+cópia (cherry-pick) do commit da `deps/…`; como a mudança é idêntica, o git a reconhece como já aplicada.
+
+Depois do merge de cada uma: `pnpm install --frozen-lockfile && pnpm lint && pnpm --filter web exec tsc -b && pnpm test && pnpm build`
+e, na API, `go vet ./... && go test ./...` (com `TEST_DATABASE_URL`).
+
+## 2. Variáveis de ambiente
+
+### Obrigatórias (a API não inicia sem elas)
+| Variável | Valor |
+|---|---|
+| `JWT_SECRET` | `openssl rand -hex 32`. **Sem valor padrão**; a API recusa curto, de exemplo ou de pouca variedade. Se o ambiente antigo usava o padrão do compose, o segredo está comprometido: trocar invalida as sessões (todos fazem login de novo). |
+| `DATABASE_URL` | já existia |
+| `APP_ENV` | `production` (padrão). Em produção, `COOKIE_SECURE=false` impede a API de iniciar. |
+| `COOKIE_SECURE` | `true` (padrão). **Exige HTTPS**: com cookie `Secure` em HTTP o navegador descarta o refresh token e o usuário perde a sessão a cada recarga. |
+
+### Recomendadas / revisar
+| Variável | Padrão | Observação |
+|---|---|---|
+| `POSTGRES_PASSWORD` (e `DATABASE_URL`) | `aurora` | **Troque.** O padrão do compose ainda é `aurora/aurora` (achado SEC-16, não corrigido). |
+| `API_MEM_LIMIT` | `512m` | Memória real da API. Dela sai a concorrência de hashes de senha (40% ÷ 64 MiB; 512m → 3). |
+| `TRUST_PROXY` | `true` no compose | Só deixe `true` se a API for alcançável **apenas** pelo nginx. Se houver CDN/balanceador na frente, configure `real-ip.conf` (veja `docs/ip-real-atras-de-proxy.md`). |
+| `CORS_ORIGINS` | localhost | Domínio real, se front e API não ficarem no mesmo endereço. |
+
+### Novas, opcionais (vazio = padrão)
+| Variável | Padrão | Para quê |
+|---|---|---|
+| `HASH_MAX_CONCURRENCY` / `HASH_MAX_QUEUE` / `HASH_QUEUE_TIMEOUT` | automático / 4× / `3s` | fila de hash de senha; cheia ou estourou → `503` + `Retry-After` |
+| `REGISTER_MAX_PER_IP` / `REGISTER_WINDOW` | `5` / `1h` | cadastros por IP; passou → `429` |
+| `DB_MAX_CONNS` | `10` | pool da API; reduzido sozinho para caber no `max_connections` (desconta reservadas + 20%). Com N réplicas, N × valor deve caber. |
+| `DB_STATEMENT_TIMEOUT` | `15s` | só no pool da API (migrations ficam sem limite). `0` desliga. **Se o pooler (modo transação, ex.: Supabase) rejeitar o parâmetro** (`unsupported startup parameter`), use `0` e defina no banco: `ALTER ROLE <usuario-da-api> SET statement_timeout='15s';` |
+| `MAX_BODY_BYTES` / `MAX_IMPORT_BYTES` | `262144` / `10485760` | corpo máximo (`413`) |
+| `MAX_IMPORT_ITEMS` / `MAX_MONTH_OVERRIDES` | `25000` / `600` | itens por coleção na importação / meses ajustados por despesa fixa (`400`) |
+| `MAX_CUSTOM_CATEGORIES` / `MAX_DISTRIBUTION_ITEMS` | `200` / `50` | categorias na importação / itens da distribuição |
+
+### Removida
+- `ADMIN_EMAIL`: **não tem mais efeito** (a API registra um aviso se estiver definida). Apague-a do ambiente.
+
+### Infra
+- Terminar **TLS** na frente (a stack entregue escuta em HTTP) e redirecionar 80 → 443.
+- Firewall: o nginx só aceita tráfego do proxy/CDN (se houver); a API não pode ficar exposta diretamente.
+- Se houver CDN/balanceador: preencher `apps/web/real-ip.conf` (monte por volume).
+
+## 3. Antes de publicar (uma vez)
+- [ ] Backup do banco. (As correções não têm migration nova, mas faça o backup.)
+- [ ] `.env` de produção com `JWT_SECRET` novo, sem `ADMIN_EMAIL`, com `APP_ENV=production` e `COOKIE_SECURE=true`.
+- [ ] Quem já era admin continua admin (o papel está no banco). Para promover outra pessoa, depois do cadastro dela:
+      `docker compose exec api api admin promote pessoa@dominio.com`
+
+## 4. O que conferir logo após publicar
+
+Troque `https://app.exemplo.com` pelo seu endereço.
+
+**Cabeçalhos**
+```sh
+curl -sI https://app.exemplo.com/ | grep -i -E "content-security-policy-report-only|x-content-type|x-frame|referrer|permissions|strict-transport"
+curl -si -X POST https://app.exemplo.com/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email":"a@a.com","password":"x"}' | grep -i -E "^HTTP|cache-control|x-content-type"
+```
+Esperado: os 6 cabeçalhos na página (CSP **report-only** + nosniff, X-Frame-Options DENY, Referrer-Policy, Permissions-Policy, HSTS); na API, `Cache-Control: no-store` e `nosniff`, **sem duplicatas**.
+Abra o app com o console (F12) aberto: violações da CSP aparecem como avisos. Sem violações por alguns dias → trocar o nome do cabeçalho
+em `apps/web/security-headers.conf` para `Content-Security-Policy`.
+
+**Cookie seguro**
+```sh
+curl -si -X POST https://app.exemplo.com/api/v1/auth/login -H 'Content-Type: application/json' -d '{"email":"SEU@EMAIL","password":"SUA-SENHA"}' | grep -i set-cookie
+```
+Esperado: `aurora_refresh=…; Path=/api/v1/auth; HttpOnly; Secure; SameSite=Lax`. Sem `Secure` → a API não deveria ter iniciado: revise `APP_ENV`/`COOKIE_SECURE`.
+
+**Login**
+- [ ] Login com a senha certa entra; recarregar a página mantém a sessão (o cookie de refresh funciona).
+- [ ] Senha errada: `401` com mensagem genérica.
+- [ ] 6 senhas erradas seguidas para o **mesmo e-mail** (use um e-mail de teste): a 6ª dá `429` com `Retry-After`.
+
+**Limite por IP (IP real chegando certo)**
+- [ ] Repita as 6 tentativas enviando `-H 'X-Forwarded-For: 1.2.3.4'` e `-H 'X-Real-IP: 5.6.7.8'` com valores diferentes a cada vez: **continua** dando `429` na 6ª (forjar não escapa).
+- [ ] Com CDN/balanceador: faça as tentativas de duas redes diferentes (ex.: Wi-Fi e 4G). Cada rede tem o seu contador; uma não bloqueia a outra.
+- [ ] Log da API: o IP registrado/limitado é o do cliente, não o do proxy.
+
+**Cadastro e seu limite**
+- [ ] Cadastro normal funciona e devolve `role: "user"`.
+- [ ] Cadastro com o e-mail que era o `ADMIN_EMAIL` **não** vira admin.
+- [ ] Limite por IP: em produção o padrão é 5/hora e cada teste cria uma conta real. Prefira **homologação**; em produção, defina
+      temporariamente `REGISTER_MAX_PER_IP=1`, faça 2 cadastros (o 2º dá `429`), apague a conta de teste
+      (`DELETE FROM users WHERE email='teste@…';`, as tabelas filhas caem em cascata) e volte ao valor normal.
+
+**Carga e banco**
+- [ ] Log de inicialização da API: `limite de hashing` (concorrência = esperado para `API_MEM_LIMIT`) e `pool do banco`
+      (`max_conns`, `servidor_max_connections`). Um `WARN ... DB_MAX_CONNS reduzido` indica que o valor pedido não cabia.
+- [ ] Importação de dados do navegador funciona com um usuário real (os tetos cobrem até ~25 mil lançamentos).
+
+**Administração**
+- [ ] `docker compose exec api api admin promote seu@email` → "agora é admin"; faça login de novo e `GET /api/v1/admin/users` dá `200`.
+- [ ] `… admin demote` do único admin é **recusado**.
+
+## 5. Se algo der errado
+- API não sobe: leia a mensagem — `JWT_SECRET`, `COOKIE_SECURE`/`APP_ENV` e `DATABASE_URL` são as causas mais prováveis.
+- `503` em cadastro/login em horário normal: aumente `API_MEM_LIMIT` (mais hashes simultâneos) antes de mexer em `HASH_*`.
+- Erro de banco `canceling statement due to statement timeout`: aumente `DB_STATEMENT_TIMEOUT` e investigue a consulta.
+- Todos caindo para `429` no cadastro/login: o IP visto é o do proxy. Revise `TRUST_PROXY` e o `real-ip.conf`.
+- Reverter: cada correção é um commit; `git revert <commit>` na ordem inversa.
