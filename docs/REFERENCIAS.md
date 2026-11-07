@@ -23,8 +23,8 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] Mover o front atual para `apps/web` com `git mv`
 - [ ok ] Criar `pnpm-workspace.yaml` (e um `package.json` raiz com os scripts `dev`, `build` e `lint`)
 - [ ok ] Liberar os scripts de build do `esbuild` e do `core-js` (`allowBuilds`) para o `pnpm dev` funcionar
-- [ ] `pnpm dev` e `pnpm build` funcionando como antes
-  - `pnpm dev` e `vite build` funcionam. `pnpm build` ainda falha no `tsc -b` por um erro que já existia (`Mocks/ExpensesExamples.tsx`), corrigido na Fase 5.
+- [ ok ] `pnpm dev` e `pnpm build` funcionando como antes
+  - O erro antigo de `tsc -b` (`Mocks/ExpensesExamples.tsx`) sumiu com a remoção dos mocks.
 
 ## Fase 1: Fundação da lógica (front)
 
