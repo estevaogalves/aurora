@@ -54,12 +54,12 @@ export default function GraphicsExpenses() {
 
   return (
     <div className="mt-6">
-      <Card className="bg-slate-900 border-slate-600 ">
+      <Card className="bg-card border-border ">
         <CardHeader>
-          <CardTitle className="text-xl font-bold font-sans text-white">
+          <CardTitle className="text-xl font-bold font-sans text-foreground">
             Visão geral dos gastos
           </CardTitle>
-          <CardDescription className="text-base font-sans font-medium text-gray-300">
+          <CardDescription className="text-base font-sans font-medium text-foreground/80">
             Total: {formatBRL(totalExpense)} em {expensesCount}{" "}
             {expensesCount === 1 ? "despesa" : "despesas"}
           </CardDescription>
@@ -67,7 +67,7 @@ export default function GraphicsExpenses() {
         <CardContent>
           <Tabs defaultValue="category" className="w-full">
             {/* Tabs */}
-            <TabsList className="border p-1 rounded-lg w-full h-[45px] bg-slate-900 border-slate-600">
+            <TabsList className="border p-1 rounded-lg w-full h-[45px] bg-card border-border">
               <TabsTrigger
                 value="category"
                 className="flex-1 rounded-md text-lg font-semibold"
@@ -136,13 +136,13 @@ export default function GraphicsExpenses() {
                               className="h-4 w-4 rounded-full"
                               style={{ backgroundColor: item.fill }}
                             />
-                            <span className="flex-1 text-lg text-gray-300 font-medium">
+                            <span className="flex-1 text-lg text-foreground/80 font-medium">
                               {item.category}
                             </span>
-                            <span className="font-mono text-lg text-white">
+                            <span className="font-mono text-lg text-foreground">
                               {formatBRL(item.cents)}
                             </span>
-                            <span className="w-14 text-right font-mono font-medium text-slate-300 text-base text-muted-foreground">
+                            <span className="w-14 text-right font-mono font-medium text-foreground/80 text-base text-muted-foreground">
                               {percentage}%
                             </span>
                           </div>
@@ -195,7 +195,7 @@ export default function GraphicsExpenses() {
                           const data = payload[0].payload;
 
                           return (
-                            <div className="bg-white border rounded-md p-2 shadow-sm text-sm">
+                            <div className="bg-foreground border rounded-md p-2 shadow-sm text-sm">
                               <p className="font-medium">{data.category}</p>
                               <p className="font-mono">
                                 {formatBRL(data.cents)}

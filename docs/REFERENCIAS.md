@@ -46,12 +46,15 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 
 ## Fase 2: Tema Aurora
 
-- [ ] Tokens do protótipo B em `src/index.css`
-- [ ] Mapear os tokens para as variáveis do shadcn e para o `tailwind.config.js`
-- [ ] Fontes Sora e Figtree
-- [ ] Alternância entre claro e escuro, com a escolha salva
-- [ ] Remover as classes soltas `bg-slate-900`, `border-slate-600` e `green-800`
-- [ ] Nova logo e nome no app e no `index.html`
+- [ ok ] Tokens do protótipo B em `src/index.css`
+- [ ok ] Mapear os tokens para as variáveis do shadcn e para o `tailwind.config.js`
+- [ ok ] Fontes Sora e Figtree
+- [ ok ] Alternância entre claro e escuro, com a escolha salva
+- [ ok ] Remover as classes soltas `bg-slate-900`, `border-slate-600` e `green-800`
+- [ ok ] Nova logo e nome no app e no `index.html`
+  - O protótipo B não está no repositório: a paleta (violeta `262`, ciano `188`, fundo escuro `252`) foi definida a partir da descrição. Ajuste os valores em `src/index.css` se o protótipo diferir.
+  - Tema escuro é o padrão; escolha salva em `aurora:theme` (`src/theme/`). Classes soltas trocadas por tokens (`bg-card`, `border-border`, `text-primary` etc.), com `success` e `destructive` para positivo e negativo.
+  - Nome "Aurora" assumido (constante `APP_NAME` em `src/theme/theme.ts`); confirme na decisão pendente.
 
 ## Fase 3: Layout e telas
 

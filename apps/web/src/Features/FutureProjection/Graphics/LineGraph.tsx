@@ -32,13 +32,13 @@ export default function LineGraph() {
   }));
 
   return (
-    <Card className="bg-slate-900 border-slate-600 rounded-xl w-[1440px]">
+    <Card className="bg-card border-border rounded-xl w-[1440px]">
       {/* HEADER */}
       <CardHeader>
-        <CardTitle className="text-xl text-white font-bold">
+        <CardTitle className="text-xl text-foreground font-bold">
           Visão da Projeção
         </CardTitle>
-        <CardDescription className="text-base text-slate-300">
+        <CardDescription className="text-base text-foreground/80">
           Acompanhe o desempenho passado e as estimativas dos próximos meses.
         </CardDescription>
       </CardHeader>

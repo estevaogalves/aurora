@@ -24,7 +24,7 @@ export default function EditableAmount({
 
   if (isEditing) {
     return (
-      <div className="flex items-center border-2 text-white bg-slate-900 border-emerald-600 rounded-lg px-3 py-2">
+      <div className="flex items-center border-2 text-foreground bg-card border-primary rounded-lg px-3 py-2">
         <span className="mr-1">R$</span>
         <input
           type="number"
@@ -49,7 +49,7 @@ export default function EditableAmount({
         setEditingAmount(expenseId);
         setTempAmount(String(amount ?? ""));
       }}
-      className="font-bold text-lg text-white cursor-pointer"
+      className="font-bold text-lg text-foreground cursor-pointer"
     >
       R${" "}
       {(amount ?? 0).toLocaleString("pt-BR", {

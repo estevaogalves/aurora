@@ -41,19 +41,19 @@ export default function IncomeCard({
 
   return (
     <Card
-      className="hover:bg-slate-800/20 bg-slate-900 border-slate-600 relative"
+      className="hover:bg-secondary bg-card border-border relative"
     >
       {income.fixed && (
         <div className="absolute -top-4 -right-4 z-10">
-          <div className="bg-green-900 border border-emerald-600 rounded-full p-1.5 shadow-md">
-            <PiPushPinDuotone className="text-white rotate-20" size={16} />
+          <div className="bg-primary/20 border border-primary rounded-full p-1.5 shadow-md">
+            <PiPushPinDuotone className="text-foreground rotate-20" size={16} />
           </div>
         </div>
       )}
 
       <div className="flex items-center justify-between m-4">
         <section className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full bg-green-600" />
+          <span className="h-3 w-3 rounded-full bg-primary" />
 
           {editingName === income.id ? (
             <input
@@ -75,7 +75,7 @@ export default function IncomeCard({
                   setEditingName(null);
                 }
               }}
-              className="bg-slate-800 text-white font-bold text-lg px-2 py-1 rounded border border-green-600 outline-none w-[200px]"
+              className="bg-secondary text-foreground font-bold text-lg px-2 py-1 rounded border border-primary outline-none w-[200px]"
             />
           ) : (
             <h2
@@ -83,7 +83,7 @@ export default function IncomeCard({
                 setEditingName(income.id);
                 setTempName(income.name);
               }}
-              className="font-bold font-sans text-lg text-white cursor-pointer hover:text-green-600 transition-colors duration-300"
+              className="font-bold font-sans text-lg text-foreground cursor-pointer hover:text-primary transition-colors duration-300"
             >
               {income.name}
             </h2>
@@ -93,8 +93,8 @@ export default function IncomeCard({
         <section className="flex items-center gap-4 mr-4">
           {/* VALOR */}
           {editingAmount === income.id ? (
-            <div className="flex items-center text-white border-2 bg-slate-900 border-emerald-600 rounded-lg px-3 py-2 w-fit">
-              <span className="text-base font-bold text-gray-300 mr-1">
+            <div className="flex items-center text-foreground border-2 bg-card border-primary rounded-lg px-3 py-2 w-fit">
+              <span className="text-base font-bold text-foreground/80 mr-1">
                 R$
               </span>
               <input
@@ -120,7 +120,7 @@ export default function IncomeCard({
                 setEditingAmount(income.id);
                 setTempAmount(centsToInput(income.amount ?? 0));
               }}
-              className="font-bold text-lg text-white hover:text-green-600 cursor-pointer transition-all duration-300"
+              className="font-bold text-lg text-foreground hover:text-primary cursor-pointer transition-all duration-300"
             >
               {formatBRL(income.amount ?? 0)}
             </span>
@@ -131,15 +131,15 @@ export default function IncomeCard({
             onClick={() => handleToggleFixed(income.id)}
             className={`p-2 rounded-lg border ${
               income.fixed
-                ? "bg-emerald-900 border-emerald-400"
-                : "hover:bg-emerald-900 hover:border-emerald-400"
+                ? "bg-primary/20 border-primary"
+                : "hover:bg-primary/20 hover:border-primary"
             }`}
           >
             <PiPushPinDuotone
               className={
                 income.fixed
-                  ? "text-emerald-400"
-                  : "text-white"
+                  ? "text-success"
+                  : "text-foreground"
               }
             />
           </button>
@@ -151,9 +151,9 @@ export default function IncomeCard({
               setShowWarning(true);
             }}
             title={income.fixed ? "Ocultar neste mês" : "Remover"}
-            className="p-2 rounded-lg border hover:bg-red-900 hover:border-red-400"
+            className="p-2 rounded-lg border hover:bg-destructive/90 hover:border-destructive"
           >
-            <FaTrash className="text-white" />
+            <FaTrash className="text-foreground" />
           </button>
         </section>
       </div>

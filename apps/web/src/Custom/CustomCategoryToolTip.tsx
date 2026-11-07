@@ -10,9 +10,9 @@ export const CustomCategoryToolTip = ({ active, payload }: Props) => {
   const data = payload[0];
 
   return (
-    <div className="bg-slate-900 border border-slate-600 rounded-xl p-4 shadow-lg min-w-[200px]">
+    <div className="bg-card border border-border rounded-xl p-4 shadow-lg min-w-[200px]">
       {/* Categoria */}
-      <p className="text-white font-bold text-lg mb-3">
+      <p className="text-foreground font-bold text-lg mb-3">
         {data.name || data.payload?.category}
       </p>
 
@@ -23,10 +23,10 @@ export const CustomCategoryToolTip = ({ active, payload }: Props) => {
             className="w-2 h-2 rounded-full shrink-0"
             style={{ backgroundColor: data.payload?.fill }}
           />
-          <span className="text-slate-400 font-medium">Valor</span>
+          <span className="text-muted-foreground font-medium">Valor</span>
         </section>
 
-        <span className="text-white font-bold">
+        <span className="text-foreground font-bold">
           R$ {Number(data.value || 0).toLocaleString("pt-BR")}
         </span>
       </div>

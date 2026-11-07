@@ -131,17 +131,17 @@ export default function Notes() {
   return (
     <div className="mt-6 space-y-6">
       {/* CARD 1 - Criar nota */}
-      <Card className="shadow-xl bg-slate-900 border-slate-600">
+      <Card className="shadow-xl bg-card border-border">
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="text-2xl px-1.5 py-1.5 rounded-lg bg-amber-950 text-amber-600 border border-amber-600">
               <RiFilePaper2Line />
             </div>
             <section>
-              <CardTitle className="text-xl font-sans font-bold text-white">
+              <CardTitle className="text-xl font-sans font-bold text-foreground">
                 Observações Gerais
               </CardTitle>
-              <CardDescription className="text-md font-sans font-medium text-gray-300">
+              <CardDescription className="text-md font-sans font-medium text-foreground/80">
                 Anote lembretes sobre este mês
               </CardDescription>
             </section>
@@ -153,13 +153,13 @@ export default function Notes() {
             value={newNote}
             onChange={(e) => setNewNote(e.target.value)}
             placeholder="Ex: Lembrar de pagar o cartão até dia 15..."
-            className="rounded-xl border border-gray-500 !min-h-[120px] text-white placeholder:text-gray-300 placeholder:text-lg !text-lg !font-medium focus:!ring-2 focus:!ring-green-600 focus:!outline-none"
+            className="rounded-xl border border-border !min-h-[120px] text-foreground placeholder:text-foreground/80 placeholder:text-lg !text-lg !font-medium focus:!ring-2 focus:!ring-primary focus:!outline-none"
           />
 
           <section className="text-right">
             <Button
               onClick={handleSaveNote}
-              className="w-[150px] mt-2 bg-green-800 hover:bg-green-900 border border-green-600 font-bold px-5 py-3 text-base"
+              className="w-[150px] mt-2 bg-primary hover:bg-primary/80 border border-primary font-bold px-5 py-3 text-base"
             >
               Salvar
             </Button>
@@ -169,23 +169,23 @@ export default function Notes() {
 
       {/* CARD 2 - Lista de notas */}
       {notes.length > 0 && (
-        <Card className="shadow-xl overflow-hidden bg-slate-900 border-slate-600">
+        <Card className="shadow-xl overflow-hidden bg-card border-border">
           <CardContent className="p-6 space-y-6">
             {/* HEADER */}
             <div className="flex justify-between items-center">
               <div>
-                <p className="text-sm font-semibold text-gray-400">
+                <p className="text-sm font-semibold text-muted-foreground">
                   Total: {notes.length} nota{notes.length > 1 ? "s" : ""}
                 </p>
                 {pinnedNotes.length > 0 && (
-                  <p className="text-xs text-emerald-400 mt-1">
+                  <p className="text-xs text-success mt-1">
                     📌 {pinnedNotes.length} fixada
                     {pinnedNotes.length > 1 ? "s" : ""}
                   </p>
                 )}
               </div>
               {totalPages > 1 && (
-                <p className="text-sm text-gray-400">
+                <p className="text-sm text-muted-foreground">
                   Página {page} de {totalPages}
                 </p>
               )}
@@ -194,7 +194,7 @@ export default function Notes() {
             {/* NOTAS FIXADAS DA PÁGINA ATUAL */}
             {currentPage.pinned.length > 0 && (
               <div className="space-y-3">
-                <p className="text-sm font-semibold text-gray-500 flex items-center gap-2">
+                <p className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                   <span>📌</span> Fixadas
                 </p>
                 <div className="space-y-3">
@@ -216,14 +216,14 @@ export default function Notes() {
 
             {/* LINHA DIVISÓRIA (se houver fixadas e normais na mesma página) */}
             {currentPage.pinned.length > 0 && currentPage.normal.length > 0 && (
-              <div className="border-t border-gray-700 my-4" />
+              <div className="border-t border-border my-4" />
             )}
 
             {/* NOTAS NORMAIS DA PÁGINA ATUAL */}
             {currentPage.normal.length > 0 && (
               <div className="space-y-3">
                 {currentPage.pinned.length > 0 && (
-                  <p className="text-sm font-semibold text-gray-500 flex items-center gap-2">
+                  <p className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                     <span>📄</span> Outras
                   </p>
                 )}
@@ -246,7 +246,7 @@ export default function Notes() {
 
             {/* PAGINAÇÃO */}
             {totalPages > 1 && (
-              <div className="pt-4 border-t border-gray-700">
+              <div className="pt-4 border-t border-border">
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
@@ -256,9 +256,9 @@ export default function Notes() {
                           ${
                             page === 1
                               ? "pointer-events-none opacity-50"
-                              : "cursor-pointer hover:bg-white/10"
+                              : "cursor-pointer hover:bg-foreground/10"
                           }
-                          text-white font-bold
+                          text-foreground font-bold
                         `}
                       />
                     </PaginationItem>
@@ -277,14 +277,14 @@ export default function Notes() {
                               cursor-pointer relative
                               ${
                                 isActive
-                                  ? "bg-green-600 text-white hover:bg-green-700 border-green-600"
-                                  : "text-white hover:bg-white/10"
+                                  ? "bg-primary text-primary-foreground hover:bg-primary/90 border-primary"
+                                  : "text-foreground hover:bg-foreground/10"
                               }
                             `}
                           >
                             {pageNumber}
                             {pageHasPinned && !isActive && (
-                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-emerald-500 rounded-full" />
+                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-primary rounded-full" />
                             )}
                           </PaginationLink>
                         </PaginationItem>
@@ -300,9 +300,9 @@ export default function Notes() {
                           ${
                             page === totalPages
                               ? "pointer-events-none opacity-50"
-                              : "cursor-pointer hover:bg-white/10"
+                              : "cursor-pointer hover:bg-foreground/10"
                           }
-                          text-white font-bold
+                          text-foreground font-bold
                         `}
                       />
                     </PaginationItem>

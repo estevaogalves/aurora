@@ -21,7 +21,7 @@ export default function ListExtraExpenses() {
           return (
             <div
               key={index}
-              className="flex items-center justify-between border border-slate-700 rounded-lg p-3 hover:bg-slate-800 transition"
+              className="flex items-center justify-between border border-border rounded-lg p-3 hover:bg-secondary transition"
             >
               {/* LEFT */}
               <section className="flex items-center gap-3">
@@ -30,9 +30,9 @@ export default function ListExtraExpenses() {
                 </span>
 
                 <div>
-                  <h1 className="text-lg font-bold text-slate-300">{d.name}</h1>
+                  <h1 className="text-lg font-bold text-foreground/80">{d.name}</h1>
 
-                  <h2 className="text-sm font-semibold text-slate-400">
+                  <h2 className="text-sm font-semibold text-muted-foreground">
                     {d.prazo}
                   </h2>
                 </div>
@@ -40,10 +40,10 @@ export default function ListExtraExpenses() {
 
               {/* RIGHT */}
               <section className="text-lg flex items-center gap-3">
-                <span className="text-white font-bold">
+                <span className="text-foreground font-bold">
                   - R$ {d.valor}
                 </span>
-                <button className="text-lg text-white bg-transparent hover:bg-red-600 hover:text-white rounded-lg p-3">
+                <button className="text-lg text-primary-foreground bg-transparent hover:bg-destructive/90 hover:text-primary-foreground rounded-lg p-3">
                   <GoTrash className="text-lg font-bold"/>
                 </button>
               </section>

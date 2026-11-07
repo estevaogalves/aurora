@@ -6,6 +6,10 @@ export default {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['"Figtree Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+  			display: ['"Sora Variable"', '"Figtree Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif']
+  		},
   		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
@@ -41,6 +45,10 @@ export default {
   			destructive: {
   				DEFAULT: 'hsl(var(--destructive))',
   				foreground: 'hsl(var(--destructive-foreground))'
+  			},
+  			success: {
+  				DEFAULT: 'hsl(var(--success))',
+  				foreground: 'hsl(var(--success-foreground))'
   			},
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
@@ -91,6 +99,5 @@ export default {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
-  plugins: [require("@tailwindcss/line-clamp")],
+  plugins: [require("tailwindcss-animate"), require("@tailwindcss/line-clamp")],
 }

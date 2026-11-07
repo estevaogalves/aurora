@@ -67,9 +67,9 @@ export default function IncomeForm() {
       <IncomeList />
 
       {/* Card do formulário */}
-      <Card className="border border-dashed bg-slate-900 border-slate-400  mt-6">
+      <Card className="border border-dashed bg-card border-border  mt-6">
         <CardHeader>
-          <CardTitle className="text-xl font-bold font-sans text-white">
+          <CardTitle className="text-xl font-bold font-sans text-foreground">
             Adicionar fonte de renda
           </CardTitle>
         </CardHeader>
@@ -86,13 +86,13 @@ export default function IncomeForm() {
                   required
                   placeholder="Ex: Salário, Freelance, Aluguel..."
                   className="w-full border rounded-lg px-4 py-3 text-left 
-                  placeholder:text-gray-300 text-lg font-bold
-                  focus:outline-none focus:ring-2 focus:ring-green-500 bg-slate-900 text-white"
+                  placeholder:text-foreground/80 text-lg font-bold
+                  focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                 />
               </section>
 
               <section className="relative w-60 shrink-0">
-                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-300 font-bold">
+                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-foreground/80 font-bold">
                   R$
                 </span>
 
@@ -107,41 +107,41 @@ export default function IncomeForm() {
                   placeholder="00,00"
                   className="appearance-none border rounded-lg 
                   pl-12 pr-4 py-3 w-full
-                  placeholder:text-gray-300 text-lg font-bold
-                  focus:outline-none focus:ring-2 focus:ring-green-500 bg-slate-900 text-white"
+                  placeholder:text-foreground/80 text-lg font-bold
+                  focus:outline-none focus:ring-2 focus:ring-primary bg-card text-foreground"
                 />
               </section>
             </div>
 
-            <section className="flex-auto bg-slate-800/30 rounded-xl py-3">
+            <section className="flex-auto bg-secondary rounded-xl py-3">
               <div className="flex justify-between">
                 <section className="flex items-center">
                   <Checkbox
                     checked={isFixed}
                     onCheckedChange={(checked) => setIsFixed(Boolean(checked))}
-                    className="h-[20px] w-[20px] rounded-sm border border-gray-300
-            data-[state=checked]:bg-green-600
-            data-[state=checked]:border-green-600
-            data-[state=checked]:text-white ml-4 flex items-center justify-center"
+                    className="h-[20px] w-[20px] rounded-sm border border-border
+            data-[state=checked]:bg-primary
+            data-[state=checked]:border-primary
+            data-[state=checked]:text-foreground ml-4 flex items-center justify-center"
                   >
-                    {isFixed && <Check className="h-4 w-4 text-white" />}
+                    {isFixed && <Check className="h-4 w-4 text-foreground" />}
                   </Checkbox>
-                  <h1 className="py-0.5 pl-4 text-lg text-gray-300 font-bold flex items-center gap-2">
-                    <MdOutlinePushPin className="mb-0.5 w-5 h-5 text-green-600" />
+                  <h1 className="py-0.5 pl-4 text-lg text-foreground/80 font-bold flex items-center gap-2">
+                    <MdOutlinePushPin className="mb-0.5 w-5 h-5 text-primary" />
                     Fixar renda
                   </h1>
                 </section>
 
                 <section className="flex items-center">
                   {isFixed && (
-                    <span className="mr-4 text-green-500 font-medium px-3 py-1 rounded-2xl bg-green-900/50">
+                    <span className="mr-4 text-success font-medium px-3 py-1 rounded-2xl bg-primary/20">
                       Todos os meses
                     </span>
                   )}
                 </section>
               </div>
             </section>
-            <section className="text-slate-400 font-medium ml-2">
+            <section className="text-muted-foreground font-medium ml-2">
               {isFixed && (
                 <p>
                   Rendas fixas aparecem automaticamente em todos os meses. Voce
@@ -153,9 +153,9 @@ export default function IncomeForm() {
             <div className="flex justify-end">
               <Button
                 type="submit"
-                className="bg-green-800 hover:bg-green-900 text-lg !px-6 !py-6 font-medium"
+                className="bg-primary hover:bg-primary/80 text-lg !px-6 !py-6 font-medium"
               >
-                <IoAddOutline className="!h-5 !w-5 !font-medium !text-white !font-extraligth" />
+                <IoAddOutline className="!h-5 !w-5 !font-medium !text-foreground !font-extraligth" />
                 {isFixed ? "Adicionar Renda Fixa" : "Adicionar"}
               </Button>
             </div>

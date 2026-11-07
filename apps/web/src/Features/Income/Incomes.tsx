@@ -19,17 +19,17 @@ export default function Incomes() {
 
   return (
     <div className="">
-      <Card className="bg-slate-900 border-slate-600 ">
+      <Card className="bg-card border-border ">
         <CardHeader>
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-green-950 text-emerald-600 border border-emerald-600 rounded-lg text-2xl">
+            <div className="p-3 bg-primary/10 text-primary border border-primary rounded-lg text-2xl">
               <PiCurrencyDollar size={18} />
             </div>
             <div>
-              <CardTitle className="text-xl font-bold text-white">
+              <CardTitle className="text-xl font-bold text-foreground">
                 Suas Rendas
               </CardTitle>
-              <CardDescription className="text-lg text-zinc-300 font-sans font-medium">
+              <CardDescription className="text-lg text-foreground/80 font-sans font-medium">
                  {incomes.length > 0 ? `Total: ${formatBRL(totalIncomes)} em ${incomes.length} ${incomes.length === 1 ? "fonte" : "fontes"}` :  "Adicione suas fontes de renda do mês"}
               </CardDescription>
               {/* Total: R$ 00,00 de x fonte */}

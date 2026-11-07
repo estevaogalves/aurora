@@ -22,16 +22,16 @@ function ConfirmDeletion({
 }: ConfirmDeletionProps) {
   return (
     <div className="flex items-center justify-center fixed inset-0 backdrop-blur-sm bg-black/90 z-50">
-      <div className="bg-slate-900 border border-slate-600 rounded-3xl shadow-2xl w-[520px] overflow-hidden">
+      <div className="bg-card border border-border rounded-3xl shadow-2xl w-[520px] overflow-hidden">
         {/* Barra superior */}
-        <div className="bg-gray-700 flex items-center gap-3 px-6 py-3">
-          <FaExclamationTriangle className="text-white" size={20} />
-          <h1 className="text-white text-xl font-bold">Confirmar exclusão</h1>
+        <div className="bg-secondary flex items-center gap-3 px-6 py-3">
+          <FaExclamationTriangle className="text-foreground" size={20} />
+          <h1 className="text-foreground text-xl font-bold">Confirmar exclusão</h1>
         </div>
 
         {/* Conteúdo */}
         <div className="p-6 flex flex-col gap-4">
-          <h2 className="text-gray-200 text-lg font-serif">
+          <h2 className="text-foreground text-lg font-serif">
             {hideOnly
               ? "Esta renda fixa será ocultada apenas neste mês e poderá ser restaurada. Deseja continuar?"
               : "Este item será removido permanentemente. Realmente deseja prosseguir?"}
@@ -40,13 +40,13 @@ function ConfirmDeletion({
           <div className="flex justify-end gap-4 mt-4">
             <button
               onClick={onCloseWarning}
-              className="bg-zinc-500 hover:bg-zinc-500 transition-colors duration-200 text-white px-4 py-2 rounded-xl font-medium shadow-md"
+              className="bg-secondary hover:bg-secondary transition-colors duration-200 text-foreground px-4 py-2 rounded-xl font-medium shadow-md"
             >
               Cancelar
             </button>
             <button
               onClick={onConfirm}
-              className="bg-red-700 hover:bg-red-600 transition-colors duration-200 text-white px-4 py-2 rounded-xl font-medium shadow-md"
+              className="bg-destructive hover:bg-destructive/90 transition-colors duration-200 text-primary-foreground px-4 py-2 rounded-xl font-medium shadow-md"
             >
               Confirmar
             </button>
@@ -166,8 +166,8 @@ export default function IncomeList() {
 
       {fixedIncomes.length > 0 && (
         <div className="grid gap-3">
-          <h2 className="text-emerald-500 font-bold text-lg">
-            <div className="flex justify-between border-emerald-700 bg-emerald-950/50 rounded-xl p-2">
+          <h2 className="text-success font-bold text-lg">
+            <div className="flex justify-between border-primary bg-primary/10 rounded-xl p-2">
               <section className="flex items-center gap-3">
                 <PiPushPinDuotone className="text-xl" />
                 Rendas Fixas ({fixedIncomes.length})
@@ -207,8 +207,8 @@ export default function IncomeList() {
       {/* 🔹 RENDAS VARIÁVEIS */}
       {variableIncomes.length > 0 && (
         <div className="grid gap-3 mt-3">
-          <h2 className="text-slate-300 font-bold text-lg">
-            <div className="flex justify-between bg-slate-700/20 rounded-xl p-2">
+          <h2 className="text-foreground/80 font-bold text-lg">
+            <div className="flex justify-between bg-secondary rounded-xl p-2">
               <section className="flex items-center gap-3">
                 <PiPushPinSlashFill className="text-xl" />
                 Rendas deste mês ({variableIncomes.length})
@@ -247,23 +247,23 @@ export default function IncomeList() {
 
       {hiddenIncomes.length > 0 && (
         <div className="mt-3 space-y-3">
-          <h2 className="text-gray-400 text-sm">Rendas ocultas neste mês</h2>
+          <h2 className="text-muted-foreground text-sm">Rendas ocultas neste mês</h2>
 
           {hiddenIncomes.map((income) => (
             <div
               key={income.id}
-              className="flex items-center justify-between rounded-xl border border-slate-600 bg-slate-900 p-4 opacity-70"
+              className="flex items-center justify-between rounded-xl border border-border bg-card p-4 opacity-70"
             >
               <div>
-                <h2 className="text-white font-bold">{income.name}</h2>
-                <p className="text-gray-400">
+                <h2 className="text-foreground font-bold">{income.name}</h2>
+                <p className="text-muted-foreground">
                   {formatBRL(income.monthlyValues?.[currentMonth] ?? income.amount)}
                 </p>
               </div>
 
               <button
                 onClick={() => restoreTransactionByMonth(income.id, currentMonth)}
-                className="text-emerald-400 font-medium"
+                className="text-success font-medium"
               >
                 Restaurar
               </button>

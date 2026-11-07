@@ -32,10 +32,10 @@ export default function BarGraph() {
   }));
 
   return (
-    <Card className="bg-slate-900 border-slate-600 rounded-xl">
+    <Card className="bg-card border-border rounded-xl">
       {/* HEADER */}
       <CardHeader>
-        <CardTitle className="text-xl text-white font-bold">
+        <CardTitle className="text-xl text-foreground font-bold">
           Comparaçã: Renda vs Despesas
         </CardTitle>
       </CardHeader>

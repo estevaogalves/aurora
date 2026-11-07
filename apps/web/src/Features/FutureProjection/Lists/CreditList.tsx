@@ -20,18 +20,18 @@ export default function CreditList() {
           return (
             <div
               key={index}
-              className="flex items-center justify-between border border-slate-700 rounded-lg p-3 hover:bg-slate-800 transition"
+              className="flex items-center justify-between border border-border rounded-lg p-3 hover:bg-secondary transition"
             >
               {/* LEFT */}
               <section className="flex items-center gap-3">
-                <span className="w-3 h-3 rounded-full bg-white" />
+                <span className="w-3 h-3 rounded-full bg-foreground" />
 
                 <div>
-                  <CardTitle className="text-lg font-bold text-slate-300">
+                  <CardTitle className="text-lg font-bold text-foreground/80">
                     {d.name}
                   </CardTitle>
 
-                  <CardDescription className="text-sm font-semibold text-slate-400">
+                  <CardDescription className="text-sm font-semibold text-muted-foreground">
                     {d.prazo}
                   </CardDescription>
                 </div>
@@ -39,9 +39,9 @@ export default function CreditList() {
 
               {/* RIGHT */}
               <section className="text-lg">
-                <span className="text-slate-300">
+                <span className="text-foreground/80">
                   {d.divisao}x{" "}
-                  <strong className="text-white">
+                  <strong className="text-foreground">
                     R$ {d.valor.toFixed(2)}
                   </strong>
                 </span>

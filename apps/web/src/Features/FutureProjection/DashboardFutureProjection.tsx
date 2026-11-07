@@ -16,8 +16,8 @@ export default function DashboardFutureProjection() {
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <section>
-          <h1 className="text-3xl font-bold text-white">Projeção Futura</h1>
-          <p className="text-xl font-medium text-gray-300">
+          <h1 className="text-3xl font-bold text-foreground">Projeção Futura</h1>
+          <p className="text-xl font-medium text-foreground/80">
             Visualize seus próximos meses com base nas rendas e despesas fixas
           </p>
         </section>
@@ -26,18 +26,18 @@ export default function DashboardFutureProjection() {
       {/* CARDS */}
       <div className="grid grid-cols-4 gap-6 mt-6 w-[1440px]">
         {/* renda fixa */}
-        <Card className="rounded-xl bg-slate-900 border-slate-600">
+        <Card className="rounded-xl bg-card border-border">
           <CardHeader>
             <CardTitle className="mt-4">
               <div className="flex items-center gap-6">
-                <div className="border rounded-xl p-3 bg-green-900 text-green-300 border-green-600">
+                <div className="border rounded-xl p-3 bg-primary/20 text-success border-primary">
                   <FaWallet className="text-2xl" />
                 </div>
                 <section>
-                  <h1 className="text-base text-slate-400 font-medium">
+                  <h1 className="text-base text-muted-foreground font-medium">
                     Renda fixa mensal
                   </h1>
-                  <p className="text-2xl text-white font-bold">R$ 0,00</p>
+                  <p className="text-2xl text-foreground font-bold">R$ 0,00</p>
                 </section>
               </div>
             </CardTitle>
@@ -45,18 +45,18 @@ export default function DashboardFutureProjection() {
         </Card>
 
         {/* despesas */}
-        <Card className="rounded-xl bg-slate-900 border-slate-600">
+        <Card className="rounded-xl bg-card border-border">
           <CardHeader>
             <CardTitle className="mt-4">
               <div className="flex items-center gap-6">
-                <div className="border rounded-xl p-3 bg-red-900 text-red-100 border-red-600">
+                <div className="border rounded-xl p-3 bg-destructive/20 text-destructive border-destructive">
                   <FaArrowTrendUp className="text-xl" />
                 </div>
                 <section>
-                  <h1 className="text-base text-slate-400 font-medium">
+                  <h1 className="text-base text-muted-foreground font-medium">
                     Despesas fixas
                   </h1>
-                  <p className="text-2xl text-white font-bold">R$: 0,00</p>
+                  <p className="text-2xl text-foreground font-bold">R$: 0,00</p>
                 </section>
               </div>
             </CardTitle>
@@ -64,18 +64,18 @@ export default function DashboardFutureProjection() {
         </Card>
 
         {/* saldo */}
-        <Card className="rounded-xl bg-slate-900 border-slate-600">
+        <Card className="rounded-xl bg-card border-border">
           <CardHeader>
             <CardTitle className="mt-4">
               <div className="flex items-center gap-6">
-                <div className="border rounded-xl p-3 bg-green-900 text-green-100 border-green-600">
+                <div className="border rounded-xl p-3 bg-primary/20 text-success border-primary">
                   <IoMdCheckmarkCircleOutline className="text-xl" />
                 </div>
                 <section>
-                  <h1 className="text-base text-slate-400 font-medium">
+                  <h1 className="text-base text-muted-foreground font-medium">
                     Saldo projetado total
                   </h1>
-                  <p className="text-2xl text-white font-bold">R$: 0,00</p>
+                  <p className="text-2xl text-foreground font-bold">R$: 0,00</p>
                 </section>
               </div>
             </CardTitle>
@@ -83,7 +83,7 @@ export default function DashboardFutureProjection() {
         </Card>
 
         {/* meses */}
-        <Card className="rounded-xl bg-slate-900 border-slate-600">
+        <Card className="rounded-xl bg-card border-border">
           <CardHeader>
             <CardTitle className="mt-4">
               <div className="flex items-center gap-6">
@@ -91,10 +91,10 @@ export default function DashboardFutureProjection() {
                   <CiCalendar className="text-xl" />
                 </div>
                 <section>
-                  <h1 className="text-base text-slate-400 font-medium">
+                  <h1 className="text-base text-muted-foreground font-medium">
                     Meses projetados
                   </h1>
-                  <p className="text-xl text-white font-bold">{meses} meses</p>
+                  <p className="text-xl text-foreground font-bold">{meses} meses</p>
                 </section>
               </div>
             </CardTitle>
@@ -103,20 +103,20 @@ export default function DashboardFutureProjection() {
       </div>
 
       {/* CONTROLE DE MESES */}
-      <Card className="rounded-xl bg-slate-900 border-slate-600 w-[1440px] mt-6">
+      <Card className="rounded-xl bg-card border-border w-[1440px] mt-6">
         <CardHeader>
           <div className="flex items-center justify-between mt-10">
-            <CardTitle className="text-slate-400 text-lg">
+            <CardTitle className="text-muted-foreground text-lg">
               Projetar para os proximos:
             </CardTitle>
-            <div className="text-slate-400 flex items-center gap-4">
+            <div className="text-muted-foreground flex items-center gap-4">
               <button
                 onClick={() => setMeses((m) => Math.max(1, m - 1))}
                 className="border rounded-md p-2"
               >
                 <MdOutlineKeyboardArrowLeft />
               </button>
-              <h1 className="text-slate-400 font-bold text-xl">
+              <h1 className="text-muted-foreground font-bold text-xl">
                 {meses} meses
               </h1>
               <button

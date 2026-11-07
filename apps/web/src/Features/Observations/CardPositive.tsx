@@ -50,12 +50,12 @@ export default function CardPositive() {
     if (active && payload && payload.length) {
       const data = payload[0].payload;
       return (
-        <div className="bg-slate-800 border border-slate-700 rounded-lg p-3 shadow-lg">
-          <p className="text-white font-medium text-sm mb-1">{data.category}</p>
-          <p className="text-emerald-400 font-bold">
+        <div className="bg-secondary border border-border rounded-lg p-3 shadow-lg">
+          <p className="text-foreground font-medium text-sm mb-1">{data.category}</p>
+          <p className="text-success font-bold">
             {formatBRL(data.value)}
           </p>
-          <p className="text-gray-400 text-xs mt-1">
+          <p className="text-muted-foreground text-xs mt-1">
             {data.percent}% do saldo
           </p>
         </div>
@@ -66,17 +66,17 @@ export default function CardPositive() {
 
   return (
     <div>
-      <Card className="bg-slate-900 border-slate-600">
+      <Card className="bg-card border-border">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="text-2xl border px-1.5 py-1.5 rounded-lg bg-green-950 text-emerald-600 border-emerald-600">
+            <div className="text-2xl border px-1.5 py-1.5 rounded-lg bg-primary/10 text-primary border-primary">
               <FaRegLightbulb />
             </div>
             <section>
-              <CardTitle className="text-xl font-sans font-bold text-white">
+              <CardTitle className="text-xl font-sans font-bold text-foreground">
                 Dicas para o seu dinheiro
               </CardTitle>
-              <CardDescription className="text-md font-sans font-medium text-gray-300">
+              <CardDescription className="text-md font-sans font-medium text-foreground/80">
                 Você tem{" "}
                 <span>
                   <strong>{formatBRL(balance)}</strong>
@@ -91,20 +91,20 @@ export default function CardPositive() {
           <div className="space-y-6 max-w-2xl mx-auto">
             <div className="flex flex-col gap-3">
               <section className="flex items-start gap-2">
-                <span className="flex-shrink-0 mt-1 border rounded-lg bg-green-950 text-emerald-600 border-emerald-600 p-1">
-                  <IoMdCheckmarkCircleOutline className="text-green-600" />
+                <span className="flex-shrink-0 mt-1 border rounded-lg bg-primary/10 text-primary border-primary p-1">
+                  <IoMdCheckmarkCircleOutline className="text-primary" />
                 </span>
-                <p className="text-base font-medium text-gray-300 mt-1">
+                <p className="text-base font-medium text-foreground/80 mt-1">
                   Parabéns! Você mantém um bom controle dos gastos fixos.
                   Continue assim!
                 </p>
               </section>
 
               <section className="flex items-start gap-2">
-                <span className="flex-shrink-0 mt-1 border rounded-lg bg-green-950 text-emerald-600 border-emerald-600 p-1">
-                  <IoMdCheckmarkCircleOutline className="text-green-600" />
+                <span className="flex-shrink-0 mt-1 border rounded-lg bg-primary/10 text-primary border-primary p-1">
+                  <IoMdCheckmarkCircleOutline className="text-primary" />
                 </span>
-                <p className="text-base font-medium text-gray-300 mt-1">
+                <p className="text-base font-medium text-foreground/80 mt-1">
                   Use a distribuição sugerida abaixo para otimizar cada real do
                   seu saldo restante.
                 </p>
@@ -114,8 +114,8 @@ export default function CardPositive() {
             {/* GRÁFICO ÚNICO COM TODAS AS CATEGORIAS */}
             <div className="mt-6">
               <section className="flex items-center gap-2 mb-4">
-                <FaArrowTrendUp className="text-green-800 text-xl" />
-                <h1 className="text-base font-medium text-gray-300">
+                <FaArrowTrendUp className="text-primary text-xl" />
+                <h1 className="text-base font-medium text-foreground/80">
                   Distribuição sugerida do saldo
                 </h1>
               </section>
@@ -174,10 +174,10 @@ export default function CardPositive() {
                       className="w-3 h-3 rounded-full"
                       style={{ backgroundColor: item.fill }}
                     />
-                    <span className="text-sm text-gray-300">
+                    <span className="text-sm text-foreground/80">
                       {item.category}
                     </span>
-                    <span className="text-sm text-white font-medium ml-auto">
+                    <span className="text-sm text-foreground font-medium ml-auto">
                       {formatBRL(item.value)} ({item.percent}%)
                     </span>
                   </div>

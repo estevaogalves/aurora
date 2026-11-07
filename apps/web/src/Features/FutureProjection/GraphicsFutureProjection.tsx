@@ -16,7 +16,7 @@ export default function GraphicsFutureProjection() {
         <TabsList className="flex justify-start gap-3 bg-transparent p-0 h-auto mb-6">
           <TabsTrigger
             value="bars"
-            className="gap-2 rounded-lg px-4 py-2 text-md font-semibold bg-slate-900 border border-slate-700 text-slate-400 transition hover:bg-slate-800 hover:text-white data-[state=active]:bg-slate-800 data-[state=active]:text-white data-[state=active]:border-slate-500"
+            className="gap-2 rounded-lg px-4 py-2 text-md font-semibold bg-card border border-border text-muted-foreground transition hover:bg-secondary hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-foreground data-[state=active]:border-border"
           >
             <VscGraph />
             Barras
@@ -24,7 +24,7 @@ export default function GraphicsFutureProjection() {
 
           <TabsTrigger
             value="line"
-            className="gap-2 rounded-lg px-4 py-2 text-md font-semibold bg-slate-900 border border-slate-700 text-slate-400 transition hover:bg-slate-800 hover:text-white data-[state=active]:bg-slate-800 data-[state=active]:text-white data-[state=active]:border-slate-500"
+            className="gap-2 rounded-lg px-4 py-2 text-md font-semibold bg-card border border-border text-muted-foreground transition hover:bg-secondary hover:text-foreground data-[state=active]:bg-secondary data-[state=active]:text-foreground data-[state=active]:border-border"
           >
             <TbActivityHeartbeat />
             Linhas

@@ -31,30 +31,30 @@ export default function ExpenseCreditCard({ expenses, onDelete }: Props) {
         return (
           <Card
             key={expense.id}
-            className="bg-slate-900 border-slate-600 p-5"
+            className="bg-card border-border p-5"
           >
             {/* HEADER */}
             <div className="flex justify-between">
               <section className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-purple-700" />
 
-                <div className="flex items-center gap-3 text-white">
+                <div className="flex items-center gap-3 text-foreground">
                   <h1 className="font-bold">{expense.name}</h1>
 
-                  <p className="text-sm rounded-xl bg-slate-800 px-3 py-0.5 font-medium">
+                  <p className="text-sm rounded-xl bg-secondary px-3 py-0.5 font-medium">
                     {expense.currentInstallment}/{expense.installments}
                   </p>
                 </div>
               </section>
 
-              <section className="flex items-center gap-3 text-white">
+              <section className="flex items-center gap-3 text-foreground">
                 <span className="font-bold text-lg">
                   {formatBRL(expense.installmentValue)}
                 </span>
 
                 <button 
                 onClick={() => onDelete(expense.id)}
-                className="p-2 rounded-lg border hover:bg-red-900 hover:border-red-400">
+                className="p-2 rounded-lg border hover:bg-destructive/90 hover:border-destructive">
                   <FaTrash />
                 </button>
               </section>
@@ -62,14 +62,14 @@ export default function ExpenseCreditCard({ expenses, onDelete }: Props) {
 
             {/* PROGRESSO */}
             <div className="flex items-center gap-3 mt-2">
-              <div className="flex-1 bg-slate-800 rounded-full h-2">
+              <div className="flex-1 bg-secondary rounded-full h-2">
                 <div
                   className="bg-purple-700 h-2 rounded-full"
                   style={{ width: `${progress}%` }}
                 />
               </div>
 
-              <span className="text-white font-bold whitespace-nowrap flex items-center gap-2">
+              <span className="text-foreground font-bold whitespace-nowrap flex items-center gap-2">
                 <LuClock4 className="text-lg" />
                 Faltam {remaining} parcelas
               </span>
@@ -77,7 +77,7 @@ export default function ExpenseCreditCard({ expenses, onDelete }: Props) {
 
             {/* TOTAL */}
             <div className="flex items-start mt-3">
-              <h1 className="text-slate-400 font-medium">
+              <h1 className="text-muted-foreground font-medium">
                 Total da compra: {formatBRL(expense.totalAmount ?? 0)}
               </h1>
             </div>

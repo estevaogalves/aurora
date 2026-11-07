@@ -66,12 +66,12 @@ export default function ExpenseCard({
   onDelete,
 }: Props) {
   return (
-    <Card className="hover:bg-slate-800/20 bg-slate-900 border-slate-600 w-full relative">
+    <Card className="hover:bg-secondary bg-card border-border w-full relative">
       {/* FIXADO */}
       {expense.fixed && (
         <div className="absolute -top-4 -right-4 z-10">
-          <div className="bg-green-900 border border-emerald-600 rounded-full p-1.5 shadow-md">
-            <PiPushPinDuotone className="text-white rotate-20" size={16} />
+          <div className="bg-primary/20 border border-primary rounded-full p-1.5 shadow-md">
+            <PiPushPinDuotone className="text-foreground rotate-20" size={16} />
           </div>
         </div>
       )}
@@ -105,7 +105,7 @@ export default function ExpenseCard({
           </div>
 
           {expense.notes && (
-            <p className="text-base font-medium text-gray-300 mt-1 truncate">
+            <p className="text-base font-medium text-foreground/80 mt-1 truncate">
               {expense.notes}
             </p>
           )}

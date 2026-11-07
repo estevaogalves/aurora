@@ -32,27 +32,27 @@ export default function DashboardComparison() {
     <div className="mt-6 mx-44">
       <div className="flex items-center justify-between">
         <section>
-          <h1 className="text-3xl font-bold text-white">Comparação de Meses</h1>
-          <p className="text-xl font-medium text-gray-300">
+          <h1 className="text-3xl font-bold text-foreground">Comparação de Meses</h1>
+          <p className="text-xl font-medium text-foreground/80">
             Selecione ate 6 meses para comparar seus gastos
           </p>
         </section>
       </div>
-      <Card className="rounded-xl bg-slate-900 border-slate-600 w-[1380px] mt-6">
+      <Card className="rounded-xl bg-card border-border w-[1380px] mt-6">
         <CardHeader>
           <div className="flex items-center justify-between">
             <section>
-              <CardTitle className="text-xl font-bold text-slate-300">
+              <CardTitle className="text-xl font-bold text-foreground/80">
                 Selecione os meses
               </CardTitle>
-              <CardDescription className="font-medium text-slate-400 text-base mt-1">
+              <CardDescription className="font-medium text-muted-foreground text-base mt-1">
                 0/6 meses selecionados
               </CardDescription>
             </section>
             <section>
               <button
                 onClick={() => setOpenCard((prev) => !prev)}
-                className="text-slate-300 font-bold rounded-lg px-3 py-2 bg-slate-800 hover:bg-slate-800/80"
+                className="text-foreground/80 font-bold rounded-lg px-3 py-2 bg-secondary hover:bg-secondary"
               >
                 {openCard ? "Ocultar meses" : "Mostrar meses"}
               </button>
@@ -67,31 +67,31 @@ export default function DashboardComparison() {
                   return (
                     <button
                       key={item.id}
-                      className="px-12 py-4 font-bold text-slate-300 bg-slate-800/40 border-slate-700 hover:border-slate-400 border text-lg rounded-xl flex flex-col"
+                      className="px-12 py-4 font-bold text-foreground/80 bg-secondary border-border hover:border-border border text-lg rounded-xl flex flex-col"
                     >
                       {item.month}
-                      <span className="text-base text-slate-400">
+                      <span className="text-base text-muted-foreground">
                         R$ {item.expense}
                       </span>
                     </button>
                   );
                 })}
               </div>
-              <hr className="mt-6 border-slate-600" />
+              <hr className="mt-6 border-border" />
               <div className="flex flex-grow gap-2">
                 {meses.map((mes) => {
                   return (
                     <div
                       key={mes.id}
-                      className="border-slate-700 border rounded-3xl px-4 py-1.5 w-[230px] flex justify-between mt-6"
+                      className="border-border border rounded-3xl px-4 py-1.5 w-[230px] flex justify-between mt-6"
                     >
                       <section className="flex items-center gap-3">
-                        <div className="w-3 h-3 bg-slate-600 rounded-xl" />
-                        <h1 className="text-white font-bold text-base">
+                        <div className="w-3 h-3 bg-secondary rounded-xl" />
+                        <h1 className="text-foreground font-bold text-base">
                           {mes.month}
                         </h1>
                       </section>
-                      <button className="text-slate-300">x</button>
+                      <button className="text-foreground/80">x</button>
                     </div>
                   );
                 })}
@@ -103,37 +103,37 @@ export default function DashboardComparison() {
 
       {/* Cards de comparação - so mostrar se tiver pelo menos 2 meses selecionados */}
       <div className="grid grid-cols-4 gap-3">
-        <Card className="rounded-xl bg-slate-900 border-slate-600 mt-6 pt-8">
+        <Card className="rounded-xl bg-card border-border mt-6 pt-8">
           <CardHeader>
-            <CardTitle className="text-lg font-bold text-slate-400">
+            <CardTitle className="text-lg font-bold text-muted-foreground">
               Média de renda
             </CardTitle>
-            <CardDescription className="text-3xl font-bold text-white">
+            <CardDescription className="text-3xl font-bold text-foreground">
               R$ 0,00
             </CardDescription>
           </CardHeader>
         </Card>
 
-        <Card className="rounded-xl bg-slate-900 border-slate-600 mt-6 pt-8">
+        <Card className="rounded-xl bg-card border-border mt-6 pt-8">
           <CardHeader>
-            <CardTitle className="text-lg font-bold text-slate-400">
+            <CardTitle className="text-lg font-bold text-muted-foreground">
               Média de despesas
             </CardTitle>
-            <CardDescription className="text-3xl font-bold text-white">
+            <CardDescription className="text-3xl font-bold text-foreground">
               R$ 0,00
             </CardDescription>
           </CardHeader>
         </Card>
 
-        <Card className="rounded-xl bg-green-900/30 border-green-700 mt-6 pt-8">
+        <Card className="rounded-xl bg-primary/20 border-primary mt-6 pt-8">
           <CardHeader>
-            <CardTitle className="text-lg font-bold text-slate-400">
+            <CardTitle className="text-lg font-bold text-muted-foreground">
               Melhor mês
             </CardTitle>
-            <CardDescription className="text-3xl font-bold text-white">
+            <CardDescription className="text-3xl font-bold text-foreground">
               <div className="flex flex-col">
-                <h1 className="text-green-700">Mar/26</h1>
-                <span className="text-sm mt-0.5 font-semibold text-slate-400">
+                <h1 className="text-primary">Mar/26</h1>
+                <span className="text-sm mt-0.5 font-semibold text-muted-foreground">
                   Saldo: R$0,00
                 </span>
               </div>
@@ -141,15 +141,15 @@ export default function DashboardComparison() {
           </CardHeader>
         </Card>
 
-        <Card className="rounded-xl bg-red-900/30 border-red-700 mt-6 pt-8">
+        <Card className="rounded-xl bg-destructive/20 border-destructive mt-6 pt-8">
           <CardHeader>
-            <CardTitle className="text-lg font-bold text-slate-400">
+            <CardTitle className="text-lg font-bold text-muted-foreground">
               Pior mês
             </CardTitle>
-            <CardDescription className="text-3xl font-bold text-white">
+            <CardDescription className="text-3xl font-bold text-foreground">
               <div className="flex flex-col">
-                <h1 className="text-red-700">Fev/26</h1>
-                <span className="text-sm mt-0.5 font-semibold text-slate-400">
+                <h1 className="text-destructive">Fev/26</h1>
+                <span className="text-sm mt-0.5 font-semibold text-muted-foreground">
                   Saldo: R$0,00
                 </span>
               </div>
@@ -159,16 +159,16 @@ export default function DashboardComparison() {
       </div>
 
       {/* se nao for selecionado dois meses pelo menos - mostra esse card */}
-      {/* <Card className="rounded-xl bg-slate-900 border-slate-600 w-[1380px] mt-6">
+      {/* <Card className="rounded-xl bg-card border-border w-[1380px] mt-6">
         <CardHeader className="py-36">
           <div className="flex flex-col items-center">
-            <div className="text-slate-300">
+            <div className="text-foreground/80">
               <GoArrowSwitch size={58} />
             </div>
-            <CardTitle className="text-3xl font-bold text-slate-300 mt-6">
+            <CardTitle className="text-3xl font-bold text-foreground/80 mt-6">
               Selecione pelo menos 2 meses para comparar
             </CardTitle>
-            <CardDescription className="font-medium text-slate-400 text-xl mt-1">
+            <CardDescription className="font-medium text-muted-foreground text-xl mt-1">
               Clique em "Mostrar meses" acima para selecionar
             </CardDescription>
           </div>

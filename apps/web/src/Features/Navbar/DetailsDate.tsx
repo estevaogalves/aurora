@@ -64,24 +64,24 @@ export default function DetailsDate() {
     <div className="mx-44 mt-6">
       <div className="flex justify-between items-center">
         <section>
-          <h1 className="text-3xl font-bold text-white">Dashboard</h1>
-          <p className="text-xl font-medium text-gray-300">
+          <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+          <p className="text-xl font-medium text-foreground/80">
             Visão geral do seu mês
           </p>
         </section>
 
         <div className="flex items-center gap-8">
           <section className="flex items-center">
-            <div className="bg-green-950 text-emerald-600 border border-emerald-600 px-2 py-2 rounded-lg mr-3">
+            <div className="bg-primary/10 text-primary border border-primary px-2 py-2 rounded-lg mr-3">
               <SlCalender className="text-lg" />
             </div>
 
             <section>
-              <h1 className="text-2xl font-bold text-white">
+              <h1 className="text-2xl font-bold text-foreground">
                 {formatMonth(currentMonth)}
               </h1>
 
-              <p className="text-lg font-medium text-gray-300">{monthLabel}</p>
+              <p className="text-lg font-medium text-foreground/80">{monthLabel}</p>
             </section>
           </section>
 
@@ -89,7 +89,7 @@ export default function DetailsDate() {
             <Button
               onClick={handlePrev}
               disabled={!canGoBack}
-              className="bg-green-800 text-white border border-emerald-600 hover:bg-green-900"
+              className="bg-primary text-primary-foreground border border-primary hover:bg-primary/80"
             >
               <IoChevronBack />
             </Button>
@@ -97,7 +97,7 @@ export default function DetailsDate() {
             {showCurrentButton && (
               <Button
                 onClick={goToCurrentMonth}
-                className="bg-green-800 text-white border border-emerald-600 hover:bg-green-900"
+                className="bg-primary text-primary-foreground border border-primary hover:bg-primary/80"
               >
                 Mês atual
               </Button>
@@ -106,12 +106,12 @@ export default function DetailsDate() {
             <Button
               disabled={!canGoForward}
               onClick={handleNext}
-              className="bg-green-800 text-white border border-emerald-600 hover:bg-green-900"
+              className="bg-primary text-primary-foreground border border-primary hover:bg-primary/80"
             >
               <IoChevronForward />
             </Button>
 
-            <span className="text-lg font-semibold border border-emerald-600 px-2 py-1 bg-green-800 rounded-lg text-white">
+            <span className="text-lg font-semibold border border-primary px-2 py-1 bg-primary rounded-lg text-primary-foreground">
               {getToday()}
             </span>
           </section>
@@ -119,7 +119,7 @@ export default function DetailsDate() {
 
         {/* <Button
           onClick={() => exportPDF(currentMonth)}  
-          className="text-lg font-semibold border border-emerald-600 px-4 !h-[45px] bg-green-800 hover:bg-green-900 rounded-lg text-white flex items-center gap-2"
+          className="text-lg font-semibold border border-primary px-4 !h-[45px] bg-primary hover:bg-primary/80 rounded-lg text-primary-foreground flex items-center gap-2"
         >
           <PiExportBold className="text-xl font-bold" />
           Exportar relatório

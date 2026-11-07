@@ -42,15 +42,15 @@ export default function Expenses() {
 
   return (
     <div className="mt-6">
-      <Card className="px-3 pb-6 bg-slate-900 border-slate-600 ">
+      <Card className="px-3 pb-6 bg-card border-border ">
         <CardHeader>
           <div className="flex items-center justify-between">
             <section>
-              <CardTitle className="text-xl font-bold text-white">
+              <CardTitle className="text-xl font-bold text-foreground">
                 Despesas do mês
               </CardTitle>
 
-              <CardDescription className="text-lg font-sans text-zinc-300 font-medium">
+              <CardDescription className="text-lg font-sans text-foreground/80 font-medium">
                 {expenses.length + credit.length}{" "}
                 {expenses.length + credit.length === 1 ? "despesa cadastrada" : "despesas cadastradas"}
               </CardDescription>
@@ -58,7 +58,7 @@ export default function Expenses() {
 
             <Button
               onClick={openCard}
-              className="px-4 py-6 text-lg bg-green-800 hover:bg-green-900 text-white border border-emerald-600"
+              className="px-4 py-6 text-lg bg-primary hover:bg-primary/80 text-primary-foreground border border-primary"
             >
               <IoAddOutline className="!h-[30px] !w-[20px]"/>
               Nova despesa
@@ -71,16 +71,16 @@ export default function Expenses() {
             <ExpensesList expenses={expenses} />
           ) : (
             <div>
-              <span className="bg-slate-900 border border-slate-300 rounded-xl p-7 mb-6 inline-block">
-                <GoTag className="text-4xl text-slate-300" />
+              <span className="bg-card border border-border rounded-xl p-7 mb-6 inline-block">
+                <GoTag className="text-4xl text-foreground/80" />
               </span>
 
               <div className="space-y-1">
-                <h1 className="font-bold text-slate-300 text-lg mb-3">
+                <h1 className="font-bold text-foreground/80 text-lg mb-3">
                   Sem despesas neste mês
                 </h1>
 
-                <p className="text-lg text-slate-300 max-w-[350px] font-bold">
+                <p className="text-lg text-foreground/80 max-w-[350px] font-bold">
                   Adicione uma nova despesa para começar
                 </p>
               </div>

@@ -53,7 +53,7 @@ export default function Actions({
       
       {/* VALOR */}
       {isEditing ? (
-        <div className="flex items-center border-2 text-white bg-slate-900 border-emerald-600 rounded-lg px-3 py-2">
+        <div className="flex items-center border-2 text-foreground bg-card border-primary rounded-lg px-3 py-2">
           <span className="mr-1">R$</span>
           <input
             type="text"
@@ -78,7 +78,7 @@ export default function Actions({
             setEditingAmount(expense.id);
             setTempAmount(centsToInput(expense.amount));
           }}
-          className="font-bold text-lg text-white cursor-pointer"
+          className="font-bold text-lg text-foreground cursor-pointer"
         >
           {formatBRL(expense.amount)}
         </span>
@@ -89,12 +89,12 @@ export default function Actions({
         onClick={() => onToggleFixed(expense.id)}
         className={`p-2 rounded-lg border ${
           expense.fixed
-            ? "bg-emerald-900 border-emerald-400"
-            : "hover:bg-emerald-900 hover:border-emerald-400"
+            ? "bg-primary/20 border-primary"
+            : "hover:bg-primary/20 hover:border-primary"
         }`}
       >
         <PiPushPinDuotone
-          className={expense.fixed ? "text-emerald-400" : "text-white"}
+          className={expense.fixed ? "text-success" : "text-foreground"}
         />
       </button>
 
@@ -102,9 +102,9 @@ export default function Actions({
       <button
         onClick={() => onDelete(expense.id)}
         title={expense.fixed ? "Ocultar neste mês" : "Remover"}
-        className="p-2 rounded-lg border hover:bg-red-900 hover:border-red-400"
+        className="p-2 rounded-lg border hover:bg-destructive/90 hover:border-destructive"
       >
-        <FaTrash className="text-white" />
+        <FaTrash className="text-foreground" />
       </button>
     </div>
   );

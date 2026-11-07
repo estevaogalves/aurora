@@ -50,12 +50,12 @@ export default function BalanceRanking() {
 
   return (
     <div className="mx-44">
-      <Card className="rounded-xl bg-slate-900 border-slate-600 w-[1380px] mt-6 mb-6">
+      <Card className="rounded-xl bg-card border-border w-[1380px] mt-6 mb-6">
         <CardHeader>
-          <CardTitle className="text-xl text-slate-300 font-bold">
+          <CardTitle className="text-xl text-foreground/80 font-bold">
             Ranking de Saldo
           </CardTitle>
-          <CardDescription className="text-base text-slate-400 font-medium">
+          <CardDescription className="text-base text-muted-foreground font-medium">
             Do melhor para o pior mês
           </CardDescription>
         </CardHeader>
@@ -70,9 +70,9 @@ export default function BalanceRanking() {
                 key={item.id}
                 className={`
                   mt-3 flex items-center justify-between p-3 rounded-xl border transition-all
-                  ${isBest ? "border-green-500" : ""}
-                  ${isWorst ? "border-red-500" : ""}
-                  ${!isBest && !isWorst ? "border-slate-600" : ""}
+                  ${isBest ? "border-primary" : ""}
+                  ${isWorst ? "border-destructive" : ""}
+                  ${!isBest && !isWorst ? "border-border" : ""}
                 `}
               >
                 {/* LEFT SIDE */}
@@ -80,25 +80,25 @@ export default function BalanceRanking() {
                   <span
                     className={`
                       text-2xl rounded-full w-16 h-16 flex items-center justify-center font-bold border
-                      ${isBest ? "border-green-500 text-green-400" : ""}
-                      ${isWorst ? "border-red-500 text-red-400" : ""}
-                      ${!isBest && !isWorst ? "border-slate-700 text-white" : ""}
+                      ${isBest ? "border-primary text-success" : ""}
+                      ${isWorst ? "border-destructive text-destructive" : ""}
+                      ${!isBest && !isWorst ? "border-border text-foreground" : ""}
                     `}
                   >
                     {index + 1}
                   </span>
 
                   <section>
-                    <h1 className="text-white text-xl font-bold">
+                    <h1 className="text-foreground text-xl font-bold">
                       {item.month}
                     </h1>
 
                     <div className="flex gap-3">
-                      <span className="text-slate-300">
+                      <span className="text-foreground/80">
                         <strong>Renda:</strong> R$ {item.income}
                       </span>
 
-                      <span className="text-slate-300">
+                      <span className="text-foreground/80">
                         <strong>Despesas:</strong> R$ {item.expense}
                       </span>
                     </div>
@@ -107,7 +107,7 @@ export default function BalanceRanking() {
 
                 {/* RIGHT SIDE */}
                 <section>
-                  <h1 className="text-2xl text-slate-400 font-semibold mr-4">
+                  <h1 className="text-2xl text-muted-foreground font-semibold mr-4">
                     R$: {item.balance}
                   </h1>
                 </section>

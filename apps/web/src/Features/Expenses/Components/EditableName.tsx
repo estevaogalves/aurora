@@ -50,7 +50,7 @@ export default function EditableName({
             setEditingName(null);
           }
         }}
-        className="bg-slate-800 text-white font-bold text-lg px-2 py-1 rounded border border-emerald-600 outline-none w-[200px]"
+        className="bg-secondary text-foreground font-bold text-lg px-2 py-1 rounded border border-primary outline-none w-[200px]"
       />
     );
   }
@@ -61,7 +61,7 @@ export default function EditableName({
         setEditingName(expenseId);
         setTempName(name);
       }}
-      className="font-bold text-lg truncate max-w-[200px] text-white cursor-pointer hover:text-green-600 transition-colors duration-300"
+      className="font-bold text-lg truncate max-w-[200px] text-foreground cursor-pointer hover:text-primary transition-colors duration-300"
     >
       {name}
     </h2>

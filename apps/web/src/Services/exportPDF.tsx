@@ -214,7 +214,7 @@ export function exportPDF(currentMonth: string) {
   doc.setFontSize(9);
   doc.setTextColor(120);
   doc.text(
-    `Gerado em ${getToday()} • Meu Bolso`,
+    `Gerado em ${getToday()} • Aurora`,
     14,
     pageHeight - 8
   );

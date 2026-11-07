@@ -48,9 +48,9 @@ export default function CategoryPieChart() {
   const sortedData = data.slice().sort((a, b) => b.value - a.value);
 
   return (
-    <Card className="bg-slate-900 border-slate-600">
+    <Card className="bg-card border-border">
       <CardHeader>
-        <CardTitle className="text-xl font-bold text-white">
+        <CardTitle className="text-xl font-bold text-foreground">
           Total de Gastos por Categoria
         </CardTitle>
       </CardHeader>

@@ -16,31 +16,31 @@ export default function ExportReports() {
 
   return (
     <div className="mt-8 mx-44 w-[1380px]">
-      <Card className="rounded-xl bg-slate-900 border-slate-600">
+      <Card className="rounded-xl bg-card border-border">
         <CardHeader>
-          <CardTitle className="text-xl text-white font-bold">
+          <CardTitle className="text-xl text-foreground font-bold">
             Exportar Dados
           </CardTitle>
-          <CardDescription className="text-base font-medium text-slate-300">
+          <CardDescription className="text-base font-medium text-foreground/80">
             Selecione o formato e os meses para exportar
           </CardDescription>
         </CardHeader>
         <CardContent>
           {/* Formatos de exportaçao */}
-          <h1 className="text-base text-white font-bold mb-3 mt-3">Formato</h1>
+          <h1 className="text-base text-foreground font-bold mb-3 mt-3">Formato</h1>
           <div className="grid grid-cols-3 gap-6">
             <Button
               onClick={() => setFormato("pdf")}
               className={`h-auto p-6 rounded-xl border ${
                 formato === "pdf"
-                  ? "bg-emerald-950/60 border-emerald-400 hover:bg-emerald-950/60"
-                  : "bg-slate-900 border-slate-600 hover:border-slate-400 hover:bg-transparent"
+                  ? "bg-primary/10 border-primary hover:bg-primary/10"
+                  : "bg-card border-border hover:border-border hover:bg-transparent"
               }`}
             >
               <div className="flex flex-col items-center gap-1">
                 <GrDocumentText className="!w-8 !h-8 shrink-0" />
                 <h1 className="text-xl mt-3">PDF</h1>
-                <span className="text-base font-medium text-slate-300">
+                <span className="text-base font-medium text-foreground/80">
                   Impressão e compartilhamento
                 </span>
               </div>
@@ -49,14 +49,14 @@ export default function ExportReports() {
               onClick={() => setFormato("csv")}
               className={`h-auto p-6 rounded-xl border ${
                 formato === "csv"
-                  ? "bg-emerald-950/60 border-emerald-400 hover:bg-emerald-950/60"
-                  : "bg-slate-900 border-slate-600 hover:border-slate-400 hover:bg-transparent"
+                  ? "bg-primary/10 border-primary hover:bg-primary/10"
+                  : "bg-card border-border hover:border-border hover:bg-transparent"
               }`}
             >
               <div className="flex flex-col items-center gap-1">
                 <GrDocumentText className="!w-8 !h-8 shrink-0" />
                 <h1 className="text-xl mt-3">CSV</h1>
-                <span className="text-base font-medium text-slate-300">
+                <span className="text-base font-medium text-foreground/80">
                   Para Excel e Planilhas
                 </span>
               </div>
@@ -65,14 +65,14 @@ export default function ExportReports() {
               onClick={() => setFormato("txt")}
               className={`h-auto p-6 rounded-xl border ${
                 formato === "txt"
-                  ? "bg-emerald-950/60 border-emerald-400 hover:bg-emerald-950/60"
-                  : "bg-slate-900 border-slate-600 hover:border-slate-400 hover:bg-transparent"
+                  ? "bg-primary/10 border-primary hover:bg-primary/10"
+                  : "bg-card border-border hover:border-border hover:bg-transparent"
               }`}
             >
               <div className="flex flex-col items-center gap-1">
                 <GrDocumentText className="!w-8 !h-8 shrink-0" />
                 <h1 className="text-xl mt-3">TXT</h1>
-                <span className="text-base font-medium text-slate-300">
+                <span className="text-base font-medium text-foreground/80">
                   Texto formatado
                 </span>
               </div>
@@ -80,14 +80,14 @@ export default function ExportReports() {
           </div>
 
           {/* Meses escolhidos */}
-          <h1 className="text-base text-white font-bold mb-3 mt-6">Meses</h1>
+          <h1 className="text-base text-foreground font-bold mb-3 mt-6">Meses</h1>
           <div className="grid grid-cols-3 gap-6 mb-8">
             <Button
               onClick={() => setMes("atual")}
               className={`h-auto p-4 rounded-xl border ${
                 mes === "atual"
-                  ? "bg-emerald-950/60 border-emerald-400 hover:bg-emerald-950/60"
-                  : "bg-slate-900 border-slate-600 hover:border-slate-400 hover:bg-transparent"
+                  ? "bg-primary/10 border-primary hover:bg-primary/10"
+                  : "bg-card border-border hover:border-border hover:bg-transparent"
               }`}
             >
               Mês atual
@@ -96,8 +96,8 @@ export default function ExportReports() {
               onClick={() => setMes("selecionar")}
               className={`h-auto p-4 rounded-xl border ${
                 mes === "selecionar"
-                  ? "bg-emerald-950/60 border-emerald-400 hover:bg-emerald-950/60"
-                  : "bg-slate-900 border-slate-600 hover:border-slate-400 hover:bg-transparent"
+                  ? "bg-primary/10 border-primary hover:bg-primary/10"
+                  : "bg-card border-border hover:border-border hover:bg-transparent"
               }`}
             >
               Selecionar meses
@@ -106,17 +106,17 @@ export default function ExportReports() {
               onClick={() => setMes("todos")}
               className={`h-auto p-4 rounded-xl border ${
                 mes === "todos"
-                  ? "bg-emerald-950/60 border-emerald-400 hover:bg-emerald-950/60"
-                  : "bg-slate-900 border-slate-600 hover:border-slate-400 hover:bg-transparent"
+                  ? "bg-primary/10 border-primary hover:bg-primary/10"
+                  : "bg-card border-border hover:border-border hover:bg-transparent"
               }`}
             >
               Todos os meses (0)
             </Button>
           </div>
-          {/* <span className="text-slate-300 text-lg font-medium">
+          {/* <span className="text-foreground/80 text-lg font-medium">
             Selecione os meses (0 selecionados)
           </span> */}
-          <Button className="text-lg font-medium py-8 w-full mt-4 bg-green-700 hover:bg-green-800 rounded-xl">
+          <Button className="text-lg font-medium py-8 w-full mt-4 bg-primary hover:bg-primary/90 rounded-xl">
             <PiDownloadSimpleBold className="!w-5 !h-5" />
             Exportar PDF
           </Button>

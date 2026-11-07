@@ -12,18 +12,18 @@ import { IoMdCheckmarkCircleOutline } from "react-icons/io";
 export default function CardEmpty() {
   return (
     <div>
-      <Card className="bg-slate-900 border-slate-600 ">
+      <Card className="bg-card border-border ">
         <CardHeader>
           <div className="flex items-center gap-3">
-            <div className="text-2xl border px-1.5 py-1.5 rounded-lg bg-green-950 text-emerald-600 border-emerald-600">
+            <div className="text-2xl border px-1.5 py-1.5 rounded-lg bg-primary/10 text-primary border-primary">
               <FaRegLightbulb />
             </div>
 
             <section>
-              <CardTitle className="text-xl font-sans font-bold text-white">
+              <CardTitle className="text-xl font-sans font-bold text-foreground">
                 Dicas para o seu dinheiro
               </CardTitle>
-              <CardDescription className="text-md font-sans font-medium text-gray-300">
+              <CardDescription className="text-md font-sans font-medium text-foreground/80">
                 Preencha suas rendas e despesas
               </CardDescription>
             </section>
@@ -31,10 +31,10 @@ export default function CardEmpty() {
         </CardHeader>
         <CardContent>
           <div className="flex items-start gap-2">
-            <span className="flex-shrink-0 mt-1 rounded-lg bg-green-950 text-emerald-600 border border-emerald-600 p-1">
-              <IoMdCheckmarkCircleOutline className="text-green-500" />
+            <span className="flex-shrink-0 mt-1 rounded-lg bg-primary/10 text-primary border border-primary p-1">
+              <IoMdCheckmarkCircleOutline className="text-success" />
             </span>
-            <p className="mt-1.5 text-base text-gray-300 font-medium">
+            <p className="mt-1.5 text-base text-foreground/80 font-medium">
               Comece adicionando suas fontes de renda e depois cadastre as
               despesas do mes.
             </p>

@@ -22,18 +22,18 @@ export const CustomTooltip = ({
   const balance = income - expense;
 
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-xl p-4 shadow-lg min-w-[200px]">
+    <div className="bg-card border border-border rounded-xl p-4 shadow-lg min-w-[200px]">
       
       {/* Mês */}
-      <p className="text-white font-bold text-lg mb-2">{label}</p>
+      <p className="text-foreground font-bold text-lg mb-2">{label}</p>
 
       {/* Renda */}
       <div className="flex justify-between text-sm">
         <section className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-green-700 shrink-0" />
-          <span className="text-slate-400 font-medium">Renda</span>
+          <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+          <span className="text-muted-foreground font-medium">Renda</span>
         </section>
-        <span className="text-white font-bold">
+        <span className="text-foreground font-bold">
           R$ {income.toLocaleString()}
         </span>
       </div>
@@ -41,10 +41,10 @@ export const CustomTooltip = ({
       {/* Despesa */}
       <div className="flex justify-between text-sm">
         <section className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-red-700 shrink-0" />
-          <span className="text-slate-400 font-medium">Despesa</span>
+          <span className="w-2 h-2 rounded-full bg-destructive shrink-0" />
+          <span className="text-muted-foreground font-medium">Despesa</span>
         </section>
-        <span className="text-white font-bold">
+        <span className="text-foreground font-bold">
           R$ {expense.toLocaleString()}
         </span>
       </div>
@@ -52,16 +52,16 @@ export const CustomTooltip = ({
       {/* Saldo opcional */}
       {showBalance && (
         <>
-          <div className="border-t border-slate-700 my-2" />
+          <div className="border-t border-border my-2" />
 
           <div className="flex justify-between text-sm">
-            <span className="text-slate-400 font-medium">
+            <span className="text-muted-foreground font-medium">
               Saldo previsto
             </span>
             <span
               className={
                 balance < 0
-                  ? "text-red-500 font-bold"
+                  ? "text-destructive font-bold"
                   : "text-blue-500 font-bold"
               }
             >

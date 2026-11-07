@@ -1,11 +1,14 @@
-import { FaArrowTrendUp, FaWallet } from "react-icons/fa6";
+import { FaArrowTrendUp } from "react-icons/fa6";
 import { FiTarget } from "react-icons/fi";
 import { IoDocumentTextOutline } from "react-icons/io5";
-import { LuArrowLeftRight, LuMoon } from "react-icons/lu";
+import { LuArrowLeftRight } from "react-icons/lu";
 import { MdOutlineDashboard } from "react-icons/md";
 import { RiArrowLeftSLine, RiArrowRightSLine } from "react-icons/ri";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "../../components/ui/button";
+import Logo from "../../theme/Logo";
+import ThemeToggle from "../../theme/ThemeToggle";
+import { APP_NAME, APP_TAGLINE } from "../../theme/theme";
 
 import {
   Sidebar,
@@ -62,12 +65,11 @@ export default function AppSideBar() {
   return (
     <Sidebar
       className={`
-    [--sidebar-background:theme(colors.slate.900)]
-    bg-slate-900
-    border-slate-600 border-r
+    bg-card
+    border-border border-r
     pt-2
     shadow-sm shadow-stone-950
-    text-white
+    text-foreground
     h-screen
     flex flex-col
     sticky top-0
@@ -79,17 +81,15 @@ export default function AppSideBar() {
         <section
           className={`flex items-center gap-1 px-3 ${open ? "justify-start" : "justify-center"}`}
         >
-          <div className="bg-green-950 text-emerald-600 border border-emerald-600 px-2 py-2 rounded-2xl mr-1 mb-3">
-            <FaWallet className={`${open ? "text-3xl" : "text-xl"}`} />
-          </div>
+          <Logo className={open ? "h-12 w-12 mr-1 mb-3" : "h-9 w-9 mb-3"} />
           {open && (
             <div className="mb-3">
-              <h1 className="font-bold text-xl pt-2">Meu Bolso</h1>
-              <p className="font-serif text-lg pb-1">Controle Financeiro</p>
+              <h1 className="font-bold text-xl pt-2">{APP_NAME}</h1>
+              <p className="text-sm text-muted-foreground pb-1">{APP_TAGLINE}</p>
             </div>
           )}
         </section>
-        <hr className="border-slate-400" />
+        <hr className="border-border" />
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
@@ -104,20 +104,20 @@ export default function AppSideBar() {
                     variant={isActive ? "default" : "ghost"}
                     className={`
     rounded-2xl px-4 py-3 w-full h-auto text-left flex items-start gap-2
-    justify-start text-white
-    ${isActive ? "bg-green-900 hover:bg-green-800" : "hover:bg-slate-800"}
+    justify-start text-foreground
+    ${isActive ? "bg-primary/20 hover:bg-primary/90" : "hover:bg-secondary"}
   `}
                   >
                     <div
                       className={`flex items-center gap-2 ${open ? "justify-start" : "justify-center"}`}
                     >
-                      <Icon className="!w-5 !h-8 text-white" />
+                      <Icon className="!w-5 !h-8 text-foreground" />
                       {open && (
                         <div className="flex flex-col">
-                          <span className="text-base font-bold text-white group-hover:text-white">
+                          <span className="text-base font-bold text-foreground group-hover:text-foreground">
                             {item.title}
                           </span>
-                          <span className="text-xs text-slate-300 group-hover:text-slate-200">
+                          <span className="text-xs text-foreground/80 group-hover:text-foreground">
                             {item.description}
                           </span>
                         </div>
@@ -131,15 +131,10 @@ export default function AppSideBar() {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <hr className="border-slate-400 mb-2" />
+        <hr className="border-border mb-2" />
         <section className="grid grid-rows-2 gap-2 mb-2">
-          <div className="hover:bg-slate-800 hover:border-slate-800 font-medium hover:font-bold text-center rounded-lg py-2">
-            <section className="flex items-center justify-start gap-2 ml-4">
-              <LuMoon className="text-lg" />
-              {open && <span>Modo escuro</span>}
-            </section>
-          </div>
-          <div className="hover:bg-slate-800 hover:border-slate-800 font-medium hover:font-bold text-center rounded-lg py-2">
+          <ThemeToggle showLabel={open} />
+          <div className="hover:bg-secondary hover:border-border font-medium hover:font-bold text-center rounded-lg py-2">
             <button
               onClick={toggleSidebar}
               className="flex items-center justify-start gap-2 ml-3 "

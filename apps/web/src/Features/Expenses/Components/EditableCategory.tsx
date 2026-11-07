@@ -35,7 +35,7 @@ export default function EditableCategory({
             setEditingCategory(null);
           }}
           onBlur={() => setEditingCategory(null)}
-          className="text-sm font-medium border bg-gray-200 pl-3 pr-6 py-1 min-w-[130px] rounded-full text-gray-600 appearance-none outline-none cursor-pointer"
+          className="text-sm font-medium border bg-secondary pl-3 pr-6 py-1 min-w-[130px] rounded-full text-muted-foreground appearance-none outline-none cursor-pointer"
         >
           <option value="Moradia">Moradia</option>
           <option value="Transporte">Transporte</option>
@@ -47,7 +47,7 @@ export default function EditableCategory({
           <option value="Outros">Outros</option>
         </select>
 
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-600 pointer-events-none">
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
           <RiArrowDownSFill className="text-2xl" />
         </span>
       </div>
@@ -60,7 +60,7 @@ export default function EditableCategory({
         setEditingCategory(expenseId);
         setTempCategory(category);
       }}
-      className="text-sm font-medium border bg-gray-200 px-3 py-1 rounded-full text-gray-600 cursor-pointer"
+      className="text-sm font-medium border bg-secondary px-3 py-1 rounded-full text-muted-foreground cursor-pointer"
     >
       {category}
     </span>
