@@ -1,5 +1,5 @@
 {
-  "name": "organizagrana",
+  "name": "aurora",
   "private": true,
   "scripts": {
     "dev": "pnpm --filter web dev",

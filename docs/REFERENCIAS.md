@@ -1,6 +1,6 @@
 # Referências
 
-Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora), lógica corrigida e backend em Go.
+Acompanhamento da refatoração do Aurora (antes OrganizaGrana): monorepo, novo visual (Aurora), lógica corrigida e backend em Go.
 
 **Como usar:** `[ ]` = pendente · `[ ok ]` = feito e verificado. Troque `[ ]` por `[ ok ]` a cada mudança concluída.
 
