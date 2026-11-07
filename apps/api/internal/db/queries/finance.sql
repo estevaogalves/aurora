@@ -5,8 +5,8 @@ SELECT * FROM transactions WHERE user_id = $1 ORDER BY created_at, id;
 SELECT * FROM transactions WHERE id = $1 AND user_id = $2;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (user_id, name, amount_cents, type, category, notes, fixed, month)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -42,8 +42,8 @@ VALUES ($1, $2, $3, $4);
 SELECT * FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateCredit :one
-INSERT INTO credit_purchases (user_id, name, total_cents, installments, start_month, category)
-VALUES ($1, $2, $3, $4, $5, $6)
+INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: UpdateCredit :one
@@ -63,8 +63,8 @@ DELETE FROM credit_purchases WHERE id = $1 AND user_id = $2;
 SELECT * FROM goals WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateGoal :one
-INSERT INTO goals (user_id, name, target_cents, saved_cents, monthly_cents, deadline, yield_total_cents)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO goals (id, user_id, name, target_cents, saved_cents, monthly_cents, deadline, yield_total_cents)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: UpdateGoal :one
@@ -85,7 +85,8 @@ DELETE FROM goals WHERE id = $1 AND user_id = $2;
 SELECT * FROM extra_expenses WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateExtraExpense :one
-INSERT INTO extra_expenses (user_id, name, amount_cents, month) VALUES ($1, $2, $3, $4)
+INSERT INTO extra_expenses (id, user_id, name, amount_cents, month)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5)
 RETURNING *;
 
 -- name: UpdateExtraExpense :one
@@ -103,7 +104,8 @@ DELETE FROM extra_expenses WHERE id = $1 AND user_id = $2;
 SELECT * FROM notes WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateNote :one
-INSERT INTO notes (user_id, content, date, pinned, month) VALUES ($1, $2, $3, $4, $5)
+INSERT INTO notes (id, user_id, content, date, pinned, month)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpdateNote :one
@@ -122,7 +124,8 @@ DELETE FROM notes WHERE id = $1 AND user_id = $2;
 SELECT * FROM custom_categories WHERE user_id = $1 ORDER BY name;
 
 -- name: CreateCategory :one
-INSERT INTO custom_categories (user_id, name, color) VALUES ($1, $2, $3)
+INSERT INTO custom_categories (id, user_id, name, color)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4)
 RETURNING *;
 
 -- name: DeleteCategory :execrows

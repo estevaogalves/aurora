@@ -606,3 +606,31 @@ func TestHealthAndCORS(t *testing.T) {
 		t.Errorf("CORS: %v", res.Header)
 	}
 }
+
+// O front cria o UUID e usa o mesmo id nas atualizações seguintes; a API precisa respeitá-lo.
+func TestClientGeneratedIDs(t *testing.T) {
+	e := setup(t)
+	a, b := e.register(t, ""), e.register(t, "")
+	id := "6f1c1f4e-8a3b-4a43-9a52-1d3c8f0b7a11"
+
+	r := e.do(t, "POST", "/api/v1/transactions", a.AccessToken, map[string]any{"id": id, "name": "Mercado", "amount": 1000, "type": "expense", "category": "Outros", "month": "2026-03"})
+	want(t, r, 201)
+	var created tx
+	r.json(t, &created)
+	if created.ID != id {
+		t.Fatalf("id = %s, esperado o enviado pelo cliente (%s)", created.ID, id)
+	}
+	want(t, e.do(t, "PATCH", "/api/v1/transactions/"+id, a.AccessToken, map[string]any{"name": "Feira"}), 200)
+
+	// id que já existe em outra conta: conflito, sem vazar nem sobrescrever
+	want(t, e.do(t, "POST", "/api/v1/transactions", b.AccessToken, map[string]any{"id": id, "name": "Outro", "amount": 1, "type": "expense", "category": "Outros", "month": "2026-03"}), 409)
+
+	// id que não é UUID: o banco gera um
+	r = e.do(t, "POST", "/api/v1/goals", a.AccessToken, map[string]any{"id": "abc", "name": "Viagem", "target": 5000})
+	want(t, r, 201)
+	var g struct{ ID string }
+	r.json(t, &g)
+	if g.ID == "" || g.ID == "abc" {
+		t.Errorf("id de meta = %q", g.ID)
+	}
+}

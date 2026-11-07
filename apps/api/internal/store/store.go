@@ -89,6 +89,16 @@ func boolv(v *bool) pgtype.Bool {
 	return pgtype.Bool{Bool: *v, Valid: true}
 }
 
+// clientID aproveita o id gerado pelo cliente (o front cria UUIDs e usa o mesmo id nas
+// atualizações seguintes). Id ausente ou que não seja UUID vira uuid.Nil: o banco gera um.
+func clientID(id string) uuid.UUID {
+	u, err := uuid.Parse(id)
+	if err != nil {
+		return uuid.Nil
+	}
+	return u
+}
+
 func parseID(id string) (uuid.UUID, error) {
 	u, err := uuid.Parse(id)
 	if err != nil {

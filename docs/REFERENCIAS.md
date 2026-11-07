@@ -155,17 +155,23 @@ Acompanhamento da refatoração do Aurora (antes OrganizaGrana): monorepo, novo 
   - Testes: domínio (conta idêntica ao front), auth (argon2, JWT, rotação, rate limit, com miniredis) e 9 testes de integração da API contra Postgres real (`TEST_DATABASE_URL`; sem ele são pulados).
   - Conferido com `docker compose` de ponta a ponta (Redis real, nginx servindo o front e fazendo proxy de `/api`): cache `MISS`/`HIT`/`MISS` após escrita, rotação e reuso do refresh, `429` no login.
   - Go não está instalado na máquina: compilar e testar via Docker (`golang:1.26-alpine`). Detalhes em `apps/api/README.md`.
-  - Pendente para a Fase 7: o `ApiRepository` precisa tratar `omitempty` (campos `fixed`, `hiddenMonths` etc. podem faltar no JSON).
+  - O `omitempty` do JSON (campos `fixed`, `hiddenMonths` etc. podem faltar) foi tratado no `ApiRepository` (Fase 7).
 
 ## Fase 7: Integração front e back
 
-- [ ] `docs/openapi.yaml` como contrato
-- [ ] `packages/api-types` com os tipos gerados
-- [ ] `ApiRepository`
-- [ ] Telas de login e cadastro
-- [ ] Rotas protegidas e renovação automática do token
-- [ ] `VITE_DATA_SOURCE=local|api`
-- [ ] Tela de importação dos dados locais
+- [ ok ] `docs/openapi.yaml` como contrato
+- [ ok ] `packages/api-types` com os tipos gerados (`pnpm --filter @aurora/api-types generate`)
+- [ ok ] `ApiRepository`
+- [ ok ] Telas de login e cadastro (`/entrar`, `/cadastrar`)
+- [ ok ] Rotas protegidas e renovação automática do token
+- [ ok ] `VITE_DATA_SOURCE=local|api`
+- [ ok ] Tela de importação dos dados locais (`/importar`, com aviso no topo na primeira vez)
+  - A API passou a aceitar o `id` (UUID) que o front gera nas criações; antes ignorava e a edição logo depois dava 404. Id ausente ou inválido continua gerando um no banco. Teste de integração `TestClientGeneratedIDs`. As queries do sqlc foram regeneradas (v1.31.1, via Docker).
+  - `ApiRepository` trata o `omitempty` da API (`normalizeFinanceData`) e envia só os campos que o `PATCH` aceita. As chamadas entram numa fila, então um `PATCH` nunca passa na frente do `POST` que criou o registro.
+  - Token de acesso só em memória; o refresh é o cookie `httpOnly`. No `401` o cliente renova uma vez e repete a chamada; renovações simultâneas dividem uma só requisição (e `navigator.locks` evita gastar o mesmo cookie em duas abas). Refresh recusado derruba a sessão; falha de rede, não.
+  - Padrão é `local` (sem login). O `docker-compose` constrói o front com `api`; em dev, `VITE_DATA_SOURCE=api pnpm dev` faz proxy de `/api` para `http://127.0.0.1:8081` (`VITE_DEV_API_PROXY`). Veja `apps/web/.env.example`.
+  - Conferido no navegador (Playwright) com `docker compose`: redirecionamento ao login, senha curta e senha errada, cadastro, importação, recarregar mantendo a sessão, sair e entrar de novo trazendo os dados. 104 testes do front e testes da API (com Postgres real) passando.
+  - Fica de fora: os dados do `localStorage` não são apagados depois de importar (servem de backup).
 
 ## Fase 8: CI e documentação
 

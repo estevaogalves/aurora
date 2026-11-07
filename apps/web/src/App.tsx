@@ -1,4 +1,7 @@
 import { Navigate, Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import AuthPage from "./Features/Auth/AuthPage";
+import ImportPage from "./Features/Auth/ImportPage";
+import RequireAuth from "./Features/Auth/RequireAuth";
 import ComparisonPage from "./Features/Comparison/ComparisonPage";
 import Painel from "./Features/Dashboard/Painel";
 import GoalsPage from "./Features/Goals/GoalsPage";
@@ -11,15 +14,20 @@ export default function App() {
   return (
     <Router>
       <Routes>
-        <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/painel" replace />} />
-          <Route path="/painel" element={<Painel />} />
-          <Route path="/lancamentos" element={<LaunchPage />} />
-          <Route path="/projecao" element={<ProjectionPage />} />
-          <Route path="/comparacao" element={<ComparisonPage />} />
-          <Route path="/metas" element={<GoalsPage />} />
-          <Route path="/relatorios" element={<ReportsPage />} />
-          <Route path="*" element={<Navigate to="/painel" replace />} />
+        <Route path="/entrar" element={<AuthPage mode="login" />} />
+        <Route path="/cadastrar" element={<AuthPage mode="register" />} />
+        <Route element={<RequireAuth />}>
+          <Route element={<AppShell />}>
+            <Route index element={<Navigate to="/painel" replace />} />
+            <Route path="/painel" element={<Painel />} />
+            <Route path="/lancamentos" element={<LaunchPage />} />
+            <Route path="/projecao" element={<ProjectionPage />} />
+            <Route path="/comparacao" element={<ComparisonPage />} />
+            <Route path="/metas" element={<GoalsPage />} />
+            <Route path="/relatorios" element={<ReportsPage />} />
+            <Route path="/importar" element={<ImportPage />} />
+            <Route path="*" element={<Navigate to="/painel" replace />} />
+          </Route>
         </Route>
       </Routes>
     </Router>

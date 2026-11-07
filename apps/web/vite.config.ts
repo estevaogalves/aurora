@@ -12,6 +12,10 @@ export default defineConfig({
   server: {
     host: true,
     allowedHosts: true,
+    // com VITE_DATA_SOURCE=api, /api vai para o backend (mesmo endereço do front: sem CORS)
+    proxy: {
+      "/api": process.env.VITE_DEV_API_PROXY ?? "http://127.0.0.1:8081",
+    },
   },
   test: {
     environment: "node",

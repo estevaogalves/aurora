@@ -9,8 +9,10 @@ import Logo from "../theme/Logo";
 import { APP_NAME } from "../theme/theme";
 import ThemeToggle from "../theme/ThemeToggle";
 import GoalBell from "./GoalBell";
+import ImportBanner from "./ImportBanner";
 import MonthSelector from "./MonthSelector";
 import { NAV_ITEMS } from "./navigation";
+import UserMenu from "./UserMenu";
 
 export const CONTAINER = "mx-auto w-[calc(100%-2rem)] max-w-[1240px]";
 
@@ -38,14 +40,14 @@ export default function AppShell() {
 
           <nav
             aria-label="Principal"
-            className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-card p-1 [scrollbar-width:none]"
+            className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-card p-1 [scrollbar-width:none] min-[701px]:max-[1259px]:order-3 min-[701px]:max-[1259px]:w-full"
           >
             {NAV_ITEMS.map((item) => (
               <NavLink
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center gap-[7px] whitespace-nowrap rounded-full px-3 py-2 text-[13px] font-semibold ${
+                  `flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-semibold ${
                     isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   }`
                 }
@@ -56,11 +58,12 @@ export default function AppShell() {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-2 max-[700px]:ml-0 max-[700px]:w-full max-[700px]:flex-wrap max-[700px]:justify-between">
+          <div className="ml-auto flex items-center gap-2 min-[701px]:max-[1259px]:order-2 max-[700px]:ml-0 max-[700px]:w-full max-[700px]:flex-wrap max-[700px]:justify-between">
             <MonthSelector />
             <div className="flex items-center gap-2">
               <GoalBell />
               <ThemeToggle />
+              <UserMenu />
               <button type="button" onClick={() => openLaunch()} className={btnClass.primary}>
                 <Icon name="plus" size={16} />
                 Lançar
@@ -70,6 +73,7 @@ export default function AppShell() {
         </div>
       </header>
 
+      <ImportBanner />
       <ToastContainer />
       <TransactionForm />
 

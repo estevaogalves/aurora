@@ -35,7 +35,7 @@ func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domai
 
 func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
-		UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
+		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month,
 	})
 	if err != nil {
@@ -166,7 +166,7 @@ func (s *Store) CreateCredit(ctx context.Context, userID uuid.UUID, c domain.Cre
 
 func creditParams(userID uuid.UUID, c domain.CreditTransaction) sqlcgen.CreateCreditParams {
 	return sqlcgen.CreateCreditParams{
-		UserID: userID, Name: c.Name, TotalCents: c.TotalAmount,
+		Column1: clientID(c.ID), UserID: userID, Name: c.Name, TotalCents: c.TotalAmount,
 		Installments: int32(c.Installments), StartMonth: c.StartMonth, Category: c.Category,
 	}
 }
@@ -215,7 +215,7 @@ func (s *Store) CreateGoal(ctx context.Context, userID uuid.UUID, g domain.Goal)
 
 func goalParams(userID uuid.UUID, g domain.Goal) sqlcgen.CreateGoalParams {
 	return sqlcgen.CreateGoalParams{
-		UserID: userID, Name: g.Name, TargetCents: g.Target, SavedCents: g.Saved,
+		Column1: clientID(g.ID), UserID: userID, Name: g.Name, TargetCents: g.Target, SavedCents: g.Saved,
 		MonthlyCents: g.Monthly, Deadline: text(g.Deadline), YieldTotalCents: g.YieldTotal,
 	}
 }
@@ -251,7 +251,7 @@ type ExtraPatch struct {
 
 func (s *Store) CreateExtra(ctx context.Context, userID uuid.UUID, e domain.ExtraExpense) (domain.ExtraExpense, error) {
 	row, err := s.q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{
-		UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month,
+		Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month,
 	})
 	return extraFrom(row), mapErr(err)
 }
@@ -286,7 +286,7 @@ type NotePatch struct {
 
 func (s *Store) CreateNote(ctx context.Context, userID uuid.UUID, n domain.Note) (domain.Note, error) {
 	row, err := s.q.CreateNote(ctx, sqlcgen.CreateNoteParams{
-		UserID: userID, Content: n.Content, Date: n.Date, Pinned: n.Pinned, Month: n.Month,
+		Column1: clientID(n.ID), UserID: userID, Content: n.Content, Date: n.Date, Pinned: n.Pinned, Month: n.Month,
 	})
 	return noteFrom(row), mapErr(err)
 }
@@ -314,7 +314,7 @@ func (s *Store) DeleteNote(ctx context.Context, userID uuid.UUID, id string) err
 /* ---------- categorias ---------- */
 
 func (s *Store) CreateCategory(ctx context.Context, userID uuid.UUID, c domain.CustomCategory) (domain.CustomCategory, error) {
-	row, err := s.q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{UserID: userID, Name: c.Name, Color: c.Color})
+	row, err := s.q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, Color: c.Color})
 	return domain.CustomCategory{ID: row.ID.String(), Name: row.Name, Color: row.Color}, mapErr(err)
 }
 
@@ -362,7 +362,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		}
 		for _, n := range d.Notes {
-			if _, err := q.CreateNote(ctx, sqlcgen.CreateNoteParams{UserID: userID, Content: n.Content, Date: n.Date, Pinned: n.Pinned, Month: n.Month}); err != nil {
+			if _, err := q.CreateNote(ctx, sqlcgen.CreateNoteParams{Column1: clientID(n.ID), UserID: userID, Content: n.Content, Date: n.Date, Pinned: n.Pinned, Month: n.Month}); err != nil {
 				return err
 			}
 		}
@@ -372,12 +372,12 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		}
 		for _, e := range d.ExtraExpenses {
-			if _, err := q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month}); err != nil {
+			if _, err := q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month}); err != nil {
 				return err
 			}
 		}
 		for _, c := range d.CustomCategories {
-			if _, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{UserID: userID, Name: c.Name, Color: c.Color}); err != nil {
+			if _, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, Color: c.Color}); err != nil {
 				return err
 			}
 		}

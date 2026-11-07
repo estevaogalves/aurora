@@ -1,0 +1,568 @@
+openapi: 3.0.3
+info:
+  title: Aurora API
+  version: 1.0.0
+  description: |
+    API do Aurora (controle financeiro pessoal). Contrato da Fase 7.
+
+    - Todo dinheiro é em **centavos inteiros**. Meses são `"AAAA-MM"`.
+    - O JSON de `/data` e dos recursos segue o `FinanceData` do front.
+    - O token de acesso (JWT) vai no cabeçalho `Authorization: Bearer ...`; o refresh token
+      fica num cookie `httpOnly` (`aurora_refresh`, path `/api/v1/auth`).
+    - Nas criações, o cliente pode enviar o `id` (UUID). Se vier ausente ou inválido, o servidor gera um.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [auth]
+      summary: Cria a conta e abre a sessão
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegisterRequest" }
+      responses:
+        "201": { description: Conta criada, content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Entra com e-mail e senha
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/LoginRequest" }
+      responses:
+        "200": { description: Sessão aberta, content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+        "429":
+          description: Muitas tentativas de login
+          headers:
+            Retry-After: { schema: { type: integer }, description: Segundos até poder tentar de novo }
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Troca o refresh token (cookie) por um par novo
+      security: []
+      responses:
+        "200": { description: Sessão renovada, content: { application/json: { schema: { $ref: "#/components/schemas/Session" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Encerra a sessão e limpa o cookie
+      security: []
+      responses:
+        "204": { description: Sessão encerrada }
+  /me:
+    get:
+      tags: [auth]
+      summary: Usuário logado
+      responses:
+        "200": { description: Usuário, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /admin/users:
+    get:
+      tags: [auth]
+      summary: Lista os usuários (só admin)
+      responses:
+        "200": { description: Usuários, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/User" } } } } }
+        "403": { $ref: "#/components/responses/Error" }
+
+  /data:
+    get:
+      tags: [dados]
+      summary: Tudo o que o usuário guarda
+      responses:
+        "200": { description: Dados, content: { application/json: { schema: { $ref: "#/components/schemas/FinanceData" } } } }
+        "401": { $ref: "#/components/responses/Error" }
+  /import:
+    post:
+      tags: [dados]
+      summary: Importa os dados do localStorage
+      description: Sem `replace=true`, responde 409 se a conta já tem dados.
+      parameters:
+        - { name: replace, in: query, schema: { type: boolean, default: false } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/FinanceData" }
+      responses:
+        "201": { description: Dados gravados, content: { application/json: { schema: { $ref: "#/components/schemas/FinanceData" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+
+  /transactions:
+    post:
+      tags: [lançamentos]
+      summary: Cria renda ou despesa
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /transactions/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [lançamentos]
+      summary: Altera só os campos enviados
+      description: "`hiddenMonths` e `monthlyValues`, quando enviados, substituem a lista/mapa inteiro."
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/TransactionPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [lançamentos]
+      summary: Remove
+      responses:
+        "204": { description: Removida }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /credits:
+    post:
+      tags: [crédito]
+      summary: Cria compra no crédito
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CreditTransaction" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/CreditTransaction" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /credits/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [crédito]
+      summary: Altera só os campos enviados
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CreditPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/CreditTransaction" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [crédito]
+      summary: Remove
+      responses:
+        "204": { description: Removida }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /goals:
+    post:
+      tags: [metas]
+      summary: Cria meta
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Goal" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/Goal" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /goals/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [metas]
+      summary: Altera só os campos enviados
+      description: '`"deadline": null` limpa o prazo; sem a chave, o prazo não muda.'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/GoalPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/Goal" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [metas]
+      summary: Remove
+      responses:
+        "204": { description: Removida }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /extra-expenses:
+    post:
+      tags: [projeção]
+      summary: Cria despesa extra planejada
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ExtraExpense" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/ExtraExpense" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /extra-expenses/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [projeção]
+      summary: Altera só os campos enviados
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ExtraExpensePatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/ExtraExpense" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [projeção]
+      summary: Remove
+      responses:
+        "204": { description: Removida }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /notes:
+    post:
+      tags: [anotações]
+      summary: Cria anotação
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Note" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/Note" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /notes/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [anotações]
+      summary: Altera só os campos enviados
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/NotePatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/Note" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [anotações]
+      summary: Remove
+      responses:
+        "204": { description: Removida }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /categories:
+    post:
+      tags: [configurações]
+      summary: Cria categoria própria
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CustomCategory" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/CustomCategory" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
+  /categories/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    delete:
+      tags: [configurações]
+      summary: Remove categoria própria
+      responses:
+        "204": { description: Removida }
+        "404": { $ref: "#/components/responses/Error" }
+  /settings/distribution:
+    put:
+      tags: [configurações]
+      summary: Define a distribuição do saldo
+      description: "`items: null` volta ao padrão."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  nullable: true
+                  items: { $ref: "#/components/schemas/DistributionItem" }
+      responses:
+        "204": { description: Salvo }
+        "400": { $ref: "#/components/responses/Error" }
+  /settings/seen-alerts:
+    put:
+      tags: [configurações]
+      summary: Lista completa dos avisos de meta já vistos
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [keys]
+              properties:
+                keys: { type: array, maxItems: 1000, items: { type: string } }
+      responses:
+        "204": { description: Salvo }
+        "400": { $ref: "#/components/responses/Error" }
+
+  /summary/{month}:
+    get:
+      tags: [relatórios]
+      summary: Resumo do mês
+      description: "Fica em cache no Redis; o cabeçalho `X-Cache` mostra HIT ou MISS."
+      parameters:
+        - { name: month, in: path, required: true, schema: { $ref: "#/components/schemas/Month" } }
+      responses:
+        "200":
+          description: Resumo
+          headers:
+            X-Cache: { schema: { type: string, enum: [HIT, MISS] } }
+          content: { application/json: { schema: { $ref: "#/components/schemas/MonthSummary" } } }
+        "400": { $ref: "#/components/responses/Error" }
+  /projection:
+    get:
+      tags: [relatórios]
+      summary: Projeção mês a mês
+      parameters:
+        - { name: start, in: query, description: "Padrão: mês atual", schema: { $ref: "#/components/schemas/Month" } }
+        - { name: count, in: query, schema: { type: integer, minimum: 1, maximum: 60, default: 12 } }
+      responses:
+        "200": { description: Projeção, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/ProjectionMonth" } } } } }
+        "400": { $ref: "#/components/responses/Error" }
+  /comparison:
+    get:
+      tags: [relatórios]
+      summary: Compara de 2 a 12 meses
+      parameters:
+        - { name: months, in: query, required: true, description: "Meses separados por vírgula", schema: { type: string, example: "2026-01,2026-02" } }
+      responses:
+        "200": { description: Comparação, content: { application/json: { schema: { $ref: "#/components/schemas/Comparison" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+
+  parameters:
+    Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+
+  responses:
+    Error:
+      description: Erro
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, description: Mensagem pronta para exibir }
+    Month: { type: string, pattern: '^\d{4}-(0[1-9]|1[0-2])$', example: "2026-03" }
+    Cents: { type: integer, format: int64, minimum: 0, description: Valor em centavos }
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        name: { type: string, maxLength: 100 }
+        password: { type: string, minLength: 8, maxLength: 128 }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+    User:
+      type: object
+      required: [id, email, name, role]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        name: { type: string }
+        role: { type: string, enum: [user, admin] }
+    Session:
+      type: object
+      required: [accessToken, expiresAt, user]
+      properties:
+        accessToken: { type: string }
+        expiresAt: { type: string, format: date-time }
+        user: { $ref: "#/components/schemas/User" }
+
+    Transaction:
+      type: object
+      required: [name, amount, type, category, month]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        amount: { $ref: "#/components/schemas/Cents" }
+        type: { type: string, enum: [income, expense] }
+        category: { type: string }
+        notes: { type: string, maxLength: 500 }
+        fixed: { type: boolean }
+        month: { $ref: "#/components/schemas/Month" }
+        hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
+        monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
+    TransactionPatch:
+      type: object
+      properties:
+        name: { type: string }
+        amount: { $ref: "#/components/schemas/Cents" }
+        category: { type: string }
+        notes: { type: string }
+        fixed: { type: boolean }
+        hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
+        monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
+
+    CreditTransaction:
+      type: object
+      required: [name, totalAmount, installments, startMonth, category]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        totalAmount: { $ref: "#/components/schemas/Cents" }
+        installments: { type: integer, minimum: 1, maximum: 360 }
+        startMonth: { $ref: "#/components/schemas/Month" }
+        category: { type: string }
+    CreditPatch:
+      type: object
+      properties:
+        name: { type: string }
+        totalAmount: { $ref: "#/components/schemas/Cents" }
+        installments: { type: integer, minimum: 1, maximum: 360 }
+        startMonth: { $ref: "#/components/schemas/Month" }
+        category: { type: string }
+
+    Goal:
+      type: object
+      required: [name, target, saved, monthly, deadline]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        target: { $ref: "#/components/schemas/Cents" }
+        saved: { $ref: "#/components/schemas/Cents" }
+        monthly: { $ref: "#/components/schemas/Cents" }
+        deadline: { allOf: [{ $ref: "#/components/schemas/Month" }], nullable: true }
+        yieldTotal: { $ref: "#/components/schemas/Cents" }
+    GoalPatch:
+      type: object
+      properties:
+        name: { type: string }
+        target: { $ref: "#/components/schemas/Cents" }
+        saved: { $ref: "#/components/schemas/Cents" }
+        monthly: { $ref: "#/components/schemas/Cents" }
+        yieldTotal: { $ref: "#/components/schemas/Cents" }
+        deadline: { allOf: [{ $ref: "#/components/schemas/Month" }], nullable: true }
+
+    ExtraExpense:
+      type: object
+      required: [name, amount, month]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        amount: { $ref: "#/components/schemas/Cents" }
+        month: { $ref: "#/components/schemas/Month" }
+    ExtraExpensePatch:
+      type: object
+      properties:
+        name: { type: string }
+        amount: { $ref: "#/components/schemas/Cents" }
+        month: { $ref: "#/components/schemas/Month" }
+
+    Note:
+      type: object
+      required: [content, date, pinned, month]
+      properties:
+        id: { type: string, format: uuid }
+        content: { type: string, maxLength: 2000 }
+        date: { type: string }
+        pinned: { type: boolean }
+        month: { $ref: "#/components/schemas/Month" }
+    NotePatch:
+      type: object
+      properties:
+        content: { type: string }
+        date: { type: string }
+        pinned: { type: boolean }
+        month: { $ref: "#/components/schemas/Month" }
+
+    CustomCategory:
+      type: object
+      required: [name, color]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string, pattern: '^#[0-9a-fA-F]{6}$' }
+
+    DistributionItem:
+      type: object
+      required: [id, label, percent]
+      properties:
+        id: { type: string }
+        label: { type: string }
+        percent: { type: integer, minimum: 0, maximum: 100 }
+        custom: { type: boolean }
+
+    FinanceData:
+      type: object
+      required: [transactions, creditTransactions, notes, goals, extraExpenses, customCategories, distribution, seenAlerts]
+      properties:
+        transactions: { type: array, items: { $ref: "#/components/schemas/Transaction" } }
+        creditTransactions: { type: array, items: { $ref: "#/components/schemas/CreditTransaction" } }
+        notes: { type: array, items: { $ref: "#/components/schemas/Note" } }
+        goals: { type: array, items: { $ref: "#/components/schemas/Goal" } }
+        extraExpenses: { type: array, items: { $ref: "#/components/schemas/ExtraExpense" } }
+        customCategories: { type: array, items: { $ref: "#/components/schemas/CustomCategory" } }
+        distribution:
+          type: array
+          nullable: true
+          description: Percentuais escolhidos; null = padrão
+          items: { $ref: "#/components/schemas/DistributionItem" }
+        seenAlerts: { type: array, items: { type: string } }
+
+    MonthSummary:
+      type: object
+      required: [month, totalIncome, totalExpense, creditExpense, balance, expensePercentage, byCategory]
+      properties:
+        month: { $ref: "#/components/schemas/Month" }
+        totalIncome: { type: integer, format: int64 }
+        totalExpense: { type: integer, format: int64 }
+        creditExpense: { type: integer, format: int64 }
+        balance: { type: integer, format: int64 }
+        expensePercentage: { type: number }
+        byCategory: { type: object, additionalProperties: { type: integer, format: int64 } }
+    ProjectionMonth:
+      type: object
+      required: [month, income, expense, creditExpense, extraExpense, balance, accumulated]
+      properties:
+        month: { $ref: "#/components/schemas/Month" }
+        income: { type: integer, format: int64 }
+        expense: { type: integer, format: int64 }
+        creditExpense: { type: integer, format: int64 }
+        extraExpense: { type: integer, format: int64 }
+        balance: { type: integer, format: int64 }
+        accumulated: { type: integer, format: int64 }
+    CategoryTotal:
+      type: object
+      required: [category, value]
+      properties:
+        category: { type: string }
+        value: { type: integer, format: int64 }
+    Comparison:
+      type: object
+      required: [months, income, expense, balance, topCategory, ranking]
+      properties:
+        months: { type: array, items: { $ref: "#/components/schemas/MonthSummary" } }
+        income: { type: integer, format: int64 }
+        expense: { type: integer, format: int64 }
+        balance: { type: integer, format: int64 }
+        topCategory:
+          allOf: [{ $ref: "#/components/schemas/CategoryTotal" }]
+          nullable: true
+        ranking: { type: array, description: Meses do melhor para o pior saldo, items: { $ref: "#/components/schemas/Month" } }

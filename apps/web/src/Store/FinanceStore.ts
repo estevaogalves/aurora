@@ -32,6 +32,8 @@ export type { CreditInstallment, CreditTransaction, CustomCategory, Distribution
 interface FinanceState {
   hydrated: boolean;
   hydrate: () => Promise<void>;
+  /** Esvazia a tela (ao sair da conta). */
+  reset: () => void;
 
   currentMonth: string;
   setCurrentMonth: (month: string) => void;
@@ -94,7 +96,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
   const sync = (operation: Promise<void>) => {
     operation.catch((error) => {
       console.error("Falha ao salvar, recarregando os dados", error);
-      void get().hydrate();
+      get().hydrate().catch((e) => console.error("Falha ao recarregar", e));
     });
   };
 
@@ -118,6 +120,19 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       const data = await repository.load();
       set({ ...data, hydrated: true });
     },
+
+    reset: () =>
+      set({
+        hydrated: false,
+        transactions: [],
+        creditTransactions: [],
+        notes: [],
+        goals: [],
+        extraExpenses: [],
+        customCategories: [],
+        distribution: null,
+        seenAlerts: [],
+      }),
 
     currentMonth: getCurrentMonth(),
     setCurrentMonth: (month) => set({ currentMonth: month }),

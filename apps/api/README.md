@@ -32,7 +32,7 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 
 ## Como funciona
 
-- **Dinheiro** sempre em centavos inteiros (`bigint`). Meses como `"AAAA-MM"`. O JSON usa o mesmo formato do front (`FinanceData`), então o `ApiRepository` da Fase 7 é direto.
+- **Dinheiro** sempre em centavos inteiros (`bigint`). Meses como `"AAAA-MM"`. O JSON usa o mesmo formato do front (`FinanceData`), então o `ApiRepository` do front é direto.
 - **Login:** senha com argon2id. O token de acesso (JWT, 15 min) vai no corpo; o refresh token vai em cookie `httpOnly` (`aurora_refresh`, path `/api/v1/auth`).
 - **Refresh rotativo:** cada token vale uma vez. O Redis guarda só o **hash** (SHA-256). Se um token já gasto reaparece, todas as sessões do usuário são encerradas.
 - **Rate limit:** falhas de login por e-mail+IP no Redis; estourou, responde `429` com `Retry-After`. Login com sucesso zera o contador.
@@ -54,7 +54,7 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 | `GET /summary/{mês}` · `/projection?start=&count=` · `/comparison?months=a,b` | cálculos |
 | `GET /healthz` | saúde (banco e Redis) |
 
-`PATCH` muda só os campos enviados. Em metas, `"deadline": null` limpa o prazo; sem a chave, o prazo não muda. `hiddenMonths` e `monthlyValues`, quando enviados, substituem a lista/mapa inteiro. O contrato completo (OpenAPI) vem na Fase 7.
+`PATCH` muda só os campos enviados. Em metas, `"deadline": null` limpa o prazo; sem a chave, o prazo não muda. `hiddenMonths` e `monthlyValues`, quando enviados, substituem a lista/mapa inteiro. Nas criações o `id` enviado pelo cliente (UUID) é respeitado; ausente ou inválido, o banco gera um. O contrato completo está em `docs/openapi.yaml`.
 
 ## Desenvolvimento
 
