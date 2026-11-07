@@ -25,8 +25,6 @@ type Config struct {
 	// Confia em X-Forwarded-For/X-Real-IP (só ligue atrás de um proxy seu).
 	TrustProxy    bool
 	AllowedOrigin []string
-	// Se preenchido, o usuário com este e-mail vira admin ao se cadastrar.
-	AdminEmail string
 	// Limite de tentativas de login por e-mail+IP na janela.
 	LoginMaxAttempts int
 	LoginWindow      time.Duration
@@ -54,7 +52,6 @@ func Load() (Config, error) {
 		RefreshTTL:         envDuration("REFRESH_TTL", 30*24*time.Hour),
 		CookieSecure:       envBool("COOKIE_SECURE", true),
 		TrustProxy:         envBool("TRUST_PROXY", false),
-		AdminEmail:         strings.ToLower(strings.TrimSpace(os.Getenv("ADMIN_EMAIL"))),
 		LoginMaxAttempts:   envInt("LOGIN_MAX_ATTEMPTS", 5),
 		LoginWindow:        envDuration("LOGIN_WINDOW", 15*time.Minute),
 

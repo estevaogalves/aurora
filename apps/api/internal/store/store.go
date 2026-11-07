@@ -22,6 +22,7 @@ var (
 	ErrNotFound  = errors.New("não encontrado")
 	ErrDuplicate = errors.New("já existe")
 	ErrHasData   = errors.New("a conta já tem dados")
+	ErrLastAdmin = errors.New("é o único admin")
 )
 
 type Store struct {

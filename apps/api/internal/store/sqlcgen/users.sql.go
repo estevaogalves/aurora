@@ -189,6 +189,31 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const lockAdmins = `-- name: LockAdmins :many
+SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE
+`
+
+// Trava as linhas dos admins até o fim da transação (evita rebaixar os dois últimos ao mesmo tempo).
+func (q *Queries) LockAdmins(ctx context.Context) ([]uuid.UUID, error) {
+	rows, err := q.db.Query(ctx, lockAdmins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const mergeOnboarding = `-- name: MergeOnboarding :exec
 INSERT INTO user_settings (user_id, onboarding) VALUES ($1, $2)
 ON CONFLICT (user_id) DO UPDATE SET onboarding = user_settings.onboarding || EXCLUDED.onboarding
@@ -286,4 +311,27 @@ type SetSeenAlertsParams struct {
 func (q *Queries) SetSeenAlerts(ctx context.Context, arg SetSeenAlertsParams) error {
 	_, err := q.db.Exec(ctx, setSeenAlerts, arg.UserID, arg.SeenAlerts)
 	return err
+}
+
+const setUserRole = `-- name: SetUserRole :one
+UPDATE users SET role = $2 WHERE id = $1 RETURNING id, email, name, password_hash, role, created_at
+`
+
+type SetUserRoleParams struct {
+	ID   uuid.UUID
+	Role string
+}
+
+func (q *Queries) SetUserRole(ctx context.Context, arg SetUserRoleParams) (User, error) {
+	row := q.db.QueryRow(ctx, setUserRole, arg.ID, arg.Role)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Name,
+		&i.PasswordHash,
+		&i.Role,
+		&i.CreatedAt,
+	)
+	return i, err
 }

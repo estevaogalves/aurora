@@ -95,3 +95,51 @@ func (s *Store) SetSeenAlerts(ctx context.Context, userID uuid.UUID, keys []stri
 func (s *Store) SetOnboarding(ctx context.Context, userID uuid.UUID, screen, state string) error {
 	return s.q.SetOnboardingScreen(ctx, sqlcgen.SetOnboardingScreenParams{UserID: userID, Screen: screen, State: state})
 }
+
+/* ---------- papéis (só pelo comando `api admin`, nunca por requisição) ---------- */
+
+// PromoteAdmin dá o papel de admin ao usuário já cadastrado. changed=false se já era admin.
+// ErrNotFound se o e-mail não existe.
+func (s *Store) PromoteAdmin(ctx context.Context, email string) (u User, changed bool, err error) {
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetUserByEmail(ctx, email)
+		if err != nil {
+			return err
+		}
+		if cur.Role == "admin" {
+			u = cur
+			return nil
+		}
+		u, err = q.SetUserRole(ctx, sqlcgen.SetUserRoleParams{ID: cur.ID, Role: "admin"})
+		changed = err == nil
+		return err
+	})
+	return u, changed, mapErr(err)
+}
+
+// DemoteAdmin tira o papel de admin. Recusa (ErrLastAdmin) rebaixar o último admin, para a
+// administração nunca ficar sem dono. changed=false se o usuário já não era admin.
+// Os admins ficam travados na transação: dois rebaixamentos simultâneos não zeram a lista.
+func (s *Store) DemoteAdmin(ctx context.Context, email string) (u User, changed bool, err error) {
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		admins, err := q.LockAdmins(ctx)
+		if err != nil {
+			return err
+		}
+		cur, err := q.GetUserByEmail(ctx, email)
+		if err != nil {
+			return err
+		}
+		if cur.Role != "admin" {
+			u = cur
+			return nil
+		}
+		if len(admins) <= 1 {
+			return ErrLastAdmin
+		}
+		u, err = q.SetUserRole(ctx, sqlcgen.SetUserRoleParams{ID: cur.ID, Role: "user"})
+		changed = err == nil
+		return err
+	})
+	return u, changed, mapErr(err)
+}

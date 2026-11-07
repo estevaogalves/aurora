@@ -29,7 +29,6 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 | `APP_ENV` | `production` | `production` ou `development`; em `production` a API não inicia com `COOKIE_SECURE=false` |
 | `COOKIE_SECURE` | `true` | cookie de refresh só por HTTPS (`false` só com `APP_ENV=development`) |
 | `CORS_ORIGINS` | `http://localhost:5173` | origens permitidas, separadas por vírgula |
-| `ADMIN_EMAIL` | vazio | quem se cadastra com este e-mail vira `admin` |
 | `LOGIN_MAX_ATTEMPTS` / `LOGIN_WINDOW` | `5` / `15m` | limite de logins com falha |
 | `HASH_MAX_CONCURRENCY` | automático | hashes de senha (argon2id, 64 MiB cada) ao mesmo tempo; automático = 40% do limite de memória / 64 MiB, no máximo o nº de CPUs |
 | `HASH_MAX_QUEUE` / `HASH_QUEUE_TIMEOUT` | `4×` a concorrência / `3s` | fila de espera por uma vaga de hash; fila cheia ou tempo esgotado => `503` + `Retry-After` |
@@ -87,3 +86,19 @@ A API só precisa de `DATABASE_URL`; as migrations rodam ao iniciar. O Redis con
 - O Supabase Auth não é usado: o Aurora tem usuários e sessões próprios.
 
 Em produção: `APP_ENV=production`, `COOKIE_SECURE=true` (obrigatório), `JWT_SECRET` forte e `CORS_ORIGINS` com o domínio real. Nunca aponte `TEST_DATABASE_URL` para o banco real, pois os testes criam dados.
+
+## Administração (papel de admin)
+
+O papel `admin` **nunca** é concedido pelo cadastro (o e-mail não é verificado). Só por comando, no servidor, com
+acesso ao banco, depois de a pessoa se cadastrar:
+
+```bash
+docker compose exec api api admin promote voce@dominio.com
+docker compose exec api api admin demote  voce@dominio.com
+```
+
+- `promote` falha com mensagem clara se o e-mail não existe; é idempotente.
+- `demote` recusa rebaixar o **último** admin (travado em transação: dois rebaixamentos simultâneos não zeram a lista).
+- O papel viaja no token de acesso: vale a partir do próximo login (ou em até `ACCESS_TTL`, 15 min).
+- Sem Docker: `DATABASE_URL=... go run ./cmd/api admin promote voce@dominio.com`.
+- A variável antiga `ADMIN_EMAIL` não tem mais efeito (a API só registra um aviso se ela estiver definida).

@@ -23,6 +23,9 @@ import (
 
 func main() {
 	log := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if len(os.Args) > 1 && os.Args[1] == "admin" {
+		os.Exit(adminMain(os.Args[2:]))
+	}
 	if err := run(log); err != nil {
 		log.Error("falha ao iniciar", "err", err)
 		os.Exit(1)
@@ -33,6 +36,9 @@ func run(log *slog.Logger) error {
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+	if os.Getenv("ADMIN_EMAIL") != "" {
+		log.Warn("ADMIN_EMAIL não tem mais efeito: o admin só é concedido por `api admin promote <e-mail>`")
 	}
 
 	// Cada hash de senha aloca 64 MiB. Com limite de memória no container e sem GOMEMLIMIT definido,
