@@ -41,7 +41,7 @@ type credentials struct {
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
 	var in credentials
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(in.Email))
@@ -112,7 +112,7 @@ func clientIP(r *http.Request) string {
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	var in credentials
-	if !decode(w, r, &in, maxBody) {
+	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
 	email := strings.ToLower(strings.TrimSpace(in.Email))

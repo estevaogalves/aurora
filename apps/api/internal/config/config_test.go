@@ -119,3 +119,34 @@ func TestAbuseProtectionDefaults(t *testing.T) {
 		t.Errorf("sobrescrita: %+v", c3)
 	}
 }
+
+func TestLimitsAndPoolDefaults(t *testing.T) {
+	baseEnv(t)
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.DBMaxConns != 10 || c.DBStatementTimeout.String() != "15s" {
+		t.Errorf("pool: %d / %v", c.DBMaxConns, c.DBStatementTimeout)
+	}
+	if c.MaxBodyBytes != 256<<10 || c.MaxImportBytes != 10<<20 || c.MaxImportItems != 25000 ||
+		c.MaxMonthOverrides != 600 || c.MaxCustomCategories != 200 || c.MaxDistributionItems != 50 {
+		t.Errorf("tetos: %+v", c)
+	}
+
+	t.Setenv("DB_MAX_CONNS", "25")
+	t.Setenv("DB_STATEMENT_TIMEOUT", "0") // desliga (pooler que rejeita parâmetros de inicialização)
+	t.Setenv("MAX_IMPORT_ITEMS", "1000")
+	t.Setenv("MAX_BODY_BYTES", "4096")
+	c, _ = Load()
+	if c.DBMaxConns != 25 || c.DBStatementTimeout != 0 || c.MaxImportItems != 1000 || c.MaxBodyBytes != 4096 {
+		t.Errorf("sobrescrita: %+v", c)
+	}
+
+	t.Setenv("DB_STATEMENT_TIMEOUT", "-5s") // inválido volta ao padrão
+	t.Setenv("DB_MAX_CONNS", "-1")
+	c, _ = Load()
+	if c.DBStatementTimeout.String() != "15s" || c.DBMaxConns != 10 {
+		t.Errorf("inválidos deveriam cair no padrão: %v / %d", c.DBStatementTimeout, c.DBMaxConns)
+	}
+}

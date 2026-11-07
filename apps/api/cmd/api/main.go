@@ -50,20 +50,27 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	if cfg.MigrateDatabaseURL != "" {
-		if err := db.MigrateURL(ctx, cfg.MigrateDatabaseURL); err != nil {
-			return err
-		}
+	// As migrations rodam numa conexão própria, SEM statement_timeout (uma migration longa não pode ser
+	// cortada), e só depois abrimos o pool da API, com limite de conexões e timeout.
+	migrateURL := cfg.MigrateDatabaseURL
+	if migrateURL == "" {
+		migrateURL = cfg.DatabaseURL
 	}
-	pool, err := db.Connect(ctx, cfg.DatabaseURL)
+	if err := db.MigrateURL(ctx, migrateURL); err != nil {
+		return err
+	}
+	pool, poolInfo, err := db.ConnectAPI(ctx, cfg.DatabaseURL, db.PoolOptions{
+		MaxConns: cfg.DBMaxConns, StatementTimeout: cfg.DBStatementTimeout,
+	})
 	if err != nil {
 		return err
 	}
 	defer pool.Close()
-	if cfg.MigrateDatabaseURL == "" {
-		if err := db.Migrate(ctx, pool); err != nil {
-			return err
-		}
+	log.Info("pool do banco", "max_conns", poolInfo.MaxConns, "statement_timeout", cfg.DBStatementTimeout.String(),
+		"servidor_max_connections", poolInfo.ServerMax)
+	if poolInfo.Clamped {
+		log.Warn("DB_MAX_CONNS reduzido para caber no max_connections do servidor",
+			"pedido", cfg.DBMaxConns, "efetivo", poolInfo.MaxConns)
 	}
 
 	opt, err := redis.ParseURL(cfg.RedisURL)

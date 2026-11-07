@@ -104,15 +104,13 @@ func (s *Server) comparison(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, domain.Compare(d.Transactions, d.CreditTransactions, months))
 }
 
-const maxImportBody = 10 << 20 // 10 MiB
-
 // importData: POST /import[?replace=true] com os dados do localStorage (formato do front).
 func (s *Server) importData(w http.ResponseWriter, r *http.Request) {
 	var in domain.FinanceData
-	if !decode(w, r, &in, maxImportBody) {
+	if !decode(w, r, &in, s.lim.ImportBody) {
 		return
 	}
-	if bad(w, validateData(in)) {
+	if bad(w, s.lim.validateData(in)) {
 		return
 	}
 	replace := r.URL.Query().Get("replace") == "true"

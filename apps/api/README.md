@@ -33,6 +33,12 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 | `HASH_MAX_CONCURRENCY` | automático | hashes de senha (argon2id, 64 MiB cada) ao mesmo tempo; automático = 40% do limite de memória / 64 MiB, no máximo o nº de CPUs |
 | `HASH_MAX_QUEUE` / `HASH_QUEUE_TIMEOUT` | `4×` a concorrência / `3s` | fila de espera por uma vaga de hash; fila cheia ou tempo esgotado => `503` + `Retry-After` |
 | `REGISTER_MAX_PER_IP` / `REGISTER_WINDOW` | `5` / `1h` | cadastros por IP na janela; passou => `429` + `Retry-After` (a chave é o IP: veja `TRUST_PROXY`) |
+| `DB_MAX_CONNS` | `10` | conexões do pool da API; reduzido sozinho para caber no `max_connections` do servidor (descontadas as reservadas e 20% de margem). Com várias réplicas: valor × réplicas deve caber |
+| `DB_STATEMENT_TIMEOUT` | `15s` | `statement_timeout` **só do pool da API** (migrations usam outra conexão, sem limite). `0` desliga (pooler em modo transação que rejeita o parâmetro: use `ALTER ROLE ... SET statement_timeout`) |
+| `MAX_BODY_BYTES` / `MAX_IMPORT_BYTES` | `256 KiB` / `10 MiB` | corpo máximo de uma requisição / da importação (413 ao passar) |
+| `MAX_IMPORT_ITEMS` | `25000` | itens por coleção na importação (400 ao passar) |
+| `MAX_MONTH_OVERRIDES` | `600` | `hiddenMonths` + `monthlyValues` de uma despesa fixa (50 anos) |
+| `MAX_CUSTOM_CATEGORIES` / `MAX_DISTRIBUTION_ITEMS` | `200` / `50` | categorias próprias na importação / itens da distribuição do saldo |
 | `TRUST_PROXY` | `false` (no compose: `true`) | ler o IP do cliente de `X-Real-IP`/`X-Forwarded-For`. **Só ligue se a API for alcançável apenas por um proxy que sobrescreve esses cabeçalhos** (o nginx do projeto faz isso); senão qualquer cliente forja o IP e escapa dos limites. Veja `docs/ip-real-atras-de-proxy.md` |
 
 ## Como funciona
