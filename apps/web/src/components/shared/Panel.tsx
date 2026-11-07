@@ -37,12 +37,13 @@ export function PageHeader({ title, subtitle, action }: { title: string; subtitl
   );
 }
 
-export function Pill({ children, tone = "default" }: { children: ReactNode; tone?: "default" | "fix" | "good" | "bad" }) {
+export function Pill({ children, tone = "default" }: { children: ReactNode; tone?: "default" | "fix" | "good" | "bad" | "warn" }) {
   const tones = {
     default: "border border-border bg-secondary text-ink2",
     fix: "bg-pill text-pill-foreground",
     good: "bg-good-bg text-success",
     bad: "bg-bad-bg text-destructive",
+    warn: "bg-[hsl(var(--k3)/0.2)] text-foreground",
   };
   return (
     <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold", tones[tone])}>

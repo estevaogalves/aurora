@@ -106,7 +106,8 @@ Acompanhamento da refatoração do OrganizaGrana: monorepo, novo visual (Aurora)
 - [ ok ] "Nova meta" movida para o Lançar (aba Meta); botão removido da tela de Metas
 - [ ok ] Sugestão para o saldo personalizável (menu ⋮): cinco categorias obrigatórias, categorias novas, soma sempre 100%; o PDF usa os mesmos percentuais
 - [ ok ] Rendimento no Aportar (rendimento e aporte separados; total de rendimentos no card da meta)
-- [ ] Novo visual do PDF (3 propostas em artefatos para escolher)
+- [ ok ] Novo visual do PDF: proposta C "Gráficos e cores" (cabeçalho escuro, cartões coloridos, barras por mês, categorias com as cores do app)
+- [ ok ] Aviso de meta com prazo próximo: sino no cabeçalho com contador, aviso no Painel e selo nos cards (vencida, vence neste mês ou em até 3 meses)
   - Repositório na versão 4 (`distribution`, `yieldTotal` nas metas), com migração das anteriores.
 - Decisão: o nome do produto é **Aurora**, definitivo.
 

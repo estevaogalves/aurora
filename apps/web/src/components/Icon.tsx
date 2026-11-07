@@ -15,6 +15,7 @@ const PATHS = {
   dots: "M12 5v.01M12 12v.01M12 19v.01",
   edit: "M4 20h4L19 9l-4-4L4 16zM13.5 6.5l4 4",
   check: "M5 12l5 5L20 7",
+  bell: "M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0",
   chevronL: "M15 18l-6-6 6-6",
   chevronR: "M9 6l6 6-6 6",
 } as const;

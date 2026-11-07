@@ -8,6 +8,7 @@ import { useUiStore } from "../Store/UiStore";
 import Logo from "../theme/Logo";
 import { APP_NAME } from "../theme/theme";
 import ThemeToggle from "../theme/ThemeToggle";
+import GoalBell from "./GoalBell";
 import MonthSelector from "./MonthSelector";
 import { NAV_ITEMS } from "./navigation";
 
@@ -28,8 +29,8 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen">
-      <header className={`sticky top-0 z-20 transition-colors ${scrolled ? "border-b border-border bg-background/85 backdrop-blur-[14px]" : "border-b border-transparent"}`}>
-        <div className={`${CONTAINER} flex flex-wrap items-center gap-[18px] py-3.5`}>
+      <header className={`z-20 transition-colors min-[700px]:sticky min-[700px]:top-0 ${scrolled ? "border-b border-border bg-background/85 backdrop-blur-[14px]" : "border-b border-transparent"}`}>
+        <div className={`${CONTAINER} flex flex-wrap items-center gap-x-3 gap-y-2 py-3.5`}>
           <NavLink to="/painel" aria-label={APP_NAME} className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-[-0.02em]">
             <Logo />
             {APP_NAME}
@@ -44,7 +45,7 @@ export default function AppShell() {
                 key={item.path}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center gap-[7px] whitespace-nowrap rounded-full px-3.5 py-2 text-[13px] font-semibold ${
+                  `flex items-center gap-[7px] whitespace-nowrap rounded-full px-3 py-2 text-[13px] font-semibold ${
                     isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
                   }`
                 }
@@ -55,9 +56,10 @@ export default function AppShell() {
             ))}
           </nav>
 
-          <div className="ml-auto flex items-center gap-2.5 max-[700px]:ml-0 max-[700px]:w-full max-[700px]:justify-between">
+          <div className="ml-auto flex items-center gap-2 max-[700px]:ml-0 max-[700px]:w-full max-[700px]:flex-wrap max-[700px]:justify-between">
             <MonthSelector />
-            <div className="flex items-center gap-2.5">
+            <div className="flex items-center gap-2">
+              <GoalBell />
               <ThemeToggle />
               <button type="button" onClick={() => openLaunch()} className={btnClass.primary}>
                 <Icon name="plus" size={16} />

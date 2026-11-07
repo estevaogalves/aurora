@@ -4,18 +4,19 @@ import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { getGoalsSummary, goalMonthsLeft, goalPercent, isGoalDone } from "@/domain";
+import { getGoalsSummary, type GoalAlert, goalMonthsLeft, goalPercent, isGoalDone } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { formatMonthShort } from "@/Utils/Date";
 import { ContributeDialog, GoalDialog } from "./GoalDialogs";
+import { deadlineStatus, useGoalAlerts } from "./goalAlerts";
 
 function deadlineLabel(deadline: string) {
   const [month, year] = formatMonthShort(deadline).split(" de ");
   return `${month.charAt(0).toUpperCase()}${month.slice(1)}/${year}`;
 }
 
-function GoalCard({ goal, onContribute, onEdit, onDelete }: { goal: Goal; onContribute: () => void; onEdit: () => void; onDelete: () => void }) {
+function GoalCard({ goal, alert, onContribute, onEdit, onDelete }: { goal: Goal; alert?: GoalAlert; onContribute: () => void; onEdit: () => void; onDelete: () => void }) {
   const pct = goalPercent(goal);
   const left = goalMonthsLeft(goal);
   const done = isGoalDone(goal);
@@ -28,6 +29,7 @@ function GoalCard({ goal, onContribute, onEdit, onDelete }: { goal: Goal; onCont
           <div className="mt-1.5 flex flex-wrap gap-1.5">
             {done && <Pill tone="good">Concluída</Pill>}
             {goal.deadline && <Pill>Prazo {deadlineLabel(goal.deadline)}</Pill>}
+            {alert && <Pill tone={alert.level === "soon" ? "warn" : "bad"}>{deadlineStatus(alert)}</Pill>}
           </div>
         </div>
         <span className="num text-[28px] font-semibold">{pct}%</span>
@@ -71,6 +73,7 @@ export default function GoalsPage() {
   const goals = useFinanceStore((s) => s.goals);
   const removeGoal = useFinanceStore((s) => s.removeGoal);
   const summary = getGoalsSummary(goals);
+  const alerts = useGoalAlerts();
 
   const [editing, setEditing] = useState<Goal | null>(null);
   // a meta fica guardada ao fechar para o título não piscar vazio durante a animação
@@ -96,7 +99,7 @@ export default function GoalsPage() {
         ) : (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
             {goals.map((g) => (
-              <GoalCard key={g.id} goal={g} onContribute={() => { setContributing(g); setContributeOpen(true); }} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
+              <GoalCard key={g.id} goal={g} alert={alerts.find((a) => a.goal.id === g.id)} onContribute={() => { setContributing(g); setContributeOpen(true); }} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
             ))}
           </div>
         )}

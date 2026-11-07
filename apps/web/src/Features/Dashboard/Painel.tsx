@@ -12,6 +12,7 @@ import { useCategoryTotals, useDistributionItems, useMonthCredit, useMonthSummar
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
+import { deadlineStatus, paceHint, useGoalAlerts } from "../Goals/goalAlerts";
 import { DistributionDialog } from "./DistributionDialog";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
@@ -229,6 +230,31 @@ function NotesReadOnly() {
   );
 }
 
+function GoalDeadlines() {
+  const alerts = useGoalAlerts();
+  if (alerts.length === 0) return null;
+  const urgent = alerts.some((a) => a.level !== "soon");
+
+  return (
+    <section role="alert" className={`mb-3.5 rounded-lg border px-5 py-4 ${urgent ? "border-destructive/50 bg-bad-bg" : "border-[hsl(var(--k3)/0.5)] bg-[hsl(var(--k3)/0.12)]"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="flex items-center gap-2 font-display text-[15px] font-semibold">
+          <Icon name="bell" size={16} />
+          {alerts.length === 1 ? "Uma meta com prazo chegando" : `${alerts.length} metas com prazo chegando`}
+        </h2>
+        <Link to="/metas" className="text-[13px] font-bold text-primary">Ver metas →</Link>
+      </div>
+      <ul className="mt-2 flex flex-col gap-1.5 text-[13px] text-ink2">
+        {alerts.slice(0, 3).map((a) => (
+          <li key={a.goal.id}>
+            <b className="text-foreground">{a.goal.name}</b> · {deadlineStatus(a).toLowerCase()}. {paceHint(a)}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** Painel somente leitura: tudo o que se edita fica em Lançamentos. */
 export default function Painel() {
   const month = useFinanceStore((s) => s.currentMonth);
@@ -236,6 +262,7 @@ export default function Painel() {
   return (
     <>
       <PageHeader title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui só leitura; cadastre pelo botão “Lançar”.`} />
+      <GoalDeadlines />
       <div className="grid grid-cols-12 items-start gap-3.5">
         <div className="col-span-12 lg:col-span-4"><Hero /></div>
         <div className="col-span-12 lg:col-span-8"><Trend /></div>

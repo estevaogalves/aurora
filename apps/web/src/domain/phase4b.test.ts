@@ -72,3 +72,58 @@ describe("distribuição do saldo", () => {
     expect(distributeBalance(-500, DEFAULT_DISTRIBUTION).every((p) => p.value === 0)).toBe(true);
   });
 });
+
+import { GOAL_ALERT_WINDOW_MONTHS, getGoalAlerts } from "./index";
+
+describe("avisos de prazo das metas", () => {
+  const base: Goal = { id: "g", name: "Viagem", target: 100000, saved: 40000, monthly: 0, deadline: null };
+  const today = "2026-11";
+
+  it("ignora meta sem prazo, concluída ou com prazo distante", () => {
+    const goals = [
+      base,
+      { ...base, id: "a", deadline: "2026-12", saved: 100000 },
+      { ...base, id: "b", deadline: "2027-03" },
+    ];
+    expect(getGoalAlerts(goals, today)).toEqual([]);
+  });
+
+  it("classifica vencida, vence neste mês e vence em breve, com a mais urgente primeiro", () => {
+    const goals = [
+      { ...base, id: "soon", deadline: "2027-02" },
+      { ...base, id: "late", deadline: "2026-09" },
+      { ...base, id: "now", deadline: "2026-11" },
+    ];
+    const alerts = getGoalAlerts(goals, today);
+    expect(alerts.map((a) => [a.goal.id, a.level, a.monthsLeft])).toEqual([
+      ["late", "overdue", -2],
+      ["now", "now", 0],
+      ["soon", "soon", 3],
+    ]);
+  });
+
+  it("o limite é de GOAL_ALERT_WINDOW_MONTHS meses à frente", () => {
+    expect(GOAL_ALERT_WINDOW_MONTHS).toBe(3);
+    expect(getGoalAlerts([{ ...base, deadline: "2027-02" }], today)).toHaveLength(1);
+    expect(getGoalAlerts([{ ...base, deadline: "2027-03" }], today)).toHaveLength(0);
+  });
+
+  it("calcula quanto guardar por mês e se o aporte previsto basta", () => {
+    const [a] = getGoalAlerts([{ ...base, deadline: "2027-02", monthly: 20000 }], today);
+    expect(a.remaining).toBe(60000);
+    expect(a.neededPerMonth).toBe(20000); // 60000 / 3 meses
+    expect(a.onTrack).toBe(true);
+
+    const [b] = getGoalAlerts([{ ...base, deadline: "2027-02", monthly: 10000 }], today);
+    expect(b.onTrack).toBe(false);
+
+    const [c] = getGoalAlerts([{ ...base, deadline: "2026-11", monthly: 99999 }], today);
+    expect(c.neededPerMonth).toBe(60000); // no mês do prazo é tudo de uma vez
+    expect(c.onTrack).toBe(false);
+  });
+
+  it("virada de ano", () => {
+    const [a] = getGoalAlerts([{ ...base, deadline: "2027-01" }], "2026-12");
+    expect(a.monthsLeft).toBe(1);
+  });
+});

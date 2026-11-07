@@ -30,7 +30,7 @@ export default function MonthSelector() {
       <button type="button" aria-label="Mês anterior" className={arrow} disabled={!canGoBack} onClick={() => setCurrentMonth(changeMonth(currentMonth, -1))}>
         <Icon name="chevronL" size={16} />
       </button>
-      <div className="min-w-[8.5rem] text-center">
+      <div className="min-w-[7.75rem] text-center">
         <p className="font-display text-[13px] font-semibold leading-tight">{formatMonthTitle(currentMonth)}</p>
         {currentMonth !== realCurrentMonth && (
           <button type="button" onClick={() => setCurrentMonth(realCurrentMonth)} className="text-xs font-semibold text-primary hover:underline">
