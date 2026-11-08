@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -32,6 +33,9 @@ type Server struct {
 	jwt     *auth.JWT
 	refresh *auth.Refresh
 	limiter *auth.LoginLimiter
+	revoker *auth.Revoker
+	// requisições autenticadas por usuário; nil = sem limite
+	apiLimiter *auth.RateLimiter
 	cache   *cache.Summaries
 	log     *slog.Logger
 	// hash usado para gastar o mesmo tempo quando o e-mail não existe (evita revelar quem tem conta)
@@ -69,6 +73,7 @@ func New(cfg config.Config, st *store.Store, rdb *redis.Client, log *slog.Logger
 		jwt:     auth.NewJWT(cfg.JWTSecret, cfg.AccessTTL),
 		refresh: auth.NewRefresh(rdb, cfg.RefreshTTL),
 		limiter: auth.NewLoginLimiter(rdb, cfg.LoginMaxAttempts, cfg.LoginWindow),
+		revoker: auth.NewRevoker(rdb, cfg.AccessTTL),
 		cache:   cache.NewSummaries(rdb),
 		hasher:  auth.NewHashLimiter(slots, queue, timeout),
 		lim:     limitsFrom(cfg),
@@ -80,6 +85,13 @@ func New(cfg config.Config, st *store.Store, rdb *redis.Client, log *slog.Logger
 			window = time.Hour
 		}
 		s.registerLimiter = auth.NewRateLimiter(rdb, "register", cfg.RegisterMaxPerIP, window)
+	}
+	if cfg.APIRateMax > 0 {
+		window := cfg.APIRateWindow
+		if window <= 0 {
+			window = time.Minute
+		}
+		s.apiLimiter = auth.NewRateLimiter(rdb, "api", cfg.APIRateMax, window)
 	}
 	return s, nil
 }
@@ -118,6 +130,8 @@ func (s *Server) Router() http.Handler {
 			r.Use(s.authenticate)
 
 			r.Get("/me", s.me)
+			r.Delete("/me", s.deleteAccount)
+			r.Get("/me/export", s.exportAccount)
 			r.Get("/data", s.getData)
 			r.Post("/import", s.importData)
 
@@ -176,6 +190,7 @@ type ctxKey int
 const (
 	ctxUserID ctxKey = iota
 	ctxRole
+	ctxClaims
 )
 
 func (s *Server) authenticate(next http.Handler) http.Handler {
@@ -196,7 +211,33 @@ func (s *Server) authenticate(next http.Handler) http.Handler {
 			writeError(w, http.StatusUnauthorized, "Sessão inválida.")
 			return
 		}
+		// Token revogado (logout, conta excluída, reuso de refresh). Se o Redis falhar, nega: melhor errar para o lado seguro.
+		revoked, err := s.revoker.IsRevoked(r.Context(), claims)
+		if err != nil {
+			s.log.Error("falha ao checar revogação", "err", err)
+			writeError(w, http.StatusServiceUnavailable, "Serviço indisponível. Tente novamente.")
+			return
+		}
+		if revoked {
+			writeError(w, http.StatusUnauthorized, "Sessão expirada. Faça login novamente.")
+			return
+		}
+		if s.apiLimiter != nil {
+			allowed, wait, err := s.apiLimiter.Hit(r.Context(), id.String())
+			if err != nil {
+				s.log.Error("falha no limite de requisições", "err", err)
+				writeError(w, http.StatusServiceUnavailable, "Serviço indisponível. Tente novamente.")
+				return
+			}
+			if !allowed {
+				s.audit.Log(r.Context(), audit.APIRateLimited, id, clientIP(r))
+				w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+				writeError(w, http.StatusTooManyRequests, "Muitas requisições. Aguarde um instante.")
+				return
+			}
+		}
 		ctx := context.WithValue(r.Context(), ctxUserID, id)
+		ctx = context.WithValue(ctx, ctxClaims, claims)
 		ctx = context.WithValue(ctx, ctxRole, claims.Role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

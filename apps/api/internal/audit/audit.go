@@ -28,6 +28,10 @@ const (
 	AdminListUsers      Event = "admin.list_users"
 	AdminPromote        Event = "admin.promote"
 	AdminDemote         Event = "admin.demote"
+	AccountDelete       Event = "account.delete"
+	AccountDeleteDenied Event = "account.delete_denied"
+	DataExport          Event = "account.export"
+	APIRateLimited      Event = "api.rate_limited"
 )
 
 // Logger escreve os eventos de auditoria.

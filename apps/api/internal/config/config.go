@@ -42,6 +42,9 @@ type Config struct {
 	// REGISTRATION_ENABLED=false fecha o cadastro (403 com mensagem clara). Guardado ao contrário para que o
 	// valor zero (testes, Config montada à mão) continue significando "cadastro aberto".
 	RegistrationDisabled bool
+	// Requisições autenticadas por usuário na janela (429 ao passar). 0 = sem limite (testes).
+	APIRateMax    int
+	APIRateWindow time.Duration
 
 	// Pool do banco da API. DBMaxConns é reduzido na inicialização se passar do max_connections do
 	// servidor (com margem); multiplique por réplica ao dimensionar. DBStatementTimeout vale só para o
@@ -78,6 +81,8 @@ func Load() (Config, error) {
 		HashQueueTimeout:   envDuration("HASH_QUEUE_TIMEOUT", 3*time.Second),
 		RegisterMaxPerIP:   envInt("REGISTER_MAX_PER_IP", 5),
 		RegisterWindow:     envDuration("REGISTER_WINDOW", time.Hour),
+		APIRateMax:         envInt("API_RATE_MAX", 600),
+		APIRateWindow:      envDuration("API_RATE_WINDOW", time.Minute),
 
 		DBMaxConns:         envInt("DB_MAX_CONNS", 10),
 		DBStatementTimeout: envDurationAllowZero("DB_STATEMENT_TIMEOUT", 15*time.Second),
@@ -108,6 +113,11 @@ func Load() (Config, error) {
 	case "production":
 		if !c.CookieSecure {
 			problems = append(problems, errors.New("COOKIE_SECURE=false não é permitido com APP_ENV=production: sirva por HTTPS ou use APP_ENV=development só em desenvolvimento local"))
+		}
+		for _, d := range []struct{ name, url string }{{"DATABASE_URL", c.DatabaseURL}, {"MIGRATE_DATABASE_URL", c.MigrateDatabaseURL}} {
+			if err := checkDBTransport(d.name, d.url); err != nil {
+				problems = append(problems, err)
+			}
 		}
 	case "development":
 	default:
@@ -205,4 +215,28 @@ func envDuration(key string, def time.Duration) time.Duration {
 		fmt.Fprintf(os.Stderr, "aviso: %s=%q inválido, usando %s\n", key, v, def)
 	}
 	return def
+}
+
+// checkDBTransport recusa, em produção, conexão com banco em outra máquina sem TLS (sslmode=disable, allow
+// ou prefer, ou ausente): senha e dados financeiros iriam em texto puro pela rede. Hosts de rede interna ficam
+// de fora: nome sem ponto (serviço do compose, como "postgres"), localhost, loopback e *.internal
+// (host.docker.internal). DB_ALLOW_INSECURE=true libera por decisão consciente (ex.: VPN já criptografada).
+func checkDBTransport(name, raw string) error {
+	if raw == "" || envBool("DB_ALLOW_INSECURE", false) {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Host == "" {
+		return nil // formato key=value ou inválido: quem valida é o driver
+	}
+	host := strings.ToLower(u.Hostname())
+	if !strings.Contains(host, ".") || host == "localhost" || strings.HasSuffix(host, ".internal") ||
+		strings.HasSuffix(host, ".localhost") || host == "127.0.0.1" || host == "::1" {
+		return nil
+	}
+	switch u.Query().Get("sslmode") {
+	case "require", "verify-ca", "verify-full":
+		return nil
+	}
+	return fmt.Errorf("%s aponta para %q sem TLS: use sslmode=require (ou verify-full) na URL, ou DB_ALLOW_INSECURE=true se a rede já for criptografada", name, host)
 }

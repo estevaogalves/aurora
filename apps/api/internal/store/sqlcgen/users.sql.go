@@ -79,6 +79,19 @@ func (q *Queries) DeleteExpiredRefreshTokens(ctx context.Context) error {
 	return err
 }
 
+const deleteUser = `-- name: DeleteUser :execrows
+DELETE FROM users WHERE id = $1
+`
+
+// Apaga a conta e, em cascata, tudo que é dela (lançamentos, metas, notas, configurações, refresh tokens).
+func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUser, id)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const ensureSettings = `-- name: EnsureSettings :exec
 INSERT INTO user_settings (user_id) VALUES ($1) ON CONFLICT DO NOTHING
 `

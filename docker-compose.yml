@@ -91,6 +91,11 @@ services:
       # Banco: conexões do pool da API e statement_timeout (só do pool da API; migrations não têm timeout)
       DB_MAX_CONNS: ${DB_MAX_CONNS:-}
       DB_STATEMENT_TIMEOUT: ${DB_STATEMENT_TIMEOUT:-}
+      # Em produção, banco em outra máquina exige TLS (sslmode=require). true libera só se a rede já for criptografada.
+      DB_ALLOW_INSECURE: ${DB_ALLOW_INSECURE:-}
+      # Requisições autenticadas por usuário na janela (429 ao passar). Padrão: 600 por minuto.
+      API_RATE_MAX: ${API_RATE_MAX:-}
+      API_RATE_WINDOW: ${API_RATE_WINDOW:-}
       # Tetos de tamanho de uma requisição (vazio = padrão calibrado pelo maior uso legítimo)
       MAX_BODY_BYTES: ${MAX_BODY_BYTES:-}
       MAX_IMPORT_BYTES: ${MAX_IMPORT_BYTES:-}

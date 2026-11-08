@@ -143,3 +143,17 @@ func (s *Store) DemoteAdmin(ctx context.Context, email string) (u User, changed 
 	})
 	return u, changed, mapErr(err)
 }
+
+/* ---------- LGPD: exclusão da conta ---------- */
+
+// DeleteUser apaga a conta e todos os dados dela (cascata). ErrNotFound se ela não existe.
+func (s *Store) DeleteUser(ctx context.Context, id uuid.UUID) error {
+	n, err := s.q.DeleteUser(ctx, id)
+	if err != nil {
+		return mapErr(err)
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}

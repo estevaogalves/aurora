@@ -33,3 +33,6 @@ export function MoneyInput({ id, value, onChange, disabled, placeholder = "0,00"
     </div>
   );
 }
+
+/** Aviso dos campos de texto livre: o app não precisa de dados sensíveis e não deve guardá-los. */
+export const FREE_TEXT_WARNING = "Não digite números de cartão, senhas, CPF, RG ou outros documentos aqui.";

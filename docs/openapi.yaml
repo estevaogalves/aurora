@@ -70,6 +70,23 @@ paths:
       responses:
         "200": { description: Usuário, content: { application/json: { schema: { $ref: "#/components/schemas/User" } } } }
         "401": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [auth]
+      summary: Exclui a conta e todos os dados (LGPD). Exige a senha.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [password], properties: { password: { type: string } } } } }
+      responses:
+        "204": { description: Conta excluída; sessões encerradas }
+        "403": { $ref: "#/components/responses/Error" }
+        "429": { $ref: "#/components/responses/Error" }
+  /me/export:
+    get:
+      tags: [auth]
+      summary: Exporta todos os dados da conta em JSON (LGPD)
+      responses:
+        "200": { description: Dados cadastrais e financeiros do titular, content: { application/json: { schema: { type: object, required: [exportedAt, user, data], properties: { exportedAt: { type: string, format: date-time }, user: { $ref: "#/components/schemas/User" }, data: { $ref: "#/components/schemas/FinanceData" } } } } } }
+        "401": { $ref: "#/components/responses/Error" }
   /admin/users:
     get:
       tags: [auth]

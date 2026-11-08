@@ -17,8 +17,17 @@ export async function register(input: ApiRegisterRequest): Promise<ApiSession> {
 
 export async function logout(): Promise<void> {
   try {
-    await api.post("/auth/logout", undefined, { auth: false });
+    await api.post("/auth/logout", undefined, { auth: false, bearer: true });
   } finally {
     setAccessToken(null);
   }
+}
+
+/** Baixa todos os dados da conta (direito de acesso/portabilidade, LGPD). */
+export const exportMyData = () => api.get<unknown>("/me/export");
+
+/** Exclui a conta e todos os dados, depois de confirmar a senha. */
+export async function deleteAccount(password: string): Promise<void> {
+  await api.delete("/me", { password });
+  setAccessToken(null);
 }

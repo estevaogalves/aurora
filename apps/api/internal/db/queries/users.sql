@@ -63,3 +63,7 @@ SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE;
 
 -- name: SetUserRole :one
 UPDATE users SET role = $2 WHERE id = $1 RETURNING *;
+
+-- name: DeleteUser :execrows
+-- Apaga a conta e, em cascata, tudo que é dela (lançamentos, metas, notas, configurações, refresh tokens).
+DELETE FROM users WHERE id = $1;

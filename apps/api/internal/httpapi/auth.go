@@ -218,6 +218,7 @@ func (s *Server) refreshSession(w http.ResponseWriter, r *http.Request) {
 		if owner, revoked, derr := s.store.RefreshTokenWasRevoked(ctx, hash); derr == nil && revoked {
 			s.audit.Log(ctx, audit.RefreshReuse, owner, clientIP(r))
 			_ = s.refresh.RevokeAll(ctx, owner)
+			_ = s.revoker.RevokeUser(ctx, owner)
 			_ = s.store.RevokeUserRefreshTokens(ctx, owner)
 		} else {
 			s.audit.Log(ctx, audit.RefreshInvalid, uuid.Nil, clientIP(r))
@@ -247,6 +248,14 @@ func (s *Server) refreshSession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
+	// Revoga também o token de acesso que veio junto (se válido), para ele não valer até expirar.
+	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, "Bearer ") {
+		if claims, err := s.jwt.Parse(strings.TrimPrefix(h, "Bearer ")); err == nil {
+			if err := s.revoker.RevokeToken(r.Context(), claims); err != nil {
+				s.log.Warn("falha ao revogar token de acesso", "err", err)
+			}
+		}
+	}
 	if c, err := r.Cookie(refreshCookie); err == nil && c.Value != "" {
 		if id, _ := s.refresh.Revoke(r.Context(), c.Value); id != uuid.Nil {
 			s.audit.Log(r.Context(), audit.Logout, id, clientIP(r))
@@ -278,4 +287,95 @@ func (s *Server) adminUsers(w http.ResponseWriter, r *http.Request) {
 		out = append(out, toUserDTO(u))
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+/* ---------- LGPD: exportação e exclusão da conta ---------- */
+
+// exportDTO é o arquivo que o titular recebe: dados cadastrais e tudo que ele lançou.
+type exportDTO struct {
+	ExportedAt time.Time `json:"exportedAt"`
+	User       userDTO   `json:"user"`
+	Data       any       `json:"data"`
+}
+
+// exportAccount devolve todos os dados da conta em JSON (direito de acesso/portabilidade).
+func (s *Server) exportAccount(w http.ResponseWriter, r *http.Request) {
+	uid := userID(r)
+	user, err := s.store.UserByID(r.Context(), uid)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	data, err := s.store.LoadData(r.Context(), uid)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.audit.Log(r.Context(), audit.DataExport, uid, clientIP(r))
+	w.Header().Set("Content-Disposition", `attachment; filename="aurora-meus-dados.json"`)
+	writeJSON(w, http.StatusOK, exportDTO{ExportedAt: time.Now().UTC(), User: toUserDTO(user), Data: data})
+}
+
+// deleteAccount apaga a conta e todos os dados, depois de confirmar a senha (reautenticação).
+// Erros de senha contam no mesmo limite do login, para a rota não virar um jeito de testar senhas.
+func (s *Server) deleteAccount(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Password string `json:"password"`
+	}
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	ctx := r.Context()
+	uid := userID(r)
+	key := "delete|" + uid.String()
+
+	blocked, wait, err := s.limiter.Blocked(ctx, key)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	if blocked {
+		w.Header().Set("Retry-After", strconv.Itoa(int(wait.Seconds())+1))
+		writeError(w, http.StatusTooManyRequests, "Muitas tentativas. Tente novamente em alguns minutos.")
+		return
+	}
+	user, err := s.store.UserByID(ctx, uid)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	ok, verr := s.hasher.Verify(ctx, in.Password, user.PasswordHash)
+	if errors.Is(verr, auth.ErrBusy) {
+		s.busy(w)
+		return
+	}
+	if errors.Is(verr, context.Canceled) {
+		return
+	}
+	if verr != nil {
+		s.fail(w, r, verr)
+		return
+	}
+	if !ok {
+		_ = s.limiter.Fail(ctx, key)
+		s.audit.Log(ctx, audit.AccountDeleteDenied, uid, clientIP(r))
+		writeError(w, http.StatusForbidden, "Senha incorreta.")
+		return
+	}
+
+	// Revoga primeiro: se a exclusão falhar no meio, a sessão já não vale.
+	if err := s.revoker.RevokeUser(ctx, uid); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	_ = s.refresh.RevokeAll(ctx, uid)
+	if err := s.store.DeleteUser(ctx, uid); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(ctx, uid)
+	_ = s.limiter.Reset(ctx, key)
+	s.audit.Log(ctx, audit.AccountDelete, uid, clientIP(r))
+	s.clearRefreshCookie(w)
+	w.WriteHeader(http.StatusNoContent)
 }

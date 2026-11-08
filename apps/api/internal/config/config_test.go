@@ -203,3 +203,29 @@ func TestRegistrationEnabled(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckDBTransport(t *testing.T) {
+	cases := []struct {
+		url string
+		ok  bool
+	}{
+		{"postgres://u:p@postgres:5432/aurora?sslmode=disable", true}, // serviço do compose
+		{"postgres://u:p@localhost:5432/aurora?sslmode=disable", true},
+		{"postgres://u:p@host.docker.internal:5432/aurora?sslmode=disable", true},
+		{"postgres://u:p@db.exemplo.com:5432/aurora", false},
+		{"postgres://u:p@db.exemplo.com:5432/aurora?sslmode=disable", false},
+		{"postgres://u:p@db.exemplo.com:5432/aurora?sslmode=prefer", false},
+		{"postgres://u:p@db.exemplo.com:5432/aurora?sslmode=require", true},
+		{"postgres://u:p@db.exemplo.com:5432/aurora?sslmode=verify-full", true},
+		{"", true},
+	}
+	for _, c := range cases {
+		if err := checkDBTransport("DATABASE_URL", c.url); (err == nil) != c.ok {
+			t.Errorf("%s: ok=%v erro=%v", c.url, c.ok, err)
+		}
+	}
+	t.Setenv("DB_ALLOW_INSECURE", "true")
+	if err := checkDBTransport("DATABASE_URL", "postgres://u:p@db.exemplo.com/aurora?sslmode=disable"); err != nil {
+		t.Errorf("DB_ALLOW_INSECURE deveria liberar: %v", err)
+	}
+}

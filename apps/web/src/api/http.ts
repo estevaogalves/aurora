@@ -32,12 +32,14 @@ interface RequestOptions {
   body?: unknown;
   /** false para login, cadastro, refresh e logout (sem token e sem renovação automática) */
   auth?: boolean;
+  /** Envia o token de acesso mesmo com `auth: false` (logout: o servidor revoga o token). */
+  bearer?: boolean;
 }
 
-async function send(method: string, path: string, { body, auth = true }: RequestOptions): Promise<Response> {
+async function send(method: string, path: string, { body, auth = true, bearer = false }: RequestOptions): Promise<Response> {
   const headers: Record<string, string> = {};
   if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
+  if ((auth || bearer) && accessToken) headers.Authorization = `Bearer ${accessToken}`;
   try {
     return await fetch(`${API_URL}${path}`, {
       method,
@@ -111,8 +113,8 @@ export async function request<T>(method: string, path: string, options: RequestO
 
 export const api = {
   get: <T>(path: string) => request<T>("GET", path),
-  post: <T = void>(path: string, body?: unknown, options?: Pick<RequestOptions, "auth">) => request<T>("POST", path, { body, ...options }),
+  post: <T = void>(path: string, body?: unknown, options?: Pick<RequestOptions, "auth" | "bearer">) => request<T>("POST", path, { body, ...options }),
   patch: <T = void>(path: string, body: unknown) => request<T>("PATCH", path, { body }),
   put: <T = void>(path: string, body: unknown) => request<T>("PUT", path, { body }),
-  delete: (path: string) => request<void>("DELETE", path),
+  delete: (path: string, body?: unknown) => request<void>("DELETE", path, { body }),
 };

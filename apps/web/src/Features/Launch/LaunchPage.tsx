@@ -1,5 +1,6 @@
 import { useState } from "react";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
+import { FREE_TEXT_WARNING } from "@/components/shared/FormFields";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
@@ -391,6 +392,7 @@ function NotesPanel() {
           aria-label="Nova anotação"
           className="min-h-16 w-full resize-y rounded-md border border-border-strong bg-secondary px-3 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
         />
+        <p className="text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
         <button type="button" onClick={save} className={`${btnClass.primary} self-end`}>Salvar</button>
 
         {pages[current].map((n) => (

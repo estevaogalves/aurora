@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import TourHelpButton from "@/components/tour/TourHelpButton";
 import { btnClass } from "@/components/shared/styles";
 import CategorySelect from "@/components/shared/CategorySelect";
-import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
+import { Field, FREE_TEXT_WARNING, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -304,6 +304,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
 
       {kind === "expense" && (
         <Field label="Observação" hint="(opcional)" htmlFor="launch-notes">
+          <p className="-mt-1 text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
           <Textarea id="launch-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anotações sobre esta despesa..." className="min-h-[64px] rounded-md border-border-strong bg-secondary" />
         </Field>
       )}

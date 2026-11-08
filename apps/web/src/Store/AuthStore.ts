@@ -15,6 +15,8 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  /** Exclui a conta (pede a senha) e encerra a sessão. */
+  deleteAccount: (password: string) => Promise<void>;
 }
 
 /**
@@ -58,6 +60,11 @@ export const useAuthStore = create<AuthState>()((set) => {
       } finally {
         close();
       }
+    },
+
+    deleteAccount: async (password) => {
+      await authApi.deleteAccount(password);
+      close();
     },
   };
 });

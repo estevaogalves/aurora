@@ -9,7 +9,10 @@ import (
 	"github.com/google/uuid"
 )
 
-const issuer = "aurora-api"
+const (
+	issuer   = "aurora-api"
+	audience = "aurora-web"
+)
 
 var ErrInvalidToken = errors.New("token inválido ou expirado")
 
@@ -40,6 +43,8 @@ func (j *JWT) Issue(userID uuid.UUID, role string) (string, time.Time, error) {
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   userID.String(),
 			Issuer:    issuer,
+			Audience:  jwt.ClaimStrings{audience},
+			ID:        uuid.NewString(),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ExpiresAt: jwt.NewNumericDate(exp),
 		},
@@ -55,7 +60,7 @@ func (j *JWT) Parse(token string) (*Claims, error) {
 			return nil, fmt.Errorf("método de assinatura inesperado: %v", t.Header["alg"])
 		}
 		return j.secret, nil
-	}, jwt.WithIssuer(issuer), jwt.WithExpirationRequired(), jwt.WithTimeFunc(j.now))
+	}, jwt.WithIssuer(issuer), jwt.WithAudience(audience),jwt.WithExpirationRequired(), jwt.WithTimeFunc(j.now))
 	if err != nil || !parsed.Valid {
 		return nil, ErrInvalidToken
 	}

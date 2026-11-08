@@ -1,6 +1,6 @@
 import { useState } from "react";
 import CategorySelect from "@/components/shared/CategorySelect";
-import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
+import { Field, FREE_TEXT_WARNING, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
@@ -90,6 +90,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
             <CategorySelect id="edit-category" value={category} onChange={setCategory} />
           </Field>
           <Field label="Observação" hint="(opcional)" htmlFor="edit-notes">
+            <p className="-mt-1 text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
             <Textarea id="edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[64px] rounded-md border-border-strong bg-secondary" />
           </Field>
         </>

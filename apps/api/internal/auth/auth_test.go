@@ -171,3 +171,73 @@ func TestLoginLimiter(t *testing.T) {
 		t.Error("reset deveria liberar")
 	}
 }
+
+func TestJWTAudienceAndID(t *testing.T) {
+	secret := strings.Repeat("s", 32)
+	j := NewJWT(secret, time.Minute)
+	id := uuid.New()
+
+	tok, _, _ := j.Issue(id, "user")
+	claims, err := j.Parse(tok)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(claims.Audience) != 1 || claims.Audience[0] != audience || claims.ID == "" {
+		t.Errorf("aud/jti ausentes: %+v", claims.RegisteredClaims)
+	}
+	// token sem aud, ou de outro público, é recusado
+	for _, aud := range []jwt.ClaimStrings{nil, {"outro-servico"}} {
+		raw, _ := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{Role: "user", RegisteredClaims: jwt.RegisteredClaims{
+			Subject: id.String(), Issuer: issuer, Audience: aud, ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Hour)),
+		}}).SignedString([]byte(secret))
+		if _, err := j.Parse(raw); err == nil {
+			t.Errorf("token com aud=%v foi aceito", aud)
+		}
+	}
+}
+
+func TestRevoker(t *testing.T) {
+	rdb, mr := newRedis(t)
+	rv := NewRevoker(rdb, time.Minute)
+	j := NewJWT(strings.Repeat("s", 32), time.Minute)
+	ctx := context.Background()
+	user := uuid.New()
+
+	a, _, _ := j.Issue(user, "user")
+	b, _, _ := j.Issue(user, "user")
+	ca, _ := j.Parse(a)
+	cb, _ := j.Parse(b)
+
+	if r, err := rv.IsRevoked(ctx, ca); err != nil || r {
+		t.Fatalf("token novo não deveria estar revogado: %v %v", r, err)
+	}
+	// revogar um token não afeta o outro do mesmo usuário
+	if err := rv.RevokeToken(ctx, ca); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := rv.IsRevoked(ctx, ca); !r {
+		t.Error("token revogado continua valendo")
+	}
+	if r, _ := rv.IsRevoked(ctx, cb); r {
+		t.Error("revogar um token não pode derrubar o outro")
+	}
+	// a chave some quando o token expiraria
+	mr.FastForward(2 * time.Minute)
+	if mr.Exists(jtiKey(ca.ID)) {
+		t.Error("a revogação deveria expirar junto com o token")
+	}
+
+	// revogar o usuário derruba os tokens emitidos antes e não afeta outro usuário
+	rv.now = func() time.Time { return time.Now().Add(5 * time.Second) }
+	if err := rv.RevokeUser(ctx, user); err != nil {
+		t.Fatal(err)
+	}
+	if r, _ := rv.IsRevoked(ctx, cb); !r {
+		t.Error("token emitido antes da revogação do usuário deveria cair")
+	}
+	otherTok, _, _ := j.Issue(uuid.New(), "user")
+	co, _ := j.Parse(otherTok)
+	if r, _ := rv.IsRevoked(ctx, co); r {
+		t.Error("outro usuário não pode ser afetado")
+	}
+}
