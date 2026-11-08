@@ -549,21 +549,123 @@ export interface paths {
         };
         trace?: never;
     };
-    "/goals": {
+    "/credits/{id}/installments/{n}/advance": {
         parameters: {
             query?: never;
             header?: never;
-            path?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                /** @description Posição da parcela na compra (1 a N) */
+                n: components["parameters"]["InstallmentNumber"];
+            };
             cookie?: never;
         };
         get?: never;
         put?: never;
+        /**
+         * Adianta a última parcela da compra
+         * @description Só a última parcela ainda não adiantada (nem excluída), e só se cair depois do mês atual.
+         *     O valor da parcela menos o desconto passa a ser cobrado no mês atual e a parcela deixa o mês original.
+         *     O desconto vai de zero até menos que o valor da parcela. Quem valida é o servidor.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Posição da parcela na compra (1 a N) */
+                    n: components["parameters"]["InstallmentNumber"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        discount: components["schemas"]["Cents"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Compra atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditTransaction"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/credits/{id}/installments/{n}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                /** @description Posição da parcela na compra (1 a N) */
+                n: components["parameters"]["InstallmentNumber"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Muda só o valor de uma parcela
+         * @description Parcelas adiantadas ou excluídas não podem ser alteradas.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Posição da parcela na compra (1 a N) */
+                    n: components["parameters"]["InstallmentNumber"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        value: components["schemas"]["Cents"];
+                    };
+                };
+            };
+            responses: {
+                /** @description Compra atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditTransaction"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
         /** Cria meta */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Posição da parcela na compra (1 a N) */
+                    n: components["parameters"]["InstallmentNumber"];
+                };
                 cookie?: never;
             };
             requestBody: {
@@ -585,7 +687,36 @@ export interface paths {
                 409: components["responses"]["Error"];
             };
         };
-        delete?: never;
+        /**
+         * Exclui só uma parcela
+         * @description As outras parcelas mantêm número e mês. Parcelas adiantadas não podem ser excluídas.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Posição da parcela na compra (1 a N) */
+                    n: components["parameters"]["InstallmentNumber"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Compra atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditTransaction"];
+                    };
+                };
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -1291,6 +1422,23 @@ export interface components {
             installments: number;
             startMonth: components["schemas"]["Month"];
             category: string;
+            /** @description Ajustes por parcela, pela posição ("1" a "N"). Só leitura na criação (o servidor ignora); entra na importação. */
+            adjustments?: {
+                [key: string]: components["schemas"]["InstallmentAdjustment"];
+            };
+        };
+        InstallmentAdjustment: {
+            /** @description Valor só desta parcela */
+            value?: components["schemas"]["Cents"];
+            /** @description Só esta parcela foi excluída */
+            removed?: boolean;
+            advanced?: {
+                /** @description Mês em que o valor adiantado é cobrado */
+                month: components["schemas"]["Month"];
+                discount: components["schemas"]["Cents"];
+                /** @description Valor da parcela menos o desconto */
+                amount: components["schemas"]["Cents"];
+            };
         };
         CreditPatch: {
             name?: string;
@@ -1436,6 +1584,8 @@ export interface components {
     };
     parameters: {
         Id: string;
+        /** @description Posição da parcela na compra (1 a N) */
+        InstallmentNumber: number;
     };
     requestBodies: never;
     headers: never;

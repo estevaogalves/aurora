@@ -164,7 +164,50 @@ paths:
         "204": { description: Removida }
         "404": { $ref: "#/components/responses/Error" }
 
-  /goals:
+  /credits/{id}/installments/{n}/advance:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/InstallmentNumber" }
+    post:
+      tags: [crédito]
+      summary: Adianta a última parcela da compra
+      description: |
+        Só a última parcela ainda não adiantada (nem excluída), e só se cair depois do mês atual.
+        O valor da parcela menos o desconto passa a ser cobrado no mês atual e a parcela deixa o mês original.
+        O desconto vai de zero até menos que o valor da parcela. Quem valida é o servidor.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [discount], properties: { discount: { $ref: "#/components/schemas/Cents" } } } } }
+      responses:
+        "200": { description: Compra atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/CreditTransaction" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /credits/{id}/installments/{n}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/InstallmentNumber" }
+    put:
+      tags: [crédito]
+      summary: Muda só o valor de uma parcela
+      description: Parcelas adiantadas ou excluídas não podem ser alteradas.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [value], properties: { value: { $ref: "#/components/schemas/Cents" } } } } }
+      responses:
+        "200": { description: Compra atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/CreditTransaction" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [crédito]
+      summary: Exclui só uma parcela
+      description: As outras parcelas mantêm número e mês. Parcelas adiantadas não podem ser excluídas.
+      responses:
+        "200": { description: Compra atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/CreditTransaction" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
     post:
       tags: [metas]
       summary: Cria meta
@@ -371,6 +414,7 @@ components:
 
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    InstallmentNumber: { name: n, in: path, required: true, description: Posição da parcela na compra (1 a N), schema: { type: integer, minimum: 1, maximum: 360 } }
 
   responses:
     Error:
@@ -450,6 +494,22 @@ components:
         installments: { type: integer, minimum: 1, maximum: 360 }
         startMonth: { $ref: "#/components/schemas/Month" }
         category: { type: string }
+        adjustments:
+          type: object
+          description: Ajustes por parcela, pela posição ("1" a "N"). Só leitura na criação (o servidor ignora); entra na importação.
+          additionalProperties: { $ref: "#/components/schemas/InstallmentAdjustment" }
+    InstallmentAdjustment:
+      type: object
+      properties:
+        value: { $ref: "#/components/schemas/Cents", description: Valor só desta parcela }
+        removed: { type: boolean, description: Só esta parcela foi excluída }
+        advanced:
+          type: object
+          required: [month, discount, amount]
+          properties:
+            month: { $ref: "#/components/schemas/Month", description: Mês em que o valor adiantado é cobrado }
+            discount: { $ref: "#/components/schemas/Cents" }
+            amount: { $ref: "#/components/schemas/Cents", description: Valor da parcela menos o desconto }
     CreditPatch:
       type: object
       properties:
