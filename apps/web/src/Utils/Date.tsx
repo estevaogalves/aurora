@@ -189,3 +189,9 @@ export function formatMonthTitle(month: string) {
   const text = formatMonth(month);
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/** Mês abreviado com a inicial maiúscula, sem o ano (ex.: "Abr") */
+export function formatMonthAbbr(month: string) {
+  const text = formatMonthShort(month).split(" ")[0];
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}

@@ -9,6 +9,7 @@ import {
   getProjection,
   getTransactionsByMonth,
   patchAmountForMonth,
+  patchAmountFromMonth,
   patchHideInMonth,
   patchRestoreInMonth,
   patchToggleFixed,
@@ -107,6 +108,14 @@ describe("patches de transação", () => {
     expect(patchAmountForMonth(tx({ amount: 100 }), "2026-04", 250)).toEqual({
       amount: 250,
     });
+  });
+
+  it("valor de um mês em diante: anteriores mantêm o que tinham e os seguintes são limpos", () => {
+    const fixa = tx({ fixed: true, amount: 100, month: "2026-01", monthlyValues: { "2026-02": 120, "2026-05": 300 } });
+    const patch = patchAmountFromMonth(fixa, "2026-04", 250);
+    expect(patch).toEqual({ amount: 250, monthlyValues: { "2026-01": 100, "2026-02": 120, "2026-03": 100 } });
+    expect(patchAmountFromMonth(fixa, "2026-01", 250)).toEqual({ amount: 250, monthlyValues: {} });
+    expect(patchAmountFromMonth(tx({ amount: 100 }), "2026-04", 250)).toEqual({ amount: 250 });
   });
 
   it("preserva os outros meses ao alterar um", () => {

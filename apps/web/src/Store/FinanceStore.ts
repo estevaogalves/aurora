@@ -4,6 +4,7 @@ import {
   getHiddenTransactionsByMonth,
   getTransactionsByMonth,
   patchAmountForMonth,
+  patchAmountFromMonth,
   patchHideInMonth,
   patchRestoreInMonth,
   patchToggleFixed,
@@ -59,6 +60,8 @@ interface FinanceState {
   updateTransactionCategory: (id: string, category: Category) => void;
   updateTransactionNotes: (id: string, notes: string) => void;
   updateTransactionAmountForMonth: (id: string, month: string, cents: number) => void;
+  /** Fixa: o novo valor vale deste mês em diante (os anteriores não mudam). */
+  updateTransactionAmountFromMonth: (id: string, month: string, cents: number) => void;
   toggleTransactionFixed: (id: string) => void;
   /** Fixa: oculta no mês. Comum: remove de vez. */
   removeTransactionByMonth: (id: string, month: string) => void;
@@ -178,6 +181,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     updateTransactionAmountForMonth: (id, month, cents) => {
       const t = findTransaction(id);
       if (t) patchTransaction(id, patchAmountForMonth(t, month, cents));
+    },
+
+    updateTransactionAmountFromMonth: (id, month, cents) => {
+      const t = findTransaction(id);
+      if (t) patchTransaction(id, patchAmountFromMonth(t, month, cents));
     },
 
     toggleTransactionFixed: (id) => {

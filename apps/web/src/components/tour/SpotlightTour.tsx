@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { btnClass } from "@/components/shared/styles";
 import { cn } from "@/lib/utils";
+import { NAV_ITEMS } from "@/Layout/navigation";
+import { useUiStore } from "@/Store/UiStore";
 import { computePlacement, type Box, type Placement } from "./placement";
 import { findTarget, isUsable, stepKey, type TourStep } from "./types";
 
@@ -39,6 +41,8 @@ export default function SpotlightTour({ steps, onEnd }: Props) {
 
   const step = list[index];
   const key = stepKey(step);
+  // primeira etapa de outra tela: o cartão avisa que a apresentação mudou de aba
+  const newScreen = index > 0 && step.route && list[index - 1].route !== step.route ? NAV_ITEMS.find((n) => n.path === step.route)?.label : undefined;
   const last = index === list.length - 1;
   const total = list.length;
 
@@ -50,6 +54,13 @@ export default function SpotlightTour({ steps, onEnd }: Props) {
   const prev = useCallback(() => {
     direction.current = -1;
     setIndex((i) => Math.max(0, i - 1));
+  }, []);
+
+  // enquanto o tour está aberto, as telas sem dados do usuário mostram exemplos
+  useLayoutEffect(() => {
+    const { setTourDemo } = useUiStore.getState();
+    setTourDemo(true);
+    return () => setTourDemo(false);
   }, []);
 
   // etapa de outra aba: leva o usuário até ela
@@ -205,6 +216,11 @@ export default function SpotlightTour({ steps, onEnd }: Props) {
         style={{ left: place?.left ?? 0, top: place?.top ?? 0 }}
       >
         <div className="h-1 bg-[linear-gradient(90deg,hsl(var(--primary)),hsl(var(--k2)))]" />
+        {newScreen && (
+          <p role="status" className="mx-4 mt-3 rounded-md bg-primary/10 px-3 py-1.5 text-[12.5px] font-semibold text-primary">
+            Agora vamos falar da tela {newScreen}
+          </p>
+        )}
         <div className="grid grid-cols-[auto_1fr_auto] items-start gap-x-3 gap-y-0.5 px-4 pb-1.5 pt-3.5">
           <div className="num row-span-2 font-display text-[34px] font-semibold leading-none tracking-[-0.04em] text-primary" aria-label={`Etapa ${index + 1} de ${total}`}>
             {index + 1}

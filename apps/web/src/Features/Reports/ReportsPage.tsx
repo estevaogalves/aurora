@@ -28,13 +28,14 @@ export default function ReportsPage() {
   const current = useFinanceStore((s) => s.currentMonth);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
   // null = acompanha o seletor do cabeçalho (os 6 meses que terminam nele)
   const [custom, setCustom] = useState<{ start: string; end: string } | null>(null);
   const [format, setFormat] = useState<Format>("PDF");
   const [content, setContent] = useState({ summary: true, entries: true, credit: true, distribution: false });
 
-  const data = useMemo(() => ({ transactions, creditTransactions }), [transactions, creditTransactions]);
+  const data = useMemo(() => ({ transactions, creditTransactions, extraExpenses }), [transactions, creditTransactions, extraExpenses]);
   const maxMonth = getCurrentMonth();
   const range = custom ?? { start: changeMonth(current, -(MAX_MONTHS - 1)), end: current };
   const months = useMemo(() => getMonthsBetween(range.start, range.end), [range.start, range.end]);

@@ -125,6 +125,8 @@ export interface MonthSummary {
   totalExpense: number;
   /** centavos: só a parte do crédito, já somada em totalExpense */
   creditExpense: number;
+  /** centavos: despesas extras planejadas para o mês, já somadas em totalExpense */
+  extraExpense: number;
   balance: number;
   /** 0 a 100+ (despesas / renda). 0 se não há renda. */
   expensePercentage: number;

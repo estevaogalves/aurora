@@ -1,4 +1,4 @@
-import { monthsDifference } from "../Utils/Date";
+import { changeMonth, monthsDifference } from "../Utils/Date";
 import { splitInstallments } from "../lib/money";
 import type { CreditInstallment, CreditTransaction, Month } from "./types";
 
@@ -48,4 +48,17 @@ export function getCreditTotalByMonth(
     (sum, c) => sum + c.installmentValue,
     0,
   );
+}
+
+/** Andamento de uma compra parcelada visto de um mês: parcelas já cobradas (com a do mês), as que faltam e o mês da última. */
+export function getCreditProgress(
+  credit: Pick<CreditTransaction, "startMonth" | "installments">,
+  month: Month,
+): { done: number; remaining: number; endMonth: Month } {
+  const done = Math.min(credit.installments, Math.max(0, monthsDifference(month, credit.startMonth) + 1));
+  return {
+    done,
+    remaining: credit.installments - done,
+    endMonth: changeMonth(credit.startMonth, credit.installments - 1),
+  };
 }

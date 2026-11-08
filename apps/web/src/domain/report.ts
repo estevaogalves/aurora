@@ -6,7 +6,7 @@ import { formatBRL } from "../lib/money";
 import type { Category } from "../Types/Category";
 import type { FinanceData, Month, MonthSummary } from "./types";
 
-type Source = Pick<FinanceData, "transactions" | "creditTransactions">;
+type Source = Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses">>;
 
 /** Os `count` meses terminando em `end` (inclusive), do mais antigo ao mais novo. */
 export function lastMonths(end: Month, count: number): Month[] {
@@ -73,6 +73,11 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
           amount: t.amount,
           note: t.fixed ? "Fixa" : "",
         });
+      }
+    }
+    if (options.entries) {
+      for (const e of data.extraExpenses ?? []) {
+        if (e.month === month) rows.push({ month, name: e.name, category: "Outros", type: "Despesa", amount: e.amount, note: "Despesa extra" });
       }
     }
     if (options.credit) {

@@ -25,10 +25,11 @@ export function useMonthSummary(month?: string) {
   const m = useMonth(month);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
   return useMemo(
-    () => getMonthSummary({ transactions, creditTransactions }, m),
-    [transactions, creditTransactions, m],
+    () => getMonthSummary({ transactions, creditTransactions, extraExpenses }, m),
+    [transactions, creditTransactions, extraExpenses, m],
   );
 }
 

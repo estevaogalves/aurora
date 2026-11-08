@@ -14,6 +14,7 @@ import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
 import { deadlineStatus, paceHint, useGoalAlerts } from "../Goals/goalAlerts";
+import { getDemoGoals } from "../Goals/demo";
 import { DistributionDialog } from "./DistributionDialog";
 import { PAINEL_TOUR } from "./tour";
 
@@ -54,16 +55,17 @@ function Trend() {
   const month = useFinanceStore((s) => s.currentMonth);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
   const { labels, income, expense } = useMemo(() => {
     const months = Array.from({ length: 6 }, (_, i) => changeMonth(month, i - 5));
-    const sums = months.map((m) => getMonthSummary({ transactions, creditTransactions }, m));
+    const sums = months.map((m) => getMonthSummary({ transactions, creditTransactions, extraExpenses }, m));
     return {
       labels: months.map((m) => { const t = formatMonthShort(m).split(" ")[0]; return t.charAt(0).toUpperCase() + t.slice(1); }),
       income: sums.map((s) => s.totalIncome),
       expense: sums.map((s) => s.totalExpense),
     };
-  }, [month, transactions, creditTransactions]);
+  }, [month, transactions, creditTransactions, extraExpenses]);
 
   return (
     <Panel tour="tendencia" title="Últimos 6 meses" subtitle="Renda e despesas">
@@ -158,11 +160,14 @@ function Suggestion() {
 }
 
 function GoalsMini() {
-  const goals = useFinanceStore((s) => s.goals);
+  const realGoals = useFinanceStore((s) => s.goals);
   const openLaunch = useUiStore((s) => s.openLaunch);
+  // durante o tour, quem não criou metas vê metas de exemplo (o tour não depende de dados do usuário)
+  const demo = useUiStore((s) => s.tourDemo) && realGoals.length === 0;
+  const goals = useMemo(() => (demo ? getDemoGoals() : realGoals), [demo, realGoals]);
 
   return (
-    <Panel tour="metas" title="Metas" subtitle="Progresso geral">
+    <Panel tour="metas" title="Metas" subtitle={demo ? "Exemplo ilustrativo" : "Progresso geral"}>
       {goals.length === 0 ? (
         <Empty>Você ainda não criou metas.</Empty>
       ) : (
@@ -193,6 +198,8 @@ function GoalsMini() {
 function RecentExpenses() {
   const expenses = useMonthTransactions().filter((t) => t.type === "expense");
   const credit = useMonthCredit();
+  const month = useFinanceStore((s) => s.currentMonth);
+  const extras = useFinanceStore((s) => s.extraExpenses).filter((e) => e.month === month);
 
   const lines: ExpenseLine[] = [
     ...[...expenses].reverse().map((e) => ({ id: e.id, name: e.name, category: e.category, amount: e.amount, fixed: e.fixed })),
@@ -204,6 +211,7 @@ function RecentExpenses() {
       installment: `${c.currentInstallment}/${c.installments}`,
       progress: { value: c.currentInstallment, max: c.installments },
     })),
+    ...extras.map((e) => ({ id: e.id, name: e.name, category: "Outros", amount: e.amount })),
   ];
 
   return (
@@ -226,7 +234,7 @@ function NotesReadOnly() {
       ) : (
         <div className="flex flex-col gap-2.5">
           {sorted.slice(0, 4).map((n) => (
-            <div key={n.id} className="flex flex-col gap-1 rounded-md border border-border bg-secondary px-3.5 py-3 text-[13.5px]">
+            <div key={n.id} className={`flex flex-col gap-1 rounded-md border bg-secondary px-3.5 py-3 text-[13.5px] ${n.pinned ? "border-primary" : "border-border"}`}>
               {n.content}
               <small className="text-xs text-muted-foreground">{n.pinned ? "Fixada · " : ""}{n.date}</small>
             </div>

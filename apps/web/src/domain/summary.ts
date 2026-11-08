@@ -13,10 +13,12 @@ import type {
 } from "./types";
 
 export const CREDIT_CATEGORY: Category = "Crédito/Parcelado";
+/** Despesas extras planejadas não têm categoria própria: entram em "Outros". */
+const EXTRA_CATEGORY: Category = "Outros";
 
 /** Resumo de um mês: renda, despesas (com as parcelas do crédito), saldo e por categoria. */
 export function getMonthSummary(
-  data: Pick<FinanceData, "transactions" | "creditTransactions">,
+  data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses">>,
   month: Month,
 ): MonthSummary {
   const monthTransactions = getTransactionsByMonth(data.transactions, month);
@@ -40,13 +42,20 @@ export function getMonthSummary(
     byCategory[CREDIT_CATEGORY] = (byCategory[CREDIT_CATEGORY] ?? 0) + creditExpense;
   }
 
-  const totalExpense = directExpense + creditExpense;
+  // despesas extras planejadas para o mês (as mesmas que a Projeção usa)
+  const extraExpense = (data.extraExpenses ?? []).filter((e) => e.month === month).reduce((sum, e) => sum + e.amount, 0);
+  if (extraExpense > 0) {
+    byCategory[EXTRA_CATEGORY] = (byCategory[EXTRA_CATEGORY] ?? 0) + extraExpense;
+  }
+
+  const totalExpense = directExpense + creditExpense + extraExpense;
 
   return {
     month,
     totalIncome,
     totalExpense,
     creditExpense,
+    extraExpense,
     balance: totalIncome - totalExpense,
     expensePercentage: totalIncome === 0 ? 0 : (totalExpense / totalIncome) * 100,
     byCategory,
@@ -146,6 +155,32 @@ function fixedTotal(
     .reduce((s, t) => s + t.amount, 0);
 }
 
+export interface ProjectionLine {
+  name: string;
+  /** centavos */
+  amount: number;
+  /** de onde vem a linha: fixa do mês, parcela do crédito ou despesa extra planejada */
+  kind: "fixed" | "credit" | "extra";
+}
+
+/** O que compõe a renda e a despesa projetadas de um mês, linha a linha (soma igual à de `getProjection`). */
+export function getProjectionDetail(
+  data: Pick<FinanceData, "transactions" | "creditTransactions">,
+  extras: ExtraExpense[],
+  month: Month,
+): { incomes: ProjectionLine[]; expenses: ProjectionLine[] } {
+  const fixed = getTransactionsByMonth(data.transactions, month).filter((t) => t.fixed);
+  const line = (t: Transaction): ProjectionLine => ({ name: t.name, amount: t.amount, kind: "fixed" });
+  return {
+    incomes: fixed.filter((t) => t.type === "income").map(line),
+    expenses: [
+      ...fixed.filter((t) => t.type === "expense").map(line),
+      ...getCreditByMonth(data.creditTransactions, month).map((c): ProjectionLine => ({ name: `${c.name} (${c.currentInstallment}/${c.installments})`, amount: c.installmentValue, kind: "credit" })),
+      ...extras.filter((e) => e.month === month).map((e): ProjectionLine => ({ name: e.name, amount: e.amount, kind: "extra" })),
+    ],
+  };
+}
+
 /**
  * Projeção dos próximos `count` meses a partir de `startMonth` (inclusive).
  * Considera só o que já está previsto: rendas fixas, despesas fixas,
@@ -186,4 +221,49 @@ export function getProjection(
   }
 
   return result;
+}
+
+/* ---------- navegação entre meses ---------- */
+
+type NavigationData = Pick<FinanceData, "transactions" | "creditTransactions" | "extraExpenses" | "notes" | "goals">;
+
+/** Mês com renda, despesa (inclui parcela e extra), anotação ou meta com prazo nele. */
+export function hasMonthMovement(data: NavigationData, month: Month): boolean {
+  const s = getMonthSummary(data, month);
+  return (
+    s.totalIncome > 0 ||
+    s.totalExpense > 0 ||
+    data.notes.some((n) => n.month === month) ||
+    data.goals.some((g) => g.deadline === month)
+  );
+}
+
+/**
+ * Mês para onde as setas levam (`step` -1 ou 1), ou null se não há para onde ir.
+ * Do mês atual em diante tudo é permitido. Meses passados sem movimentação são pulados.
+ */
+export function getAdjacentMonth(data: NavigationData, from: Month, today: Month, step: 1 | -1): Month | null {
+  const next = changeMonth(from, step);
+  if (step === 1) {
+    if (compareMonths(next, today) >= 0) return next;
+    // passado: o próximo com movimento; sem nenhum, o mês atual
+    for (let m = next; compareMonths(m, today) < 0; m = changeMonth(m, 1)) {
+      if (hasMonthMovement(data, m)) return m;
+    }
+    return today;
+  }
+
+  if (compareMonths(next, today) >= 0) return next;
+  const oldest = [
+    ...data.transactions.map((t) => t.month),
+    ...data.creditTransactions.map((c) => c.startMonth),
+    ...data.extraExpenses.map((e) => e.month),
+    ...data.notes.map((n) => n.month),
+    ...data.goals.flatMap((g) => (g.deadline ? [g.deadline] : [])),
+  ].sort(compareMonths)[0];
+  if (!oldest) return null;
+  for (let m = next; compareMonths(m, oldest) >= 0; m = changeMonth(m, -1)) {
+    if (hasMonthMovement(data, m)) return m;
+  }
+  return null;
 }

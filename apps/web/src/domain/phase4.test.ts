@@ -5,7 +5,9 @@ import {
   getGoalsSummary,
   getPeriodTotals,
   getProjection,
+  getProjectionDetail,
   getReportRows,
+  goalDeadlinePlan,
   goalMonthsLeft,
   goalPercent,
   goalRemaining,
@@ -32,6 +34,21 @@ describe("metas", () => {
     expect(goalPercent(goal())).toBe(25);
     expect(goalRemaining(goal())).toBe(75000);
     expect(goalMonthsLeft(goal())).toBe(8); // 75000 / 10000 = 7,5 -> 8
+  });
+
+  it("recomenda o aporte mensal pelo prazo, mesmo com aporte informado", () => {
+    // viagem em 6 meses, R$ 2.500 e aporte de R$ 150: o aporte leva 17 meses, o prazo pede cerca de R$ 417
+    const trip = goal({ target: 250000, saved: 0, monthly: 15000, deadline: "2027-05" });
+    expect(goalMonthsLeft(trip)).toBe(17);
+    expect(goalDeadlinePlan(trip, "2026-11")).toEqual({ monthsLeft: 6, recommended: 41667, covered: false });
+    expect(goalDeadlinePlan({ ...trip, monthly: 41667 }, "2026-11")?.covered).toBe(true);
+    expect(goalDeadlinePlan({ ...trip, monthly: 0 }, "2026-11")?.covered).toBeNull();
+  });
+
+  it("sem prazo, concluída ou vencida: sem recomendação ou com o total que falta", () => {
+    expect(goalDeadlinePlan(goal(), "2026-11")).toBeNull();
+    expect(goalDeadlinePlan(goal({ deadline: "2027-05", saved: 100000 }), "2026-11")).toBeNull();
+    expect(goalDeadlinePlan(goal({ deadline: "2026-10" }), "2026-11")).toMatchObject({ monthsLeft: -1, recommended: 75000, covered: false });
   });
 
   it("meta sem aporte mensal não tem previsão", () => {
@@ -73,6 +90,17 @@ describe("projeção com despesas extras", () => {
     expect(p[1].balance).toBe(500000 - 150000 - 10000); // parcela 3/3
     expect(p[2].creditExpense).toBe(0);
     expect(p[2].accumulated).toBe(p[0].balance + p[1].balance + p[2].balance);
+  });
+
+  it("o detalhe do mês bate com os totais da projeção", () => {
+    const extras = [{ id: "e", name: "IPVA", amount: 50000, month: "2026-03" }];
+    const p = getProjection(data, extras, "2026-03", 2);
+    for (const m of p) {
+      const d = getProjectionDetail(data, extras, m.month);
+      expect(d.incomes.reduce((s, l) => s + l.amount, 0)).toBe(m.income);
+      expect(d.expenses.reduce((s, l) => s + l.amount, 0)).toBe(m.expense);
+    }
+    expect(getProjectionDetail(data, extras, "2026-03").expenses.map((l) => l.kind)).toContain("extra");
   });
 });
 

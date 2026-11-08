@@ -27,7 +27,7 @@ function Shell({ open, title, description, onClose, children }: { open: boolean;
 export function EditTransactionDialog({ transaction, onClose }: { transaction: Transaction | null; onClose: () => void }) {
   const income = transaction?.type === "income";
   return (
-    <Shell open={!!transaction} title={income ? "Editar renda" : "Editar despesa"} description="O valor vale para o mês que você está vendo." onClose={onClose}>
+    <Shell open={!!transaction} title={income ? "Editar renda" : "Editar despesa"} description={transaction?.fixed ? "Esta é uma fixa: ao mudar o valor, você escolhe se vale só para este mês ou também para os próximos." : "O valor vale para o mês que você está vendo."} onClose={onClose}>
       {transaction && <TransactionFields key={transaction.id} transaction={transaction} onClose={onClose} />}
     </Shell>
   );
@@ -35,13 +35,15 @@ export function EditTransactionDialog({ transaction, onClose }: { transaction: T
 
 function TransactionFields({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
   const month = useFinanceStore((s) => s.currentMonth);
-  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth } = useFinanceStore();
+  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth } = useFinanceStore();
   const income = transaction.type === "income";
 
   const [name, setName] = useState(transaction.name);
   const [amount, setAmount] = useState(centsToInput(transaction.amount));
   const [category, setCategory] = useState(transaction.category);
   const [notes, setNotes] = useState(transaction.notes ?? "");
+  // fixa: o valor vale só para o mês visto ou também para os seguintes
+  const [scope, setScope] = useState<"month" | "following">("month");
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,7 +53,10 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
     if (cents === null) return showToast({ type: "error", text: "Informe um valor válido" });
 
     if (trimmed !== transaction.name) updateTransactionName(transaction.id, trimmed);
-    if (cents !== transaction.amount) updateTransactionAmountForMonth(transaction.id, month, cents);
+    if (cents !== transaction.amount) {
+      if (transaction.fixed && scope === "following") updateTransactionAmountFromMonth(transaction.id, month, cents);
+      else updateTransactionAmountForMonth(transaction.id, month, cents);
+    }
     if (!income && category !== transaction.category) updateTransactionCategory(transaction.id, category);
     if (!income && notes.trim() !== (transaction.notes ?? "")) updateTransactionNotes(transaction.id, notes.trim());
 
@@ -67,6 +72,17 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
       <Field label={`Valor em ${formatMonthTitle(month)}`} htmlFor="edit-amount">
         <MoneyInput id="edit-amount" value={amount} onChange={setAmount} />
       </Field>
+      {transaction.fixed && (
+        <fieldset className="flex flex-col gap-2 rounded-md border border-border bg-secondary p-3">
+          <legend className="px-1 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">O novo valor vale para</legend>
+          {([["month", `Apenas ${formatMonthTitle(month)}`], ["following", `${formatMonthTitle(month)} e todos os meses seguintes`]] as const).map(([value, text]) => (
+            <label key={value} className="flex cursor-pointer items-center gap-2.5 text-sm">
+              <input type="radio" name="edit-scope" value={value} checked={scope === value} onChange={() => setScope(value)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
+              {text}
+            </label>
+          ))}
+        </fieldset>
+      )}
       {!income && (
         <>
           <Field label="Categoria" htmlFor="edit-category">

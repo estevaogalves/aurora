@@ -6,9 +6,11 @@ import StatCard from "@/components/shared/StatCard";
 import { getAvailableMonths, getMonthSummary } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
+import { useUiStore } from "@/Store/UiStore";
 import { EXPENSE_CATEGORIES, type Category } from "@/Types/Category";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { compareMonths, formatMonth, formatMonthShort, getCurrentMonth, getMonthName } from "@/Utils/Date";
+import { getDemoSummaries } from "./demo";
 import { COMPARACAO_TOUR } from "./tour";
 
 const MAX_SELECTED = 5;
@@ -25,18 +27,22 @@ const chipLabel = (m: string) => `${shortLabel(m)}/${m.slice(2, 4)}`;
 export default function ComparisonPage() {
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
   const notes = useFinanceStore((s) => s.notes);
   const customCategories = useFinanceStore((s) => s.customCategories);
   const colorOf = useCategoryColor();
 
-  const data = useMemo(() => ({ transactions, creditTransactions }), [transactions, creditTransactions]);
+  const data = useMemo(() => ({ transactions, creditTransactions, extraExpenses }), [transactions, creditTransactions, extraExpenses]);
 
   // só meses que já aconteceram e tiveram movimentação (renda ou despesa)
-  const summaries = useMemo(() => {
+  const real = useMemo(() => {
     const today = getCurrentMonth();
     const months = getAvailableMonths({ transactions, creditTransactions, notes }, today).filter((m) => compareMonths(m, today) <= 0);
     return months.map((m) => getMonthSummary(data, m)).filter((s) => s.totalIncome > 0 || s.totalExpense > 0).slice(-MAX_MONTHS);
   }, [transactions, creditTransactions, notes, data]);
+  // durante o tour, quem ainda não tem 2 meses vê meses de exemplo (o tour não depende de dados do usuário)
+  const demo = useUiStore((s) => s.tourDemo) && real.length < 2;
+  const summaries = useMemo(() => (demo ? getDemoSummaries() : real), [demo, real]);
   const available = useMemo(() => summaries.map((s) => s.month), [summaries]);
 
   // sem escolha do usuário: os últimos meses (até o limite); meses que sumiram são ignorados
@@ -67,6 +73,12 @@ export default function ComparisonPage() {
   return (
     <>
       <PageHeader tour={COMPARACAO_TOUR} title="Comparação" subtitle="Escolha os meses e veja a diferença." />
+
+      {demo && (
+        <p role="note" className="mb-3.5 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2.5 text-[13px] text-muted-foreground">
+          <b className="text-foreground">Exemplo ilustrativo.</b> Estes meses são fictícios, só para mostrar a tela. Os seus aparecem aqui quando houver 2 meses com movimentação.
+        </p>
+      )}
 
       {available.length >= 2 && (
         <Panel tour="meses" title="Meses" subtitle={`Até ${MAX_SELECTED} ao mesmo tempo`}>

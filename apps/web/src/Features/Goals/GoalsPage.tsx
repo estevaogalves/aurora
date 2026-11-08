@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { getGoalsSummary, type GoalAlert, goalMonthsLeft, goalPercent, isGoalDone } from "@/domain";
+import { getGoalsSummary, type GoalAlert, goalDeadlinePlan, goalMonthsLeft, goalPercent, isGoalDone } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
-import { formatMonthShort } from "@/Utils/Date";
+import { useUiStore } from "@/Store/UiStore";
+import { formatMonthShort, getCurrentMonth } from "@/Utils/Date";
+import { getDemoGoals } from "./demo";
 import { ContributeDialog, GoalDialog } from "./GoalDialogs";
 import { deadlineStatus, useGoalAlerts } from "./goalAlerts";
 import { METAS_TOUR } from "./tour";
@@ -17,9 +19,39 @@ function deadlineLabel(deadline: string) {
   return `${month.charAt(0).toUpperCase()}${month.slice(1)}/${year}`;
 }
 
+const noop = () => {};
+const plural = (n: number) => `${n} ${n === 1 ? "mês" : "meses"}`;
+
+/** Previsão da meta. Com prazo, recomenda o aporte mensal que o cumpre; sem prazo, prevê pelo aporte informado. */
+function Forecast({ goal, done }: { goal: Goal; done: boolean }) {
+  if (done) return <>Meta atingida. Parabéns!</>;
+
+  const plan = goalDeadlinePlan(goal, getCurrentMonth());
+  const left = goalMonthsLeft(goal);
+
+  if (plan) {
+    if (plan.monthsLeft <= 0) {
+      return <>{plan.monthsLeft === 0 ? "O prazo é neste mês" : "O prazo já passou"}: faltam {formatBRLShort(plan.recommended)}.</>;
+    }
+    return (
+      <div className="flex flex-col gap-1">
+        <span>Para chegar no prazo ({plural(plan.monthsLeft)}), junte cerca de <b className="num text-foreground">{formatBRLShort(plan.recommended)}</b> por mês.</span>
+        {plan.covered === true && <span className="text-success">Seu aporte de {formatBRLShort(goal.monthly)} por mês cobre o prazo.</span>}
+        {plan.covered === false && (
+          <span className="font-semibold text-destructive">
+            Seu aporte de {formatBRLShort(goal.monthly)} por mês não basta para o prazo{left !== null && `: nesse ritmo a meta leva ${plural(left)}`}.
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  if (left === null) return <>Sem aporte mensal definido para prever a conclusão.</>;
+  return <>Guardando {formatBRLShort(goal.monthly)} por mês, faltam {plural(left)}.</>;
+}
+
 function GoalCard({ goal, alert, first, onContribute, onEdit, onDelete }: { goal: Goal; alert?: GoalAlert; first?: boolean; onContribute: () => void; onEdit: () => void; onDelete: () => void }) {
   const pct = goalPercent(goal);
-  const left = goalMonthsLeft(goal);
   const done = isGoalDone(goal);
 
   return (
@@ -47,11 +79,7 @@ function GoalCard({ goal, alert, first, onContribute, onEdit, onDelete }: { goal
         <b className={`num ${(goal.yieldTotal ?? 0) > 0 ? "text-success" : "text-muted-foreground"}`}>{formatBRL(goal.yieldTotal ?? 0)}</b>
       </div>
       <div className="border-t border-border pt-2.5 text-[12.5px] text-ink2">
-        {done
-          ? "Meta atingida. Parabéns!"
-          : left === null
-            ? "Sem aporte mensal definido para prever a conclusão."
-            : `Guardando ${formatBRLShort(goal.monthly)} por mês, faltam ${left} ${left === 1 ? "mês" : "meses"}.`}
+        <Forecast goal={goal} done={done} />
       </div>
       <div data-tour={first ? "meta-acoes" : undefined} className="flex flex-wrap gap-2">
         {!done && (
@@ -72,6 +100,9 @@ function GoalCard({ goal, alert, first, onContribute, onEdit, onDelete }: { goal
 
 export default function GoalsPage() {
   const goals = useFinanceStore((s) => s.goals);
+  // durante o tour, quem não criou metas vê um cartão de exemplo além do aviso de lista vazia
+  const demo = useUiStore((s) => s.tourDemo) && goals.length === 0;
+  const demoGoals = useMemo(() => (demo ? getDemoGoals() : []), [demo]);
   const removeGoal = useFinanceStore((s) => s.removeGoal);
   const summary = getGoalsSummary(goals);
   const { all: alerts } = useGoalAlerts();
@@ -94,9 +125,23 @@ export default function GoalsPage() {
 
       <div className="mt-3.5">
         {goals.length === 0 ? (
-          <Panel tour="vazio" title="Nenhuma meta ainda" subtitle="Comece pelo que mais importa agora">
-            <Empty>Use Lançar → Meta para criar uma, como a reserva de emergência, e acompanhe o progresso aqui.</Empty>
-          </Panel>
+          <>
+            <Panel tour="vazio" title="Nenhuma meta ainda" subtitle="Comece pelo que mais importa agora">
+              <Empty>Use Lançar → Meta para criar uma, como a reserva de emergência, e acompanhe o progresso aqui.</Empty>
+            </Panel>
+            {demoGoals.length > 0 && (
+              <>
+                <p role="note" className="mb-3.5 mt-3.5 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2.5 text-[13px] text-muted-foreground">
+                  <b className="text-foreground">Exemplo ilustrativo.</b> Estas metas são fictícias, só para mostrar como o cartão fica depois que você criar a sua.
+                </p>
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
+                  {demoGoals.map((g, i) => (
+                    <GoalCard key={g.id} first={i === 0} goal={g} onContribute={noop} onEdit={noop} onDelete={noop} />
+                  ))}
+                </div>
+              </>
+            )}
+          </>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
             {goals.map((g, i) => (
