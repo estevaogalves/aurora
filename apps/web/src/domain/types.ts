@@ -72,6 +72,8 @@ export interface CreditTransaction {
   recurring?: boolean;
   /** Recorrente cancelada: último mês cobrado. Ausente = segue cobrando. */
   endMonth?: Month;
+  /** Dia da cobrança (1 a 31), tirado da data de início escolhida. Ausente = não informado. */
+  billingDay?: number;
 }
 
 export interface Note {

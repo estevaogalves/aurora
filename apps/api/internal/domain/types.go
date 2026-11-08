@@ -32,6 +32,9 @@ type CreditTransaction struct {
 	// sem divisão em parcelas. EndMonth é o último mês cobrado, preenchido ao cancelar a recorrência.
 	Recurring bool   `json:"recurring,omitempty"`
 	EndMonth  string `json:"endMonth,omitempty"`
+	// BillingDay: dia do mês da cobrança (1 a 31), escolhido pela data de início. 0 = não informado.
+	// Em meses mais curtos a cobrança cai no último dia do mês.
+	BillingDay int `json:"billingDay,omitempty"`
 }
 
 type Note struct {

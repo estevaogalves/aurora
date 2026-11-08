@@ -21,6 +21,7 @@ type CreditPurchase struct {
 	Adjustments  []byte
 	Recurring    bool
 	EndMonth     pgtype.Text
+	BillingDay   int32
 }
 
 type CustomCategory struct {

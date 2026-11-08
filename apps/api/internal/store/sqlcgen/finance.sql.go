@@ -43,9 +43,9 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 }
 
 const createCredit = `-- name: CreateCredit :one
-INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
-RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month
+INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month, billing_day)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
+RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month, billing_day
 `
 
 type CreateCreditParams struct {
@@ -59,6 +59,7 @@ type CreateCreditParams struct {
 	Column8      []byte
 	Recurring    bool
 	EndMonth     pgtype.Text
+	BillingDay   int32
 }
 
 func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (CreditPurchase, error) {
@@ -73,6 +74,7 @@ func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (Cre
 		arg.Column8,
 		arg.Recurring,
 		arg.EndMonth,
+		arg.BillingDay,
 	)
 	var i CreditPurchase
 	err := row.Scan(
@@ -87,6 +89,7 @@ func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (Cre
 		&i.Adjustments,
 		&i.Recurring,
 		&i.EndMonth,
+		&i.BillingDay,
 	)
 	return i, err
 }
@@ -368,7 +371,7 @@ func (q *Queries) DeleteTransactionOverrides(ctx context.Context, transactionID 
 }
 
 const getCreditForUpdate = `-- name: GetCreditForUpdate :one
-SELECT id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month FROM credit_purchases WHERE id = $1 AND user_id = $2 FOR UPDATE
+SELECT id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month, billing_day FROM credit_purchases WHERE id = $1 AND user_id = $2 FOR UPDATE
 `
 
 type GetCreditForUpdateParams struct {
@@ -391,6 +394,7 @@ func (q *Queries) GetCreditForUpdate(ctx context.Context, arg GetCreditForUpdate
 		&i.Adjustments,
 		&i.Recurring,
 		&i.EndMonth,
+		&i.BillingDay,
 	)
 	return i, err
 }
@@ -475,7 +479,7 @@ func (q *Queries) ListCategories(ctx context.Context, userID uuid.UUID) ([]Custo
 }
 
 const listCredits = `-- name: ListCredits :many
-SELECT id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id
+SELECT id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month, billing_day FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListCredits(ctx context.Context, userID uuid.UUID) ([]CreditPurchase, error) {
@@ -499,6 +503,7 @@ func (q *Queries) ListCredits(ctx context.Context, userID uuid.UUID) ([]CreditPu
 			&i.Adjustments,
 			&i.Recurring,
 			&i.EndMonth,
+			&i.BillingDay,
 		); err != nil {
 			return nil, err
 		}
@@ -709,7 +714,7 @@ func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Tra
 const setCreditAdjustments = `-- name: SetCreditAdjustments :one
 UPDATE credit_purchases SET adjustments = $3::jsonb
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month
+RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month, billing_day
 `
 
 type SetCreditAdjustmentsParams struct {
@@ -733,6 +738,7 @@ func (q *Queries) SetCreditAdjustments(ctx context.Context, arg SetCreditAdjustm
 		&i.Adjustments,
 		&i.Recurring,
 		&i.EndMonth,
+		&i.BillingDay,
 	)
 	return i, err
 }
@@ -746,7 +752,7 @@ UPDATE credit_purchases SET
     category     = COALESCE($5, category),
     end_month    = COALESCE($6, end_month)
 WHERE id = $7 AND user_id = $8
-RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month
+RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments, recurring, end_month, billing_day
 `
 
 type UpdateCreditParams struct {
@@ -784,6 +790,7 @@ func (q *Queries) UpdateCredit(ctx context.Context, arg UpdateCreditParams) (Cre
 		&i.Adjustments,
 		&i.Recurring,
 		&i.EndMonth,
+		&i.BillingDay,
 	)
 	return i, err
 }

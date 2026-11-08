@@ -1,3 +1,4 @@
+import { uuid } from "@/lib/uuid";
 import { useState } from "react";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import { FREE_TEXT_WARNING } from "@/components/shared/FormFields";
@@ -5,7 +6,7 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
-import { canAdvanceInstallment, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
+import { canAdvanceInstallment, chargeDay, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
 import { useHiddenTransactions, useMonthCredit, useMonthTransactions } from "@/Store/selectors";
@@ -273,6 +274,7 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, 
         meta={
           <>
             <Pill>Recorrente</Pill>
+            {credit?.billingDay && <span>Cobra dia {chargeDay(credit.billingDay, month)}</span>}
             <span>{ending ? `Cancelada · última cobrança em ${formatMonthAbbr(ending)}` : "Cobrada todo mês"}</span>
           </>
         }
@@ -296,6 +298,7 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, 
           <Pill>Parcela {c.currentInstallment}/{c.installments}</Pill>
           {c.advanced && <Pill tone="good">Adiantada</Pill>}
           <span>Total {formatBRL(total)}</span>
+          {credit?.billingDay && <span>Cobra dia {chargeDay(credit.billingDay, month)}</span>}
           {c.advanced ? (
             <span>Original em {formatMonthAbbr(c.advanced.originalMonth)} · desconto {formatBRL(c.advanced.discount)}</span>
           ) : (
@@ -459,7 +462,7 @@ function NotesPanel() {
   function save() {
     const content = draft.trim();
     if (!content) return showToast({ type: "error", text: "Escreva algo antes de salvar" });
-    addNote({ id: crypto.randomUUID(), content, date: new Date().toLocaleDateString("pt-BR"), pinned: false, month });
+    addNote({ id: uuid(), content, date: new Date().toLocaleDateString("pt-BR"), pinned: false, month });
     setDraft("");
     showToast({ type: "success", text: "Anotação criada" });
   }

@@ -242,7 +242,7 @@ func creditFrom(r sqlcgen.CreditPurchase) domain.CreditTransaction {
 	c := domain.CreditTransaction{
 		ID: r.ID.String(), Name: r.Name, TotalAmount: r.TotalCents,
 		Installments: int(r.Installments), StartMonth: r.StartMonth, Category: r.Category,
-		Recurring: r.Recurring, EndMonth: r.EndMonth.String,
+		Recurring: r.Recurring, EndMonth: r.EndMonth.String, BillingDay: int(r.BillingDay),
 	}
 	if len(r.Adjustments) > 0 {
 		_ = json.Unmarshal(r.Adjustments, &c.Adjustments)

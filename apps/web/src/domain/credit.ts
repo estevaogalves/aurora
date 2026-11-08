@@ -213,3 +213,22 @@ export function patchEditAll(
   }
   return { ok: true, patch: changes };
 }
+
+/** Dia do mês de uma data "AAAA-MM-DD" (1 a 31), ou undefined se a data é inválida. */
+export function billingDayOf(date: string): number | undefined {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!m) return undefined;
+  const day = Number(m[3]);
+  return day >= 1 && day <= 31 ? day : undefined;
+}
+
+/** Dia em que a cobrança cai em `month`: o dia escolhido, ou o último dia do mês quando ele é mais curto (31 em fevereiro -> 28/29). */
+export function chargeDay(billingDay: number, month: Month): number {
+  const [year, mon] = month.split("-").map(Number);
+  return Math.min(billingDay, new Date(year, mon, 0).getDate());
+}
+
+/** "AAAA-MM-DD" da cobrança em `month`. */
+export function chargeDate(billingDay: number, month: Month): string {
+  return `${month}-${String(chargeDay(billingDay, month)).padStart(2, "0")}`;
+}

@@ -127,6 +127,9 @@ func validateCredit(c domain.CreditTransaction) string {
 	} else if c.EndMonth != "" {
 		return "Só compras recorrentes têm mês final."
 	}
+	if c.BillingDay < 0 || c.BillingDay > 31 {
+		return "O dia da cobrança deve ficar entre 1 e 31."
+	}
 	if c.Installments < 1 || c.Installments > 360 {
 		return "O número de parcelas deve ficar entre 1 e 360."
 	}

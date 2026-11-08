@@ -1,3 +1,6 @@
+import { billingDayOf, todayISO } from "@/domain";
+import { canAutoFocus } from "@/lib/device";
+import { uuid } from "@/lib/uuid";
 import MonthPicker from "@/components/shared/MonthPicker";
 import { useEffect, useState } from "react";
 import TourHelpButton from "@/components/tour/TourHelpButton";
@@ -180,6 +183,12 @@ export default function TransactionForm() {
   );
 }
 
+/** Data inicial sugerida: hoje, se o mês visto é o atual; senão, o dia 1 do mês visto. */
+function defaultStartDate(month: string) {
+  const today = todayISO();
+  return today.startsWith(month) ? today : `${month}-01`;
+}
+
 const LABELS = {
   expense: { name: "Nome da despesa", placeholder: "Ex.: Aluguel, internet...", amount: "Valor deste mês" },
   income: { name: "Nome da renda", placeholder: "Ex.: Salário, freelance...", amount: "Valor deste mês" },
@@ -203,6 +212,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [notes, setNotes] = useState("");
   const [installments, setInstallments] = useState(2);
   const [recurring, setRecurring] = useState(false);
+  // data de início da cobrança (crédito parcelado e recorrente): dá o mês inicial e o dia das cobranças seguintes
+  const [startDate, setStartDate] = useState(() => defaultStartDate(currentMonth));
   const [piggy, setPiggy] = useState(false);
   const [extraMonth, setExtraMonth] = useState(changeMonth(currentMonth, 1));
   const [monthly, setMonthly] = useState("");
@@ -221,6 +232,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setFixed(false);
     setInstallments(2);
     setRecurring(false);
+    setStartDate(defaultStartDate(currentMonth));
     setPiggy(false);
     setMonthly("");
     setSaved("");
@@ -234,6 +246,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     const trimmed = name.trim();
     if (!trimmed) return showToast({ type: "error", text: "Preencha o nome" });
 
+    if (kind === "credit" && !billingDayOf(startDate)) return showToast({ type: "error", text: "Informe a data de início da cobrança" });
+
     const isPiggy = kind === "goal" && piggy;
     // porquinho não tem valor de meta
     const cents = isPiggy ? 0 : parseBRL(amount);
@@ -241,7 +255,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
 
     if (kind === "goal") {
       addGoal({
-        id: crypto.randomUUID(),
+        id: uuid(),
         name: trimmed,
         target: cents,
         saved: parseBRL(saved) ?? 0,
@@ -252,24 +266,25 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       showToast({ type: "success", text: isPiggy ? `Porquinho "${trimmed}" criado` : `Meta "${trimmed}" criada` });
     } else if (kind === "credit") {
       addCreditTransaction({
-        id: crypto.randomUUID(),
+        id: uuid(),
         name: trimmed,
         totalAmount: cents,
         installments: recurring ? 1 : Math.min(60, Math.max(1, Math.floor(installments) || 1)),
-        startMonth: currentMonth,
+        startMonth: startDate.slice(0, 7),
+        billingDay: billingDayOf(startDate),
         category,
         ...(recurring && { recurring: true }),
       });
       showToast({ type: "success", text: recurring ? `Compra recorrente "${trimmed}" adicionada` : `Compra parcelada "${trimmed}" adicionada` });
     } else if (kind === "income") {
-      addTransaction({ id: crypto.randomUUID(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: currentMonth });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: currentMonth });
       showToast({ type: "success", text: `Renda "${trimmed}" adicionada` });
     } else if (kind === "extra") {
       if (!extraMonth) return showToast({ type: "error", text: "Escolha o mês da despesa extra" });
-      addExtraExpense({ id: crypto.randomUUID(), name: trimmed, amount: cents, month: extraMonth });
+      addExtraExpense({ id: uuid(), name: trimmed, amount: cents, month: extraMonth });
       showToast({ type: "success", text: `Despesa extra "${trimmed}" adicionada` });
     } else {
-      addTransaction({ id: crypto.randomUUID(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: currentMonth });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: currentMonth });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada` });
     }
 
@@ -288,7 +303,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         <input
           key={round}
           id="launch-name"
-          autoFocus={focusName}
+          autoFocus={focusName && canAutoFocus()}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={labels.placeholder}
@@ -321,6 +336,12 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       </div>
 
       {kind === "credit" && (
+        <Field label="Início da cobrança" htmlFor="launch-start-date" hint="(o dia se repete todo mês)">
+          <input id="launch-start-date" type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} block min-h-11 min-w-0 max-w-full appearance-none`} />
+        </Field>
+      )}
+
+      {kind === "credit" && (
         <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
           <Checkbox checked={recurring} onCheckedChange={(c) => setRecurring(Boolean(c))} className="mt-0.5" />
           <span>
@@ -333,9 +354,9 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       {kind === "credit" && (
         <p className="text-sm text-muted-foreground">
           {recurring ? (
-            <>Cobrança de <strong className="text-foreground">R$ {centsToInput(totalCents) || "0,00"}</strong> todo mês, começando em {formatMonthTitle(currentMonth)}.</>
+            <>Cobrança de <strong className="text-foreground">R$ {centsToInput(totalCents) || "0,00"}</strong> todo mês, a partir de {formatMonthTitle(startDate.slice(0, 7) || currentMonth)}{billingDayOf(startDate) ? `, dia ${billingDayOf(startDate)}` : ""}.</>
           ) : (
-            <>Parcela de <strong className="text-foreground">R$ {centsToInput(installmentValue) || "0,00"}</strong>, começando em {formatMonthTitle(currentMonth)}.</>
+            <>Parcela de <strong className="text-foreground">R$ {centsToInput(installmentValue) || "0,00"}</strong>, a partir de {formatMonthTitle(startDate.slice(0, 7) || currentMonth)}{billingDayOf(startDate) ? `, dia ${billingDayOf(startDate)}` : ""}.</>
           )}
         </p>
       )}

@@ -243,7 +243,7 @@ func creditParams(userID uuid.UUID, c domain.CreditTransaction) sqlcgen.CreateCr
 		Column1: clientID(c.ID), UserID: userID, Name: c.Name, TotalCents: c.TotalAmount,
 		Installments: int32(c.Installments), StartMonth: c.StartMonth, Category: c.Category,
 		Column8: adjustments,
-		Recurring: c.Recurring, EndMonth: text(nilIfEmpty(c.EndMonth)),
+		Recurring: c.Recurring, EndMonth: text(nilIfEmpty(c.EndMonth)), BillingDay: int32(c.BillingDay),
 	}
 }
 

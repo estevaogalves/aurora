@@ -42,8 +42,8 @@ VALUES ($1, $2, $3, $4);
 SELECT * FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateCredit :one
-INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
+INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month, billing_day)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
 RETURNING *;
 
 -- name: UpdateCredit :one
