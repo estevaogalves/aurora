@@ -255,6 +255,53 @@ paths:
         "204": { description: Removida }
         "404": { $ref: "#/components/responses/Error" }
 
+  /transactions/{id}/payments/{month}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/PaymentMonth" }
+    put:
+      tags: [lançamentos]
+      summary: Marca a despesa como paga neste mês (ou edita o pagamento)
+      description: Só registro para consulta e relatórios; não muda nenhum valor, resumo, projeção ou comparação. Despesa avulsa só vale no próprio mês; fixa, do mês inicial em diante. Renda não tem pagamento.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Payment" } } }
+      responses:
+        "200": { description: Lançamento atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [lançamentos]
+      summary: Desmarca o pagamento deste mês
+      responses:
+        "200": { description: Lançamento atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/Transaction" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+  /extra-expenses/{id}/payment:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+    put:
+      tags: [projeção]
+      summary: Marca a despesa extra como paga (ou edita o pagamento)
+      description: Só registro para consulta e relatórios; não muda nenhum valor.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Payment" } } }
+      responses:
+        "200": { description: Despesa extra atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/ExtraExpense" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [projeção]
+      summary: Desmarca o pagamento
+      responses:
+        "200": { description: Despesa extra atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/ExtraExpense" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /extra-expenses:
     post:
       tags: [projeção]
@@ -431,6 +478,7 @@ components:
 
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+    PaymentMonth: { name: month, in: path, required: true, description: Mês do pagamento (AAAA-MM), schema: { $ref: "#/components/schemas/Month" } }
     InstallmentNumber: { name: n, in: path, required: true, description: Posição da parcela na compra (1 a N), schema: { type: integer, minimum: 1, maximum: 360 } }
 
   responses:
@@ -490,6 +538,17 @@ components:
         month: { $ref: "#/components/schemas/Month" }
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
+        payments:
+          type: object
+          description: Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação.
+          additionalProperties: { $ref: "#/components/schemas/Payment" }
+    Payment:
+      type: object
+      required: [method, date]
+      properties:
+        method: { type: string, enum: [pix, debit, credit, boleto] }
+        date: { type: string, format: date, description: "Dia do pagamento (AAAA-MM-DD). Só boleto pode ter data futura (pagamento agendado); Pix e cartão com data futura são recusados." }
+        notes: { type: string, maxLength: 500 }
     TransactionPatch:
       type: object
       properties:
@@ -515,6 +574,12 @@ components:
           type: object
           description: Ajustes por parcela, pela posição ("1" a "N"). Só leitura na criação (o servidor ignora); entra na importação.
           additionalProperties: { $ref: "#/components/schemas/InstallmentAdjustment" }
+        recurring:
+          type: boolean
+          description: Compra recorrente (assinatura no cartão). totalAmount é o valor cobrado todo mês a partir de startMonth; installments fica em 1.
+        endMonth:
+          $ref: "#/components/schemas/Month"
+          description: Último mês cobrado de uma recorrente cancelada. Só leitura na criação (o servidor ignora); entra na importação.
     InstallmentAdjustment:
       type: object
       properties:
@@ -535,6 +600,9 @@ components:
         installments: { type: integer, minimum: 1, maximum: 360 }
         startMonth: { $ref: "#/components/schemas/Month" }
         category: { type: string }
+        endMonth:
+          $ref: "#/components/schemas/Month"
+          description: Cancela a recorrência (só compras recorrentes). É o último mês cobrado; o servidor nunca o põe antes do mês atual.
 
     Goal:
       type: object
@@ -547,6 +615,9 @@ components:
         monthly: { $ref: "#/components/schemas/Cents" }
         deadline: { allOf: [{ $ref: "#/components/schemas/Month" }], nullable: true }
         yieldTotal: { $ref: "#/components/schemas/Cents" }
+        piggy:
+          type: boolean
+          description: Porquinho. Não exige valor de meta (target pode ser 0); meta comum exige target maior que zero. Não muda depois de criado.
     GoalPatch:
       type: object
       properties:
@@ -565,6 +636,7 @@ components:
         name: { type: string }
         amount: { $ref: "#/components/schemas/Cents" }
         month: { $ref: "#/components/schemas/Month" }
+        payment: { $ref: "#/components/schemas/Payment", description: Pagamento da despesa (só registro). Na criação o servidor ignora; entra na importação. }
     ExtraExpensePatch:
       type: object
       properties:

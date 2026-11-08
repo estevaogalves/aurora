@@ -42,8 +42,8 @@ VALUES ($1, $2, $3, $4);
 SELECT * FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateCredit :one
-INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb)
+INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10)
 RETURNING *;
 
 -- name: UpdateCredit :one
@@ -52,7 +52,8 @@ UPDATE credit_purchases SET
     total_cents  = COALESCE(sqlc.narg('total_cents'), total_cents),
     installments = COALESCE(sqlc.narg('installments'), installments),
     start_month  = COALESCE(sqlc.narg('start_month'), start_month),
-    category     = COALESCE(sqlc.narg('category'), category)
+    category     = COALESCE(sqlc.narg('category'), category),
+    end_month    = COALESCE(sqlc.narg('end_month'), end_month)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
@@ -63,8 +64,8 @@ DELETE FROM credit_purchases WHERE id = $1 AND user_id = $2;
 SELECT * FROM goals WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateGoal :one
-INSERT INTO goals (id, user_id, name, target_cents, saved_cents, monthly_cents, deadline, yield_total_cents)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO goals (id, user_id, name, target_cents, saved_cents, monthly_cents, deadline, yield_total_cents, piggy)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
 -- name: UpdateGoal :one
@@ -154,5 +155,21 @@ SELECT * FROM credit_purchases WHERE id = $1 AND user_id = $2 FOR UPDATE;
 
 -- name: SetCreditAdjustments :one
 UPDATE credit_purchases SET adjustments = $3::jsonb
+WHERE id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: GetTransactionForUpdate :one
+SELECT * FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE;
+
+-- name: SetTransactionPayments :one
+UPDATE transactions SET payments = $3::jsonb
+WHERE id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: GetExtraExpenseForUpdate :one
+SELECT * FROM extra_expenses WHERE id = $1 AND user_id = $2 FOR UPDATE;
+
+-- name: SetExtraExpensePayment :one
+UPDATE extra_expenses SET payment = $3::jsonb
 WHERE id = $1 AND user_id = $2
 RETURNING *;

@@ -77,6 +77,14 @@ func text(s *string) pgtype.Text {
 	}
 	return pgtype.Text{String: *s, Valid: true}
 }
+
+func nilIfEmpty(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
 func int8v(v *int64) pgtype.Int8 {
 	if v == nil {
 		return pgtype.Int8{}
@@ -209,6 +217,12 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 		ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Type: r.Type,
 		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month,
 	}
+	if len(r.Payments) > 0 {
+		_ = json.Unmarshal(r.Payments, &t.Payments)
+	}
+	if len(t.Payments) == 0 {
+		t.Payments = nil
+	}
 	for _, o := range ov {
 		if o.Hidden {
 			t.HiddenMonths = append(t.HiddenMonths, o.Month)
@@ -228,6 +242,7 @@ func creditFrom(r sqlcgen.CreditPurchase) domain.CreditTransaction {
 	c := domain.CreditTransaction{
 		ID: r.ID.String(), Name: r.Name, TotalAmount: r.TotalCents,
 		Installments: int(r.Installments), StartMonth: r.StartMonth, Category: r.Category,
+		Recurring: r.Recurring, EndMonth: r.EndMonth.String,
 	}
 	if len(r.Adjustments) > 0 {
 		_ = json.Unmarshal(r.Adjustments, &c.Adjustments)
@@ -250,7 +265,7 @@ func noteFrom(r sqlcgen.Note) domain.Note {
 func goalFrom(r sqlcgen.Goal) domain.Goal {
 	g := domain.Goal{
 		ID: r.ID.String(), Name: r.Name, Target: r.TargetCents, Saved: r.SavedCents,
-		Monthly: r.MonthlyCents, YieldTotal: r.YieldTotalCents,
+		Monthly: r.MonthlyCents, YieldTotal: r.YieldTotalCents, Piggy: r.Piggy,
 	}
 	if r.Deadline.Valid {
 		d := r.Deadline.String
@@ -260,5 +275,12 @@ func goalFrom(r sqlcgen.Goal) domain.Goal {
 }
 
 func extraFrom(r sqlcgen.ExtraExpense) domain.ExtraExpense {
-	return domain.ExtraExpense{ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Month: r.Month}
+	e := domain.ExtraExpense{ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Month: r.Month}
+	if len(r.Payment) > 0 && string(r.Payment) != "null" {
+		var p domain.Payment
+		if json.Unmarshal(r.Payment, &p) == nil {
+			e.Payment = &p
+		}
+	}
+	return e
 }

@@ -185,3 +185,52 @@ func TestCreateCreditIgnoresClientAdjustmentsButImportKeepsThem(t *testing.T) {
 	want(t, imp(map[string]any{"9": map[string]any{"removed": true}}), 400)
 	want(t, imp(map[string]any{"2": map[string]any{"value": 0}}), 400)
 }
+
+type recurringResp struct {
+	ID        string `json:"id"`
+	Recurring bool   `json:"recurring"`
+	EndMonth  string `json:"endMonth"`
+	Total     int64  `json:"totalAmount"`
+	Count     int    `json:"installments"`
+}
+
+func TestRecurringCreditAndCancel(t *testing.T) {
+	e := setup(t)
+	tk := e.register(t, "").AccessToken
+	now := thisMonth()
+
+	// o servidor impõe 1 "parcela" e ignora o mês final enviado na criação
+	r := e.do(t, "POST", "/api/v1/credits", tk, map[string]any{"name": "Streaming", "totalAmount": 3990, "installments": 12, "startMonth": now, "category": "Lazer", "recurring": true, "endMonth": "2020-01"})
+	want(t, r, http.StatusCreated)
+	var c recurringResp
+	r.json(t, &c)
+	if !c.Recurring || c.Count != 1 || c.EndMonth != "" || c.Total != 3990 {
+		t.Fatalf("criada=%+v", c)
+	}
+
+	// parcela de recorrente não se ajusta
+	want(t, e.do(t, "PUT", installmentURL(c.ID, "1"), tk, map[string]any{"value": 100}), 422)
+
+	// compra parcelada comum não tem recorrência para cancelar
+	normal := e.newCredit(t, tk, 30000, 3, now)
+	want(t, e.do(t, "PATCH", "/api/v1/credits/"+normal.ID, tk, map[string]any{"endMonth": now}), 422)
+
+	// cancelar com mês passado vale a partir do mês atual: o que já foi cobrado fica
+	r = e.do(t, "PATCH", "/api/v1/credits/"+c.ID, tk, map[string]any{"endMonth": domain.ChangeMonth(now, -3)})
+	want(t, r, 200)
+	r.json(t, &c)
+	if c.EndMonth != now || !c.Recurring {
+		t.Fatalf("cancelada=%+v", c)
+	}
+	want(t, e.do(t, "PATCH", "/api/v1/credits/"+c.ID, tk, map[string]any{"endMonth": now}), 422)
+	want(t, e.do(t, "PATCH", "/api/v1/credits/"+c.ID, tk, map[string]any{"endMonth": "x"}), 400)
+
+	// o resumo do mês seguinte só traz a parcela da compra comum (30000 em 3x), não a assinatura
+	var sum struct {
+		CreditExpense int64 `json:"creditExpense"`
+	}
+	e.do(t, "GET", "/api/v1/summary/"+domain.ChangeMonth(now, 1), tk, nil).json(t, &sum)
+	if sum.CreditExpense != 10000 {
+		t.Fatalf("cobrou depois de cancelar: %d", sum.CreditExpense)
+	}
+}

@@ -114,6 +114,63 @@ func (s *Server) deleteTransaction(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+/* ---------- pagamentos (só registro; não mudam nenhum valor) ---------- */
+
+func (s *Server) setTransactionPayment(w http.ResponseWriter, r *http.Request) {
+	var in domain.Payment
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	month := chi.URLParam(r, "month")
+	if bad(w, first(checkMonth(month), checkPayment(in))) {
+		return
+	}
+	s.respondTransactionPayment(w, r, month, &in)
+}
+
+func (s *Server) clearTransactionPayment(w http.ResponseWriter, r *http.Request) {
+	month := chi.URLParam(r, "month")
+	if bad(w, checkMonth(month)) {
+		return
+	}
+	s.respondTransactionPayment(w, r, month, nil)
+}
+
+func (s *Server) respondTransactionPayment(w http.ResponseWriter, r *http.Request, month string, p *domain.Payment) {
+	out, err := s.store.SetTransactionPayment(r.Context(), userID(r), chi.URLParam(r, "id"), month, p)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) setExtraPayment(w http.ResponseWriter, r *http.Request) {
+	var in domain.Payment
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	if bad(w, checkPayment(in)) {
+		return
+	}
+	s.respondExtraPayment(w, r, &in)
+}
+
+func (s *Server) clearExtraPayment(w http.ResponseWriter, r *http.Request) {
+	s.respondExtraPayment(w, r, nil)
+}
+
+func (s *Server) respondExtraPayment(w http.ResponseWriter, r *http.Request, p *domain.Payment) {
+	out, err := s.store.SetExtraPayment(r.Context(), userID(r), chi.URLParam(r, "id"), p)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
+}
+
 /* ---------- crédito ---------- */
 
 func (s *Server) createCredit(w http.ResponseWriter, r *http.Request) {
@@ -123,6 +180,13 @@ func (s *Server) createCredit(w http.ResponseWriter, r *http.Request) {
 	}
 	// ajustes (adiantar, editar, excluir parcela) só pelos endpoints próprios, que aplicam as regras
 	in.Adjustments = nil
+	// recorrente: sem parcelas, e só o cancelamento (PATCH) define o mês final
+	if in.Recurring {
+		in.Installments = 1
+		in.EndMonth = ""
+	} else {
+		in.EndMonth = ""
+	}
 	in.Name = strings.TrimSpace(in.Name)
 	if bad(w, validateCredit(in)) {
 		return
@@ -142,6 +206,8 @@ type creditPatchReq struct {
 	Installments *int    `json:"installments"`
 	StartMonth   *string `json:"startMonth"`
 	Category     *string `json:"category"`
+	// EndMonth cancela a recorrência: é o último mês que ainda cobra (o servidor nunca o põe antes do mês atual).
+	EndMonth *string `json:"endMonth"`
 }
 
 func (s *Server) updateCredit(w http.ResponseWriter, r *http.Request) {
@@ -165,12 +231,15 @@ func (s *Server) updateCredit(w http.ResponseWriter, r *http.Request) {
 	if in.Category != nil {
 		msg = first(msg, checkCategory(*in.Category))
 	}
+	if in.EndMonth != nil {
+		msg = first(msg, checkMonth(*in.EndMonth))
+	}
 	if bad(w, msg) {
 		return
 	}
 	out, err := s.store.UpdateCredit(r.Context(), userID(r), chi.URLParam(r, "id"), store.CreditPatch{
 		Name: trimmed(in.Name), TotalAmount: in.TotalAmount, Installments: in.Installments,
-		StartMonth: in.StartMonth, Category: in.Category,
+		StartMonth: in.StartMonth, Category: in.Category, EndMonth: in.EndMonth, Today: currentMonth(),
 	})
 	if err != nil {
 		s.fail(w, r, err)

@@ -16,6 +16,9 @@ func (c CreditTransaction) adjustment(n int) InstallmentAdjustment {
 }
 
 func (c CreditTransaction) isOpen(n int) bool {
+	if c.Recurring {
+		return false
+	}
 	a := c.adjustment(n)
 	return !a.Removed && a.Advanced == nil
 }
@@ -133,3 +136,24 @@ func ValidateAdjustments(c CreditTransaction) string {
 
 // CanChangeInstallments: o número de parcelas só muda enquanto a compra não tem ajustes.
 func CanChangeInstallments(c CreditTransaction) bool { return len(c.Adjustments) == 0 }
+
+// CancelRecurrence encerra a recorrência: o último mês cobrado passa a ser `last`, que nunca fica antes
+// de `today` nem de StartMonth (o que já foi cobrado fica como está). Devolve o EndMonth, ou a mensagem do motivo.
+func CancelRecurrence(c CreditTransaction, last, today string) (string, string) {
+	if !c.Recurring {
+		return "", "Só compras recorrentes podem ter a recorrência cancelada."
+	}
+	if c.EndMonth != "" {
+		return "", "A recorrência desta compra já foi cancelada."
+	}
+	if !IsValidMonth(last) {
+		return "", "Mês inválido."
+	}
+	if CompareMonths(last, today) < 0 {
+		last = today
+	}
+	if CompareMonths(last, c.StartMonth) < 0 {
+		last = c.StartMonth
+	}
+	return last, ""
+}

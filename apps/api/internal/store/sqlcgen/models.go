@@ -19,6 +19,8 @@ type CreditPurchase struct {
 	Category     string
 	CreatedAt    pgtype.Timestamptz
 	Adjustments  []byte
+	Recurring    bool
+	EndMonth     pgtype.Text
 }
 
 type CustomCategory struct {
@@ -35,6 +37,7 @@ type ExtraExpense struct {
 	AmountCents int64
 	Month       string
 	CreatedAt   pgtype.Timestamptz
+	Payment     []byte
 }
 
 type FixedOverride struct {
@@ -54,6 +57,7 @@ type Goal struct {
 	Deadline        pgtype.Text
 	YieldTotalCents int64
 	CreatedAt       pgtype.Timestamptz
+	Piggy           bool
 }
 
 type Note struct {
@@ -86,6 +90,7 @@ type Transaction struct {
 	Fixed       bool
 	Month       string
 	CreatedAt   pgtype.Timestamptz
+	Payments    []byte
 }
 
 type User struct {

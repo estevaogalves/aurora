@@ -93,8 +93,11 @@ func (l Limits) validateTransaction(t domain.Transaction) string {
 	if t.Type != "income" && t.Type != "expense" {
 		return "O tipo deve ser income ou expense."
 	}
+	if len(t.Payments) > l.MonthOverrides {
+		return "Pagamentos demais em um lançamento."
+	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides))
+		checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkPayments(t))
 }
 
 func checkCategory(c string) string {
@@ -108,6 +111,22 @@ func checkCategory(c string) string {
 }
 
 func validateCredit(c domain.CreditTransaction) string {
+	if c.Recurring {
+		// sem parcelas: o valor mensal fica em TotalAmount e o fim, se houver, em EndMonth
+		if c.Installments != 1 {
+			return "Compra recorrente não tem parcelas."
+		}
+		if len(c.Adjustments) > 0 {
+			return "Compra recorrente não tem ajustes de parcela."
+		}
+		if c.EndMonth != "" {
+			if m := checkMonth(c.EndMonth); m != "" || domain.CompareMonths(c.EndMonth, c.StartMonth) < 0 {
+				return "O mês final da recorrência é inválido."
+			}
+		}
+	} else if c.EndMonth != "" {
+		return "Só compras recorrentes têm mês final."
+	}
 	if c.Installments < 1 || c.Installments > 360 {
 		return "O número de parcelas deve ficar entre 1 e 360."
 	}
@@ -127,6 +146,10 @@ func validateCredit(c domain.CreditTransaction) string {
 }
 
 func validateGoal(g domain.Goal) string {
+	// meta comum precisa de um valor-alvo; o porquinho pode ficar sem
+	if !g.Piggy && g.Target <= 0 {
+		return "Informe o valor da meta."
+	}
 	msg := first(checkName(g.Name), checkAmount(g.Target), checkAmount(g.Saved), checkAmount(g.Monthly))
 	if msg == "" && g.Deadline != nil {
 		msg = checkMonth(*g.Deadline)
@@ -134,8 +157,30 @@ func validateGoal(g domain.Goal) string {
 	return msg
 }
 
+// checkPayment confere a forma, a data e o tamanho da observação de um pagamento.
+func checkPayment(p domain.Payment) string {
+	return first(domain.ValidatePayment(p), checkNotes(p.Notes))
+}
+
 func validateExtra(e domain.ExtraExpense) string {
-	return first(checkName(e.Name), checkAmount(e.Amount), checkMonth(e.Month))
+	msg := first(checkName(e.Name), checkAmount(e.Amount), checkMonth(e.Month))
+	if e.Payment != nil {
+		msg = first(msg, checkPayment(*e.Payment))
+	}
+	return msg
+}
+
+// checkPayments confere os pagamentos por mês de uma despesa (importação).
+func checkPayments(t domain.Transaction) string {
+	if len(t.Payments) > 0 && t.Type != "expense" {
+		return "Só despesas têm pagamento."
+	}
+	for m, p := range t.Payments {
+		if msg := first(checkMonth(m), checkPayment(p)); msg != "" {
+			return msg
+		}
+	}
+	return ""
 }
 
 func validateNote(n domain.Note) string {

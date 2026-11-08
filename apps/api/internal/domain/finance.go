@@ -61,8 +61,20 @@ func TransactionsByMonth(list []Transaction, month string) []Transaction {
 	return out
 }
 
+// RecurringCharges: a compra recorrente cobra neste mês (depois de StartMonth e, se cancelada, até EndMonth).
+func RecurringCharges(c CreditTransaction, month string) bool {
+	if !c.Recurring || CompareMonths(month, c.StartMonth) < 0 {
+		return false
+	}
+	return c.EndMonth == "" || CompareMonths(month, c.EndMonth) <= 0
+}
+
 // InstallmentNumber diz em qual parcela (1..N) a compra está no mês; 0 se não cobra.
+// Recorrente não tem parcelas: devolve 0 (use RecurringCharges).
 func InstallmentNumber(c CreditTransaction, month string) int {
+	if c.Recurring {
+		return 0
+	}
 	diff := MonthsDifference(month, c.StartMonth)
 	if diff < 0 || diff >= c.Installments {
 		return 0
@@ -77,6 +89,15 @@ func CreditByMonth(credits []CreditTransaction, month string) []CreditInstallmen
 		base := CreditInstallment{
 			ID: c.ID, Name: c.Name, Category: c.Category,
 			Installments: c.Installments, TotalAmount: c.TotalAmount,
+		}
+		if RecurringCharges(c, month) {
+			item := base
+			item.Installments = 0
+			item.Recurring = true
+			item.CurrentInstallment = MonthsDifference(month, c.StartMonth) + 1
+			item.InstallmentValue = c.TotalAmount
+			out = append(out, item)
+			continue
 		}
 		if n := InstallmentNumber(c, month); n != 0 && c.isOpen(n) {
 			item := base

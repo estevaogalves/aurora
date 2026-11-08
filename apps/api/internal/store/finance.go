@@ -150,6 +150,72 @@ func (s *Store) DeleteTransaction(ctx context.Context, userID uuid.UUID, id stri
 	return notFoundIfZero(s.q.DeleteTransaction(ctx, sqlcgen.DeleteTransactionParams{ID: tid, UserID: userID}))
 }
 
+/* ---------- pagamentos ---------- */
+
+// SetTransactionPayment marca (p != nil) ou desmarca (p == nil) o pagamento de uma despesa em um mês.
+// Só registro: nada aqui mexe em valores. Uma despesa avulsa só tem o seu próprio mês; uma fixa, do mês inicial em diante.
+func (s *Store) SetTransactionPayment(ctx context.Context, userID uuid.UUID, id, month string, p *domain.Payment) (domain.Transaction, error) {
+	tid, err := parseID(id)
+	if err != nil {
+		return domain.Transaction{}, err
+	}
+	var out domain.Transaction
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetTransactionForUpdate(ctx, sqlcgen.GetTransactionForUpdateParams{ID: tid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		if cur.Type != "expense" {
+			return &ValidationError{"Só despesas podem ser marcadas como pagas."}
+		}
+		if (!cur.Fixed && month != cur.Month) || (cur.Fixed && domain.CompareMonths(month, cur.Month) < 0) {
+			return &ValidationError{"Esta despesa não existe neste mês."}
+		}
+		payments := map[string]domain.Payment{}
+		if len(cur.Payments) > 0 {
+			_ = json.Unmarshal(cur.Payments, &payments)
+		}
+		if p == nil {
+			delete(payments, month)
+		} else {
+			payments[month] = *p
+		}
+		raw, err := json.Marshal(payments)
+		if err != nil {
+			return err
+		}
+		row, err := q.SetTransactionPayments(ctx, sqlcgen.SetTransactionPaymentsParams{ID: tid, UserID: userID, Column3: raw})
+		if err != nil {
+			return mapErr(err)
+		}
+		var ov []sqlcgen.FixedOverride
+		if row.Fixed {
+			if ov, err = q.ListTransactionOverrides(ctx, tid); err != nil {
+				return err
+			}
+		}
+		out = transactionFrom(row, ov)
+		return nil
+	})
+	return out, err
+}
+
+// SetExtraPayment marca (p != nil) ou desmarca (p == nil) o pagamento de uma despesa extra.
+func (s *Store) SetExtraPayment(ctx context.Context, userID uuid.UUID, id string, p *domain.Payment) (domain.ExtraExpense, error) {
+	eid, err := parseID(id)
+	if err != nil {
+		return domain.ExtraExpense{}, err
+	}
+	var raw []byte // nil grava NULL
+	if p != nil {
+		if raw, err = json.Marshal(p); err != nil {
+			return domain.ExtraExpense{}, err
+		}
+	}
+	row, err := s.q.SetExtraExpensePayment(ctx, sqlcgen.SetExtraExpensePaymentParams{ID: eid, UserID: userID, Column3: raw})
+	return extraFrom(row), mapErr(err)
+}
+
 /* ---------- crédito ---------- */
 
 type CreditPatch struct {
@@ -158,6 +224,9 @@ type CreditPatch struct {
 	Installments *int
 	StartMonth   *string
 	Category     *string
+	// EndMonth cancela a recorrência (veja domain.CancelRecurrence); Today é o mês atual.
+	EndMonth *string
+	Today    string
 }
 
 func (s *Store) CreateCredit(ctx context.Context, userID uuid.UUID, c domain.CreditTransaction) (domain.CreditTransaction, error) {
@@ -174,6 +243,7 @@ func creditParams(userID uuid.UUID, c domain.CreditTransaction) sqlcgen.CreateCr
 		Column1: clientID(c.ID), UserID: userID, Name: c.Name, TotalCents: c.TotalAmount,
 		Installments: int32(c.Installments), StartMonth: c.StartMonth, Category: c.Category,
 		Column8: adjustments,
+		Recurring: c.Recurring, EndMonth: text(nilIfEmpty(c.EndMonth)),
 	}
 }
 
@@ -193,9 +263,17 @@ func (s *Store) UpdateCredit(ctx context.Context, userID uuid.UUID, id string, p
 		if p.Installments != nil && *p.Installments != int(cur.Installments) && !domain.CanChangeInstallments(creditFrom(cur)) {
 			return &ValidationError{"Não dá para mudar o número de parcelas de uma compra com parcelas ajustadas, excluídas ou adiantadas."}
 		}
+		var endMonth *string
+		if p.EndMonth != nil {
+			end, msg := domain.CancelRecurrence(creditFrom(cur), *p.EndMonth, p.Today)
+			if msg != "" {
+				return &ValidationError{msg}
+			}
+			endMonth = &end
+		}
 		arg := sqlcgen.UpdateCreditParams{
 			Name: text(p.Name), TotalCents: int8v(p.TotalAmount), StartMonth: text(p.StartMonth),
-			Category: text(p.Category), ID: cid, UserID: userID,
+			Category: text(p.Category), EndMonth: text(endMonth), ID: cid, UserID: userID,
 		}
 		if p.Installments != nil {
 			arg.Installments.Int32, arg.Installments.Valid = int32(*p.Installments), true
@@ -265,7 +343,7 @@ func (s *Store) CreateGoal(ctx context.Context, userID uuid.UUID, g domain.Goal)
 func goalParams(userID uuid.UUID, g domain.Goal) sqlcgen.CreateGoalParams {
 	return sqlcgen.CreateGoalParams{
 		Column1: clientID(g.ID), UserID: userID, Name: g.Name, TargetCents: g.Target, SavedCents: g.Saved,
-		MonthlyCents: g.Monthly, Deadline: text(g.Deadline), YieldTotalCents: g.YieldTotal,
+		MonthlyCents: g.Monthly, Deadline: text(g.Deadline), YieldTotalCents: g.YieldTotal, Piggy: g.Piggy,
 	}
 }
 
@@ -401,8 +479,22 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 		}
 
 		for _, t := range d.Transactions {
-			if _, err := createTransaction(ctx, q, userID, t); err != nil {
+			created, err := createTransaction(ctx, q, userID, t)
+			if err != nil {
 				return err
+			}
+			if len(t.Payments) > 0 {
+				raw, err := json.Marshal(t.Payments)
+				if err != nil {
+					return err
+				}
+				tid, err := parseID(created.ID)
+				if err != nil {
+					return err
+				}
+				if _, err := q.SetTransactionPayments(ctx, sqlcgen.SetTransactionPaymentsParams{ID: tid, UserID: userID, Column3: raw}); err != nil {
+					return err
+				}
 			}
 		}
 		for _, c := range d.CreditTransactions {
@@ -421,8 +513,18 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		}
 		for _, e := range d.ExtraExpenses {
-			if _, err := q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month}); err != nil {
+			created, err := q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month})
+			if err != nil {
 				return err
+			}
+			if e.Payment != nil {
+				raw, err := json.Marshal(e.Payment)
+				if err != nil {
+					return err
+				}
+				if _, err := q.SetExtraExpensePayment(ctx, sqlcgen.SetExtraExpensePaymentParams{ID: created.ID, UserID: userID, Column3: raw}); err != nil {
+					return err
+				}
 			}
 		}
 		for _, c := range d.CustomCategories {

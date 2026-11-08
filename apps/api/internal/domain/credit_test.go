@@ -151,3 +151,66 @@ func TestSummaryAndProjectionReflectAdvance(t *testing.T) {
 		t.Errorf("projeção=%+v", p)
 	}
 }
+
+func subscription(start, end string) CreditTransaction {
+	return CreditTransaction{ID: "r", Name: "Streaming", TotalAmount: 3990, Installments: 1, StartMonth: start, Category: "Lazer", Recurring: true, EndMonth: end}
+}
+
+func TestRecurringChargesEveryMonthFromStart(t *testing.T) {
+	c := subscription("2026-11", "")
+	if got := creditSum(c, "2026-10"); got != 0 {
+		t.Errorf("antes do início cobrou %d", got)
+	}
+	for _, m := range []string{"2026-11", "2027-03", "2030-01"} {
+		if got := creditSum(c, m); got != 3990 {
+			t.Errorf("%s: cobrou %d, queria 3990", m, got)
+		}
+	}
+	item := CreditByMonth([]CreditTransaction{c}, "2027-01")[0]
+	if !item.Recurring || item.Installments != 0 {
+		t.Errorf("item=%+v", item)
+	}
+}
+
+func TestRecurringStopsAfterEndMonth(t *testing.T) {
+	c := subscription("2026-09", "2026-12")
+	for m, want := range map[string]int64{"2026-09": 3990, "2026-12": 3990, "2027-01": 0, "2027-06": 0} {
+		if got := creditSum(c, m); got != want {
+			t.Errorf("%s: cobrou %d, queria %d", m, got, want)
+		}
+	}
+}
+
+func TestCancelRecurrence(t *testing.T) {
+	c := subscription("2026-09", "")
+	// mês escolhido no futuro vale como está
+	if end, msg := CancelRecurrence(c, "2027-02", today); msg != "" || end != "2027-02" {
+		t.Errorf("end=%q msg=%q", end, msg)
+	}
+	// mês passado: nunca antes do mês atual (o que já foi cobrado fica)
+	if end, msg := CancelRecurrence(c, "2026-09", today); msg != "" || end != today {
+		t.Errorf("end=%q msg=%q", end, msg)
+	}
+	if _, msg := CancelRecurrence(c, "xx", today); msg == "" {
+		t.Error("mês inválido deveria ser recusado")
+	}
+	if _, msg := CancelRecurrence(subscription("2026-09", "2026-12"), "2027-01", today); msg == "" {
+		t.Error("recorrência já cancelada")
+	}
+	if _, msg := CancelRecurrence(buy("p", 10000, 2), "2027-01", today); msg == "" {
+		t.Error("compra parcelada não tem recorrência")
+	}
+}
+
+func TestRecurringHasNoInstallmentAdjustments(t *testing.T) {
+	c := subscription("2026-11", "")
+	if _, msg := EditInstallment(c, 1, 100); msg == "" {
+		t.Error("editar parcela de recorrente")
+	}
+	if _, msg := RemoveInstallment(c, 1); msg == "" {
+		t.Error("excluir parcela de recorrente")
+	}
+	if _, msg := AdvanceInstallment(c, 1, 0, "2026-01"); msg == "" {
+		t.Error("adiantar parcela de recorrente")
+	}
+}

@@ -860,6 +860,162 @@ export interface paths {
         };
         trace?: never;
     };
+    "/transactions/{id}/payments/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                /** @description Mês do pagamento (AAAA-MM) */
+                month: components["parameters"]["PaymentMonth"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Marca a despesa como paga neste mês (ou edita o pagamento)
+         * @description Só registro para consulta e relatórios; não muda nenhum valor, resumo, projeção ou comparação. Despesa avulsa só vale no próprio mês; fixa, do mês inicial em diante. Renda não tem pagamento.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            responses: {
+                /** @description Lançamento atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Transaction"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /** Desmarca o pagamento deste mês */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Lançamento atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Transaction"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/extra-expenses/{id}/payment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Marca a despesa extra como paga (ou edita o pagamento)
+         * @description Só registro para consulta e relatórios; não muda nenhum valor.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            responses: {
+                /** @description Despesa extra atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExtraExpense"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /** Desmarca o pagamento */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Despesa extra atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ExtraExpense"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/extra-expenses": {
         parameters: {
             query?: never;
@@ -1470,6 +1626,20 @@ export interface components {
             monthlyValues?: {
                 [key: string]: components["schemas"]["Cents"];
             };
+            /** @description Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação. */
+            payments?: {
+                [key: string]: components["schemas"]["Payment"];
+            };
+        };
+        Payment: {
+            /** @enum {string} */
+            method: "pix" | "debit" | "credit" | "boleto";
+            /**
+             * Format: date
+             * @description Dia do pagamento (AAAA-MM-DD). Só boleto pode ter data futura (pagamento agendado); Pix e cartão com data futura são recusados.
+             */
+            date: string;
+            notes?: string;
         };
         TransactionPatch: {
             name?: string;
@@ -1494,6 +1664,10 @@ export interface components {
             adjustments?: {
                 [key: string]: components["schemas"]["InstallmentAdjustment"];
             };
+            /** @description Compra recorrente (assinatura no cartão). totalAmount é o valor cobrado todo mês a partir de startMonth; installments fica em 1. */
+            recurring?: boolean;
+            /** @description Último mês cobrado de uma recorrente cancelada. Só leitura na criação (o servidor ignora); entra na importação. */
+            endMonth?: components["schemas"]["Month"];
         };
         InstallmentAdjustment: {
             /** @description Valor só desta parcela */
@@ -1514,6 +1688,8 @@ export interface components {
             installments?: number;
             startMonth?: components["schemas"]["Month"];
             category?: string;
+            /** @description Cancela a recorrência (só compras recorrentes). É o último mês cobrado; o servidor nunca o põe antes do mês atual. */
+            endMonth?: components["schemas"]["Month"];
         };
         Goal: {
             /** Format: uuid */
@@ -1524,6 +1700,8 @@ export interface components {
             monthly: components["schemas"]["Cents"];
             deadline: components["schemas"]["Month"] | null;
             yieldTotal?: components["schemas"]["Cents"];
+            /** @description Porquinho. Não exige valor de meta (target pode ser 0); meta comum exige target maior que zero. Não muda depois de criado. */
+            piggy?: boolean;
         };
         GoalPatch: {
             name?: string;
@@ -1539,6 +1717,8 @@ export interface components {
             name: string;
             amount: components["schemas"]["Cents"];
             month: components["schemas"]["Month"];
+            /** @description Pagamento da despesa (só registro). Na criação o servidor ignora; entra na importação. */
+            payment?: components["schemas"]["Payment"];
         };
         ExtraExpensePatch: {
             name?: string;
@@ -1652,6 +1832,8 @@ export interface components {
     };
     parameters: {
         Id: string;
+        /** @description Mês do pagamento (AAAA-MM) */
+        PaymentMonth: components["schemas"]["Month"];
         /** @description Posição da parcela na compra (1 a N) */
         InstallmentNumber: number;
     };

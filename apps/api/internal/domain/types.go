@@ -15,6 +15,8 @@ type Transaction struct {
 	// Fixas: meses ocultados e valores específicos de um mês.
 	HiddenMonths  []string         `json:"hiddenMonths,omitempty"`
 	MonthlyValues map[string]int64 `json:"monthlyValues,omitempty"`
+	// Despesas: pagamento por mês ("2026-11"). Só registro, não entra em conta nenhuma.
+	Payments map[string]Payment `json:"payments,omitempty"`
 }
 
 type CreditTransaction struct {
@@ -26,6 +28,10 @@ type CreditTransaction struct {
 	Category     string `json:"category"`
 	// Ajustes por parcela, pela posição ("1" a "N"): valor próprio, excluída ou adiantada.
 	Adjustments map[string]InstallmentAdjustment `json:"adjustments,omitempty"`
+	// Recorrente (assinatura no cartão): TotalAmount é o valor cobrado todo mês a partir de StartMonth,
+	// sem divisão em parcelas. EndMonth é o último mês cobrado, preenchido ao cancelar a recorrência.
+	Recurring bool   `json:"recurring,omitempty"`
+	EndMonth  string `json:"endMonth,omitempty"`
 }
 
 type Note struct {
@@ -45,6 +51,7 @@ type CreditInstallment struct {
 	InstallmentValue   int64  `json:"installmentValue"`
 	TotalAmount        int64  `json:"totalAmount"`
 	Adjusted           bool          `json:"adjusted,omitempty"`
+	Recurring          bool          `json:"recurring,omitempty"`
 	Advanced           *AdvancedInfo `json:"advanced,omitempty"`
 }
 
@@ -53,6 +60,8 @@ type ExtraExpense struct {
 	Name   string `json:"name"`
 	Amount int64  `json:"amount"`
 	Month  string `json:"month"`
+	// Pagamento da despesa (única, pois ela existe em um só mês). Só registro, não entra em conta nenhuma.
+	Payment *Payment `json:"payment,omitempty"`
 }
 
 type CustomCategory struct {
@@ -69,6 +78,8 @@ type Goal struct {
 	Monthly    int64   `json:"monthly"`
 	Deadline   *string `json:"deadline"`
 	YieldTotal int64   `json:"yieldTotal,omitempty"`
+	// Porquinho: guardado sem valor de meta obrigatório (Target pode ser 0). Não muda depois de criado.
+	Piggy bool `json:"piggy,omitempty"`
 }
 
 type DistributionItem struct {
