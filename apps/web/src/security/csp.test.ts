@@ -22,10 +22,10 @@ describe("cabeçalhos de segurança do nginx", () => {
     }
   });
 
-  it("a CSP está em modo report-only e não permite script inline genérico", () => {
-    expect(headers).toMatch(/add_header Content-Security-Policy-Report-Only "/);
-    expect(headers).not.toMatch(/add_header Content-Security-Policy "/);
-    const csp = headers.match(/Content-Security-Policy-Report-Only "([^"]+)"/)![1];
+  it("a CSP está em modo enforce e não permite script inline genérico", () => {
+    expect(headers).toMatch(/add_header Content-Security-Policy "/);
+    expect(headers).not.toContain("Report-Only");
+    const csp = headers.match(/Content-Security-Policy "([^"]+)"/)![1];
     expect(csp).toContain("default-src 'self'");
     expect(csp).toContain("frame-ancestors 'none'");
     expect(csp).toContain("object-src 'none'");
