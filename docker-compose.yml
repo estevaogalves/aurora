@@ -83,6 +83,8 @@ services:
       HASH_MAX_CONCURRENCY: ${HASH_MAX_CONCURRENCY:-}
       HASH_MAX_QUEUE: ${HASH_MAX_QUEUE:-}
       HASH_QUEUE_TIMEOUT: ${HASH_QUEUE_TIMEOUT:-}
+      # Cadastro aberto (padrão). false fecha o cadastro: POST /auth/register responde 403; quem já tem conta continua entrando.
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-}
       # Cadastros por IP na janela (429 ao passar)
       REGISTER_MAX_PER_IP: ${REGISTER_MAX_PER_IP:-}
       REGISTER_WINDOW: ${REGISTER_WINDOW:-}

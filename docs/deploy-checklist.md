@@ -1,4 +1,42 @@
-# Checklist de deploy — correções de segurança (SEC-01 a SEC-09, SEC-13, SEC-16, SEC-17, SEC-19)
+# Checklist de deploy — correções de segurança (SEC-01 a SEC-09, SEC-13 a SEC-19) e requisitos para abrir ao público
+
+## Requisitos antes de abrir para clientes
+
+As correções de segurança deixam o Aurora **pronto para um piloto controlado**, não para o público. Enquanto a lista abaixo não estiver
+cumprida, **mantenha `REGISTRATION_ENABLED=false`** (cadastro fechado) ou limite o acesso a pessoas conhecidas. Os itens marcados
+"jurídico" precisam de validação de advogado/encarregado; o que está escrito aqui é proposta técnica, **não** parecer legal.
+
+Perfil de dados que a lista considera: e-mail, nome e **dados financeiros declarados pelo próprio usuário** (lançamentos, metas, observações e
+anotações livres). **Não há integração bancária** (Open Finance, extratos, contas) nem cartão de pagamento: se isso mudar, esta lista deixa de valer e precisa ser refeita.
+
+- [ ] **TLS (SEC-03).** HTTPS válido na frente do app, redirecionamento 80 → 443, `COOKIE_SECURE=true` com o cookie `Secure` visto no navegador, HSTS efetivo.
+      Hoje: o nginx do projeto escuta só em HTTP; HSTS e `Secure` já estão prontos, mas só funcionam atrás de TLS. *Pronto quando:* teste de SSL (nota A) e o `curl` de cookie da seção 4.
+- [ ] **Backups testados.** Backup automático do Postgres (dump agendado ou PITR do provedor), com retenção definida, criptografia e **restauração testada** num ambiente separado
+      (anote o tempo: é o seu RTO; a perda máxima aceita é o seu RPO). Hoje: nenhum backup configurado, só o volume `pgdata`. O Redis não precisa de backup (só sessões e contadores).
+      Backups seguem a mesma retenção de privacidade (dado apagado some também deles no prazo). *Pronto quando:* uma restauração real foi feita e conferida (login e dados de um usuário de teste).
+- [ ] **RLS / isolamento entre usuários (SEC-07).** Decidir: implementar (papel de migração separado do papel da aplicação, policies por `user_id`, `FORCE ROW LEVEL SECURITY`)
+      **ou** aceitar formalmente o risco mantendo só o filtro `user_id` + testes de isolamento ampliados para **todas** as entidades. Hoje: RLS ligado mas sem policies e a API é dona das tabelas
+      (não protege); o isolamento depende de cada consulta ter `WHERE user_id`. *Pronto quando:* a decisão está registrada e, se implementada, os testes de isolamento passam com o papel restrito.
+- [ ] **LGPD (SEC-10), proporcional a dados financeiros declarados pelo usuário** *(jurídico)*. Mínimo técnico: exclusão de conta (`DELETE /me` com reautenticação e purga em cascata),
+      exportação dos dados do titular (`GET /me/export`), minimização (não coletar além de e-mail/nome/dados que o usuário digita), controle de acesso aos dados (já há), registro das operações de tratamento,
+      plano de resposta a incidente (quem avisa quem e em que prazo: **prazo regulatório a confirmar com o jurídico**). Avaliar se o serviço se enquadra como agente de tratamento de pequeno porte.
+      Indicar o canal e o responsável pelo atendimento de pedidos de titulares. Hoje: nada disso existe.
+- [ ] **Retenção dos logs de auditoria** *(jurídico)*. Os eventos guardam IP + id do usuário. Proposta: 180 dias, depois eliminação (ou agregados sem IP/id); mesma regra para cópias e backups de log.
+      A retenção por tempo é configurada **onde os logs são guardados** (o Docker só gira por tamanho). Hoje: sem retenção definida na infraestrutura. Detalhes: relatório, SEC-10.
+- [ ] **Verificação de e-mail e recuperação de senha (SEC-11 e SEC-20).** Exige antes **envio de e-mail transacional** (provedor, SPF/DKIM/DMARC, remetente próprio), tokens de uso único com validade curta,
+      endpoints e telas, limites contra abuso, e a resposta neutra do cadastro (que fecha o SEC-11). Hoje: não existe; quem esquece a senha perde a conta e qualquer pessoa pode cadastrar um e-mail que não é dela.
+      *Pronto quando:* cadastro só vale após confirmar o e-mail, e "esqueci a senha" funciona de ponta a ponta em homologação.
+- [ ] **SEC-12: `aud` e revogação de tokens.** Emitir e validar `aud` no JWT; revogar tokens de acesso quando faz sentido (logout, troca de senha, mudança de papel, conta excluída), por exemplo com
+      versão de sessão por usuário ou lista de `jti` no Redis. Hoje: o token de acesso vale até 15 min depois do logout e o papel vem dentro dele. *Pronto quando:* teste mostrando que um token revogado é recusado.
+- [ ] **Política de privacidade e Termos de uso** *(jurídico)*. Textos redigidos e validados (finalidade, dados tratados, bases legais, retenção, direitos do titular, contato, limitação de responsabilidade, aviso de que não é consultoria financeira),
+      links visíveis no app e **aceite registrado no cadastro** (data e versão do texto). Hoje: não existem.
+- [ ] **Monitoramento e teste de carga em homologação.** Monitorar: disponibilidade (`/healthz`), erros 5xx, latência, taxa de `429`/`503`, memória da API (OOM), conexões e espaço do banco, e alertas sobre os eventos de
+      auditoria (`auth.refresh_reuse`, picos de `auth.login_failed`/`auth.login_blocked`). Teste de carga **só em homologação** (nunca em produção), com metas definidas (ex.: p95 e taxa de erro) e resultado guardado.
+      Os scripts de `scripts/security/` só aceitam `localhost`; para homologação remota use uma ferramenta de carga (k6, vegeta) com autorização. Hoje: sem monitoramento nem alertas.
+- [ ] **Aviso de não inserir dados de cartão ou documentos nos campos livres.** O app não precisa e não deve guardar esses dados. Os campos livres são: nome do lançamento, observação, anotações e nomes de categorias e metas.
+      Texto proposto (validar com o jurídico): *"Não digite números de cartão, senhas, CPF, RG ou outros documentos nesses campos. O Aurora não precisa dessas informações e elas não devem ser guardadas aqui."*
+      Mostrar nos formulários de lançamento e de anotação, no cadastro e na política de privacidade. Hoje: o aviso não existe no app.
+- [ ] **Decisão final.** Todos os itens acima cumpridos (ou aceitos por escrito por quem responde pelo risco, com data) → apagar `REGISTRATION_ENABLED=false` do ambiente e `docker compose up -d`.
 
 ## 1. Ordem de merge
 
@@ -9,6 +47,8 @@ Mescle nesta ordem, uma de cada vez, rodando o CI entre elas:
 3. `security/fase-2` — SEC-02 (limite de hash e de cadastro), SEC-04 (IP real)
 4. `security/fase-3` — SEC-08 (admin por comando), SEC-09 (tetos e pool), SEC-19 (dependências de dev)
 5. `security/fase-4` — SEC-13 (logs de auditoria), SEC-16 (containers e senha do Postgres), SEC-17 (CI)
+6. `security/fase-5` — SEC-14 (Redis com senha), SEC-15 (CSV), SEC-18 (servidor de desenvolvimento do Vite)
+7. `security/fase-6` — `REGISTRATION_ENABLED` e a lista "Requisitos antes de abrir para clientes"
 
 Conflitos: simulei (`git merge-tree`) cada branch contra a `main` e a ordem completa: **sem conflito**. A fase 3 contém uma
 cópia (cherry-pick) do commit da `deps/…`; como a mudança é idêntica, o git a reconhece como já aplicada.
@@ -34,6 +74,7 @@ e, na API, `go vet ./... && go test ./...` (com `TEST_DATABASE_URL`).
 | `API_MEM_LIMIT` | `512m` | Memória real da API. Dela sai a concorrência de hashes de senha (40% ÷ 64 MiB; 512m → 3). |
 | `TRUST_PROXY` | `true` no compose | Só deixe `true` se a API for alcançável **apenas** pelo nginx. Se houver CDN/balanceador na frente, configure `real-ip.conf` (veja `docs/ip-real-atras-de-proxy.md`). |
 | `CORS_ORIGINS` | localhost | Domínio real, se front e API não ficarem no mesmo endereço. |
+| `REGISTRATION_ENABLED` | `true` | `false` **fecha o cadastro** (`403` com mensagem clara); o login de quem já tem conta não muda. Só aceita `true`/`false` (outro valor impede a API de iniciar). Use `false` até cumprir os "Requisitos antes de abrir para clientes" (seção abaixo) ou durante um incidente; para reabrir, apague a variável e `docker compose up -d`. |
 | `WEB_PORT` / `API_PORT` | `8080` / `8081` | portas publicadas no host (a API só em `127.0.0.1`). |
 
 ### Novas, opcionais (vazio = padrão)
@@ -95,6 +136,11 @@ Esperado: `aurora_refresh=…; Path=/api/v1/auth; HttpOnly; Secure; SameSite=Lax
 - [ ] Repita as 6 tentativas enviando `-H 'X-Forwarded-For: 1.2.3.4'` e `-H 'X-Real-IP: 5.6.7.8'` com valores diferentes a cada vez: **continua** dando `429` na 6ª (forjar não escapa).
 - [ ] Com CDN/balanceador: faça as tentativas de duas redes diferentes (ex.: Wi-Fi e 4G). Cada rede tem o seu contador; uma não bloqueia a outra.
 - [ ] Log da API: o IP registrado/limitado é o do cliente, não o do proxy.
+
+**Cadastro aberto/fechado (`REGISTRATION_ENABLED`)**
+- [ ] Ambiente ainda **não** liberado para clientes: `REGISTRATION_ENABLED=false` e `curl -i -X POST https://app.exemplo.com/api/v1/auth/register -H 'Content-Type: application/json' -d '{"email":"a@b.com","name":"x","password":"senha-forte-123"}'` dá `403` com "O cadastro está fechado no momento…". O login de quem já tem conta continua funcionando.
+- [ ] Ambiente liberado: a variável ausente (ou `true`) e o mesmo `curl` com um e-mail de teste dá `201` (apague a conta de teste depois).
+- [ ] Log de inicialização sem erro `REGISTRATION_ENABLED=… inválido` (a API só aceita `true`/`false`).
 
 **Cadastro e seu limite**
 - [ ] Cadastro normal funciona e devolve `role: "user"`.

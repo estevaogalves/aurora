@@ -43,6 +43,12 @@ type credentials struct {
 }
 
 func (s *Server) register(w http.ResponseWriter, r *http.Request) {
+	// Cadastro fechado (REGISTRATION_ENABLED=false): responde antes de ler o corpo, de contar o limite por IP
+	// ou de gastar um hash. O login de quem já tem conta não muda.
+	if s.cfg.RegistrationDisabled {
+		writeError(w, http.StatusForbidden, "O cadastro está fechado no momento. Quem já tem conta pode entrar normalmente.")
+		return
+	}
 	var in credentials
 	if !decode(w, r, &in, s.lim.Body) {
 		return

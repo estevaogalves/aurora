@@ -124,3 +124,14 @@ describe("imagens fixadas por digest", () => {
     expect(root("apps/api/Dockerfile")).toMatch(/^USER app$/m);
   });
 });
+
+describe("cadastro aberto/fechado (REGISTRATION_ENABLED)", () => {
+  it("o compose repassa a variável à API e não a fecha por padrão", () => {
+    expect(service("api")).toContain("REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-}");
+    expect(compose).not.toMatch(/REGISTRATION_ENABLED:-false/);
+  });
+
+  it(".env.example documenta a variável com o padrão aberto", () => {
+    expect(envExample).toMatch(/^# REGISTRATION_ENABLED=true$/m);
+  });
+});
