@@ -42,8 +42,8 @@ VALUES ($1, $2, $3, $4);
 SELECT * FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateCredit :one
-INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7)
+INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb)
 RETURNING *;
 
 -- name: UpdateCredit :one
@@ -148,3 +148,11 @@ DELETE FROM notes WHERE user_id = $1;
 
 -- name: WipeCategories :exec
 DELETE FROM custom_categories WHERE user_id = $1;
+
+-- name: GetCreditForUpdate :one
+SELECT * FROM credit_purchases WHERE id = $1 AND user_id = $2 FOR UPDATE;
+
+-- name: SetCreditAdjustments :one
+UPDATE credit_purchases SET adjustments = $3::jsonb
+WHERE id = $1 AND user_id = $2
+RETURNING *;

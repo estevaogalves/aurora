@@ -70,20 +70,33 @@ func InstallmentNumber(c CreditTransaction, month string) int {
 	return diff + 1
 }
 
-// CreditByMonth lista as parcelas que caem no mês.
+// CreditByMonth lista as parcelas que caem no mês: as normais e as adiantadas para este mês.
 func CreditByMonth(credits []CreditTransaction, month string) []CreditInstallment {
 	out := []CreditInstallment{}
 	for _, c := range credits {
-		n := InstallmentNumber(c, month)
-		if n == 0 {
-			continue
-		}
-		parts := SplitInstallments(c.TotalAmount, c.Installments)
-		out = append(out, CreditInstallment{
+		base := CreditInstallment{
 			ID: c.ID, Name: c.Name, Category: c.Category,
-			Installments: c.Installments, CurrentInstallment: n,
-			InstallmentValue: parts[n-1], TotalAmount: c.TotalAmount,
-		})
+			Installments: c.Installments, TotalAmount: c.TotalAmount,
+		}
+		if n := InstallmentNumber(c, month); n != 0 && c.isOpen(n) {
+			item := base
+			item.CurrentInstallment = n
+			item.InstallmentValue = InstallmentValue(c, n)
+			item.Adjusted = c.adjustment(n).Value != nil
+			out = append(out, item)
+		}
+		// adiantadas: cobradas no mês em que o usuário adiantou, em ordem de parcela
+		for n := 1; n <= c.Installments; n++ {
+			adv := c.adjustment(n).Advanced
+			if adv == nil || adv.Month != month {
+				continue
+			}
+			item := base
+			item.CurrentInstallment = n
+			item.InstallmentValue = adv.Amount
+			item.Advanced = &AdvancedInfo{OriginalMonth: InstallmentMonth(c, n), Discount: adv.Discount, OriginalValue: adv.Amount + adv.Discount}
+			out = append(out, item)
+		}
 	}
 	return out
 }

@@ -24,6 +24,8 @@ type CreditTransaction struct {
 	Installments int    `json:"installments"`
 	StartMonth   string `json:"startMonth"`
 	Category     string `json:"category"`
+	// Ajustes por parcela, pela posição ("1" a "N"): valor próprio, excluída ou adiantada.
+	Adjustments map[string]InstallmentAdjustment `json:"adjustments,omitempty"`
 }
 
 type Note struct {
@@ -42,6 +44,8 @@ type CreditInstallment struct {
 	CurrentInstallment int    `json:"currentInstallment"`
 	InstallmentValue   int64  `json:"installmentValue"`
 	TotalAmount        int64  `json:"totalAmount"`
+	Adjusted           bool          `json:"adjusted,omitempty"`
+	Advanced           *AdvancedInfo `json:"advanced,omitempty"`
 }
 
 type ExtraExpense struct {
@@ -150,4 +154,26 @@ type Comparison struct {
 	TopCategory *CategoryTotal `json:"topCategory"`
 	// Ranking: meses do melhor para o pior saldo.
 	Ranking []string `json:"ranking"`
+}
+
+// InstallmentAdvance: parcela adiantada, cobrada em Month (o mês de hoje no momento do adiantamento).
+type InstallmentAdvance struct {
+	Month    string `json:"month"`
+	Discount int64  `json:"discount"`
+	// Amount é o que foi cobrado em Month (valor da parcela menos o desconto).
+	Amount int64 `json:"amount"`
+}
+
+// InstallmentAdjustment é o ajuste de uma parcela: valor próprio, excluída ou adiantada.
+type InstallmentAdjustment struct {
+	Value    *int64              `json:"value,omitempty"`
+	Removed  bool                `json:"removed,omitempty"`
+	Advanced *InstallmentAdvance `json:"advanced,omitempty"`
+}
+
+// AdvancedInfo acompanha a parcela adiantada que cai em um mês.
+type AdvancedInfo struct {
+	OriginalMonth string `json:"originalMonth"`
+	Discount      int64  `json:"discount"`
+	OriginalValue int64  `json:"originalValue"`
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -120,6 +121,8 @@ func (s *Server) createCredit(w http.ResponseWriter, r *http.Request) {
 	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
+	// ajustes (adiantar, editar, excluir parcela) só pelos endpoints próprios, que aplicam as regras
+	in.Adjustments = nil
 	in.Name = strings.TrimSpace(in.Name)
 	if bad(w, validateCredit(in)) {
 		return
@@ -479,4 +482,76 @@ func (s *Server) putOnboarding(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+/* ---------- parcelas de uma compra no crédito ---------- */
+
+// installmentNumber lê {n} da URL; 0 se não for um inteiro positivo.
+func installmentNumber(r *http.Request) int {
+	n, err := strconv.Atoi(chi.URLParam(r, "n"))
+	if err != nil || n < 1 || n > domain.MaxInstallments {
+		return 0
+	}
+	return n
+}
+
+// adjustInstallment roda uma regra de ajuste por parcela e responde com a compra atualizada.
+// Quem manda é o servidor: dono da conta (a consulta filtra por usuário), regra da parcela e mês atual.
+func (s *Server) adjustInstallment(w http.ResponseWriter, r *http.Request, rule func(c domain.CreditTransaction, n int) (map[string]domain.InstallmentAdjustment, string)) {
+	n := installmentNumber(r)
+	if n == 0 {
+		writeError(w, http.StatusBadRequest, "Parcela inválida.")
+		return
+	}
+	out, err := s.store.AdjustCredit(r.Context(), userID(r), chi.URLParam(r, "id"), func(c domain.CreditTransaction) (map[string]domain.InstallmentAdjustment, string) {
+		return rule(c, n)
+	})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
+}
+
+type advanceReq struct {
+	// Discount em centavos: zero ou mais, e menor que o valor da parcela.
+	Discount int64 `json:"discount"`
+}
+
+func (s *Server) advanceInstallment(w http.ResponseWriter, r *http.Request) {
+	var in advanceReq
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	if bad(w, checkAmount(in.Discount)) {
+		return
+	}
+	today := currentMonth()
+	s.adjustInstallment(w, r, func(c domain.CreditTransaction, n int) (map[string]domain.InstallmentAdjustment, string) {
+		return domain.AdvanceInstallment(c, n, in.Discount, today)
+	})
+}
+
+type installmentValueReq struct {
+	Value int64 `json:"value"`
+}
+
+func (s *Server) editInstallment(w http.ResponseWriter, r *http.Request) {
+	var in installmentValueReq
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	if bad(w, checkAmount(in.Value)) {
+		return
+	}
+	s.adjustInstallment(w, r, func(c domain.CreditTransaction, n int) (map[string]domain.InstallmentAdjustment, string) {
+		return domain.EditInstallment(c, n, in.Value)
+	})
+}
+
+func (s *Server) removeInstallment(w http.ResponseWriter, r *http.Request) {
+	s.adjustInstallment(w, r, func(c domain.CreditTransaction, n int) (map[string]domain.InstallmentAdjustment, string) {
+		return domain.RemoveInstallment(c, n)
+	})
 }

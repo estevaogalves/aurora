@@ -111,7 +111,19 @@ func validateCredit(c domain.CreditTransaction) string {
 	if c.Installments < 1 || c.Installments > 360 {
 		return "O número de parcelas deve ficar entre 1 e 360."
 	}
-	return first(checkName(c.Name), checkAmount(c.TotalAmount), checkMonth(c.StartMonth), checkCategory(c.Category))
+	msg := first(checkName(c.Name), checkAmount(c.TotalAmount), checkMonth(c.StartMonth), checkCategory(c.Category))
+	if msg != "" {
+		return msg
+	}
+	for _, a := range c.Adjustments {
+		if a.Value != nil {
+			msg = first(msg, checkAmount(*a.Value))
+		}
+		if a.Advanced != nil {
+			msg = first(msg, checkAmount(a.Advanced.Discount), checkAmount(a.Advanced.Amount))
+		}
+	}
+	return first(msg, domain.ValidateAdjustments(c))
 }
 
 func validateGoal(g domain.Goal) string {
