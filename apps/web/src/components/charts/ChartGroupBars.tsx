@@ -1,3 +1,5 @@
+import { useState, type ReactNode } from "react";
+import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { formatBRL } from "@/lib/money";
 import { niceTicks, shortReais } from "./scale";
 import { TipBox } from "./ChartTooltip";
@@ -13,10 +15,14 @@ export interface BarSeries {
 
 const PAD = { l: 44, r: 10, t: 10, b: 26 };
 
-/** Barras agrupadas com topo arredondado (protótipo B). */
-export default function ChartGroupBars({ labels, series, height = 250 }: { labels: string[]; series: BarSeries[]; height?: number }) {
+/**
+ * Barras agrupadas com topo arredondado (protótipo B).
+ * Com `renderDetail`, clicar (ou Enter) em um grupo abre um popover pequeno com o que ele devolver.
+ */
+export default function ChartGroupBars({ labels, series, height = 250, renderDetail }: { labels: string[]; series: BarSeries[]; height?: number; renderDetail?: (index: number) => ReactNode }) {
   const { ref, width } = useChartWidth();
   const { tip, show, hide } = useChartTip();
+  const [picked, setPicked] = useState<number | null>(null);
 
   const max = Math.max(...series.flatMap((s) => s.values.map((v) => Math.max(v, 0) / 100)), 1);
   const tk = niceTicks(max);
@@ -65,11 +71,35 @@ export default function ChartGroupBars({ labels, series, height = 250 }: { label
                   fill="transparent"
                   onPointerMove={(e) => show(e, label, series.map((s) => <div key={s.name}>{s.name}: {formatBRL(s.values[i])}</div>))}
                   onPointerLeave={hide}
+                  {...(renderDetail && {
+                    role: "button",
+                    tabIndex: 0,
+                    "aria-label": `Ver detalhes de ${label}`,
+                    className: "cursor-pointer focus-visible:outline-none focus-visible:stroke-primary",
+                    onClick: () => { hide(); setPicked(i); },
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setPicked(i);
+                      }
+                    },
+                  })}
                 />
               </g>
             );
           })}
         </svg>
+      )}
+      {renderDetail && picked !== null && picked < labels.length && (
+        <Popover open onOpenChange={(o) => !o && setPicked(null)}>
+          {/* âncora invisível no topo do grupo clicado */}
+          <PopoverAnchor asChild>
+            <span aria-hidden="true" className="pointer-events-none absolute h-px w-px" style={{ left: PAD.l + band * picked + band / 2, top: y(Math.max(...series.map((s) => Math.max(s.values[picked], 0) / 100))) }} />
+          </PopoverAnchor>
+          <PopoverContent side="top" align="center" sideOffset={6} className="w-[min(280px,calc(100vw-2rem))] p-3 text-[13px]">
+            {renderDetail(picked)}
+          </PopoverContent>
+        </Popover>
       )}
       <TipBox tip={tip} />
     </div>

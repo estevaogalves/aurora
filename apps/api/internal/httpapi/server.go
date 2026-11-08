@@ -130,6 +130,11 @@ func (s *Server) Router() http.Handler {
 				r.Post("/", s.createCredit)
 				r.Patch("/{id}", s.updateCredit)
 				r.Delete("/{id}", s.deleteCredit)
+				r.Route("/{id}/installments/{n}", func(r chi.Router) {
+					r.Post("/advance", s.advanceInstallment)
+					r.Put("/", s.editInstallment)
+					r.Delete("/", s.removeInstallment)
+				})
 			})
 			r.Route("/goals", func(r chi.Router) {
 				r.Post("/", s.createGoal)
@@ -256,11 +261,14 @@ func decode(w http.ResponseWriter, r *http.Request, dst any, limit int64) bool {
 
 // fail traduz erros do store em respostas HTTP.
 func (s *Server) fail(w http.ResponseWriter, r *http.Request, err error) {
+	var validation *store.ValidationError
 	switch {
 	case errors.Is(err, store.ErrNotFound):
 		writeError(w, http.StatusNotFound, "Registro não encontrado.")
 	case errors.Is(err, store.ErrDuplicate):
 		writeError(w, http.StatusConflict, "Já existe um registro igual.")
+	case errors.As(err, &validation):
+		writeError(w, http.StatusUnprocessableEntity, validation.Msg)
 	case errors.Is(err, store.ErrHasData):
 		writeError(w, http.StatusConflict, "A conta já tem dados. Use replace=true para substituí-los.")
 	default:

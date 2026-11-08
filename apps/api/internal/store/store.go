@@ -225,11 +225,23 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 }
 
 func creditFrom(r sqlcgen.CreditPurchase) domain.CreditTransaction {
-	return domain.CreditTransaction{
+	c := domain.CreditTransaction{
 		ID: r.ID.String(), Name: r.Name, TotalAmount: r.TotalCents,
 		Installments: int(r.Installments), StartMonth: r.StartMonth, Category: r.Category,
 	}
+	if len(r.Adjustments) > 0 {
+		_ = json.Unmarshal(r.Adjustments, &c.Adjustments)
+	}
+	if len(c.Adjustments) == 0 {
+		c.Adjustments = nil
+	}
+	return c
 }
+
+// ValidationError: a operação foi recusada por uma regra de negócio (a mensagem é segura para mostrar ao usuário).
+type ValidationError struct{ Msg string }
+
+func (e *ValidationError) Error() string { return e.Msg }
 
 func noteFrom(r sqlcgen.Note) domain.Note {
 	return domain.Note{ID: r.ID.String(), Content: r.Content, Date: r.Date, Pinned: r.Pinned, Month: r.Month}

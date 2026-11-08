@@ -1,33 +1,39 @@
 import { useMemo } from "react";
 import Icon from "../components/Icon";
-import { getAvailableMonths } from "../domain";
+import { getAdjacentMonth } from "../domain";
 import { useFinanceStore } from "../Store/FinanceStore";
-import { changeMonth, compareMonths, formatMonthTitle, getCurrentMonth } from "../Utils/Date";
+import { formatMonthTitle, getCurrentMonth } from "../Utils/Date";
 
-/** Seletor de mês global: todas as telas leem `currentMonth` da store. */
+/**
+ * Seletor de mês global: todas as telas leem `currentMonth` da store.
+ * Meses futuros são sempre livres; meses passados só valem se tiveram movimentação.
+ */
 export default function MonthSelector() {
   const currentMonth = useFinanceStore((s) => s.currentMonth);
   const setCurrentMonth = useFinanceStore((s) => s.setCurrentMonth);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
   const notes = useFinanceStore((s) => s.notes);
+  const goals = useFinanceStore((s) => s.goals);
 
   const realCurrentMonth = getCurrentMonth();
 
-  const oldestMonth = useMemo(() => {
-    const months = getAvailableMonths({ transactions, creditTransactions, notes: [] }, realCurrentMonth);
-    return [...months, ...notes.map((n) => n.month)].sort(compareMonths)[0] ?? null;
-  }, [transactions, creditTransactions, notes, realCurrentMonth]);
-
-  const canGoBack = oldestMonth ? compareMonths(oldestMonth, currentMonth) < 0 : false;
-  const canGoForward = compareMonths(currentMonth, realCurrentMonth) < 0;
+  const previous = useMemo(
+    () => getAdjacentMonth({ transactions, creditTransactions, extraExpenses, notes, goals }, currentMonth, realCurrentMonth, -1),
+    [transactions, creditTransactions, extraExpenses, notes, goals, currentMonth, realCurrentMonth],
+  );
+  const next = useMemo(
+    () => getAdjacentMonth({ transactions, creditTransactions, extraExpenses, notes, goals }, currentMonth, realCurrentMonth, 1),
+    [transactions, creditTransactions, extraExpenses, notes, goals, currentMonth, realCurrentMonth],
+  );
 
   const arrow =
     "grid h-10 w-10 place-items-center sm:h-9 sm:w-9 rounded-md border border-border-strong bg-card text-foreground transition-colors hover:bg-secondary disabled:pointer-events-none disabled:opacity-40";
 
   return (
     <div data-tour="mes" className="flex items-center gap-1.5 max-[700px]:w-full max-[700px]:justify-between">
-      <button type="button" aria-label="Mês anterior" className={arrow} disabled={!canGoBack} onClick={() => setCurrentMonth(changeMonth(currentMonth, -1))}>
+      <button type="button" aria-label="Mês anterior" className={arrow} disabled={!previous} onClick={() => previous && setCurrentMonth(previous)}>
         <Icon name="chevronL" size={16} />
       </button>
       <div className="min-w-[7.75rem] text-center">
@@ -38,7 +44,7 @@ export default function MonthSelector() {
           </button>
         )}
       </div>
-      <button type="button" aria-label="Próximo mês" className={arrow} disabled={!canGoForward} onClick={() => setCurrentMonth(changeMonth(currentMonth, 1))}>
+      <button type="button" aria-label="Próximo mês" className={arrow} disabled={!next} onClick={() => next && setCurrentMonth(next)}>
         <Icon name="chevronR" size={16} />
       </button>
     </div>

@@ -6,7 +6,7 @@ import { formatBRL } from "../lib/money";
 import type { Category } from "../Types/Category";
 import type { FinanceData, Month, MonthSummary } from "./types";
 
-type Source = Pick<FinanceData, "transactions" | "creditTransactions">;
+type Source = Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses">>;
 
 /** Os `count` meses terminando em `end` (inclusive), do mais antigo ao mais novo. */
 export function lastMonths(end: Month, count: number): Month[] {
@@ -75,6 +75,11 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
         });
       }
     }
+    if (options.entries) {
+      for (const e of data.extraExpenses ?? []) {
+        if (e.month === month) rows.push({ month, name: e.name, category: "Outros", type: "Despesa", amount: e.amount, note: "Despesa extra" });
+      }
+    }
     if (options.credit) {
       for (const c of getCreditByMonth(data.creditTransactions, month)) {
         rows.push({
@@ -83,7 +88,9 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
           category: CREDIT_CATEGORY,
           type: "Despesa",
           amount: c.installmentValue,
-          note: `Parcela ${c.currentInstallment}/${c.installments}`,
+          note: c.advanced
+            ? `Parcela ${c.currentInstallment}/${c.installments} adiantada, original em ${formatMonth(c.advanced.originalMonth)}, desconto ${formatBRL(c.advanced.discount)}`
+            : `Parcela ${c.currentInstallment}/${c.installments}`,
         });
       }
     }

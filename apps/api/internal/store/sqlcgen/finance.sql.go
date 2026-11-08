@@ -43,9 +43,9 @@ func (q *Queries) CreateCategory(ctx context.Context, arg CreateCategoryParams) 
 }
 
 const createCredit = `-- name: CreateCredit :one
-INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7)
-RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at
+INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb)
+RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments
 `
 
 type CreateCreditParams struct {
@@ -56,6 +56,7 @@ type CreateCreditParams struct {
 	Installments int32
 	StartMonth   string
 	Category     string
+	Column8      []byte
 }
 
 func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (CreditPurchase, error) {
@@ -67,6 +68,7 @@ func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (Cre
 		arg.Installments,
 		arg.StartMonth,
 		arg.Category,
+		arg.Column8,
 	)
 	var i CreditPurchase
 	err := row.Scan(
@@ -78,6 +80,7 @@ func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (Cre
 		&i.StartMonth,
 		&i.Category,
 		&i.CreatedAt,
+		&i.Adjustments,
 	)
 	return i, err
 }
@@ -353,6 +356,32 @@ func (q *Queries) DeleteTransactionOverrides(ctx context.Context, transactionID 
 	return err
 }
 
+const getCreditForUpdate = `-- name: GetCreditForUpdate :one
+SELECT id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments FROM credit_purchases WHERE id = $1 AND user_id = $2 FOR UPDATE
+`
+
+type GetCreditForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetCreditForUpdate(ctx context.Context, arg GetCreditForUpdateParams) (CreditPurchase, error) {
+	row := q.db.QueryRow(ctx, getCreditForUpdate, arg.ID, arg.UserID)
+	var i CreditPurchase
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.TotalCents,
+		&i.Installments,
+		&i.StartMonth,
+		&i.Category,
+		&i.CreatedAt,
+		&i.Adjustments,
+	)
+	return i, err
+}
+
 const getTransaction = `-- name: GetTransaction :one
 SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at FROM transactions WHERE id = $1 AND user_id = $2
 `
@@ -432,7 +461,7 @@ func (q *Queries) ListCategories(ctx context.Context, userID uuid.UUID) ([]Custo
 }
 
 const listCredits = `-- name: ListCredits :many
-SELECT id, user_id, name, total_cents, installments, start_month, category, created_at FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id
+SELECT id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListCredits(ctx context.Context, userID uuid.UUID) ([]CreditPurchase, error) {
@@ -453,6 +482,7 @@ func (q *Queries) ListCredits(ctx context.Context, userID uuid.UUID) ([]CreditPu
 			&i.StartMonth,
 			&i.Category,
 			&i.CreatedAt,
+			&i.Adjustments,
 		); err != nil {
 			return nil, err
 		}
@@ -657,6 +687,35 @@ func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Tra
 	return items, nil
 }
 
+const setCreditAdjustments = `-- name: SetCreditAdjustments :one
+UPDATE credit_purchases SET adjustments = $3::jsonb
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments
+`
+
+type SetCreditAdjustmentsParams struct {
+	ID      uuid.UUID
+	UserID  uuid.UUID
+	Column3 []byte
+}
+
+func (q *Queries) SetCreditAdjustments(ctx context.Context, arg SetCreditAdjustmentsParams) (CreditPurchase, error) {
+	row := q.db.QueryRow(ctx, setCreditAdjustments, arg.ID, arg.UserID, arg.Column3)
+	var i CreditPurchase
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.TotalCents,
+		&i.Installments,
+		&i.StartMonth,
+		&i.Category,
+		&i.CreatedAt,
+		&i.Adjustments,
+	)
+	return i, err
+}
+
 const updateCredit = `-- name: UpdateCredit :one
 UPDATE credit_purchases SET
     name         = COALESCE($1, name),
@@ -665,7 +724,7 @@ UPDATE credit_purchases SET
     start_month  = COALESCE($4, start_month),
     category     = COALESCE($5, category)
 WHERE id = $6 AND user_id = $7
-RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at
+RETURNING id, user_id, name, total_cents, installments, start_month, category, created_at, adjustments
 `
 
 type UpdateCreditParams struct {
@@ -698,6 +757,7 @@ func (q *Queries) UpdateCredit(ctx context.Context, arg UpdateCreditParams) (Cre
 		&i.StartMonth,
 		&i.Category,
 		&i.CreatedAt,
+		&i.Adjustments,
 	)
 	return i, err
 }

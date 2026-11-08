@@ -72,8 +72,9 @@ export default function TransactionForm() {
     if (help === null) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+      // só os campos com texto ficam com as setas (mover o cursor); vazios e botões deixam navegar
       const el = e.target as HTMLElement | null;
-      if (el?.matches("input, textarea, select, [contenteditable='true']")) return;
+      if (el?.matches("input, textarea, select, [contenteditable='true']") && (el as HTMLInputElement).value !== "") return;
       e.preventDefault();
       e.stopPropagation();
       const to = help + (e.key === "ArrowRight" ? 1 : -1);
@@ -145,7 +146,7 @@ export default function TransactionForm() {
           </div>
         )}
 
-        {open && <LaunchFields key={tab} kind={tab} onClose={() => onOpenChange(false)} />}
+        {open && <LaunchFields key={tab} kind={tab} focusName={help === null} onClose={() => onOpenChange(false)} />}
       </DialogContent>
     </Dialog>
   );
@@ -159,7 +160,8 @@ const LABELS = {
   goal: { name: "Nome da meta", placeholder: "Ex.: Viagem de férias", amount: "Valor da meta" },
 } as const;
 
-function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void }) {
+/** `focusName`: foca o campo de nome ao abrir; desligado durante o mini tour, para as setas navegarem as etapas. */
+function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName: boolean; onClose: () => void }) {
   const currentMonth = useFinanceStore((s) => s.currentMonth);
   const addTransaction = useFinanceStore((s) => s.addTransaction);
   const addCreditTransaction = useFinanceStore((s) => s.addCreditTransaction);
@@ -246,7 +248,7 @@ function LaunchFields({ kind, onClose }: { kind: LaunchTab; onClose: () => void 
         <input
           key={round}
           id="launch-name"
-          autoFocus
+          autoFocus={focusName}
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder={labels.placeholder}

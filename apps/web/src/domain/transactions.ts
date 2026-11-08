@@ -1,4 +1,4 @@
-import { compareMonths } from "../Utils/Date";
+import { compareMonths, getMonthsBetween } from "../Utils/Date";
 import type { Month, Transaction } from "./types";
 
 /** Uma transação fixa vale do mês em que foi criada em diante, menos nos meses ocultados. */
@@ -44,6 +44,26 @@ export function patchAmountForMonth(
     return { monthlyValues: { ...t.monthlyValues, [month]: cents } };
   }
   return { amount: cents };
+}
+
+/**
+ * Novo valor deste mês em diante (fixa). Os meses anteriores mantêm o valor que já tinham:
+ * os que dependiam do valor-base ganham um valor próprio, e os valores já definidos
+ * para este mês e os seguintes são descartados, para valerem o novo.
+ */
+export function patchAmountFromMonth(
+  t: Transaction,
+  month: Month,
+  cents: number,
+): Partial<Transaction> {
+  if (!t.fixed) return { amount: cents };
+
+  const values: Record<Month, number> = {};
+  for (const m of getMonthsBetween(t.month, month)) {
+    if (m === month) break;
+    values[m] = t.monthlyValues?.[m] ?? t.amount;
+  }
+  return { amount: cents, monthlyValues: values };
 }
 
 /** Fixa: oculta neste mês. Normal: não há patch, quem chama deve remover. */

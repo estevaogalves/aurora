@@ -18,6 +18,7 @@ type CreditPurchase struct {
 	StartMonth   string
 	Category     string
 	CreatedAt    pgtype.Timestamptz
+	Adjustments  []byte
 }
 
 type CustomCategory struct {

@@ -1,9 +1,14 @@
 import { create } from "zustand";
 import {
   getCreditByMonth,
+  patchAdvanceInstallment,
+  patchEditInstallment,
+  patchRemoveInstallment,
+  type PatchResult,
   getHiddenTransactionsByMonth,
   getTransactionsByMonth,
   patchAmountForMonth,
+  patchAmountFromMonth,
   patchHideInMonth,
   patchRestoreInMonth,
   patchToggleFixed,
@@ -59,6 +64,8 @@ interface FinanceState {
   updateTransactionCategory: (id: string, category: Category) => void;
   updateTransactionNotes: (id: string, notes: string) => void;
   updateTransactionAmountForMonth: (id: string, month: string, cents: number) => void;
+  /** Fixa: o novo valor vale deste mês em diante (os anteriores não mudam). */
+  updateTransactionAmountFromMonth: (id: string, month: string, cents: number) => void;
   toggleTransactionFixed: (id: string) => void;
   /** Fixa: oculta no mês. Comum: remove de vez. */
   removeTransactionByMonth: (id: string, month: string) => void;
@@ -67,6 +74,12 @@ interface FinanceState {
   addCreditTransaction: (credit: CreditTransaction) => void;
   updateCreditTransaction: (id: string, patch: Partial<CreditTransaction>) => void;
   removeCreditTransaction: (id: string) => void;
+  /** Adianta a última parcela (futura) com desconto em centavos. Devolve a mensagem de erro, ou null se deu certo. */
+  advanceCreditInstallment: (id: string, n: number, discount: number) => string | null;
+  /** Muda só o valor (centavos) de uma parcela. Devolve a mensagem de erro, ou null. */
+  updateCreditInstallment: (id: string, n: number, cents: number) => string | null;
+  /** Exclui só uma parcela. Devolve a mensagem de erro, ou null. */
+  removeCreditInstallment: (id: string, n: number) => string | null;
 
   addNote: (note: Note) => void;
   removeNote: (id: string) => void;
@@ -115,6 +128,19 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       ),
     }));
     sync(repository.updateTransaction(id, patch));
+  };
+
+  /** Aplica na tela a regra de uma parcela e avisa o repositório; o servidor valida de novo. */
+  const adjustCredit = (id: string, rule: (c: CreditTransaction) => PatchResult, save: () => Promise<void>): string | null => {
+    const credit = get().creditTransactions.find((c) => c.id === id);
+    if (!credit) return "Compra não encontrada.";
+    const result = rule(credit);
+    if (!result.ok) return result.error;
+    set((state) => ({
+      creditTransactions: state.creditTransactions.map((c) => (c.id === id ? { ...c, ...result.patch } : c)),
+    }));
+    sync(save());
+    return null;
   };
 
   return {
@@ -180,6 +206,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       if (t) patchTransaction(id, patchAmountForMonth(t, month, cents));
     },
 
+    updateTransactionAmountFromMonth: (id, month, cents) => {
+      const t = findTransaction(id);
+      if (t) patchTransaction(id, patchAmountFromMonth(t, month, cents));
+    },
+
     toggleTransactionFixed: (id) => {
       const t = findTransaction(id);
       if (t) patchTransaction(id, patchToggleFixed(t));
@@ -219,6 +250,15 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       }));
       sync(repository.removeCredit(id));
     },
+
+    advanceCreditInstallment: (id, n, discount) =>
+      adjustCredit(id, (c) => patchAdvanceInstallment(c, n, discount, getCurrentMonth()), () => repository.advanceInstallment(id, n, discount)),
+
+    updateCreditInstallment: (id, n, cents) =>
+      adjustCredit(id, (c) => patchEditInstallment(c, n, cents), () => repository.editInstallment(id, n, cents)),
+
+    removeCreditInstallment: (id, n) =>
+      adjustCredit(id, (c) => patchRemoveInstallment(c, n), () => repository.removeInstallment(id, n)),
 
     addNote: (note) => {
       set((state) => ({ notes: [...state.notes, note] }));

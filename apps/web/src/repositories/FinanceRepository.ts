@@ -25,6 +25,12 @@ export interface FinanceRepository {
   addCredit(credit: CreditTransaction): Promise<void>;
   updateCredit(id: string, patch: Partial<CreditTransaction>): Promise<void>;
   removeCredit(id: string): Promise<void>;
+  /** Adianta a última parcela (futura): cobra o valor com desconto no mês atual. Desconto em centavos. */
+  advanceInstallment(id: string, n: number, discount: number): Promise<void>;
+  /** Muda só o valor (centavos) de uma parcela. */
+  editInstallment(id: string, n: number, cents: number): Promise<void>;
+  /** Exclui só uma parcela. */
+  removeInstallment(id: string, n: number): Promise<void>;
 
   addNote(note: Note): Promise<void>;
   updateNote(id: string, patch: Partial<Note>): Promise<void>;

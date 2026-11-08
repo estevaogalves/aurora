@@ -80,6 +80,11 @@ export class ApiRepository implements FinanceRepository {
   updateCredit = (id: string, patch: Partial<CreditTransaction>) =>
     this.enqueue(() => api.patch(`/credits/${id}`, pick(patch, CREDIT_PATCH)));
   removeCredit = (id: string) => this.enqueue(() => api.delete(`/credits/${id}`));
+  advanceInstallment = (id: string, n: number, discount: number) =>
+    this.enqueue(() => api.post(`/credits/${id}/installments/${n}/advance`, { discount }));
+  editInstallment = (id: string, n: number, cents: number) =>
+    this.enqueue(() => api.put(`/credits/${id}/installments/${n}`, { value: cents }));
+  removeInstallment = (id: string, n: number) => this.enqueue(() => api.delete(`/credits/${id}/installments/${n}`));
 
   addNote = (n: Note) => this.enqueue(() => api.post("/notes", n));
   updateNote = (id: string, patch: Partial<Note>) => this.enqueue(() => api.patch(`/notes/${id}`, pick(patch, NOTE_PATCH)));

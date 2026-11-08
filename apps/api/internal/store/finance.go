@@ -2,6 +2,7 @@ package store
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/google/uuid"
 
@@ -165,26 +166,74 @@ func (s *Store) CreateCredit(ctx context.Context, userID uuid.UUID, c domain.Cre
 }
 
 func creditParams(userID uuid.UUID, c domain.CreditTransaction) sqlcgen.CreateCreditParams {
+	adjustments, err := json.Marshal(c.Adjustments)
+	if err != nil || len(c.Adjustments) == 0 {
+		adjustments = []byte("{}")
+	}
 	return sqlcgen.CreateCreditParams{
 		Column1: clientID(c.ID), UserID: userID, Name: c.Name, TotalCents: c.TotalAmount,
 		Installments: int32(c.Installments), StartMonth: c.StartMonth, Category: c.Category,
+		Column8: adjustments,
 	}
 }
 
+// UpdateCredit edita a compra inteira ("todas as parcelas"). Os ajustes por parcela (adiantadas,
+// excluídas, com valor próprio) não mudam, e o número de parcelas só muda enquanto não houver ajustes.
 func (s *Store) UpdateCredit(ctx context.Context, userID uuid.UUID, id string, p CreditPatch) (domain.CreditTransaction, error) {
 	cid, err := parseID(id)
 	if err != nil {
 		return domain.CreditTransaction{}, err
 	}
-	arg := sqlcgen.UpdateCreditParams{
-		Name: text(p.Name), TotalCents: int8v(p.TotalAmount), StartMonth: text(p.StartMonth),
-		Category: text(p.Category), ID: cid, UserID: userID,
+	var out domain.CreditTransaction
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetCreditForUpdate(ctx, sqlcgen.GetCreditForUpdateParams{ID: cid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		if p.Installments != nil && *p.Installments != int(cur.Installments) && !domain.CanChangeInstallments(creditFrom(cur)) {
+			return &ValidationError{"Não dá para mudar o número de parcelas de uma compra com parcelas ajustadas, excluídas ou adiantadas."}
+		}
+		arg := sqlcgen.UpdateCreditParams{
+			Name: text(p.Name), TotalCents: int8v(p.TotalAmount), StartMonth: text(p.StartMonth),
+			Category: text(p.Category), ID: cid, UserID: userID,
+		}
+		if p.Installments != nil {
+			arg.Installments.Int32, arg.Installments.Valid = int32(*p.Installments), true
+		}
+		row, err := q.UpdateCredit(ctx, arg)
+		out = creditFrom(row)
+		return mapErr(err)
+	})
+	return out, err
+}
+
+// AdjustCredit aplica uma regra de ajuste por parcela (adiantar, editar, excluir) dentro de uma
+// transação com a linha travada, então duas chamadas ao mesmo tempo não se atropelam.
+// `rule` recebe a compra atual e devolve os novos ajustes ou a mensagem de recusa.
+func (s *Store) AdjustCredit(ctx context.Context, userID uuid.UUID, id string, rule func(domain.CreditTransaction) (map[string]domain.InstallmentAdjustment, string)) (domain.CreditTransaction, error) {
+	cid, err := parseID(id)
+	if err != nil {
+		return domain.CreditTransaction{}, err
 	}
-	if p.Installments != nil {
-		arg.Installments.Int32, arg.Installments.Valid = int32(*p.Installments), true
-	}
-	row, err := s.q.UpdateCredit(ctx, arg)
-	return creditFrom(row), mapErr(err)
+	var out domain.CreditTransaction
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetCreditForUpdate(ctx, sqlcgen.GetCreditForUpdateParams{ID: cid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		adj, msg := rule(creditFrom(cur))
+		if msg != "" {
+			return &ValidationError{msg}
+		}
+		raw, err := json.Marshal(adj)
+		if err != nil {
+			return err
+		}
+		row, err := q.SetCreditAdjustments(ctx, sqlcgen.SetCreditAdjustmentsParams{ID: cid, UserID: userID, Column3: raw})
+		out = creditFrom(row)
+		return mapErr(err)
+	})
+	return out, err
 }
 
 func (s *Store) DeleteCredit(ctx context.Context, userID uuid.UUID, id string) error {

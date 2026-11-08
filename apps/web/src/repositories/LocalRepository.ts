@@ -9,6 +9,8 @@ import type {
   OnboardingState,
   Transaction,
 } from "../domain/types";
+import { patchAdvanceInstallment, patchEditInstallment, patchRemoveInstallment, type PatchResult } from "../domain/credit";
+import { getCurrentMonth } from "../Utils/Date";
 import type { FinanceRepository } from "./FinanceRepository";
 import {
   CURRENT_VERSION,
@@ -82,6 +84,28 @@ export class LocalRepository implements FinanceRepository {
       (c) => c.id !== id,
     );
     this.persist();
+  }
+
+  /** Aplica o patch de uma regra de domínio na compra (a API faz o mesmo no servidor). */
+  private adjustCredit(id: string, rule: (credit: CreditTransaction) => PatchResult) {
+    const credit = this.data.creditTransactions.find((c) => c.id === id);
+    if (!credit) return;
+    const result = rule(credit);
+    if (!result.ok) throw new Error(result.error);
+    this.data.creditTransactions = this.data.creditTransactions.map((c) => (c.id === id ? { ...c, ...result.patch } : c));
+    this.persist();
+  }
+
+  async advanceInstallment(id: string, n: number, discount: number) {
+    this.adjustCredit(id, (c) => patchAdvanceInstallment(c, n, discount, getCurrentMonth()));
+  }
+
+  async editInstallment(id: string, n: number, cents: number) {
+    this.adjustCredit(id, (c) => patchEditInstallment(c, n, cents));
+  }
+
+  async removeInstallment(id: string, n: number) {
+    this.adjustCredit(id, (c) => patchRemoveInstallment(c, n));
   }
 
   async addNote(note: Note) {

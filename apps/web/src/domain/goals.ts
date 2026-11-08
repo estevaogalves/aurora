@@ -27,6 +27,29 @@ export function goalMonthsLeft(goal: Goal): number | null {
   return Math.ceil(remaining / goal.monthly);
 }
 
+export interface GoalDeadlinePlan {
+  /** meses até o prazo, contando o mês do prazo: 0 = vence neste mês, negativo = já passou */
+  monthsLeft: number;
+  /** centavos por mês para chegar ao valor da meta no prazo (no mês do prazo ou depois, é o que falta todo) */
+  recommended: number;
+  /** o aporte mensal informado cobre o prazo; null se não há aporte informado */
+  covered: boolean | null;
+}
+
+/**
+ * Quanto juntar por mês para cumprir o prazo, a partir do que falta e dos meses restantes.
+ * Vale mesmo quando o usuário informou um aporte: ele só diz se o aporte basta.
+ * null se a meta não tem prazo ou já foi concluída.
+ */
+export function goalDeadlinePlan(goal: Goal, today: Month): GoalDeadlinePlan | null {
+  if (!goal.deadline || isGoalDone(goal)) return null;
+  const remaining = goalRemaining(goal);
+  const monthsLeft = monthsDifference(goal.deadline, today);
+  const recommended = monthsLeft <= 0 ? remaining : Math.ceil(remaining / monthsLeft);
+  const covered = goal.monthly > 0 ? monthsLeft > 0 && goal.monthly * monthsLeft >= remaining : null;
+  return { monthsLeft, recommended, covered };
+}
+
 /**
  * Registra um aporte (centavos, pode ser negativo para retirada) e, opcionalmente,
  * o rendimento do que já estava guardado. O rendimento entra no guardado e também
