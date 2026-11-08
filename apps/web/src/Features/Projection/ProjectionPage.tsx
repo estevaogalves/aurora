@@ -6,11 +6,11 @@ import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import RowMenu from "@/components/shared/RowMenu";
 import StatCard from "@/components/shared/StatCard";
-import { getCreditProgress, getProjection, getProjectionDetail, type ProjectionLine } from "@/domain";
+import { getCreditByMonth, getCreditProgress, getProjection, getProjectionDetail, type ProjectionLine } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore, type ExtraExpense } from "@/Store/FinanceStore";
 import { useCategoryColor } from "@/Utils/categoryColors";
-import { changeMonth, formatMonthShort, formatMonthTitle, monthsDifference } from "@/Utils/Date";
+import { changeMonth, formatMonthShort, formatMonthTitle } from "@/Utils/Date";
 import EditExtraDialog from "./EditExtraDialog";
 import { PROJECAO_TOUR } from "./tour";
 
@@ -90,12 +90,7 @@ export default function ProjectionPage() {
 
   const extrasInWindow = extras.filter((e) => months.includes(e.month)).sort((a, b) => a.month.localeCompare(b.month));
   // compras que ainda cobram parcela em algum mês da janela
-  const activeCredits = creditTransactions.filter((c) =>
-    months.some((m) => {
-      const n = monthsDifference(m, c.startMonth);
-      return n >= 0 && n < c.installments;
-    }),
-  );
+  const activeCredits = creditTransactions.filter((c) => months.some((m) => getCreditByMonth([c], m).some((i) => !i.advanced)));
 
   return (
     <>

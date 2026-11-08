@@ -25,6 +25,23 @@ export interface Transaction {
   monthlyValues?: Record<Month, number>;
 }
 
+/** Parcela adiantada: o valor com desconto é cobrado em `month` (o mês de hoje no momento do adiantamento). */
+export interface InstallmentAdvance {
+  month: Month;
+  /** centavos de desconto dado pelo banco */
+  discount: number;
+  /** centavos cobrados em `month` (valor da parcela menos o desconto) */
+  amount: number;
+}
+
+export interface InstallmentAdjustment {
+  /** centavos: valor só desta parcela, no lugar da divisão do total */
+  value?: number;
+  /** só esta parcela foi excluída */
+  removed?: boolean;
+  advanced?: InstallmentAdvance;
+}
+
 export interface CreditTransaction {
   id: string;
   name: string;
@@ -33,6 +50,8 @@ export interface CreditTransaction {
   installments: number;
   startMonth: Month;
   category: Category;
+  /** Ajustes por parcela, pela posição ("1" a "N"): valor próprio, excluída ou adiantada. Ausente = nenhum. */
+  adjustments?: Record<string, InstallmentAdjustment>;
 }
 
 export interface Note {
@@ -54,6 +73,10 @@ export interface CreditInstallment {
   installmentValue: number;
   /** centavos do total da compra */
   totalAmount: number;
+  /** parcela com valor ajustado só para ela */
+  adjusted?: boolean;
+  /** parcela adiantada: cobrada neste mês, com o mês original e o desconto */
+  advanced?: { originalMonth: Month; discount: number; originalValue: number };
 }
 
 /** Despesa planejada para um mês específico (tela de Projeção). */

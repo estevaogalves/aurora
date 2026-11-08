@@ -88,7 +88,9 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
           category: CREDIT_CATEGORY,
           type: "Despesa",
           amount: c.installmentValue,
-          note: `Parcela ${c.currentInstallment}/${c.installments}`,
+          note: c.advanced
+            ? `Parcela ${c.currentInstallment}/${c.installments} adiantada (original ${c.advanced.originalMonth}, desconto ${formatBRL(c.advanced.discount)})`
+            : `Parcela ${c.currentInstallment}/${c.installments}`,
         });
       }
     }
