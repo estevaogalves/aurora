@@ -25,3 +25,4 @@ dist-ssr
 
 # variáveis locais do docker compose
 .env
+backups/
