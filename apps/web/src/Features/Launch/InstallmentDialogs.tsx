@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Field, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { advancedAmount, getInstallmentMonth, getInstallmentValue, validateDiscount } from "@/domain";
+import { advancedAmount, getInstallmentMonth, getInstallmentValue, patchCancelRecurrence, validateDiscount } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction } from "@/Store/FinanceStore";
 import { formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
@@ -73,6 +73,40 @@ function ScopeChoice({ installmentLabel, allNote, confirmLabel, destructive, onC
         <Button type="button" variant={destructive ? "destructive" : "default"} onClick={() => onChoose(scope)}>{confirmLabel}</Button>
       </div>
     </>
+  );
+}
+
+/** Confirma o cancelamento de uma compra recorrente: os meses até `last` ficam, os seguintes deixam de ser cobrados. */
+export function CancelRecurrenceDialog({ credit, month, onClose }: { credit: CreditTransaction | null; month: string; onClose: () => void }) {
+  const cancel = useFinanceStore((s) => s.cancelCreditRecurrence);
+  const result = credit ? patchCancelRecurrence(credit, month, getCurrentMonth()) : null;
+  const last = result?.ok ? result.patch.endMonth : undefined;
+
+  function confirm() {
+    if (!credit) return;
+    const error = cancel(credit.id, month);
+    if (error) return showToast({ type: "error", text: error });
+    showToast({ type: "success", text: `Recorrência de "${credit.name}" cancelada` });
+    onClose();
+  }
+
+  return (
+    <Shell
+      open={!!credit}
+      title="Cancelar recorrência"
+      description={credit ? `Compra: ${credit.name} · ${formatBRL(credit.totalAmount)} por mês.` : ""}
+      onClose={onClose}
+    >
+      <p className="text-sm text-muted-foreground">
+        {last
+          ? `A última cobrança será em ${formatMonthTitle(last)}. Os meses até lá continuam como estão; a partir do mês seguinte, nada mais é cobrado.`
+          : "Não foi possível calcular o último mês cobrado."}
+      </p>
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={onClose}>Voltar</Button>
+        <Button type="button" variant="destructive" disabled={!last} onClick={confirm}>Cancelar recorrência</Button>
+      </div>
+    </Shell>
   );
 }
 

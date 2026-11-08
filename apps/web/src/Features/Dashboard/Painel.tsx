@@ -160,7 +160,9 @@ function Suggestion() {
 }
 
 function GoalsMini() {
-  const realGoals = useFinanceStore((s) => s.goals);
+  // porquinhos não têm porcentagem: este resumo mostra só as metas principais
+  const allGoals = useFinanceStore((s) => s.goals);
+  const realGoals = useMemo(() => allGoals.filter((g) => !g.piggy), [allGoals]);
   const openLaunch = useUiStore((s) => s.openLaunch);
   // durante o tour, quem não criou metas vê metas de exemplo (o tour não depende de dados do usuário)
   const demo = useUiStore((s) => s.tourDemo) && realGoals.length === 0;
@@ -208,9 +210,10 @@ function RecentExpenses() {
       name: c.name,
       category: c.category,
       amount: c.installmentValue,
-      installment: `${c.currentInstallment}/${c.installments}`,
+      installment: c.recurring ? undefined : `${c.currentInstallment}/${c.installments}`,
+      recurring: c.recurring,
       advanced: !!c.advanced,
-      progress: { value: c.currentInstallment, max: c.installments },
+      progress: c.recurring ? undefined : { value: c.currentInstallment, max: c.installments },
     })),
     ...extras.map((e) => ({ id: e.id, name: e.name, category: "Outros", amount: e.amount })),
   ];

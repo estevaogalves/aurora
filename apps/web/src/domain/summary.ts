@@ -105,6 +105,8 @@ export function getDistribution(balance: number): Record<DistributionKey, number
 /* ---------- meses com dados ---------- */
 
 function creditEndMonth(c: CreditTransaction): Month {
+  // recorrente sem fim não cria dado em meses futuros: segue só até onde o app já mostra
+  if (c.recurring) return c.endMonth ?? c.startMonth;
   return changeMonth(c.startMonth, c.installments - 1);
 }
 
@@ -175,7 +177,7 @@ export function getProjectionDetail(
     incomes: fixed.filter((t) => t.type === "income").map(line),
     expenses: [
       ...fixed.filter((t) => t.type === "expense").map(line),
-      ...getCreditByMonth(data.creditTransactions, month).map((c): ProjectionLine => ({ name: `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" })),
+      ...getCreditByMonth(data.creditTransactions, month).map((c): ProjectionLine => ({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" })),
       ...extras.filter((e) => e.month === month).map((e): ProjectionLine => ({ name: e.name, amount: e.amount, kind: "extra" })),
     ],
   };

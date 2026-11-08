@@ -171,6 +171,18 @@ export default function ProjectionPage() {
               <Empty>Nenhuma compra parcelada em curso.</Empty>
             ) : (
               activeCredits.map((c) => {
+                if (c.recurring) {
+                  return (
+                    <div key={c.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border py-[11px] first:border-t-0 first:pt-0">
+                      <span className="h-2.5 w-2.5 rounded-[3px]" style={{ background: colorOf(c.category) }} />
+                      <div className="min-w-0">
+                        <div className="break-words font-semibold">{c.name}</div>
+                        <div className="mt-0.5 text-[12.5px] text-muted-foreground">Recorrente · {c.endMonth ? `cobra até ${shortLabel(c.endMonth)}` : "todo mês"}</div>
+                      </div>
+                      <span className="num font-bold">{formatBRLShort(c.totalAmount)}</span>
+                    </div>
+                  );
+                }
                 const { done, remaining, endMonth: end } = getCreditProgress(c, current);
                 return (
                   <div key={c.id} className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border py-[11px] first:border-t-0 first:pt-0">

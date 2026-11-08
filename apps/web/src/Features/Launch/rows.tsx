@@ -57,6 +57,8 @@ export interface ExpenseLine {
   progress?: { value: number; max: number };
   /** parcela adiantada para este mês */
   advanced?: boolean;
+  /** compra recorrente no cartão (sem parcelas) */
+  recurring?: boolean;
 }
 
 /** Linha somente leitura de despesa (Painel). */
@@ -71,6 +73,7 @@ export function ExpenseStaticRow({ line }: { line: ExpenseLine }) {
           {line.category}
           {line.fixed && <Pill tone="fix">Fixa</Pill>}
           {line.installment && <Pill>Parcela {line.installment}</Pill>}
+          {line.recurring && <Pill>Recorrente</Pill>}
           {line.advanced && <Pill tone="good">Adiantada</Pill>}
         </>
       }

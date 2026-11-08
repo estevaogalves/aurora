@@ -59,7 +59,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
       else updateTransactionAmountForMonth(transaction.id, month, cents);
     }
     if (!income && category !== transaction.category) updateTransactionCategory(transaction.id, category);
-    if (!income && notes.trim() !== (transaction.notes ?? "")) updateTransactionNotes(transaction.id, notes.trim());
+    if (notes.trim() !== (transaction.notes ?? "")) updateTransactionNotes(transaction.id, notes.trim());
 
     showToast({ type: "success", text: "Alterações salvas" });
     onClose();
@@ -85,16 +85,14 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
         </fieldset>
       )}
       {!income && (
-        <>
-          <Field label="Categoria" htmlFor="edit-category">
-            <CategorySelect id="edit-category" value={category} onChange={setCategory} />
-          </Field>
-          <Field label="Observação" hint="(opcional)" htmlFor="edit-notes">
-            <p className="-mt-1 text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
-            <Textarea id="edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[64px] rounded-md border-border-strong bg-secondary" />
-          </Field>
-        </>
+        <Field label="Categoria" htmlFor="edit-category">
+          <CategorySelect id="edit-category" value={category} onChange={setCategory} />
+        </Field>
       )}
+      <Field label="Observação" hint="(opcional)" htmlFor="edit-notes">
+        <p className="-mt-1 text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
+        <Textarea id="edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[64px] rounded-md border-border-strong bg-secondary" />
+      </Field>
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
         <Button type="submit">Salvar</Button>
@@ -106,7 +104,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
 /** Edita uma compra parcelada: nome, categoria, valor total e número de parcelas. */
 export function EditCreditDialog({ credit, onClose }: { credit: CreditTransaction | null; onClose: () => void }) {
   return (
-    <Shell open={!!credit} title="Editar compra parcelada" description={credit ? `Começou em ${formatMonthTitle(credit.startMonth)}. Total atual: ${formatBRL(credit.totalAmount)}.${credit.adjustments && Object.keys(credit.adjustments).length > 0 ? " As parcelas adiantadas, excluídas ou com valor próprio não mudam." : ""}` : ""} onClose={onClose}>
+    <Shell open={!!credit} title={credit?.recurring ? "Editar compra recorrente" : "Editar compra parcelada"} description={credit?.recurring ? `Começou em ${formatMonthTitle(credit.startMonth)}. Valor mensal atual: ${formatBRL(credit.totalAmount)}. O novo valor vale para todos os meses da recorrência.` : credit ? `Começou em ${formatMonthTitle(credit.startMonth)}. Total atual: ${formatBRL(credit.totalAmount)}.${credit.adjustments && Object.keys(credit.adjustments).length > 0 ? " As parcelas adiantadas, excluídas ou com valor próprio não mudam." : ""}` : ""} onClose={onClose}>
       {credit && <CreditFields key={credit.id} credit={credit} onClose={onClose} />}
     </Shell>
   );
@@ -120,6 +118,7 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
   const [category, setCategory] = useState(credit.category);
   // com parcelas ajustadas, excluídas ou adiantadas o nº de parcelas fica travado
   const locked = Object.keys(credit.adjustments ?? {}).length > 0;
+  const recurring = !!credit.recurring;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -130,7 +129,7 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
     const result = patchEditAll(credit, {
       name: name.trim(),
       totalAmount: cents,
-      installments: Math.min(60, Math.max(1, Math.floor(installments) || 1)),
+      installments: recurring ? 1 : Math.min(60, Math.max(1, Math.floor(installments) || 1)),
       category,
     });
     if (!result.ok) return showToast({ type: "error", text: result.error });
@@ -144,13 +143,15 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
       <Field label="Nome" htmlFor="edit-credit-name">
         <input id="edit-credit-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </Field>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Valor total" htmlFor="edit-credit-total">
+      <div className={recurring ? "" : "grid gap-4 sm:grid-cols-2"}>
+        <Field label={recurring ? "Valor mensal" : "Valor total"} htmlFor="edit-credit-total">
           <MoneyInput id="edit-credit-total" value={total} onChange={setTotal} />
         </Field>
-        <Field label="Parcelas" htmlFor="edit-credit-installments">
-          <input id="edit-credit-installments" type="number" min={1} max={60} value={installments} disabled={locked} onChange={(e) => setInstallments(Number(e.target.value))} className={inputClass} />
-        </Field>
+        {!recurring && (
+          <Field label="Parcelas" htmlFor="edit-credit-installments">
+            <input id="edit-credit-installments" type="number" min={1} max={60} value={installments} disabled={locked} onChange={(e) => setInstallments(Number(e.target.value))} className={inputClass} />
+          </Field>
+        )}
       </div>
       <Field label="Categoria" htmlFor="edit-credit-category">
         <CategorySelect id="edit-credit-category" value={category} onChange={setCategory} />

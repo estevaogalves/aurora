@@ -13,8 +13,8 @@ export function GoalDialog({ open, goal, onClose }: { open: boolean; goal: Goal 
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{goal ? "Editar meta" : "Nova meta"}</DialogTitle>
-          <DialogDescription>{goal ? "Ajuste o valor, o aporte ou o prazo." : "Defina quanto guardar e até quando."}</DialogDescription>
+          <DialogTitle>{goal?.piggy ? "Editar porquinho" : goal ? "Editar meta" : "Nova meta"}</DialogTitle>
+          <DialogDescription>{goal?.piggy ? "Ajuste o nome, o aporte ou o prazo." : goal ? "Ajuste o valor, o aporte ou o prazo." : "Defina quanto guardar e até quando."}</DialogDescription>
         </DialogHeader>
         {/* key reinicia os campos a cada abertura ou troca de meta */}
         {open && <GoalFields key={goal?.id ?? "new"} goal={goal} onClose={onClose} />}
@@ -27,6 +27,7 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
   const addGoal = useFinanceStore((s) => s.addGoal);
   const updateGoal = useFinanceStore((s) => s.updateGoal);
 
+  const piggy = !!goal?.piggy;
   const [name, setName] = useState(goal?.name ?? "");
   const [target, setTarget] = useState(goal ? centsToInput(goal.target) : "");
   const [saved, setSaved] = useState(goal ? centsToInput(goal.saved) : "");
@@ -38,11 +39,11 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
     const trimmed = name.trim();
     const targetCents = parseBRL(target);
     if (!trimmed) return showToast({ type: "error", text: "Dê um nome à meta" });
-    if (!targetCents) return showToast({ type: "error", text: "Informe o valor da meta" });
+    if (!piggy && !targetCents) return showToast({ type: "error", text: "Informe o valor da meta" });
 
     const values = {
       name: trimmed,
-      target: targetCents,
+      target: piggy ? 0 : (targetCents ?? 0),
       saved: parseBRL(saved) ?? 0,
       monthly: parseBRL(monthly) ?? 0,
       deadline: deadline || null,
@@ -50,7 +51,7 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
 
     if (goal) {
       updateGoal(goal.id, values);
-      showToast({ type: "success", text: `Meta "${trimmed}" atualizada` });
+      showToast({ type: "success", text: `${piggy ? "Porquinho" : "Meta"} "${trimmed}" atualizada` });
     } else {
       addGoal({ id: crypto.randomUUID(), ...values });
       showToast({ type: "success", text: `Meta "${trimmed}" criada` });
@@ -60,13 +61,15 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <Field label="Nome da meta" htmlFor="goal-name">
+      <Field label={piggy ? "Nome do porquinho" : "Nome da meta"} htmlFor="goal-name">
         <input id="goal-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Viagem de férias" className={inputClass} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Valor da meta" htmlFor="goal-target">
-          <MoneyInput id="goal-target" value={target} onChange={setTarget} placeholder="10.000,00" />
-        </Field>
+        {!piggy && (
+          <Field label="Valor da meta" htmlFor="goal-target">
+            <MoneyInput id="goal-target" value={target} onChange={setTarget} placeholder="10.000,00" />
+          </Field>
+        )}
         <Field label="Aporte mensal" hint="(opcional)" htmlFor="goal-monthly">
           <MoneyInput id="goal-monthly" value={monthly} onChange={setMonthly} placeholder="500,00" />
         </Field>

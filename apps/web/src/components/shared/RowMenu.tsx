@@ -13,11 +13,18 @@ interface RowMenuProps {
   unpinLabel?: string;
   /** só em compras parceladas: "Adiantar parcela" */
   onAdvance?: () => void;
+  /** só em compras recorrentes ainda ativas: "Cancelar recorrência" */
+  onCancelRecurrence?: () => void;
+  /** só em despesas: "Marcar como paga" (ou "Editar pagamento", se `paid`) */
+  onPay?: () => void;
+  paid?: boolean;
+  /** só em despesa já paga: "Desmarcar pagamento" */
+  onClearPay?: () => void;
   deleteLabel?: string;
 }
 
 /** Botão ⋮ que abre Editar, Excluir e Fixar como atalho. */
-export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLabel = "Fixar como atalho", unpinLabel = "Desafixar", deleteLabel = "Excluir", onAdvance }: RowMenuProps) {
+export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLabel = "Fixar como atalho", unpinLabel = "Desafixar", deleteLabel = "Excluir", onAdvance, onCancelRecurrence, onPay, paid, onClearPay }: RowMenuProps) {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -34,6 +41,18 @@ export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLab
           <Icon name="edit" size={15} />
           Editar
         </DropdownMenuItem>
+        {onPay && (
+          <DropdownMenuItem onSelect={onPay}>
+            <Icon name="check" size={15} />
+            {paid ? "Editar pagamento" : "Marcar como paga"}
+          </DropdownMenuItem>
+        )}
+        {onClearPay && (
+          <DropdownMenuItem onSelect={onClearPay}>
+            <Icon name="close" size={15} />
+            Desmarcar pagamento
+          </DropdownMenuItem>
+        )}
         {onPin && (
           <DropdownMenuItem onSelect={onPin}>
             <Icon name="pin" size={15} />
@@ -44,6 +63,12 @@ export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLab
           <DropdownMenuItem onSelect={onAdvance}>
             <Icon name="calendar" size={15} />
             Adiantar parcela
+          </DropdownMenuItem>
+        )}
+        {onCancelRecurrence && (
+          <DropdownMenuItem onSelect={onCancelRecurrence}>
+            <Icon name="close" size={15} />
+            Cancelar recorrência
           </DropdownMenuItem>
         )}
         <DropdownMenuItem destructive onSelect={onDelete}>

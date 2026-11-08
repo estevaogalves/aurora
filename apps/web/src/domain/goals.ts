@@ -61,8 +61,20 @@ export function patchContribution(goal: Goal, cents: number, yieldCents = 0): Pa
   return patch;
 }
 
+/**
+ * Quanto o porquinho terá no prazo guardando o aporte mensal (centavos), ou null sem prazo, sem aporte
+ * ou com o prazo já no mês atual ou passado. Não conta rendimento.
+ */
+export function piggyAtDeadline(goal: Goal, today: Month): number | null {
+  if (!goal.deadline || goal.monthly <= 0) return null;
+  const monthsLeft = monthsDifference(goal.deadline, today);
+  return monthsLeft > 0 ? goal.saved + goal.monthly * monthsLeft : null;
+}
+
 /** Totais para o resumo da tela de metas. */
-export function getGoalsSummary(goals: Goal[]) {
+export function getGoalsSummary(allGoals: Goal[]) {
+  // porquinhos não têm meta: ficam fora destes totais
+  const goals = allGoals.filter((g) => !g.piggy);
   return {
     active: goals.filter((g) => !isGoalDone(g)).length,
     nearlyDone: goals.filter((g) => !isGoalDone(g) && goalPercent(g) >= 80).length,
@@ -119,7 +131,7 @@ export function getGoalAlerts(goals: Goal[], today: Month): GoalAlert[] {
   const alerts: GoalAlert[] = [];
 
   for (const goal of goals) {
-    if (!goal.deadline || isGoalDone(goal)) continue;
+    if (goal.piggy || !goal.deadline || isGoalDone(goal)) continue;
 
     const monthsLeft = monthsDifference(goal.deadline, today);
     if (monthsLeft > GOAL_ALERT_WINDOW_MONTHS) continue;

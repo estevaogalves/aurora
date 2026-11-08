@@ -1,7 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { niceTicks, shortReais } from "../components/charts/scale";
-import { DEFAULT_DISTRIBUTION, distributeBalance, getPeriodTotals, getReportRows, type ReportOptions } from "../domain";
+import { DEFAULT_DISTRIBUTION, describePaidBadge, distributeBalance, isScheduled, getPeriodTotals, getReportRows, type Payment, type ReportOptions } from "../domain";
 import { formatBRL } from "../lib/money";
 import { useFinanceStore } from "../Store/FinanceStore";
 import { categoryHex, hexToRgb } from "../Utils/categoryHex";
@@ -27,6 +27,11 @@ const CYAN: RGB = [79, 209, 224];
 const TEAL: RGB = [15, 138, 160];
 const GREEN: RGB = [14, 143, 115];
 const RED: RGB = [214, 51, 90];
+/** Pagamento feito: azul-petróleo sobre fundo claro; agendado: laranja sobre fundo claro. */
+const PAID_TEXT: RGB = [10, 106, 128];
+const PAID_BG: RGB = [221, 242, 247];
+const SCHEDULED_TEXT: RGB = [191, 87, 14];
+const SCHEDULED_BG: RGB = [253, 236, 220];
 const DIST_COLORS = ["#5B48E8", "#0F8AA0", "#D69A12", "#D6335A", "#0E8F73", "#E0732A", "#3D74E8", "#B24BC4", "#8189A3"];
 
 const MARGIN = 14;
@@ -314,6 +319,23 @@ export function exportPDF(months: string[], options: PdfOptions) {
         }
         lines.push({ kind: "row", row: r });
       }
+      /** Selo do pagamento na mesma linha do nome: arredondado e colorido (azul-petróleo = paga, laranja = agendada). */
+      const PILL_FONT = 7.5;
+      const pillWidth = (p: Payment) => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(PILL_FONT);
+        return doc.getTextWidth(describePaidBadge(p)) + 5;
+      };
+      const drawPill = (p: Payment, x: number, centerY: number) => {
+        const scheduled = isScheduled(p);
+        const w = pillWidth(p);
+        const h = 4.6;
+        doc.setFillColor(...(scheduled ? SCHEDULED_BG : PAID_BG));
+        doc.roundedRect(x, centerY - h / 2, w, h, h / 2, h / 2, "F");
+        doc.setTextColor(...(scheduled ? SCHEDULED_TEXT : PAID_TEXT));
+        doc.text(describePaidBadge(p), x + 2.5, centerY, { baseline: "middle" });
+        return x + w;
+      };
       // quando a tabela quebra de página no meio de um mês, o topo da nova página repete o mês
       let drawnUpTo = -1; // maior linha já desenhada
       let previousEnd = -1; // última linha da página anterior
@@ -338,7 +360,7 @@ export function exportPDF(months: string[], options: PdfOptions) {
           // a primeira linha desta página vem logo depois da última da anterior
           const first = lines[previousEnd + 1];
           previousEnd = drawnUpTo;
-          if (!multi || first?.kind !== "row") return;
+          if (!multi || !first || first.kind === "month") return;
           doc.setFont("helvetica", "bold");
           doc.setFontSize(11);
           doc.setTextColor(...VIOLET);
@@ -349,6 +371,10 @@ export function exportPDF(months: string[], options: PdfOptions) {
           if (c.section === "head" && c.column.index === 1) c.cell.styles.halign = "right";
           const line = c.section === "body" ? lines[c.row.index] : undefined;
           if (line?.kind === "row" && c.column.index === 1) c.cell.styles.textColor = line.row.type === "Receita" ? GREEN : RED;
+          // reserva à direita o espaço do selo, para o nome quebrar antes dele em vez de passar por cima
+          if (line?.kind === "row" && line.row.payment && c.column.index === 0) {
+            c.cell.styles.cellPadding = { top: 2.6, bottom: 2.6, left: 6, right: pillWidth(line.row.payment) + 4 };
+          }
         },
         didDrawCell: (c) => {
           tableDefaults().didDrawCell(c);
@@ -362,6 +388,31 @@ export function exportPDF(months: string[], options: PdfOptions) {
             // quadradinho com a cor da categoria
             doc.setFillColor(...hex(line.row.category));
             doc.roundedRect(c.cell.x + 1.5, c.cell.y + c.cell.height / 2 - 1.5, 3, 3, 0.6, 0.6, "F");
+            if (line.row.payment) {
+              // o selo vem logo depois da última linha do nome, na altura dela
+              const lines = c.cell.text;
+              const fs = c.cell.styles.fontSize;
+              doc.setFont("helvetica", c.cell.styles.fontStyle === "bold" ? "bold" : "normal");
+              doc.setFontSize(fs);
+              const pos = c.cell.getTextPos();
+              const lineH = (fs * doc.getLineHeightFactor()) / doc.internal.scaleFactor;
+              const centerY = pos.y + (lines.length - 1) * lineH + (fs * 0.3528 * 0.8) / 2;
+              const x = pos.x + doc.getTextWidth(lines[lines.length - 1] ?? "") + 2.5;
+              const end = drawPill(line.row.payment, x, centerY);
+              // observação do pagamento, discreta, no espaço que sobrar na linha
+              const note = line.row.payment.notes;
+              const room = c.cell.x + c.cell.width - 1.5 - (end + 2);
+              if (note && room > 14) {
+                doc.setFont("helvetica", "normal");
+                doc.setFontSize(8);
+                let text = note;
+                while (text.length > 1 && doc.getTextWidth(text) > room) text = text.slice(0, -1);
+                doc.setTextColor(...GRAY);
+                doc.text(text === note ? text : `${text.trimEnd()}…`, end + 2, centerY, { baseline: "middle" });
+              }
+              doc.setFont("helvetica", "normal");
+              doc.setTextColor(...TEXT);
+            }
           }
         },
       });

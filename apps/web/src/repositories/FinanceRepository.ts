@@ -7,6 +7,7 @@ import type {
   Goal,
   Note,
   OnboardingState,
+  Payment,
   Transaction,
 } from "../domain/types";
 
@@ -31,6 +32,11 @@ export interface FinanceRepository {
   editInstallment(id: string, n: number, cents: number): Promise<void>;
   /** Exclui só uma parcela. */
   removeInstallment(id: string, n: number): Promise<void>;
+
+  /** Marca (ou troca) o pagamento de uma despesa em um mês; null desmarca. Só registro, não muda valores. */
+  setTransactionPayment(id: string, month: string, payment: Payment | null): Promise<void>;
+  /** Marca (ou troca) o pagamento de uma despesa extra; null desmarca. */
+  setExtraPayment(id: string, payment: Payment | null): Promise<void>;
 
   addNote(note: Note): Promise<void>;
   updateNote(id: string, patch: Partial<Note>): Promise<void>;

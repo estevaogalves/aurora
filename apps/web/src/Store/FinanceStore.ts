@@ -2,6 +2,7 @@ import { create } from "zustand";
 import {
   getCreditByMonth,
   patchAdvanceInstallment,
+  patchCancelRecurrence,
   patchEditInstallment,
   patchRemoveInstallment,
   type PatchResult,
@@ -21,7 +22,10 @@ import {
   type Goal,
   type Note,
   type OnboardingState,
+  type Payment,
   type Transaction,
+  patchClearPayment,
+  patchSetPayment,
 } from "../domain";
 import { repository } from "../repositories";
 import type { Category } from "../Types/Category";
@@ -80,6 +84,8 @@ interface FinanceState {
   updateCreditInstallment: (id: string, n: number, cents: number) => string | null;
   /** Exclui só uma parcela. Devolve a mensagem de erro, ou null. */
   removeCreditInstallment: (id: string, n: number) => string | null;
+  /** Cancela a recorrência: `last` é o último mês cobrado (nunca antes do mês atual). Devolve a mensagem de erro, ou null. */
+  cancelCreditRecurrence: (id: string, last: string) => string | null;
 
   addNote: (note: Note) => void;
   removeNote: (id: string) => void;
@@ -101,6 +107,10 @@ interface FinanceState {
   markAlertsSeen: (keys: string[]) => void;
   markAlertUnseen: (key: string) => void;
   removeExtraExpense: (id: string) => void;
+  /** Marca (ou troca) o pagamento de uma despesa em um mês; null desmarca. Só registro: não muda nenhum valor. */
+  setTransactionPayment: (id: string, month: string, payment: Payment | null) => void;
+  /** Marca (ou troca) o pagamento de uma despesa extra; null desmarca. */
+  setExtraPayment: (id: string, payment: Payment | null) => void;
 
   getTransactionsByMonth: (month: string) => Transaction[];
   getHiddenTransactionsByMonth: (month: string) => Transaction[];
@@ -260,6 +270,14 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeCreditInstallment: (id, n) =>
       adjustCredit(id, (c) => patchRemoveInstallment(c, n), () => repository.removeInstallment(id, n)),
 
+    cancelCreditRecurrence: (id, last) => {
+      const credit = get().creditTransactions.find((c) => c.id === id);
+      if (!credit) return "Compra não encontrada.";
+      const result = patchCancelRecurrence(credit, last, getCurrentMonth());
+      if (!result.ok) return result.error;
+      return adjustCredit(id, () => result, () => repository.updateCredit(id, result.patch));
+    },
+
     addNote: (note) => {
       set((state) => ({ notes: [...state.notes, note] }));
       sync(repository.addNote(note));
@@ -346,6 +364,19 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     setDistribution: (items) => {
       set({ distribution: items });
       sync(repository.setDistribution(items));
+    },
+
+    setTransactionPayment: (id, month, payment) => {
+      const t = findTransaction(id);
+      if (!t) return;
+      const patch = payment ? patchSetPayment(t, month, payment) : patchClearPayment(t, month);
+      set((state) => ({ transactions: state.transactions.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
+      sync(repository.setTransactionPayment(id, month, payment));
+    },
+
+    setExtraPayment: (id, payment) => {
+      set((state) => ({ extraExpenses: state.extraExpenses.map((e) => (e.id === id ? { ...e, payment: payment ?? undefined } : e)) }));
+      sync(repository.setExtraPayment(id, payment));
     },
 
     removeExtraExpense: (id) => {

@@ -14,6 +14,8 @@ import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore, type LaunchTab } from "@/Store/UiStore";
 import type { Category } from "@/Types/Category";
 import { changeMonth, formatMonthTitle } from "@/Utils/Date";
+import Icon from "@/components/Icon";
+import Calculator, { CALCULATOR_ATTR } from "../Calculator/Calculator";
 import { showToast } from "../Warnings/toast";
 
 const tabClass =
@@ -25,9 +27,9 @@ const LAUNCH_TABS: LaunchTab[] = ["expense", "income", "credit", "extra", "goal"
 const TAB_HELP: Record<LaunchTab, { title: string; text: string }> = {
   expense: { title: "Despesa", text: "Um gasto do mês, como aluguel, mercado ou internet. Marque “Despesa fixa” para repetir todo mês; sem marcar, vale só neste mês." },
   income: { title: "Renda", text: "Dinheiro que entra, como salário ou freelance. A renda fixa repete todo mês; a variável vale só no mês em que foi lançada." },
-  credit: { title: "Crédito parcelado", text: "Compra no cartão em várias vezes. Informe o valor total e o número de parcelas: o app divide e lança uma parcela por mês, a partir deste." },
+  credit: { title: "Crédito parcelado", text: "Compra no cartão em várias vezes. Informe o valor total e o número de parcelas: o app divide e lança uma parcela por mês, a partir deste. Marque “Compra recorrente” para uma assinatura: um valor único, cobrado todo mês até você cancelar." },
   extra: { title: "Despesa extra", text: "Gasto que não se repete todo mês e que você quer planejar, como IPVA ou uma viagem. Escolha o mês futuro; ela aparece na aba Projeção." },
-  goal: { title: "Meta", text: "Um objetivo para juntar dinheiro, como a reserva de emergência. Informe o valor, o aporte mensal e o prazo (opcionais) e acompanhe na aba Metas." },
+  goal: { title: "Meta", text: "Um objetivo para juntar dinheiro, como a reserva de emergência. Informe o valor, o aporte mensal e o prazo (opcionais) e acompanhe na aba Metas. Marque “Porquinho” para guardar sem valor de meta: só nome, já guardado, aporte e prazo; ele fica abaixo das metas principais." },
 };
 
 /** Chave em que se grava a resposta ao mini tour do modal. */
@@ -44,6 +46,9 @@ export default function TransactionForm() {
   const tab = useUiStore((s) => s.launchTab);
   const openLaunch = useUiStore((s) => s.openLaunch);
   const closeLaunch = useUiStore((s) => s.closeLaunch);
+  const calcOpen = useUiStore((s) => s.calcOpen);
+  const toggleCalc = useUiStore((s) => s.toggleCalc);
+  const closeCalc = useUiStore((s) => s.closeCalc);
   const hydrated = useFinanceStore((s) => s.hydrated);
   const answered = useFinanceStore((s) => s.onboarding[LAUNCH_TOUR_KEY]);
   const setOnboarding = useFinanceStore((s) => s.setOnboarding);
@@ -97,11 +102,31 @@ export default function TransactionForm() {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[680px]">
+      <DialogContent
+        // Esc dentro da calculadora fecha só ela; o "Lançar" continua aberto
+        onEscapeKeyDown={(e) => {
+          if (calcOpen && e.target instanceof Element && e.target.closest(`[${CALCULATOR_ATTR}]`)) {
+            e.preventDefault();
+            closeCalc();
+          }
+        }}
+        className={calcOpen ? "max-w-[980px] sm:grid-cols-[minmax(0,1fr)_272px] sm:items-start" : "max-w-[680px]"}
+      >
+        <div className="flex min-w-0 flex-col gap-4">
         <DialogHeader>
           <div className="flex items-center gap-2.5">
             <DialogTitle>Novo lançamento</DialogTitle>
             <TourHelpButton onClick={startHelp} label="Entender cada aba" />
+            <button
+              type="button"
+              onClick={toggleCalc}
+              aria-label={calcOpen ? "Fechar calculadora" : "Abrir calculadora"}
+              aria-pressed={calcOpen}
+              title="Calculadora"
+              className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-card transition-colors hover:bg-secondary sm:h-8 sm:w-8 ${calcOpen ? "border-primary text-primary" : "border-border-strong text-muted-foreground hover:text-foreground"}`}
+            >
+              <Icon name="calc" size={15} />
+            </button>
           </div>
           <DialogDescription>Um só formulário para renda, despesa, compra parcelada, despesa extra e meta. A janela continua aberta para você lançar em sequência.</DialogDescription>
         </DialogHeader>
@@ -147,6 +172,9 @@ export default function TransactionForm() {
         )}
 
         {open && <LaunchFields key={tab} kind={tab} focusName={help === null} onClose={() => onOpenChange(false)} />}
+        </div>
+        {/* mt: o X do card do "Lançar" fica no canto; a calculadora desce para o seu X não ficar colado nele */}
+        {calcOpen && <Calculator className="sm:mt-9" />}
       </DialogContent>
     </Dialog>
   );
@@ -174,6 +202,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [fixed, setFixed] = useState(false);
   const [notes, setNotes] = useState("");
   const [installments, setInstallments] = useState(2);
+  const [recurring, setRecurring] = useState(false);
+  const [piggy, setPiggy] = useState(false);
   const [extraMonth, setExtraMonth] = useState(changeMonth(currentMonth, 1));
   const [monthly, setMonthly] = useState("");
   const [saved, setSaved] = useState("");
@@ -182,7 +212,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [round, setRound] = useState(0);
 
   const totalCents = parseBRL(amount) ?? 0;
-  const installmentValue = kind === "credit" && installments > 0 ? splitInstallments(totalCents, installments)[0] : 0;
+  const installmentValue = kind === "credit" && !recurring && installments > 0 ? splitInstallments(totalCents, installments)[0] : 0;
 
   function reset() {
     setName("");
@@ -190,6 +220,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setNotes("");
     setFixed(false);
     setInstallments(2);
+    setRecurring(false);
+    setPiggy(false);
     setMonthly("");
     setSaved("");
     setDeadline("");
@@ -202,8 +234,10 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     const trimmed = name.trim();
     if (!trimmed) return showToast({ type: "error", text: "Preencha o nome" });
 
-    const cents = parseBRL(amount);
-    if (!cents) return showToast({ type: "error", text: "Informe um valor maior que zero" });
+    const isPiggy = kind === "goal" && piggy;
+    // porquinho não tem valor de meta
+    const cents = isPiggy ? 0 : parseBRL(amount);
+    if (cents === null || (cents === 0 && !isPiggy)) return showToast({ type: "error", text: "Informe um valor maior que zero" });
 
     if (kind === "goal") {
       addGoal({
@@ -213,20 +247,22 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         saved: parseBRL(saved) ?? 0,
         monthly: parseBRL(monthly) ?? 0,
         deadline: deadline || null,
+        ...(isPiggy && { piggy: true }),
       });
-      showToast({ type: "success", text: `Meta "${trimmed}" criada` });
+      showToast({ type: "success", text: isPiggy ? `Porquinho "${trimmed}" criado` : `Meta "${trimmed}" criada` });
     } else if (kind === "credit") {
       addCreditTransaction({
         id: crypto.randomUUID(),
         name: trimmed,
         totalAmount: cents,
-        installments: Math.min(60, Math.max(1, Math.floor(installments) || 1)),
+        installments: recurring ? 1 : Math.min(60, Math.max(1, Math.floor(installments) || 1)),
         startMonth: currentMonth,
         category,
+        ...(recurring && { recurring: true }),
       });
-      showToast({ type: "success", text: `Compra parcelada "${trimmed}" adicionada` });
+      showToast({ type: "success", text: recurring ? `Compra recorrente "${trimmed}" adicionada` : `Compra parcelada "${trimmed}" adicionada` });
     } else if (kind === "income") {
-      addTransaction({ id: crypto.randomUUID(), name: trimmed, amount: cents, type: "income", category: "Renda", fixed, month: currentMonth });
+      addTransaction({ id: crypto.randomUUID(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: currentMonth });
       showToast({ type: "success", text: `Renda "${trimmed}" adicionada` });
     } else if (kind === "extra") {
       if (!extraMonth) return showToast({ type: "error", text: "Escolha o mês da despesa extra" });
@@ -240,7 +276,11 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     reset();
   }
 
-  const labels = LABELS[kind];
+  const labels = kind === "credit" && recurring
+    ? { name: "Nome da compra", placeholder: "Ex.: Streaming, academia...", amount: "Valor cobrado por mês" }
+    : kind === "goal" && piggy
+      ? { ...LABELS.goal, name: "Nome do porquinho", placeholder: "Ex.: Troca de celular" }
+      : LABELS[kind];
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
@@ -256,12 +296,24 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         />
       </Field>
 
-      <div className={kind === "credit" ? "grid gap-4 sm:grid-cols-2" : ""}>
-        <Field label={labels.amount} htmlFor="launch-amount">
-          <MoneyInput id="launch-amount" value={amount} onChange={setAmount} />
-        </Field>
+      {kind === "goal" && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
+          <Checkbox checked={piggy} onCheckedChange={(c) => setPiggy(Boolean(c))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Porquinho</span>
+            <span className="block text-xs text-muted-foreground">Guardado sem valor de meta: só nome, já guardado, aporte mensal e prazo. Fica fixo abaixo das metas principais.</span>
+          </span>
+        </label>
+      )}
 
-        {kind === "credit" && (
+      <div className={kind === "credit" && !recurring ? "grid gap-4 sm:grid-cols-2" : ""}>
+        {!(kind === "goal" && piggy) && (
+          <Field label={labels.amount} htmlFor="launch-amount">
+            <MoneyInput id="launch-amount" value={amount} onChange={setAmount} />
+          </Field>
+        )}
+
+        {kind === "credit" && !recurring && (
           <Field label="Parcelas" htmlFor="launch-installments">
             <input id="launch-installments" type="number" min={1} max={60} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} className={inputClass} />
           </Field>
@@ -269,8 +321,22 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       </div>
 
       {kind === "credit" && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
+          <Checkbox checked={recurring} onCheckedChange={(c) => setRecurring(Boolean(c))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Compra recorrente</span>
+            <span className="block text-xs text-muted-foreground">Sem parcelas: o mesmo valor se repete todo mês no cartão, a partir deste, até você cancelar a recorrência.</span>
+          </span>
+        </label>
+      )}
+
+      {kind === "credit" && (
         <p className="text-sm text-muted-foreground">
-          Parcela de <strong className="text-foreground">R$ {centsToInput(installmentValue) || "0,00"}</strong>, começando em {formatMonthTitle(currentMonth)}.
+          {recurring ? (
+            <>Cobrança de <strong className="text-foreground">R$ {centsToInput(totalCents) || "0,00"}</strong> todo mês, começando em {formatMonthTitle(currentMonth)}.</>
+          ) : (
+            <>Parcela de <strong className="text-foreground">R$ {centsToInput(installmentValue) || "0,00"}</strong>, começando em {formatMonthTitle(currentMonth)}.</>
+          )}
         </p>
       )}
 
@@ -302,10 +368,10 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         </Field>
       )}
 
-      {kind === "expense" && (
+      {(kind === "expense" || kind === "income") && (
         <Field label="Observação" hint="(opcional)" htmlFor="launch-notes">
           <p className="-mt-1 text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
-          <Textarea id="launch-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Anotações sobre esta despesa..." className="min-h-[64px] rounded-md border-border-strong bg-secondary" />
+          <Textarea id="launch-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder={kind === "income" ? "Anotações sobre esta renda..." : "Anotações sobre esta despesa..."} className="min-h-[64px] rounded-md border-border-strong bg-secondary" />
         </Field>
       )}
 

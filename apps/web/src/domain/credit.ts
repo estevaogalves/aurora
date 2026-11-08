@@ -2,13 +2,23 @@ import { changeMonth, compareMonths, monthsDifference } from "../Utils/Date";
 import { splitInstallments } from "../lib/money";
 import type { CreditInstallment, CreditTransaction, InstallmentAdjustment, Month } from "./types";
 
-type Schedule = Pick<CreditTransaction, "totalAmount" | "installments" | "startMonth" | "adjustments">;
+type Schedule = Pick<CreditTransaction, "totalAmount" | "installments" | "startMonth" | "adjustments" | "recurring" | "endMonth">;
+
+/** A compra recorrente cobra neste mês: do mês inicial até o mês final, se foi cancelada. */
+export function recurringCharges(
+  credit: Pick<CreditTransaction, "recurring" | "startMonth" | "endMonth">,
+  month: Month,
+): boolean {
+  if (!credit.recurring || compareMonths(month, credit.startMonth) < 0) return false;
+  return !credit.endMonth || compareMonths(month, credit.endMonth) <= 0;
+}
 
 /** Em qual parcela (1..N) a compra está neste mês, ou null se não cobra neste mês. */
 export function getInstallmentNumber(
-  credit: Pick<CreditTransaction, "startMonth" | "installments">,
+  credit: Pick<CreditTransaction, "startMonth" | "installments" | "recurring">,
   month: Month,
 ): number | null {
+  if (credit.recurring) return null;
   const diff = monthsDifference(month, credit.startMonth);
   if (diff < 0 || diff >= credit.installments) return null;
   return diff + 1;
@@ -24,17 +34,19 @@ const adjustmentOf = (credit: Pick<CreditTransaction, "adjustments">, n: number)
 
 /** Valor da parcela `n` antes de qualquer desconto: o ajustado, ou a divisão do total (centavos que sobram nas primeiras). */
 export function getInstallmentValue(credit: Schedule, n: number): number {
+  if (credit.recurring) return credit.totalAmount;
   return adjustmentOf(credit, n)?.value ?? splitInstallments(credit.totalAmount, credit.installments)[n - 1];
 }
 
 /** Parcela ainda "em aberto": não foi excluída nem adiantada. */
-const isOpen = (credit: Pick<CreditTransaction, "adjustments">, n: number) => {
+const isOpen = (credit: Pick<CreditTransaction, "adjustments" | "recurring">, n: number) => {
+  if (credit.recurring) return false;
   const adj = adjustmentOf(credit, n);
   return !adj?.removed && !adj?.advanced;
 };
 
 /** Última parcela que não foi excluída nem adiantada, ou null se não sobrou nenhuma. */
-export function getLastOpenInstallment(credit: Pick<CreditTransaction, "installments" | "adjustments">): number | null {
+export function getLastOpenInstallment(credit: Pick<CreditTransaction, "installments" | "adjustments" | "recurring">): number | null {
   for (let n = credit.installments; n >= 1; n--) if (isOpen(credit, n)) return n;
   return null;
 }
@@ -59,6 +71,17 @@ export function getCreditByMonth(
       installments: credit.installments,
       totalAmount: credit.totalAmount,
     };
+
+    if (recurringCharges(credit, month)) {
+      result.push({
+        ...base,
+        installments: 0,
+        recurring: true,
+        currentInstallment: monthsDifference(month, credit.startMonth) + 1,
+        installmentValue: credit.totalAmount,
+      });
+      continue;
+    }
 
     const number = getInstallmentNumber(credit, month);
     if (number !== null && isOpen(credit, number)) {
@@ -112,7 +135,7 @@ export function getCreditEffectiveTotal(credit: Schedule): number {
 
 /** Andamento de uma compra parcelada visto de um mês: parcelas já cobradas (com a do mês), as que faltam e o mês da última. */
 export function getCreditProgress(
-  credit: Pick<CreditTransaction, "startMonth" | "installments" | "adjustments">,
+  credit: Pick<CreditTransaction, "startMonth" | "installments" | "adjustments" | "recurring">,
   month: Month,
 ): { done: number; remaining: number; endMonth: Month } {
   const done = Math.min(credit.installments, Math.max(0, monthsDifference(month, credit.startMonth) + 1));
@@ -124,7 +147,7 @@ export function getCreditProgress(
 
 /* ---------- adiantar, editar e excluir uma parcela: devolvem o patch a aplicar ---------- */
 
-export type PatchResult = { ok: true; patch: Pick<CreditTransaction, "adjustments"> } | { ok: false; error: string };
+export type PatchResult = { ok: true; patch: Partial<Pick<CreditTransaction, "adjustments" | "endMonth">> } | { ok: false; error: string };
 
 const withAdjustment = (credit: Pick<CreditTransaction, "adjustments">, n: number, adj: InstallmentAdjustment): PatchResult => ({
   ok: true,
@@ -162,6 +185,21 @@ export function patchEditInstallment(credit: Schedule, n: number, cents: number)
 export function patchRemoveInstallment(credit: Schedule, n: number): PatchResult {
   if (n < 1 || n > credit.installments || !isOpen(credit, n)) return { ok: false, error: "Esta parcela não pode ser excluída." };
   return withAdjustment(credit, n, { ...adjustmentOf(credit, n), removed: true });
+}
+
+/**
+ * Cancela a recorrência: o último mês cobrado passa a ser `last` (o mês que o usuário está vendo), mas nunca
+ * antes do mês atual nem do mês inicial, então o que já foi cobrado continua como está.
+ */
+export function patchCancelRecurrence(
+  credit: Pick<CreditTransaction, "recurring" | "endMonth" | "startMonth">,
+  last: Month,
+  today: Month,
+): PatchResult {
+  if (!credit.recurring) return { ok: false, error: "Só compras recorrentes podem ter a recorrência cancelada." };
+  if (credit.endMonth) return { ok: false, error: "A recorrência desta compra já foi cancelada." };
+  const end = [last, today, credit.startMonth].reduce((a, b) => (compareMonths(a, b) >= 0 ? a : b));
+  return { ok: true, patch: { endMonth: end } };
 }
 
 /** Editar todas: troca nome, categoria e total (e nº de parcelas, só enquanto não houver ajustes). As adiantadas e ajustadas ficam como estão. */

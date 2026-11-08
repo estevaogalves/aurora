@@ -1,10 +1,11 @@
 import { CREDIT_CATEGORY, getMonthSummary } from "./summary";
 import { getCreditByMonth } from "./credit";
 import { getTransactionsByMonth } from "./transactions";
+import { formatPaymentDate, formatPaymentDay, paymentMethodLabel, paymentOf, paymentStatusLabel } from "./payment";
 import { getMonthsBetween, changeMonth, formatMonth } from "../Utils/Date";
 import { formatBRL } from "../lib/money";
 import type { Category } from "../Types/Category";
-import type { FinanceData, Month, MonthSummary } from "./types";
+import type { FinanceData, Month, MonthSummary, Payment } from "./types";
 
 type Source = Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses">>;
 
@@ -57,6 +58,16 @@ export interface ReportRow {
   /** centavos */
   amount: number;
   note: string;
+  /** despesa paga (só informação: não muda nenhum total) */
+  payment?: Payment;
+}
+
+/** Rótulo curto do selo, como em Lançamentos: "Paga · Pix · 08/11" ou "Agendada · Boleto · 15/11". */
+export const describePaidBadge = (p: Payment): string => `${paymentStatusLabel(p)} · ${paymentMethodLabel(p.method)} · ${formatPaymentDay(p.date)}`;
+
+/** "Paga · Pix · 08/11/2026" ou "Agendada · Boleto · 15/11/2026" (com a observação, se houver), para PDF e texto. */
+export function describePaidRow(p: Payment): string {
+  return `${paymentStatusLabel(p)} · ${paymentMethodLabel(p.method)} · ${formatPaymentDate(p.date)}${p.notes ? ` — ${p.notes}` : ""}`;
 }
 
 /** Lançamentos do período, com as parcelas do crédito como despesas. */
@@ -72,12 +83,13 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
           type: t.type === "income" ? "Receita" : "Despesa",
           amount: t.amount,
           note: t.fixed ? "Fixa" : "",
+          payment: t.type === "expense" ? paymentOf(t, month) : undefined,
         });
       }
     }
     if (options.entries) {
       for (const e of data.extraExpenses ?? []) {
-        if (e.month === month) rows.push({ month, name: e.name, category: "Outros", type: "Despesa", amount: e.amount, note: "Despesa extra" });
+        if (e.month === month) rows.push({ month, name: e.name, category: "Outros", type: "Despesa", amount: e.amount, note: "Despesa extra", payment: e.payment });
       }
     }
     if (options.credit) {
@@ -88,7 +100,9 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
           category: CREDIT_CATEGORY,
           type: "Despesa",
           amount: c.installmentValue,
-          note: c.advanced
+          note: c.recurring
+            ? "Recorrente no cartão"
+            : c.advanced
             ? `Parcela ${c.currentInstallment}/${c.installments} adiantada, original em ${formatMonth(c.advanced.originalMonth)}, desconto ${formatBRL(c.advanced.discount)}`
             : `Parcela ${c.currentInstallment}/${c.installments}`,
         });
@@ -128,9 +142,13 @@ export function buildCsv(data: Source, months: Month[], options: ReportOptions):
 
   if (options.entries || options.credit) {
     lines.push("Lançamentos");
-    lines.push(["Mês", "Nome", "Categoria", "Tipo", "Valor", "Observação"].join(";"));
+    lines.push(["Mês", "Nome", "Categoria", "Tipo", "Valor", "Observação", "Situação", "Pagamento", "Data do pagamento", "Obs. do pagamento"].join(";"));
     for (const r of getReportRows(data, months, options)) {
-      lines.push([r.month, csvCell(r.name), csvCell(r.category), r.type, reais(r.amount), csvCell(r.note)].join(";"));
+      const p = r.payment;
+      lines.push([
+        r.month, csvCell(r.name), csvCell(r.category), r.type, reais(r.amount), csvCell(r.note),
+        p ? paymentStatusLabel(p) : "", p ? paymentMethodLabel(p.method) : "", p ? formatPaymentDate(p.date) : "", p ? csvCell(p.notes ?? "") : "",
+      ].join(";"));
     }
   }
 
@@ -153,7 +171,7 @@ export function buildTxt(data: Source, months: Month[], options: ReportOptions):
   if (options.entries || options.credit) {
     lines.push("LANÇAMENTOS");
     for (const r of getReportRows(data, months, options)) {
-      lines.push(`${r.month} · ${r.type} · ${r.name} (${r.category}${r.note ? `, ${r.note}` : ""}): ${formatBRL(r.amount)}`);
+      lines.push(`${r.month} · ${r.type} · ${r.name} (${r.category}${r.note ? `, ${r.note}` : ""}): ${formatBRL(r.amount)}${r.payment ? ` [${describePaidRow(r.payment)}]` : ""}`);
     }
   }
 

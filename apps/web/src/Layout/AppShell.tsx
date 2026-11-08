@@ -8,6 +8,7 @@ import { useUiStore } from "../Store/UiStore";
 import Logo from "../theme/Logo";
 import { APP_NAME } from "../theme/theme";
 import ThemeToggle from "../theme/ThemeToggle";
+import { FloatingCalculator } from "../Features/Calculator/Calculator";
 import GoalBell from "./GoalBell";
 import ImportBanner from "./ImportBanner";
 import MonthSelector from "./MonthSelector";
@@ -20,6 +21,8 @@ export const CONTAINER = "mx-auto w-[calc(100%-2rem)] max-w-[1240px]";
 /** Abas no topo (pílulas), seletor de mês, tema e a ação única "Lançar". */
 export default function AppShell() {
   const openLaunch = useUiStore((s) => s.openLaunch);
+  const calcOpen = useUiStore((s) => s.calcOpen);
+  const toggleCalc = useUiStore((s) => s.toggleCalc);
   const [scrolled, setScrolled] = useState(false);
 
   // no topo o cabeçalho é transparente (sem caixa atrás dos botões); ao rolar ganha fundo
@@ -45,6 +48,17 @@ export default function AppShell() {
             <div className="max-[700px]:order-3 max-[700px]:w-full"><MonthSelector /></div>
             <div className="flex items-center gap-2 max-[700px]:ml-auto">
               <GoalBell />
+              <button
+                type="button"
+                data-tour="calculadora"
+                onClick={toggleCalc}
+                aria-label={calcOpen ? "Fechar calculadora" : "Abrir calculadora"}
+                aria-pressed={calcOpen}
+                title="Calculadora"
+                className={`${btnClass.base} ${calcOpen ? "!border-primary !text-primary" : ""}`}
+              >
+                <Icon name="calc" size={16} />
+              </button>
               <ThemeToggle />
               <UserMenu />
               <button type="button" data-tour="lancar" onClick={() => openLaunch()} className={btnClass.primary}>
@@ -61,6 +75,7 @@ export default function AppShell() {
       <ImportBanner />
       <ToastContainer />
       <TransactionForm />
+      <FloatingCalculator />
 
       <main className={`${CONTAINER} pb-[70px] pt-[26px] max-[700px]:pb-[104px] max-[700px]:pt-3.5`}>
         <Outlet />

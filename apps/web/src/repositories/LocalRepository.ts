@@ -7,8 +7,10 @@ import type {
   Goal,
   Note,
   OnboardingState,
+  Payment,
   Transaction,
 } from "../domain/types";
+import { patchClearPayment, patchSetPayment } from "../domain/payment";
 import { patchAdvanceInstallment, patchEditInstallment, patchRemoveInstallment, type PatchResult } from "../domain/credit";
 import { getCurrentMonth } from "../Utils/Date";
 import type { FinanceRepository } from "./FinanceRepository";
@@ -106,6 +108,18 @@ export class LocalRepository implements FinanceRepository {
 
   async removeInstallment(id: string, n: number) {
     this.adjustCredit(id, (c) => patchRemoveInstallment(c, n));
+  }
+
+  async setTransactionPayment(id: string, month: string, payment: Payment | null) {
+    this.data.transactions = this.data.transactions.map((t) =>
+      t.id === id ? { ...t, ...(payment ? patchSetPayment(t, month, payment) : patchClearPayment(t, month)) } : t,
+    );
+    this.persist();
+  }
+
+  async setExtraPayment(id: string, payment: Payment | null) {
+    this.data.extraExpenses = this.data.extraExpenses.map((e) => (e.id === id ? { ...e, payment: payment ?? undefined } : e));
+    this.persist();
   }
 
   async addNote(note: Note) {

@@ -5,7 +5,7 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
-import { canAdvanceInstallment, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth } from "@/domain";
+import { canAdvanceInstallment, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
 import { useHiddenTransactions, useMonthCredit, useMonthTransactions } from "@/Store/selectors";
@@ -14,14 +14,33 @@ import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date
 import EditExtraDialog from "../Projection/EditExtraDialog";
 import { showToast } from "../Warnings/toast";
 import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
-import { AdvanceDialog, EditInstallmentDialog, ScopeDialog } from "./InstallmentDialogs";
+import { AdvanceDialog, CancelRecurrenceDialog, EditInstallmentDialog, ScopeDialog } from "./InstallmentDialogs";
+import PaymentDialog, { type PaymentTarget } from "./PaymentDialog";
 import { ProgressMini, Row } from "./rows";
 import { LANCAMENTOS_TOUR } from "./tour";
 
-function TransactionRow({ t, onEdit, onDelete }: { t: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void }) {
+/** Selo e observação do pagamento: verde "Paga · Pix · 08/11"; laranja "Agendada · Boleto · 15/11" (boleto com data futura). */
+function PaidBadge({ payment }: { payment: Payment }) {
+  return (
+    <>
+      <Pill tone={isScheduled(payment) ? "scheduled" : "good"}>{paymentStatusLabel(payment)} · {paymentMethodLabel(payment.method)} · {formatPaymentDay(payment.date)}</Pill>
+      {payment.notes && <span className="min-w-0 max-w-full break-words">{payment.notes}</span>}
+    </>
+  );
+}
+
+/** Ações de pagamento de uma linha (só despesas): marcar, editar e desmarcar. */
+interface PayActions {
+  onPay: () => void;
+  onClearPay: () => void;
+}
+
+function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void; pay?: PayActions }) {
   const toggleFixed = useFinanceStore((s) => s.toggleTransactionFixed);
+  const month = useFinanceStore((s) => s.currentMonth);
   const colorOf = useCategoryColor();
   const income = t.type === "income";
+  const payment = pay ? paymentOf(t, month) : undefined;
 
   const menu = (
     <RowMenu
@@ -33,6 +52,9 @@ function TransactionRow({ t, onEdit, onDelete }: { t: Transaction; onEdit: (t: T
       onEdit={() => onEdit(t)}
       onPin={() => toggleFixed(t.id)}
       onDelete={() => onDelete(t.id)}
+      onPay={pay?.onPay}
+      paid={!!payment}
+      onClearPay={payment ? pay?.onClearPay : undefined}
     />
   );
 
@@ -40,7 +62,10 @@ function TransactionRow({ t, onEdit, onDelete }: { t: Transaction; onEdit: (t: T
   if (t.fixed) {
     return (
       <div className="flex items-center justify-between gap-3 py-1 text-[13.5px]">
-        <span className="min-w-0 break-words">{t.name}</span>
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="break-words">{t.name}</span>
+          {payment && <PaidBadge payment={payment} />}
+        </span>
         <div className="flex items-center gap-2">
           <span className={`num text-right font-semibold ${income ? "text-success" : ""}`}>{formatBRL(t.amount)}</span>
           {menu}
@@ -58,12 +83,23 @@ function TransactionRow({ t, onEdit, onDelete }: { t: Transaction; onEdit: (t: T
           {!income && t.category}
           {t.fixed ? <Pill tone="fix">Fixa</Pill> : income ? <Pill>Variável</Pill> : null}
           {t.notes && <span className="min-w-0 max-w-full break-words">{t.notes}</span>}
+          {payment && <PaidBadge payment={payment} />}
         </>
       }
       amount={formatBRL(t.amount)}
       amountClass={income ? "text-success" : ""}
       actions={menu}
     />
+  );
+}
+
+/** Rodapé dos cards de Lançamentos: o total do que está listado. */
+function TotalFooter({ label, value, className = "" }: { label: string; value: number; className?: string }) {
+  return (
+    <div className={`mt-3 flex items-baseline justify-between gap-3 border-t border-border-strong pt-3 text-[13.5px] ${className}`}>
+      <span className="font-semibold">{label}</span>
+      <span className="num font-bold">{formatBRL(value)}</span>
+    </div>
   );
 }
 
@@ -115,6 +151,7 @@ function IncomesPanel() {
       {incomes.length > 0 && variable.length === 0 && <Empty>Nenhuma renda variável neste mês.</Empty>}
       {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}</FixedSection>}
       <HiddenList kind="income" />
+      {incomes.length > 0 && <TotalFooter label="Total das rendas do mês" value={incomes.reduce((sum, t) => sum + t.amount, 0)} className="text-success" />}
       <EditTransactionDialog transaction={editing} onClose={() => setEditing(null)} />
       <ConfirmDeletion
         open={!!target}
@@ -132,7 +169,11 @@ function ExpensesPanel() {
   const removeByMonth = useFinanceStore((s) => s.removeTransactionByMonth);
   const extras = useFinanceStore((s) => s.extraExpenses).filter((e) => e.month === month);
   const removeExtra = useFinanceStore((s) => s.removeExtraExpense);
+  const setTransactionPayment = useFinanceStore((s) => s.setTransactionPayment);
+  const setExtraPayment = useFinanceStore((s) => s.setExtraPayment);
   const colorOf = useCategoryColor();
+  // o pagamento que está sendo marcado ou editado (despesa do mês ou extra)
+  const [paying, setPaying] = useState<({ kind: "tx"; id: string } | { kind: "extra"; id: string }) & PaymentTarget | null>(null);
   const [editingExtra, setEditingExtra] = useState<ExtraExpense | null>(null);
   const [extraToDelete, setExtraToDelete] = useState<string | null>(null);
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -142,25 +183,53 @@ function ExpensesPanel() {
   const variable = expenses.filter((t) => !t.fixed).sort((a, b) => b.amount - a.amount);
   const count = expenses.length + extras.length;
 
+  const payTx = (t: Transaction) => ({
+    onPay: () => setPaying({ kind: "tx", id: t.id, name: t.name, amount: t.amount, current: paymentOf(t, month) }),
+    onClearPay: () => setTransactionPayment(t.id, month, null),
+  });
+  const confirmPayment = (payment: Payment) => {
+    if (!paying) return;
+    if (paying.kind === "tx") setTransactionPayment(paying.id, month, payment);
+    else setExtraPayment(paying.id, payment);
+    showToast({ type: "success", text: isScheduled(payment) ? `Pagamento de "${paying.name}" agendado` : `"${paying.name}" marcada como paga` });
+    setPaying(null);
+  };
+
   return (
     <Panel tour="despesas" title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
       {count > 0 && variable.length === 0 && extras.length === 0 && <Empty>Nenhuma despesa variável neste mês.</Empty>}
-      {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}
+      {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}
       {extras.map((e) => (
         <Row
           key={e.id}
           color={colorOf("Outros")}
           name={e.name}
-          meta={<Pill>Despesa extra</Pill>}
+          meta={
+            <>
+              <Pill>Despesa extra</Pill>
+              {e.payment && <PaidBadge payment={e.payment} />}
+            </>
+          }
           amount={formatBRL(e.amount)}
-          actions={<RowMenu label={e.name} onEdit={() => setEditingExtra(e)} onDelete={() => setExtraToDelete(e.id)} />}
+          actions={
+            <RowMenu
+              label={e.name}
+              onEdit={() => setEditingExtra(e)}
+              onDelete={() => setExtraToDelete(e.id)}
+              onPay={() => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
+              paid={!!e.payment}
+              onClearPay={e.payment ? () => setExtraPayment(e.id, null) : undefined}
+            />
+          }
         />
       ))}
-      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}</FixedSection>}
+      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}</FixedSection>}
       <HiddenList kind="expense" />
+      {count > 0 && <TotalFooter label="Total das despesas do mês (sem parcelas)" value={expenses.reduce((sum, t) => sum + t.amount, 0) + extras.reduce((sum, e) => sum + e.amount, 0)} />}
       <EditTransactionDialog transaction={editing} onClose={() => setEditing(null)} />
       <EditExtraDialog extra={editingExtra} onClose={() => setEditingExtra(null)} />
+      <PaymentDialog target={paying} onConfirm={confirmPayment} onClose={() => setPaying(null)} />
       <ConfirmDeletion
         open={!!extraToDelete}
         itemLabel="despesa extra"
@@ -182,7 +251,7 @@ function ExpensesPanel() {
 }
 
 /** Linha de uma compra parcelada no mês visto. Parcela adiantada é identificada, com mês original e desconto. */
-function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance }: {
+function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, onCancelRecurrence }: {
   c: ReturnType<typeof useMonthCredit>[number];
   credit: CreditTransaction | undefined;
   month: string;
@@ -190,8 +259,29 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance }
   onEdit: () => void;
   onDelete: () => void;
   onAdvance: () => void;
+  onCancelRecurrence: () => void;
 }) {
   const colorOf = useCategoryColor();
+
+  // recorrente: sem parcelas, total nem barra de progresso; o menu ganha "Cancelar recorrência" enquanto estiver ativa
+  if (c.recurring) {
+    const ending = credit?.endMonth;
+    return (
+      <Row
+        color={colorOf(c.category)}
+        name={c.name}
+        meta={
+          <>
+            <Pill>Recorrente</Pill>
+            <span>{ending ? `Cancelada · última cobrança em ${formatMonthAbbr(ending)}` : "Cobrada todo mês"}</span>
+          </>
+        }
+        amount={formatBRL(c.installmentValue)}
+        actions={<RowMenu label={c.name} onEdit={onEdit} onDelete={onDelete} onCancelRecurrence={credit && !ending ? onCancelRecurrence : undefined} />}
+      />
+    );
+  }
+
   const source = credit ?? { startMonth: month, installments: c.installments, totalAmount: c.totalAmount };
   const { remaining, endMonth } = getCreditProgress(source, month);
   const total = credit ? getCreditEffectiveTotal(credit) : c.totalAmount;
@@ -232,14 +322,15 @@ function InstallmentsPanel() {
 
   // a parcela escolhida no menu e o que fazer com ela
   const [target, setTarget] = useState<{ id: string; n: number; advanced: boolean } | null>(null);
-  const [step, setStep] = useState<"edit-scope" | "delete-scope" | "edit-one" | "edit-all" | "delete-one" | "delete-all" | "advance" | null>(null);
+  const [step, setStep] = useState<"edit-scope" | "delete-scope" | "edit-one" | "edit-all" | "delete-one" | "delete-all" | "advance" | "cancel-recurrence" | null>(null);
   const targetCredit = credits.find((x) => x.id === target?.id) ?? null;
   const close = () => { setStep(null); setTarget(null); };
-  const open = (c: ReturnType<typeof useMonthCredit>[number], action: "edit" | "delete" | "advance") => {
+  const open = (c: ReturnType<typeof useMonthCredit>[number], action: "edit" | "delete" | "advance" | "cancel-recurrence") => {
     setTarget({ id: c.id, n: c.currentInstallment, advanced: !!c.advanced });
-    // parcela adiantada não muda individualmente: só "todas"
+    // parcela adiantada não muda individualmente: só "todas"; recorrente não tem parcelas, então também só "todas"
     if (action === "advance") setStep("advance");
-    else if (c.advanced) setStep(action === "edit" ? "edit-all" : "delete-all");
+    else if (action === "cancel-recurrence") setStep("cancel-recurrence");
+    else if (c.advanced || c.recurring) setStep(action === "edit" ? "edit-all" : "delete-all");
     else setStep(action === "edit" ? "edit-scope" : "delete-scope");
   };
   const scopeLabel = targetCredit && target ? `Parcela ${target.n}/${targetCredit.installments} · ${formatMonthTitle(getInstallmentMonth(targetCredit, target.n))}` : "";
@@ -260,12 +351,10 @@ function InstallmentsPanel() {
               onEdit={() => open(c, "edit")}
               onDelete={() => open(c, "delete")}
               onAdvance={() => open(c, "advance")}
+              onCancelRecurrence={() => open(c, "cancel-recurrence")}
             />
           ))}
-          <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-border-strong pt-3 text-[13.5px]">
-            <span className="font-semibold">Total das parcelas do mês</span>
-            <span className="num font-bold">{formatBRL(total)}</span>
-          </div>
+          <TotalFooter label="Total das parcelas do mês" value={total} />
         </>
       )}
 
@@ -293,6 +382,7 @@ function InstallmentsPanel() {
       <EditInstallmentDialog credit={step === "edit-one" ? targetCredit : null} n={target?.n ?? 1} onClose={close} />
       <EditCreditDialog credit={step === "edit-all" ? targetCredit : null} onClose={close} />
       <AdvanceDialog credit={step === "advance" ? targetCredit : null} n={target?.n ?? 1} onClose={close} />
+      <CancelRecurrenceDialog credit={step === "cancel-recurrence" ? targetCredit : null} month={month} onClose={close} />
       <ConfirmDeletion
         open={step === "delete-one"}
         itemLabel={`parcela ${target?.n ?? ""}/${targetCredit?.installments ?? ""} desta compra parcelada`}
@@ -307,7 +397,7 @@ function InstallmentsPanel() {
       />
       <ConfirmDeletion
         open={step === "delete-all"}
-        itemLabel="compra parcelada"
+        itemLabel={targetCredit?.recurring ? "compra recorrente (com todas as cobranças, inclusive as de meses passados)" : "compra parcelada"}
         onCancel={close}
         onConfirm={() => { if (target) removeCredit(target.id); close(); }}
       />

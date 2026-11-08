@@ -8,6 +8,7 @@ import type {
   Goal,
   Note,
   OnboardingState,
+  Payment,
   Transaction,
 } from "../domain/types";
 import type { FinanceRepository } from "./FinanceRepository";
@@ -20,7 +21,7 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
 }
 
 const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues"] as const;
-const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category"] as const;
+const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth"] as const;
 const GOAL_PATCH = ["name", "target", "saved", "monthly", "yieldTotal", "deadline"] as const;
 const EXTRA_PATCH = ["name", "amount", "month"] as const;
 const NOTE_PATCH = ["content", "date", "pinned", "month"] as const;
@@ -85,6 +86,11 @@ export class ApiRepository implements FinanceRepository {
   editInstallment = (id: string, n: number, cents: number) =>
     this.enqueue(() => api.put(`/credits/${id}/installments/${n}`, { value: cents }));
   removeInstallment = (id: string, n: number) => this.enqueue(() => api.delete(`/credits/${id}/installments/${n}`));
+
+  setTransactionPayment = (id: string, month: string, payment: Payment | null) =>
+    this.enqueue(() => (payment ? api.put(`/transactions/${id}/payments/${month}`, payment) : api.delete(`/transactions/${id}/payments/${month}`)));
+  setExtraPayment = (id: string, payment: Payment | null) =>
+    this.enqueue(() => (payment ? api.put(`/extra-expenses/${id}/payment`, payment) : api.delete(`/extra-expenses/${id}/payment`)));
 
   addNote = (n: Note) => this.enqueue(() => api.post("/notes", n));
   updateNote = (id: string, patch: Partial<Note>) => this.enqueue(() => api.patch(`/notes/${id}`, pick(patch, NOTE_PATCH)));

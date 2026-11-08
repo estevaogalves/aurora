@@ -7,6 +7,17 @@ export type Month = string;
  * Todos os valores em dinheiro são CENTAVOS inteiros.
  * Veja src/lib/money.ts.
  */
+/** Forma de pagamento de uma despesa. */
+export type PaymentMethod = "pix" | "debit" | "credit" | "boleto";
+
+/** Despesa paga: só registro para consulta e relatórios, não entra em nenhuma conta. */
+export interface Payment {
+  method: PaymentMethod;
+  /** dia do pagamento, "YYYY-MM-DD" */
+  date: string;
+  notes?: string;
+}
+
 export interface Transaction {
   id: string;
   name: string;
@@ -23,6 +34,8 @@ export interface Transaction {
   hiddenMonths?: Month[];
   /** Fixas: valor (em centavos) específico de um mês. */
   monthlyValues?: Record<Month, number>;
+  /** Despesas: pagamento por mês (fixa pode estar paga em um mês e não em outro). Só registro. */
+  payments?: Record<Month, Payment>;
 }
 
 /** Parcela adiantada: o valor com desconto é cobrado em `month` (o mês de hoje no momento do adiantamento). */
@@ -52,6 +65,13 @@ export interface CreditTransaction {
   category: Category;
   /** Ajustes por parcela, pela posição ("1" a "N"): valor próprio, excluída ou adiantada. Ausente = nenhum. */
   adjustments?: Record<string, InstallmentAdjustment>;
+  /**
+   * Compra recorrente (assinatura no cartão): `totalAmount` é o valor cobrado todo mês a partir de
+   * `startMonth`, sem divisão em parcelas (`installments` fica em 1).
+   */
+  recurring?: boolean;
+  /** Recorrente cancelada: último mês cobrado. Ausente = segue cobrando. */
+  endMonth?: Month;
 }
 
 export interface Note {
@@ -75,6 +95,8 @@ export interface CreditInstallment {
   totalAmount: number;
   /** parcela com valor ajustado só para ela */
   adjusted?: boolean;
+  /** cobrança de uma compra recorrente: `installments` é 0 e `currentInstallment` conta os meses desde o início */
+  recurring?: boolean;
   /** parcela adiantada: cobrada neste mês, com o mês original e o desconto */
   advanced?: { originalMonth: Month; discount: number; originalValue: number };
 }
@@ -86,6 +108,8 @@ export interface ExtraExpense {
   /** centavos */
   amount: number;
   month: Month;
+  /** Pagamento da despesa (só registro). */
+  payment?: Payment;
 }
 
 /** Categoria criada pelo usuário, com cor própria (hex, ex.: "#FF8800"). */
@@ -109,6 +133,8 @@ export interface Goal {
   deadline: Month | null;
   /** centavos: soma dos rendimentos registrados (já incluídos em `saved`). Ausente = 0. */
   yieldTotal?: number;
+  /** Porquinho: guardado sem valor de meta (`target` fica em 0). Aparece abaixo das metas principais. */
+  piggy?: boolean;
 }
 
 /** Uma fatia da sugestão de distribuição do saldo. */

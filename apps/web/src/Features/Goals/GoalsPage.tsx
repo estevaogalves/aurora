@@ -4,7 +4,7 @@ import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { getGoalsSummary, type GoalAlert, goalDeadlinePlan, goalMonthsLeft, goalPercent, isGoalDone } from "@/domain";
+import { getGoalsSummary, type GoalAlert, goalDeadlinePlan, goalMonthsLeft, goalPercent, isGoalDone, piggyAtDeadline } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
@@ -98,8 +98,54 @@ function GoalCard({ goal, alert, first, onContribute, onEdit, onDelete }: { goal
   );
 }
 
+/** Porquinho: guardado sem valor de meta, só com o que já tem, o aporte, o rendimento e o prazo. */
+function PiggyCard({ goal, onContribute, onEdit, onDelete }: { goal: Goal; onContribute: () => void; onEdit: () => void; onDelete: () => void }) {
+  const projected = piggyAtDeadline(goal, getCurrentMonth());
+
+  return (
+    <article className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+      <div className="flex items-start justify-between gap-2.5">
+        <div className="min-w-0">
+          <h4 className="break-words font-display text-base font-semibold">{goal.name}</h4>
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            <Pill>Porquinho</Pill>
+            {goal.deadline && <Pill>Prazo {deadlineLabel(goal.deadline)}</Pill>}
+          </div>
+        </div>
+        <span className="num text-[22px] font-semibold">{formatBRLShort(goal.saved)}</span>
+      </div>
+      <div className="flex flex-wrap justify-between gap-2 text-[12.5px]">
+        <span className="text-muted-foreground">Aporte mensal</span>
+        <b className="num">{goal.monthly > 0 ? formatBRL(goal.monthly) : "—"}</b>
+      </div>
+      <div className="flex flex-wrap justify-between gap-2 text-[12.5px]">
+        <span className="text-muted-foreground">Rendimentos acumulados</span>
+        <b className={`num ${(goal.yieldTotal ?? 0) > 0 ? "text-success" : "text-muted-foreground"}`}>{formatBRL(goal.yieldTotal ?? 0)}</b>
+      </div>
+      {projected !== null && (
+        <div className="border-t border-border pt-2.5 text-[12.5px] text-ink2">
+          Guardando {formatBRLShort(goal.monthly)} por mês, você terá cerca de <b className="num text-foreground">{formatBRLShort(projected)}</b> até {deadlineLabel(goal.deadline!)}, sem contar rendimentos.
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onContribute} className={`${btnClass.primary} ${btnClass.sm}`}>
+          <Icon name="plus" size={14} />
+          Aportar
+        </button>
+        <button type="button" onClick={onEdit} className={`${btnClass.base} ${btnClass.sm}`}>Editar</button>
+        <button type="button" onClick={onDelete} className={`${btnClass.base} ${btnClass.sm} hover:!border-destructive hover:!text-destructive`}>
+          <Icon name="trash" size={14} />
+          Excluir
+        </button>
+      </div>
+    </article>
+  );
+}
+
 export default function GoalsPage() {
   const goals = useFinanceStore((s) => s.goals);
+  const mainGoals = goals.filter((g) => !g.piggy);
+  const piggies = goals.filter((g) => g.piggy);
   // durante o tour, quem não criou metas vê um cartão de exemplo além do aviso de lista vazia
   const demo = useUiStore((s) => s.tourDemo) && goals.length === 0;
   const demoGoals = useMemo(() => (demo ? getDemoGoals() : []), [demo]);
@@ -142,20 +188,37 @@ export default function GoalsPage() {
               </>
             )}
           </>
-        ) : (
+        ) : mainGoals.length > 0 && (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
-            {goals.map((g, i) => (
+            {mainGoals.map((g, i) => (
               <GoalCard key={g.id} first={i === 0} goal={g} alert={alerts.find((a) => a.goal.id === g.id)} onContribute={() => { setContributing(g); setContributeOpen(true); }} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
             ))}
           </div>
         )}
       </div>
 
+      {/* porquinhos ficam sempre abaixo das metas principais */}
+      {piggies.length > 0 && (
+        <section data-tour="porquinhos" className="mt-6">
+          <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-display text-base font-semibold">Porquinhos</h3>
+            <span className="text-[12.5px] text-muted-foreground">
+              {piggies.length} {piggies.length === 1 ? "porquinho" : "porquinhos"} · {formatBRL(piggies.reduce((s, g) => s + g.saved, 0))} guardados
+            </span>
+          </div>
+          <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
+            {piggies.map((g) => (
+              <PiggyCard key={g.id} goal={g} onContribute={() => { setContributing(g); setContributeOpen(true); }} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
+            ))}
+          </div>
+        </section>
+      )}
+
       <GoalDialog open={!!editing} goal={editing} onClose={() => setEditing(null)} />
       <ContributeDialog goal={contributing ? goals.find((g) => g.id === contributing.id) ?? contributing : null} open={contributeOpen} onClose={() => setContributeOpen(false)} />
       <ConfirmDeletion
         open={!!deleting}
-        itemLabel={deleting ? `meta "${deleting.name}" (${formatBRL(deleting.saved)} guardados)` : "meta"}
+        itemLabel={deleting ? `${deleting.piggy ? "porquinho" : "meta"} "${deleting.name}" (${formatBRL(deleting.saved)} guardados)` : "meta"}
         onCancel={() => setDeleting(null)}
         onConfirm={() => {
           if (deleting) removeGoal(deleting.id);
