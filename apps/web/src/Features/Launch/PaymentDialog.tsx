@@ -23,7 +23,7 @@ export default function PaymentDialog({ target, onConfirm, onClose }: { target: 
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>{target?.current ? "Editar pagamento" : "Marcar como paga"}</DialogTitle>
-          <DialogDescription>{target ? `${target.name} · ${formatBRL(target.amount)}. É só um registro: o valor e os totais não mudam.` : ""}</DialogDescription>
+          <DialogDescription className="break-words">{target ? `${target.name} · ${formatBRL(target.amount)}. É só um registro: o valor e os totais não mudam.` : ""}</DialogDescription>
         </DialogHeader>
         {/* a chave reinicia os campos a cada abertura */}
         {target && <PaymentFields key={`${target.name}-${target.current?.date ?? "new"}`} target={target} onConfirm={onConfirm} onClose={onClose} />}
@@ -50,17 +50,20 @@ function PaymentFields({ target, onConfirm, onClose }: { target: PaymentTarget; 
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <fieldset className="grid grid-cols-2 gap-2 rounded-md border border-border bg-secondary p-3">
-        <legend className="px-1 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Forma de pagamento</legend>
-        {PAYMENT_METHODS.map((m) => (
-          <label key={m.value} className="flex cursor-pointer items-center gap-2.5 text-sm">
-            <input type="radio" name="payment-method" value={m.value} checked={method === m.value} onChange={() => setMethod(m.value)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
-            {m.label}
-          </label>
-        ))}
-      </fieldset>
+      {/* div em vez de fieldset: fieldset não vira grade de forma confiável nos navegadores de celular */}
+      <div role="radiogroup" aria-labelledby="payment-method-label" className="flex flex-col gap-2 rounded-md border border-border bg-secondary p-3">
+        <span id="payment-method-label" className="text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Forma de pagamento</span>
+        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+          {PAYMENT_METHODS.map((m) => (
+            <label key={m.value} className="flex min-h-10 min-w-0 cursor-pointer items-center gap-2.5 text-sm">
+              <input type="radio" name="payment-method" value={m.value} checked={method === m.value} onChange={() => setMethod(m.value)} className="h-4 w-4 shrink-0 accent-[hsl(var(--primary))]" />
+              <span className="min-w-0 break-words">{m.label}</span>
+            </label>
+          ))}
+        </div>
+      </div>
       <Field label="Data do pagamento" htmlFor="payment-date">
-        <input id="payment-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+        <input id="payment-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${inputClass} block min-h-11 min-w-0 max-w-full appearance-none`} />
       </Field>
       {error && <p role="alert" className="rounded-md bg-secondary px-3 py-2 text-[13px] font-semibold text-destructive">{error}</p>}
       {scheduled && (
@@ -73,7 +76,7 @@ function PaymentFields({ target, onConfirm, onClose }: { target: PaymentTarget; 
         <p className="-mt-1 text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
         <Textarea id="payment-notes" value={notes} maxLength={500} onChange={(e) => setNotes(e.target.value)} className="min-h-[64px] rounded-md border-border-strong bg-secondary" />
       </Field>
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
         <Button type="submit" disabled={!!error}>{scheduled ? "Agendar pagamento" : target.current ? "Salvar" : "Confirmar pagamento"}</Button>
       </div>

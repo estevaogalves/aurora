@@ -8,7 +8,7 @@ interface UiState {
   launchTab: LaunchTab;
   openLaunch: (tab?: LaunchTab) => void;
   closeLaunch: () => void;
-  /** Calculadora: aberta ou fechada independente do "Lançar". A conta em andamento sobrevive à troca de lugar do card, mas fechar a calculadora a limpa. */
+  /** Calculadora: aberta ou fechada independente do "Lançar". A conta em andamento sobrevive à troca de lugar do card e também ao fechar; só o botão C limpa. */
   calcOpen: boolean;
   calc: CalcState;
   toggleCalc: () => void;
@@ -28,12 +28,11 @@ export const useUiStore = create<UiState>((set) => ({
   launchTab: "expense",
   openLaunch: (tab) => set((s) => ({ launchOpen: true, launchTab: tab ?? s.launchTab })),
   // fechar o "Lançar" leva a calculadora junto; o contrário não acontece
-  closeLaunch: () => set({ launchOpen: false, calcOpen: false, calc: initialCalc }),
+  closeLaunch: () => set({ launchOpen: false, calcOpen: false }),
   calcOpen: false,
   calc: initialCalc,
-  // fechar a calculadora limpa a conta
-  toggleCalc: () => set((s) => (s.calcOpen ? { calcOpen: false, calc: initialCalc } : { calcOpen: true })),
-  closeCalc: () => set({ calcOpen: false, calc: initialCalc }),
+  toggleCalc: () => set((s) => ({ calcOpen: !s.calcOpen })),
+  closeCalc: () => set({ calcOpen: false }),
   pressCalc: (key) => set((s) => ({ calc: calcReduce(s.calc, key) })),
   calcPos: null,
   setCalcPos: (pos) => set({ calcPos: pos }),

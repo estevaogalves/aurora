@@ -1,6 +1,5 @@
 import { useState } from "react";
 import Icon from "@/components/Icon";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 
@@ -43,31 +42,34 @@ export default function MonthPicker({ id, value, onChange, min, max, clearable, 
     setOpen(false);
   }
 
+  function toggle() {
+    if (!open) {
+      // ao abrir, mostra o ano do valor atual e recolhe o teclado virtual que estiver aberto
+      setYear(Number((value || max || today).slice(0, 4)));
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    }
+    setOpen(!open);
+  }
+
+  // A grade abre na própria tela, sem popover: dentro de um modal, no celular, o popover em portal perdia os toques.
   return (
-    <Popover
-      open={open}
-      onOpenChange={(o) => {
-        // ao abrir, mostra o ano do valor atual
-        if (o) setYear(Number((value || max || today).slice(0, 4)));
-        setOpen(o);
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button
-          id={id}
-          type="button"
-          aria-haspopup="dialog"
-          className={cn(
-            "flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-secondary px-3 py-2.5 text-left text-base text-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:min-h-0 sm:text-sm",
-            !value && "text-muted-foreground",
-            className,
-          )}
-        >
-          <span className="truncate">{value ? formatMonthTitle(value) : placeholder}</span>
-          <Icon name="calendar" size={16} className="shrink-0 text-muted-foreground" />
-        </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className="pointer-events-auto w-[min(300px,calc(100vw-2rem))] p-3">
+    <div className="w-full">
+      <button
+        id={id}
+        type="button"
+        aria-expanded={open}
+        onClick={toggle}
+        className={cn(
+          "flex min-h-[44px] w-full items-center justify-between gap-2 rounded-md border border-border-strong bg-secondary px-3 py-2.5 text-left text-base text-foreground focus:outline-none focus:ring-2 focus:ring-ring sm:min-h-0 sm:text-sm",
+          !value && "text-muted-foreground",
+          className,
+        )}
+      >
+        <span className="truncate">{value ? formatMonthTitle(value) : placeholder}</span>
+        <Icon name="calendar" size={16} className="shrink-0 text-muted-foreground" />
+      </button>
+      {open && (
+        <div className="mt-2 rounded-lg border border-border-strong bg-card p-3">
         <div className="mb-2 flex items-center justify-between">
           <button type="button" aria-label="Ano anterior" disabled={year <= minYear} onClick={() => setYear(year - 1)} className="grid h-10 w-10 place-items-center rounded-md text-foreground hover:bg-secondary disabled:pointer-events-none disabled:opacity-30">
             <Icon name="chevronL" size={16} />
@@ -110,7 +112,8 @@ export default function MonthPicker({ id, value, onChange, min, max, clearable, 
             )}
           </div>
         )}
-      </PopoverContent>
-    </Popover>
+        </div>
+      )}
+    </div>
   );
 }

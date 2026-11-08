@@ -1,3 +1,4 @@
+import { uuid } from "@/lib/uuid";
 import { useState } from "react";
 import Icon from "@/components/Icon";
 import { inputClass } from "@/components/shared/FormFields";
@@ -45,7 +46,7 @@ function Fields({ onClose }: { onClose: () => void }) {
     if (items.some((i) => i.label.trim().toLowerCase() === label.toLowerCase())) {
       return showToast({ type: "error", text: `Já existe "${label}"` });
     }
-    setItems((prev) => [...prev, { id: crypto.randomUUID(), label, percent: toPercent(newPercent), custom: true }]);
+    setItems((prev) => [...prev, { id: uuid(), label, percent: toPercent(newPercent), custom: true }]);
     setNewName("");
     setNewPercent("");
   }

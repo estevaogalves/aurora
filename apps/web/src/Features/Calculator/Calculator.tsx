@@ -51,7 +51,7 @@ export default function Calculator({ autoFocus = false, className, dragHandle }:
   const card = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (autoFocus) card.current?.focus();
+    if (autoFocus) card.current?.focus({ preventScroll: true });
   }, [autoFocus]);
 
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {

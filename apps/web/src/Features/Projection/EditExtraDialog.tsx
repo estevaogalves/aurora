@@ -1,3 +1,4 @@
+import { canAutoFocus } from "@/lib/device";
 import MonthPicker from "@/components/shared/MonthPicker";
 import { useState } from "react";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
@@ -43,7 +44,7 @@ function Fields({ extra, onClose }: { extra: ExtraExpense; onClose: () => void }
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <Field label="Descrição" htmlFor="edit-extra-name">
-        <input id="edit-extra-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        <input id="edit-extra-name" autoFocus={canAutoFocus()} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Valor" htmlFor="edit-extra-amount">

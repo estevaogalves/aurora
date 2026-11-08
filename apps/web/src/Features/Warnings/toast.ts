@@ -1,3 +1,4 @@
+import { uuid } from "@/lib/uuid";
 export interface Toast {
   id: string;
   type: "success" | "error";
@@ -9,7 +10,7 @@ const listeners = new Set<Listener>();
 
 /** Mostra um aviso rápido na tela. */
 export function showToast(toast: Omit<Toast, "id">) {
-  const full: Toast = { ...toast, id: crypto.randomUUID() };
+  const full: Toast = { ...toast, id: uuid() };
   listeners.forEach((listener) => listener(full));
 }
 

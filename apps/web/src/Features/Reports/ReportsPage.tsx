@@ -19,7 +19,7 @@ const CONTENT = [
   { key: "summary", label: "Resumo de renda, despesas e saldo" },
   { key: "entries", label: "Lista de lançamentos" },
   { key: "credit", label: "Parcelas do crédito" },
-  { key: "distribution", label: "Sugestão de distribuição do saldo (só PDF de um único mês)" },
+  { key: "distribution", label: "Sugestão de distribuição do saldo (só no PDF; com vários meses usa o saldo somado)" },
 ] as const;
 
 const MAX_MONTHS = 6;
@@ -166,12 +166,12 @@ export default function ReportsPage() {
 
             <div className="mb-1 mt-3.5 flex flex-col gap-2.5">
               {CONTENT.map((c) => (
-                <label key={c.key} className="flex items-center gap-2.5 text-[13.5px]">
+                <label key={c.key} className="flex items-start gap-2.5 text-[13.5px]">
                   <input
                     type="checkbox"
                     checked={content[c.key]}
                     onChange={(e) => setContent({ ...content, [c.key]: e.target.checked })}
-                    className="h-4 w-4 accent-[hsl(var(--primary))]"
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]"
                   />
                   {c.label}
                 </label>

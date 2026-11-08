@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { niceTicks, shortReais } from "../components/charts/scale";
 import { DEFAULT_DISTRIBUTION, describePaidBadge, distributeBalance, isScheduled, getPeriodTotals, getReportRows, type Payment, type ReportOptions } from "../domain";
+import { downloadBlob } from "./download";
 import { formatBRL } from "../lib/money";
 import { useFinanceStore } from "../Store/FinanceStore";
 import { categoryHex, hexToRgb } from "../Utils/categoryHex";
@@ -48,7 +49,7 @@ const MONTH_ABBR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set
 /** "2026-06" -> "Jun/26" */
 const shortMonth = (month: string) => `${MONTH_ABBR[Number(month.slice(5, 7)) - 1]}/${month.slice(2, 4)}`;
 
-/** Gera o PDF do período (lista de meses "YYYY-MM"). Com um só mês, mostra a sugestão de distribuição se pedida. */
+/** Gera o PDF do período (lista de meses "YYYY-MM"). Se pedida, inclui a sugestão de distribuição (do mês ou do saldo somado do período). */
 export function exportPDF(months: string[], options: PdfOptions) {
   const doc = new jsPDF();
   const store = useFinanceStore.getState();
@@ -260,13 +261,13 @@ export function exportPDF(months: string[], options: PdfOptions) {
     }
   }
 
-  /* ---------- sugestão de distribuição (um mês só) ---------- */
-  if (options.distribution && !multi) {
-    const balance = totals.months[0].balance;
+  /* ---------- sugestão de distribuição: do mês, ou do saldo somado do período ---------- */
+  if (options.distribution) {
+    const balance = multi ? totals.balance : totals.months[0].balance;
     if (balance > 0) {
       const parts = distributeBalance(balance, store.distribution ?? DEFAULT_DISTRIBUTION).filter((p) => p.item.percent > 0);
       ensure(24 + parts.length * 9);
-      section("Sugestão de distribuição do saldo", `Saldo de ${formatMonth(months[0])}: ${formatBRL(balance)}`);
+      section("Sugestão de distribuição do saldo", `${multi ? `Saldo de ${periodLabel}` : `Saldo de ${formatMonth(months[0])}`}: ${formatBRL(balance)}`);
       let x = MARGIN;
       parts.forEach((p, i) => {
         const w = (CONTENT_W * p.item.percent) / 100;
@@ -420,5 +421,5 @@ export function exportPDF(months: string[], options: PdfOptions) {
   }
 
   drawFooter();
-  doc.save(`relatorio-${months[0]}${multi ? `_a_${months[months.length - 1]}` : ""}.pdf`);
+  downloadBlob(`relatorio-${months[0]}${multi ? `_a_${months[months.length - 1]}` : ""}.pdf`, doc.output("blob"));
 }

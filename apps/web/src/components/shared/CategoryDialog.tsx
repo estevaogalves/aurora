@@ -1,3 +1,5 @@
+import { canAutoFocus } from "@/lib/device";
+import { uuid } from "@/lib/uuid";
 import { useState } from "react";
 import { Field, inputClass } from "@/components/shared/FormFields";
 import Icon from "@/components/Icon";
@@ -46,7 +48,7 @@ function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
     const taken = [...BUILTIN_CATEGORIES, ...categories.map((c) => c.name)].some((n) => n.toLowerCase() === trimmed.toLowerCase());
     if (taken) return showToast({ type: "error", text: `Já existe uma categoria "${trimmed}"` });
 
-    addCategory({ id: crypto.randomUUID(), name: trimmed, color });
+    addCategory({ id: uuid(), name: trimmed, color });
     showToast({ type: "success", text: `Categoria "${trimmed}" criada` });
     onCreated?.(trimmed);
     onClose();
@@ -56,7 +58,7 @@ function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
     <div className="flex flex-col gap-4">
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field label="Nome" htmlFor="cat-name">
-          <input id="cat-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="Ex.: Pets" className={inputClass} />
+          <input id="cat-name" autoFocus={canAutoFocus()} value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="Ex.: Pets" className={inputClass} />
         </Field>
         <Field label="Cor">
           <div className="flex flex-wrap items-center gap-2">

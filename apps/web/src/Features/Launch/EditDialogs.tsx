@@ -1,3 +1,4 @@
+import { canAutoFocus } from "@/lib/device";
 import { useState } from "react";
 import CategorySelect from "@/components/shared/CategorySelect";
 import { Field, FREE_TEXT_WARNING, inputClass, MoneyInput } from "@/components/shared/FormFields";
@@ -68,7 +69,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <Field label="Nome" htmlFor="edit-name">
-        <input id="edit-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        <input id="edit-name" autoFocus={canAutoFocus()} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </Field>
       <Field label={`Valor em ${formatMonthTitle(month)}`} htmlFor="edit-amount">
         <MoneyInput id="edit-amount" value={amount} onChange={setAmount} />
@@ -141,7 +142,7 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <Field label="Nome" htmlFor="edit-credit-name">
-        <input id="edit-credit-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
+        <input id="edit-credit-name" autoFocus={canAutoFocus()} value={name} onChange={(e) => setName(e.target.value)} className={inputClass} />
       </Field>
       <div className={recurring ? "" : "grid gap-4 sm:grid-cols-2"}>
         <Field label={recurring ? "Valor mensal" : "Valor total"} htmlFor="edit-credit-total">

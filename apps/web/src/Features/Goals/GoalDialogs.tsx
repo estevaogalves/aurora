@@ -1,3 +1,5 @@
+import { canAutoFocus } from "@/lib/device";
+import { uuid } from "@/lib/uuid";
 import MonthPicker from "@/components/shared/MonthPicker";
 import { useState } from "react";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
@@ -53,7 +55,7 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
       updateGoal(goal.id, values);
       showToast({ type: "success", text: `${piggy ? "Porquinho" : "Meta"} "${trimmed}" atualizada` });
     } else {
-      addGoal({ id: crypto.randomUUID(), ...values });
+      addGoal({ id: uuid(), ...values });
       showToast({ type: "success", text: `Meta "${trimmed}" criada` });
     }
     onClose();
@@ -62,7 +64,7 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
       <Field label={piggy ? "Nome do porquinho" : "Nome da meta"} htmlFor="goal-name">
-        <input id="goal-name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Viagem de férias" className={inputClass} />
+        <input id="goal-name" autoFocus={canAutoFocus()} value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Viagem de férias" className={inputClass} />
       </Field>
       <div className="grid gap-4 sm:grid-cols-2">
         {!piggy && (
