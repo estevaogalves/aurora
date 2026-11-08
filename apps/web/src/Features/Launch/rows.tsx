@@ -55,6 +55,8 @@ export interface ExpenseLine {
   /** "2/10" para parcelas */
   installment?: string;
   progress?: { value: number; max: number };
+  /** parcela adiantada para este mês */
+  advanced?: boolean;
 }
 
 /** Linha somente leitura de despesa (Painel). */
@@ -69,6 +71,7 @@ export function ExpenseStaticRow({ line }: { line: ExpenseLine }) {
           {line.category}
           {line.fixed && <Pill tone="fix">Fixa</Pill>}
           {line.installment && <Pill>Parcela {line.installment}</Pill>}
+          {line.advanced && <Pill tone="good">Adiantada</Pill>}
         </>
       }
       amount={formatBRL(line.amount)}

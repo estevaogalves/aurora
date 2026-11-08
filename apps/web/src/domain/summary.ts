@@ -175,7 +175,7 @@ export function getProjectionDetail(
     incomes: fixed.filter((t) => t.type === "income").map(line),
     expenses: [
       ...fixed.filter((t) => t.type === "expense").map(line),
-      ...getCreditByMonth(data.creditTransactions, month).map((c): ProjectionLine => ({ name: `${c.name} (${c.currentInstallment}/${c.installments})`, amount: c.installmentValue, kind: "credit" })),
+      ...getCreditByMonth(data.creditTransactions, month).map((c): ProjectionLine => ({ name: `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" })),
       ...extras.filter((e) => e.month === month).map((e): ProjectionLine => ({ name: e.name, amount: e.amount, kind: "extra" })),
     ],
   };

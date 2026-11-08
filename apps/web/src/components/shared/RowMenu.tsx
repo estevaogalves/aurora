@@ -11,11 +11,13 @@ interface RowMenuProps {
   /** texto do item de fixar quando não está fixado */
   pinLabel?: string;
   unpinLabel?: string;
+  /** só em compras parceladas: "Adiantar parcela" */
+  onAdvance?: () => void;
   deleteLabel?: string;
 }
 
 /** Botão ⋮ que abre Editar, Excluir e Fixar como atalho. */
-export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLabel = "Fixar como atalho", unpinLabel = "Desafixar", deleteLabel = "Excluir" }: RowMenuProps) {
+export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLabel = "Fixar como atalho", unpinLabel = "Desafixar", deleteLabel = "Excluir", onAdvance }: RowMenuProps) {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -36,6 +38,12 @@ export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLab
           <DropdownMenuItem onSelect={onPin}>
             <Icon name="pin" size={15} />
             {pinned ? unpinLabel : pinLabel}
+          </DropdownMenuItem>
+        )}
+        {onAdvance && (
+          <DropdownMenuItem onSelect={onAdvance}>
+            <Icon name="calendar" size={15} />
+            Adiantar parcela
           </DropdownMenuItem>
         )}
         <DropdownMenuItem destructive onSelect={onDelete}>

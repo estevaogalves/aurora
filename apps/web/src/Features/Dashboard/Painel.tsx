@@ -209,6 +209,7 @@ function RecentExpenses() {
       category: c.category,
       amount: c.installmentValue,
       installment: `${c.currentInstallment}/${c.installments}`,
+      advanced: !!c.advanced,
       progress: { value: c.currentInstallment, max: c.installments },
     })),
     ...extras.map((e) => ({ id: e.id, name: e.name, category: "Outros", amount: e.amount })),

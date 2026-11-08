@@ -4,15 +4,16 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
-import { getCreditProgress } from "@/domain";
+import { canAdvanceInstallment, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
 import { useHiddenTransactions, useMonthCredit, useMonthTransactions } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
-import { formatMonthAbbr } from "@/Utils/Date";
+import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 import EditExtraDialog from "../Projection/EditExtraDialog";
 import { showToast } from "../Warnings/toast";
 import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
+import { AdvanceDialog, EditInstallmentDialog, ScopeDialog } from "./InstallmentDialogs";
 import { ProgressMini, Row } from "./rows";
 import { LANCAMENTOS_TOUR } from "./tour";
 
@@ -179,16 +180,68 @@ function ExpensesPanel() {
   );
 }
 
+/** Linha de uma compra parcelada no mês visto. Parcela adiantada é identificada, com mês original e desconto. */
+function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance }: {
+  c: ReturnType<typeof useMonthCredit>[number];
+  credit: CreditTransaction | undefined;
+  month: string;
+  today: string;
+  onEdit: () => void;
+  onDelete: () => void;
+  onAdvance: () => void;
+}) {
+  const colorOf = useCategoryColor();
+  const source = credit ?? { startMonth: month, installments: c.installments, totalAmount: c.totalAmount };
+  const { remaining, endMonth } = getCreditProgress(source, month);
+  const total = credit ? getCreditEffectiveTotal(credit) : c.totalAmount;
+  const canAdvance = !!credit && !c.advanced && canAdvanceInstallment(credit, c.currentInstallment, today);
+
+  return (
+    <Row
+      color={colorOf(c.category)}
+      name={c.name}
+      meta={
+        <>
+          <Pill>Parcela {c.currentInstallment}/{c.installments}</Pill>
+          {c.advanced && <Pill tone="good">Adiantada</Pill>}
+          <span>Total {formatBRL(total)}</span>
+          {c.advanced ? (
+            <span>Original em {formatMonthAbbr(c.advanced.originalMonth)} · desconto {formatBRL(c.advanced.discount)}</span>
+          ) : (
+            <span>{remaining === 0 ? "Última parcela" : `Faltam ${remaining} ${remaining === 1 ? "parcela" : "parcelas"}`} · termina em {formatMonthAbbr(endMonth)}</span>
+          )}
+        </>
+      }
+      below={<ProgressMini value={c.currentInstallment} max={c.installments} />}
+      amount={formatBRL(c.installmentValue)}
+      actions={<RowMenu label={c.name} onEdit={onEdit} onDelete={onDelete} onAdvance={canAdvance ? onAdvance : undefined} />}
+    />
+  );
+}
+
 /** Compras parceladas com parcela no mês visto: mesma fonte (`useMonthCredit`) do Painel, do saldo e da Projeção. */
 function InstallmentsPanel() {
   const credit = useMonthCredit();
   const credits = useFinanceStore((s) => s.creditTransactions);
   const month = useFinanceStore((s) => s.currentMonth);
   const removeCredit = useFinanceStore((s) => s.removeCreditTransaction);
-  const colorOf = useCategoryColor();
-  const [editing, setEditing] = useState<CreditTransaction | null>(null);
-  const [toDelete, setToDelete] = useState<string | null>(null);
+  const removeInstallment = useFinanceStore((s) => s.removeCreditInstallment);
+  const today = getCurrentMonth();
   const total = credit.reduce((sum, c) => sum + c.installmentValue, 0);
+
+  // a parcela escolhida no menu e o que fazer com ela
+  const [target, setTarget] = useState<{ id: string; n: number; advanced: boolean } | null>(null);
+  const [step, setStep] = useState<"edit-scope" | "delete-scope" | "edit-one" | "edit-all" | "delete-one" | "delete-all" | "advance" | null>(null);
+  const targetCredit = credits.find((x) => x.id === target?.id) ?? null;
+  const close = () => { setStep(null); setTarget(null); };
+  const open = (c: ReturnType<typeof useMonthCredit>[number], action: "edit" | "delete" | "advance") => {
+    setTarget({ id: c.id, n: c.currentInstallment, advanced: !!c.advanced });
+    // parcela adiantada não muda individualmente: só "todas"
+    if (action === "advance") setStep("advance");
+    else if (c.advanced) setStep(action === "edit" ? "edit-all" : "delete-all");
+    else setStep(action === "edit" ? "edit-scope" : "delete-scope");
+  };
+  const scopeLabel = targetCredit && target ? `Parcela ${target.n}/${targetCredit.installments} · ${formatMonthTitle(getInstallmentMonth(targetCredit, target.n))}` : "";
 
   return (
     <Panel tour="parcelas" title="Compras parceladas" subtitle="Parcelas do crédito em andamento">
@@ -196,41 +249,66 @@ function InstallmentsPanel() {
         <Empty>Nenhuma compra parcelada neste mês.</Empty>
       ) : (
         <>
-          {credit.map((c) => {
-            const source = credits.find((x) => x.id === c.id);
-            const { remaining, endMonth } = getCreditProgress(source ?? { startMonth: month, installments: c.installments }, month);
-            return (
-              <Row
-                key={c.id}
-                color={colorOf(c.category)}
-                name={c.name}
-                meta={
-                  <>
-                    <Pill>Parcela {c.currentInstallment}/{c.installments}</Pill>
-                    <span>Total {formatBRL(c.totalAmount)}</span>
-                    <span>
-                      {remaining === 0 ? "Última parcela" : `Faltam ${remaining} ${remaining === 1 ? "parcela" : "parcelas"}`} · termina em {formatMonthAbbr(endMonth)}
-                    </span>
-                  </>
-                }
-                below={<ProgressMini value={c.currentInstallment} max={c.installments} />}
-                amount={formatBRL(c.installmentValue)}
-                actions={<RowMenu label={c.name} onEdit={() => setEditing(source ?? null)} onDelete={() => setToDelete(c.id)} />}
-              />
-            );
-          })}
+          {credit.map((c) => (
+            <InstallmentRow
+              key={`${c.id}-${c.currentInstallment}`}
+              c={c}
+              credit={credits.find((x) => x.id === c.id)}
+              month={month}
+              today={today}
+              onEdit={() => open(c, "edit")}
+              onDelete={() => open(c, "delete")}
+              onAdvance={() => open(c, "advance")}
+            />
+          ))}
           <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-border-strong pt-3 text-[13.5px]">
             <span className="font-semibold">Total das parcelas do mês</span>
             <span className="num font-bold">{formatBRL(total)}</span>
           </div>
         </>
       )}
-      <EditCreditDialog credit={editing} onClose={() => setEditing(null)} />
+
+      <ScopeDialog
+        open={step === "edit-scope"}
+        title="Editar parcela"
+        name={targetCredit?.name ?? ""}
+        installmentLabel={`${scopeLabel}. Muda só o valor desta parcela.`}
+        allNote="Muda nome, categoria e valor total. Parcelas adiantadas e com valor próprio não mudam."
+        confirmLabel="Continuar"
+        onChoose={(scope) => setStep(scope === "one" ? "edit-one" : "edit-all")}
+        onClose={close}
+      />
+      <ScopeDialog
+        open={step === "delete-scope"}
+        title="Excluir parcela"
+        name={targetCredit?.name ?? ""}
+        installmentLabel={`${scopeLabel}. As outras parcelas continuam nos seus meses.`}
+        allNote="Remove a compra inteira, com todas as parcelas (inclusive as adiantadas)."
+        confirmLabel="Continuar"
+        destructive
+        onChoose={(scope) => setStep(scope === "one" ? "delete-one" : "delete-all")}
+        onClose={close}
+      />
+      <EditInstallmentDialog credit={step === "edit-one" ? targetCredit : null} n={target?.n ?? 1} onClose={close} />
+      <EditCreditDialog credit={step === "edit-all" ? targetCredit : null} onClose={close} />
+      <AdvanceDialog credit={step === "advance" ? targetCredit : null} n={target?.n ?? 1} onClose={close} />
       <ConfirmDeletion
-        open={!!toDelete}
+        open={step === "delete-one"}
+        itemLabel={`parcela ${target?.n ?? ""}/${targetCredit?.installments ?? ""} desta compra parcelada`}
+        onCancel={close}
+        onConfirm={() => {
+          if (target) {
+            const error = removeInstallment(target.id, target.n);
+            if (error) showToast({ type: "error", text: error });
+          }
+          close();
+        }}
+      />
+      <ConfirmDeletion
+        open={step === "delete-all"}
         itemLabel="compra parcelada"
-        onCancel={() => setToDelete(null)}
-        onConfirm={() => { if (toDelete) removeCredit(toDelete); setToDelete(null); }}
+        onCancel={close}
+        onConfirm={() => { if (target) removeCredit(target.id); close(); }}
       />
     </Panel>
   );

@@ -89,7 +89,7 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
           type: "Despesa",
           amount: c.installmentValue,
           note: c.advanced
-            ? `Parcela ${c.currentInstallment}/${c.installments} adiantada (original ${c.advanced.originalMonth}, desconto ${formatBRL(c.advanced.discount)})`
+            ? `Parcela ${c.currentInstallment}/${c.installments} adiantada, original em ${formatMonth(c.advanced.originalMonth)}, desconto ${formatBRL(c.advanced.discount)}`
             : `Parcela ${c.currentInstallment}/${c.installments}`,
         });
       }

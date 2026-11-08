@@ -4,6 +4,7 @@ import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { patchEditAll } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type Transaction } from "@/Store/FinanceStore";
 import { formatMonthTitle } from "@/Utils/Date";
@@ -104,7 +105,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
 /** Edita uma compra parcelada: nome, categoria, valor total e número de parcelas. */
 export function EditCreditDialog({ credit, onClose }: { credit: CreditTransaction | null; onClose: () => void }) {
   return (
-    <Shell open={!!credit} title="Editar compra parcelada" description={credit ? `Começou em ${formatMonthTitle(credit.startMonth)}. Total atual: ${formatBRL(credit.totalAmount)}.` : ""} onClose={onClose}>
+    <Shell open={!!credit} title="Editar compra parcelada" description={credit ? `Começou em ${formatMonthTitle(credit.startMonth)}. Total atual: ${formatBRL(credit.totalAmount)}.${credit.adjustments && Object.keys(credit.adjustments).length > 0 ? " As parcelas adiantadas, excluídas ou com valor próprio não mudam." : ""}` : ""} onClose={onClose}>
       {credit && <CreditFields key={credit.id} credit={credit} onClose={onClose} />}
     </Shell>
   );
@@ -116,6 +117,8 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
   const [total, setTotal] = useState(centsToInput(credit.totalAmount));
   const [installments, setInstallments] = useState(credit.installments);
   const [category, setCategory] = useState(credit.category);
+  // com parcelas ajustadas, excluídas ou adiantadas o nº de parcelas fica travado
+  const locked = Object.keys(credit.adjustments ?? {}).length > 0;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -123,12 +126,14 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
     if (!name.trim()) return showToast({ type: "error", text: "Preencha o nome" });
     if (!cents) return showToast({ type: "error", text: "Informe um valor maior que zero" });
 
-    update(credit.id, {
+    const result = patchEditAll(credit, {
       name: name.trim(),
       totalAmount: cents,
       installments: Math.min(60, Math.max(1, Math.floor(installments) || 1)),
       category,
     });
+    if (!result.ok) return showToast({ type: "error", text: result.error });
+    update(credit.id, result.patch);
     showToast({ type: "success", text: "Alterações salvas" });
     onClose();
   }
@@ -143,7 +148,7 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
           <MoneyInput id="edit-credit-total" value={total} onChange={setTotal} />
         </Field>
         <Field label="Parcelas" htmlFor="edit-credit-installments">
-          <input id="edit-credit-installments" type="number" min={1} max={60} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} className={inputClass} />
+          <input id="edit-credit-installments" type="number" min={1} max={60} value={installments} disabled={locked} onChange={(e) => setInstallments(Number(e.target.value))} className={inputClass} />
         </Field>
       </div>
       <Field label="Categoria" htmlFor="edit-credit-category">
