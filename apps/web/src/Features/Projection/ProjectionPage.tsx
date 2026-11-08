@@ -144,7 +144,7 @@ export default function ProjectionPage() {
 
         <div className="col-span-12 lg:col-span-4">
           <Panel tour="acumulado" title="Saldo acumulado" subtitle="Quanto sobra somando os meses">
-            <ChartLine labels={labels} series={[{ name: "Saldo acumulado", color: "hsl(var(--primary))", area: true, values: projection.map((p) => p.accumulated) }]} height={230} />
+            <ChartLine tapDetail labels={labels} series={[{ name: "Saldo acumulado", color: "hsl(var(--primary))", area: true, values: projection.map((p) => p.accumulated) }]} height={230} />
           </Panel>
         </div>
 

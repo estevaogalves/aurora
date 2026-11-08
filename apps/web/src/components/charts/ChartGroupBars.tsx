@@ -1,7 +1,7 @@
-import { useState, type ReactNode } from "react";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { useCallback, useState, type ReactNode } from "react";
 import { formatBRL } from "@/lib/money";
 import { niceTicks, shortReais } from "./scale";
+import PickPopover from "./PickPopover";
 import { TipBox } from "./ChartTooltip";
 import { useChartTip } from "./useChartTip";
 import { useChartWidth } from "./useChartWidth";
@@ -23,6 +23,7 @@ export default function ChartGroupBars({ labels, series, height = 250, renderDet
   const { ref, width } = useChartWidth();
   const { tip, show, hide } = useChartTip();
   const [picked, setPicked] = useState<number | null>(null);
+  const closePick = useCallback(() => setPicked(null), []);
 
   const max = Math.max(...series.flatMap((s) => s.values.map((v) => Math.max(v, 0) / 100)), 1);
   const tk = niceTicks(max);
@@ -69,7 +70,7 @@ export default function ChartGroupBars({ labels, series, height = 250, renderDet
                   width={band}
                   height={ih}
                   fill="transparent"
-                  onPointerMove={(e) => show(e, label, series.map((s) => <div key={s.name}>{s.name}: {formatBRL(s.values[i])}</div>))}
+                  onPointerMove={(e) => e.pointerType === "mouse" && show(e, label, series.map((s) => <div key={s.name}>{s.name}: {formatBRL(s.values[i])}</div>))}
                   onPointerLeave={hide}
                   {...(renderDetail && {
                     role: "button",
@@ -91,15 +92,9 @@ export default function ChartGroupBars({ labels, series, height = 250, renderDet
         </svg>
       )}
       {renderDetail && picked !== null && picked < labels.length && (
-        <Popover open onOpenChange={(o) => !o && setPicked(null)}>
-          {/* âncora invisível no topo do grupo clicado */}
-          <PopoverAnchor asChild>
-            <span aria-hidden="true" className="pointer-events-none absolute h-px w-px" style={{ left: PAD.l + band * picked + band / 2, top: y(Math.max(...series.map((s) => Math.max(s.values[picked], 0) / 100))) }} />
-          </PopoverAnchor>
-          <PopoverContent side="top" align="center" sideOffset={6} className="w-[min(280px,calc(100vw-2rem))] p-3 text-[13px]">
-            {renderDetail(picked)}
-          </PopoverContent>
-        </Popover>
+        <PickPopover container={ref} onClose={closePick} left={PAD.l + band * picked + band / 2} top={y(Math.max(...series.map((s) => Math.max(s.values[picked], 0) / 100)))}>
+          {renderDetail(picked)}
+        </PickPopover>
       )}
       <TipBox tip={tip} />
     </div>
