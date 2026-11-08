@@ -61,7 +61,7 @@ jobs:
       TEST_DATABASE_URL: postgres://aurora:aurora@localhost:5432/aurora_test?sslmode=disable
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: apps/api/go.mod
           cache-dependency-path: apps/api/go.sum
@@ -86,7 +86,7 @@ jobs:
       # falha com vulnerabilidade ALTA ou CRÍTICA, em produção e em desenvolvimento (lê só o pnpm-lock.yaml)
       - name: pnpm audit
         run: pnpm audit --audit-level=high
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: apps/api/go.mod
           cache-dependency-path: apps/api/go.sum
