@@ -5,3 +5,6 @@ packages:
 allowBuilds:
   core-js: true
   esbuild: true
+
+overrides:
+  minimatch: ">=11.0.1"
