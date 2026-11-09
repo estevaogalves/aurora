@@ -6,7 +6,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover"
  * - tocar em outro mês do gráfico troca o conteúdo direto (o toque não conta como "clicar fora");
  * - rolar a página fecha o popover (rolar dentro dele não).
  */
-export default function PickPopover({ container, left, top, onClose, children }: { container: RefObject<HTMLElement>; left: number; top: number; onClose: () => void; children: ReactNode }) {
+export default function PickPopover({ container, left, top, onClose, children }: { container: RefObject<HTMLElement | null>; left: number; top: number; onClose: () => void; children: ReactNode }) {
   const content = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
