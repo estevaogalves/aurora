@@ -230,6 +230,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setAmount("");
     setNotes("");
     setFixed(false);
+    setCategory("Moradia");
+    setExtraMonth(changeMonth(currentMonth, 1));
     setInstallments(2);
     setRecurring(false);
     setStartDate(defaultStartDate(currentMonth));
