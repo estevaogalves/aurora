@@ -25,9 +25,30 @@ function PaidBadge({ payment }: { payment: Payment }) {
   return (
     <>
       <Pill tone={isScheduled(payment) ? "scheduled" : "good"}>{paymentStatusLabel(payment)} · {paymentMethodLabel(payment.method)} · {formatPaymentDay(payment.date)}</Pill>
-      {payment.notes && <span className="min-w-0 max-w-full break-words">{payment.notes}</span>}
     </>
   );
+}
+
+/** Anotações escondidas por padrão: o olho mostra ou esconde o texto. Sem anotação, `button` e `text` ficam nulos. */
+function useNotes(...notes: (string | undefined)[]) {
+  const [open, setOpen] = useState(false);
+  const text = notes.filter(Boolean).join(" · ");
+  if (!text) return { button: null, text: null };
+  return {
+    button: (
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-label={open ? "Esconder anotação" : "Mostrar anotação"}
+        aria-pressed={open}
+        title={open ? "Esconder anotação" : "Mostrar anotação"}
+        className="flex-none rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+      >
+        <Icon name={open ? "eyeOff" : "eye"} size={16} />
+      </button>
+    ),
+    text: open ? <p className="mt-0.5 min-w-0 max-w-full whitespace-pre-wrap break-words text-[12.5px] text-muted-foreground">{text}</p> : null,
+  };
 }
 
 /** Ações de pagamento de uma linha (só despesas): marcar, editar e desmarcar. */
@@ -42,6 +63,7 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
   const colorOf = useCategoryColor();
   const income = t.type === "income";
   const payment = pay ? paymentOf(t, month) : undefined;
+  const note = useNotes(t.notes, payment?.notes);
 
   const menu = (
     <RowMenu
@@ -63,11 +85,15 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
   if (t.fixed) {
     return (
       <div className="flex items-center justify-between gap-3 py-1 text-[13.5px]">
-        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="break-words">{t.name}</span>
-          {payment && <PaidBadge payment={payment} />}
-        </span>
+        <div className="min-w-0">
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span className="break-words">{t.name}</span>
+            {payment && <PaidBadge payment={payment} />}
+          </span>
+          {note.text}
+        </div>
         <div className="flex items-center gap-2">
+          {note.button}
           <span className={`num text-right font-semibold ${income ? "text-success" : ""}`}>{formatBRL(t.amount)}</span>
           {menu}
         </div>
@@ -83,13 +109,37 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
         <>
           {!income && t.category}
           {t.fixed ? <Pill tone="fix">Fixa</Pill> : income ? <Pill>Variável</Pill> : null}
-          {t.notes && <span className="min-w-0 max-w-full break-words">{t.notes}</span>}
           {payment && <PaidBadge payment={payment} />}
         </>
       }
       amount={formatBRL(t.amount)}
       amountClass={income ? "text-success" : ""}
-      actions={menu}
+      below={note.text}
+      actions={<>{note.button}{menu}</>}
+    />
+  );
+}
+
+function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraExpense; color: string; onEdit: () => void; onDelete: () => void; onPay: () => void; onClearPay?: () => void }) {
+  const note = useNotes(e.payment?.notes);
+  return (
+    <Row
+      color={color}
+      name={e.name}
+      meta={
+        <>
+          <Pill>Despesa extra</Pill>
+          {e.payment && <PaidBadge payment={e.payment} />}
+        </>
+      }
+      below={note.text}
+      amount={formatBRL(e.amount)}
+      actions={
+        <>
+          {note.button}
+          <RowMenu label={e.name} onEdit={onEdit} onDelete={onDelete} onPay={onPay} paid={!!e.payment} onClearPay={onClearPay} />
+        </>
+      }
     />
   );
 }
@@ -202,27 +252,14 @@ function ExpensesPanel() {
       {count > 0 && variable.length === 0 && extras.length === 0 && <Empty>Nenhuma despesa variável neste mês.</Empty>}
       {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}
       {extras.map((e) => (
-        <Row
+        <ExtraRow
           key={e.id}
+          e={e}
           color={colorOf("Outros")}
-          name={e.name}
-          meta={
-            <>
-              <Pill>Despesa extra</Pill>
-              {e.payment && <PaidBadge payment={e.payment} />}
-            </>
-          }
-          amount={formatBRL(e.amount)}
-          actions={
-            <RowMenu
-              label={e.name}
-              onEdit={() => setEditingExtra(e)}
-              onDelete={() => setExtraToDelete(e.id)}
-              onPay={() => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
-              paid={!!e.payment}
-              onClearPay={e.payment ? () => setExtraPayment(e.id, null) : undefined}
-            />
-          }
+          onEdit={() => setEditingExtra(e)}
+          onDelete={() => setExtraToDelete(e.id)}
+          onPay={() => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
+          onClearPay={e.payment ? () => setExtraPayment(e.id, null) : undefined}
         />
       ))}
       {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}</FixedSection>}
