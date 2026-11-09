@@ -36,7 +36,7 @@ export default function AppShell() {
   return (
     <div className="min-h-screen">
       <header className={`z-20 transition-colors min-[700px]:sticky min-[700px]:top-0 ${scrolled ? "border-b border-border bg-background/85 backdrop-blur-[14px]" : "border-b border-transparent"}`}>
-        <div className={`${CONTAINER} flex flex-wrap items-center gap-x-3 gap-y-2 py-3.5`}>
+        <div className={`${CONTAINER} flex flex-wrap items-center gap-x-2 gap-y-2 py-3.5`}>
           <NavLink to="/painel" aria-label={APP_NAME} className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-[-0.02em]">
             <Logo />
             {APP_NAME}
@@ -44,9 +44,9 @@ export default function AppShell() {
 
           <TopTabs />
 
-          <div className="ml-auto flex items-center gap-2 min-[701px]:order-2 max-[700px]:contents">
+          <div className="ml-auto flex items-center gap-1.5 min-[701px]:max-[1299px]:order-2 max-[700px]:contents">
             <div className="max-[700px]:order-3 max-[700px]:w-full"><MonthSelector /></div>
-            <div className="flex items-center gap-2 max-[700px]:ml-auto">
+            <div className="flex items-center gap-1.5 max-[700px]:ml-auto">
               <GoalBell />
               <button
                 type="button"
@@ -90,14 +90,14 @@ function TopTabs() {
     <nav
       aria-label="Principal"
       data-tour="abas"
-      className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-card p-1 [scrollbar-width:none] max-[700px]:hidden min-[701px]:order-3 min-[701px]:w-full"
+      className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-card p-1 [scrollbar-width:none] max-[700px]:hidden min-[701px]:max-[1299px]:order-3 min-[701px]:max-[1299px]:w-full"
     >
       {NAV_ITEMS.map((item) => (
         <NavLink
           key={item.path}
           to={item.path}
           className={({ isActive }) =>
-            `flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-2 text-[13px] font-semibold ${
+            `flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-2 text-[13px] font-semibold ${
               isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`
           }
