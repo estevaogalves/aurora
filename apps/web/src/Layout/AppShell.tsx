@@ -44,7 +44,7 @@ export default function AppShell() {
 
           <TopTabs />
 
-          <div className="ml-auto flex items-center gap-2 min-[701px]:max-[1359px]:order-2 max-[700px]:contents">
+          <div className="ml-auto flex items-center gap-2 min-[701px]:order-2 max-[700px]:contents">
             <div className="max-[700px]:order-3 max-[700px]:w-full"><MonthSelector /></div>
             <div className="flex items-center gap-2 max-[700px]:ml-auto">
               <GoalBell />
@@ -90,7 +90,7 @@ function TopTabs() {
     <nav
       aria-label="Principal"
       data-tour="abas"
-      className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-card p-1 [scrollbar-width:none] max-[700px]:hidden min-[701px]:max-[1359px]:order-3 min-[701px]:max-[1359px]:w-full"
+      className="flex max-w-full gap-1 overflow-x-auto rounded-full border border-border bg-card p-1 [scrollbar-width:none] max-[700px]:hidden min-[701px]:order-3 min-[701px]:w-full"
     >
       {NAV_ITEMS.map((item) => (
         <NavLink
