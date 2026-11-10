@@ -21,6 +21,7 @@ import {
   patchContribution,
   type CreditCard,
   type CreditTransaction,
+  type FinanceData,
   type CustomCategory,
   type DistributionItem,
   type ExtraExpense,

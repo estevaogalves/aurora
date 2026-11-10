@@ -30,7 +30,7 @@ export function describeBackup(d: FinanceData): [string, number][] {
   return ([
     ["Lançamentos (rendas e despesas)", d.transactions.length],
     ["Compras no crédito", d.creditTransactions.length],
-    ["Cartões", d.creditCards.length],
+    ["Cartões", (d.creditCards?.length ?? 0)],
     ["Metas", d.goals.length],
     ["Despesas extras", d.extraExpenses.length],
     ["Anotações", d.notes.length],
