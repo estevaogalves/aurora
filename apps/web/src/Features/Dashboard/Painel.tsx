@@ -33,8 +33,10 @@ function Hero() {
         {formatBRL(balance)}
       </span>
       <span className="text-[13.5px] text-ink2">{pct}% da renda comprometida</span>
-      <div className="mt-3.5 h-2 overflow-hidden rounded-full bg-background/50">
-        <i className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(pct, 100)}%` }} />
+      <div className="mt-auto pt-3.5">
+        <div className="h-2 overflow-hidden rounded-full bg-background/50">
+          <i className="block h-full rounded-full bg-primary" style={{ width: `${Math.min(pct, 100)}%` }} />
+        </div>
       </div>
       <div className="mt-3.5 grid grid-cols-2 gap-2.5">
         {[
@@ -321,7 +323,7 @@ export default function Painel() {
     <>
       <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui só leitura; cadastre pelo botão “Lançar”.`} />
       <GoalDeadlines />
-      <div className="grid grid-cols-12 items-start gap-3.5">
+      <div className="grid grid-cols-12 items-stretch gap-3.5 [&>div>*]:h-full">
         <div className="col-span-12 lg:col-span-4"><Hero /></div>
         <div className="col-span-12 lg:col-span-8"><Trend /></div>
         <div className="col-span-12 lg:col-span-4"><Categories /></div>

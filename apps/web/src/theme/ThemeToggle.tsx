@@ -11,7 +11,7 @@ export default function ThemeToggle() {
       type="button"
       onClick={toggleTheme}
       aria-label={isDark ? "Ativar modo claro" : "Ativar modo escuro"}
-      className={btnClass.base}
+      className={`${btnClass.base} ${btnClass.icon}`}
     >
       <Icon name={isDark ? "sun" : "moon"} size={16} />
     </button>

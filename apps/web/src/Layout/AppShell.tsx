@@ -56,7 +56,7 @@ export default function AppShell() {
                 aria-label={calcOpen ? "Fechar calculadora" : "Abrir calculadora"}
                 aria-pressed={calcOpen}
                 title="Calculadora"
-                className={`${btnClass.base} ${calcOpen ? "!border-primary !text-primary" : ""}`}
+                className={`${btnClass.base} ${btnClass.icon} ${calcOpen ? "!border-primary !text-primary" : ""}`}
               >
                 <Icon name="calc" size={16} />
               </button>
@@ -99,7 +99,7 @@ function TopTabs() {
           key={item.path}
           to={item.path}
           className={({ isActive }) =>
-            `flex items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-2 text-[13px] font-semibold min-[701px]:max-[1299px]:flex-auto min-[701px]:max-[1299px]:justify-center ${
+            `flex items-center gap-1 whitespace-nowrap rounded-full px-1 py-2 text-[13px] font-semibold min-[701px]:max-[1299px]:flex-auto min-[701px]:max-[1299px]:justify-center ${
               isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`
           }
