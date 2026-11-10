@@ -167,6 +167,27 @@ export interface ProjectionLine {
   kind: "fixed" | "credit" | "extra";
 }
 
+/** Os lançamentos que formam uma categoria nas despesas do mês (soma igual a `byCategory[category]` de `getMonthSummary`). */
+export function getCategoryDetail(
+  data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses" | "creditCards">>,
+  month: Month,
+  category: Category,
+): ProjectionLine[] {
+  const lines: ProjectionLine[] = getTransactionsByMonth(data.transactions, month)
+    .filter((t) => t.type === "expense" && t.category === category)
+    .map((t) => ({ name: t.name, amount: t.amount, kind: "fixed" as const }));
+
+  if (category === CREDIT_CATEGORY) {
+    for (const c of getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month)) {
+      lines.push({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" });
+    }
+  }
+  if (category === EXTRA_CATEGORY) {
+    for (const e of (data.extraExpenses ?? []).filter((x) => x.month === month)) lines.push({ name: e.name, amount: e.amount, kind: "extra" });
+  }
+  return lines.sort((a, b) => b.amount - a.amount);
+}
+
 /** O que compõe a renda e a despesa projetadas de um mês, linha a linha (soma igual à de `getProjection`). */
 export function getProjectionDetail(
   data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "creditCards">>,

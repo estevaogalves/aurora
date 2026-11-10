@@ -6,7 +6,7 @@ export const PAINEL_TOUR: TourStep[] = [
   { target: "prazos", title: "Metas com prazo chegando", text: "Este aviso aparece quando uma meta está perto do prazo ou vencida. Marque como visto para dispensá-lo; ele também fica no sino do topo.", placement: ["bottom"] },
   { target: "saldo", title: "Seu saldo do mês", text: "Renda menos despesas, já somando as parcelas do crédito. A barra mostra quanto da renda está comprometida.", placement: ["right", "bottom"] },
   { target: "tendencia", title: "Últimos 6 meses", text: "Renda e despesas mês a mês, para ver se o gasto está subindo ou se a renda cobre o que sai.", placement: ["left", "bottom"] },
-  { target: "categorias", title: "Despesas por categoria", text: "Para onde foi o dinheiro neste mês. Passe o mouse (ou toque) sobre uma fatia para ver o valor.", placement: ["top", "right"] },
+  { target: "categorias", title: "Despesas por categoria", text: "Para onde foi o dinheiro neste mês. Passe o mouse sobre uma fatia para ver o valor e clique (ou toque) para ver os lançamentos dela.", placement: ["top", "right"] },
   { target: "sugestao", title: "Como dividir o que sobrou", text: "Uma sugestão de como repartir o saldo do mês. No menu ⋮ você personaliza os percentuais e cria suas próprias fatias.", placement: ["top", "right"] },
   { target: "metas", title: "Progresso das metas", text: "Um resumo dos seus objetivos. Os detalhes e os aportes ficam na aba Metas.", placement: ["top", "left"] },
   { target: "despesas", title: "Despesas do mês", text: "As 5 despesas mais recentes. A lista completa, com edição, fica em Lançamentos.", placement: ["top", "right"] },

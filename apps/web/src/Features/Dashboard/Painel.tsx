@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import ChartDonut from "@/components/charts/ChartDonut";
+import ChartDonut, { type DonutSlice } from "@/components/charts/ChartDonut";
 import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { distributeBalance, getMonthSummary, goalPercent } from "@/domain";
+import { distributeBalance, getCategoryDetail, getMonthSummary, goalPercent } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
@@ -89,13 +89,44 @@ function Categories() {
   const month = useFinanceStore((s) => s.currentMonth);
   const totals = useCategoryTotals();
   const colorOf = useCategoryColor();
+  const transactions = useFinanceStore((s) => s.transactions);
+  const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
+
+  // lançamentos que formam a categoria clicada (o rótulo da fatia perde o "/Parcelado", então volta pela lista de totais)
+  const detailOf = (slice: DonutSlice) => {
+    const category = totals.find((t) => t.category.replace("/Parcelado", "") === slice.label)?.category;
+    const lines = category ? getCategoryDetail({ transactions, creditTransactions, creditCards, extraExpenses }, month, category) : [];
+    return (
+      <div className="flex flex-col gap-1.5">
+        <p className="font-display text-[14px] font-semibold">{slice.label}</p>
+        {lines.length === 0 ? (
+          <p className="text-muted-foreground">Nenhum lançamento.</p>
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {lines.map((l, i) => (
+              <li key={i} className="flex items-baseline justify-between gap-3">
+                <span className="min-w-0 break-words">{l.name}{l.kind === "extra" && <span className="text-muted-foreground"> · extra</span>}</span>
+                <span className="num flex-none font-semibold">{formatBRL(l.amount)}</span>
+              </li>
+            ))}
+            <li className="mt-0.5 flex items-baseline justify-between gap-3 border-t border-border pt-1 font-bold">
+              <span>Total</span>
+              <span className="num">{formatBRL(slice.value)}</span>
+            </li>
+          </ul>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Panel tour="categorias" title="Despesas por categoria" subtitle={getMonthName(month).replace(/^./, (c) => c.toUpperCase())}>
       {totals.length === 0 ? (
         <Empty>Nenhuma despesa neste mês.</Empty>
       ) : (
-        <ChartDonut slices={totals.map((t) => ({ label: t.category.replace("/Parcelado", ""), value: t.value, color: colorOf(t.category) }))} />
+        <ChartDonut renderDetail={detailOf} slices={totals.map((t) => ({ label: t.category.replace("/Parcelado", ""), value: t.value, color: colorOf(t.category) }))} />
       )}
     </Panel>
   );
