@@ -9,17 +9,30 @@ import { downloadText } from "@/Services/download";
 import { useAuthStore } from "@/Store/AuthStore";
 import { useUiStore } from "@/Store/UiStore";
 import { showToast } from "@/Features/Warnings/toast";
+import { BACKUP_FILENAME, buildBackup } from "@/Services/backup";
+import { useFinanceStore } from "@/Store/FinanceStore";
 import DeleteAccountDialog from "./AccountDialogs";
+import BackupDialog from "./BackupDialog";
 
-/** Conta do usuário: cartões de crédito, importar dados locais, exportar, excluir a conta e sair. Só aparece com a API ligada. */
+/**
+ * Menu da conta. Com a API: cartões, importar dados locais, backup, excluir a conta e sair.
+ * Sem a API (dados só no navegador): só o backup, para levar os dados a outro lugar.
+ */
 export default function UserMenu() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const navigate = useNavigate();
   const openCards = useUiStore((s) => s.openCards);
   const [deleting, setDeleting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const api = DATA_SOURCE === "api";
 
-  if (DATA_SOURCE !== "api" || !user) return null;
+  if (api && !user) return null;
+
+  const exportBackup = () => {
+    const { transactions, creditTransactions, creditCards, notes, goals, extraExpenses, customCategories, distribution, seenAlerts, onboarding } = useFinanceStore.getState();
+    downloadText(BACKUP_FILENAME(), buildBackup({ transactions, creditTransactions, creditCards, notes, goals, extraExpenses, customCategories, distribution, seenAlerts, onboarding }), "application/json");
+  };
 
   const exportData = async () => {
     try {
@@ -33,35 +46,52 @@ export default function UserMenu() {
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label={`Conta de ${user.email}`} className={btnClass.base}>
+          <button type="button" aria-label={api ? `Conta de ${user?.email}` : "Backup dos dados"} className={`${btnClass.base} ${btnClass.icon}`}>
             <Icon name="user" size={16} />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
-          <div className="max-w-[220px] truncate px-2.5 py-2 text-xs text-muted-foreground">{user.name || user.email}</div>
-          <DropdownMenuItem onSelect={openCards}>
-            <Icon name="relatorios" size={15} />
-            Cartões de crédito
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => navigate("/importar")}>
-            <Icon name="upload" size={15} />
-            Importar dados locais
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => void exportData()}>
+          {api && (
+            <>
+              <div className="max-w-[220px] truncate px-2.5 py-2 text-xs text-muted-foreground">{user?.name || user?.email}</div>
+              <DropdownMenuItem onSelect={openCards}>
+                <Icon name="relatorios" size={15} />
+                Cartões de crédito
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => navigate("/importar")}>
+                <Icon name="upload" size={15} />
+                Importar dados locais
+              </DropdownMenuItem>
+            </>
+          )}
+          <DropdownMenuItem onSelect={exportBackup}>
             <Icon name="down" size={15} />
-            Exportar meus dados
+            Exportar backup
           </DropdownMenuItem>
-          <DropdownMenuItem destructive onSelect={() => setDeleting(true)}>
-            <Icon name="trash" size={15} />
-            Excluir minha conta
+          <DropdownMenuItem onSelect={() => setImporting(true)}>
+            <Icon name="upload" size={15} />
+            Importar backup
           </DropdownMenuItem>
-          <DropdownMenuItem destructive onSelect={() => void logout()}>
-            <Icon name="logout" size={15} />
-            Sair
-          </DropdownMenuItem>
+          {api && (
+            <>
+              <DropdownMenuItem onSelect={() => void exportData()}>
+                <Icon name="down" size={15} />
+                Exportar meus dados (conta)
+              </DropdownMenuItem>
+              <DropdownMenuItem destructive onSelect={() => setDeleting(true)}>
+                <Icon name="trash" size={15} />
+                Excluir minha conta
+              </DropdownMenuItem>
+              <DropdownMenuItem destructive onSelect={() => void logout()}>
+                <Icon name="logout" size={15} />
+                Sair
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
-      <DeleteAccountDialog open={deleting} onClose={() => setDeleting(false)} />
+      {api && <DeleteAccountDialog open={deleting} onClose={() => setDeleting(false)} />}
+      <BackupDialog open={importing} onClose={() => setImporting(false)} />
     </>
   );
 }

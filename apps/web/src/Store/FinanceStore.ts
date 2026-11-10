@@ -49,6 +49,8 @@ interface FinanceState {
   hydrate: () => Promise<void>;
   /** Esvazia a tela (ao sair da conta). */
   reset: () => void;
+  /** Restaura um backup: troca todos os dados pelos informados. */
+  replaceAll: (data: FinanceData) => Promise<void>;
 
   currentMonth: string;
   setCurrentMonth: (month: string) => void;
@@ -171,6 +173,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
   return {
     hydrated: false,
+
+    replaceAll: async (data) => {
+      await repository.replaceAll(data);
+      await get().hydrate();
+    },
 
     hydrate: async () => {
       const data = await repository.load();

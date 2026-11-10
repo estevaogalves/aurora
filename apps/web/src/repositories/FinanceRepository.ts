@@ -19,6 +19,8 @@ import type {
  */
 export interface FinanceRepository {
   load(): Promise<FinanceData>;
+  /** Troca TODOS os dados pelos informados (restaurar um backup). */
+  replaceAll(data: FinanceData): Promise<void>;
 
   addTransaction(transaction: Transaction): Promise<void>;
   updateTransaction(id: string, patch: Partial<Transaction>): Promise<void>;

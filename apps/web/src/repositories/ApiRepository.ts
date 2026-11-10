@@ -75,6 +75,7 @@ export class ApiRepository implements FinanceRepository {
     return normalizeFinanceData(await api.get<Partial<FinanceData>>("/data"));
   }
 
+  replaceAll = (data: FinanceData) => this.enqueue(async () => { await api.post("/import?replace=true", data); });
   addTransaction = (t: Transaction) => this.enqueue(() => api.post("/transactions", t));
   updateTransaction = (id: string, patch: Partial<Transaction>) =>
     this.enqueue(() => api.patch(`/transactions/${id}`, pick(patch, TRANSACTION_PATCH)));

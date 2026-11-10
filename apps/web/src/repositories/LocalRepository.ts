@@ -54,6 +54,11 @@ export class LocalRepository implements FinanceRepository {
     return this.snapshot();
   }
 
+  async replaceAll(data: FinanceData) {
+    this.data = data;
+    this.persist();
+  }
+
   async addTransaction(transaction: Transaction) {
     this.data.transactions = [...this.data.transactions, transaction];
     this.persist();
