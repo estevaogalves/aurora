@@ -89,6 +89,18 @@ func checkMonthMap(hidden []string, values map[string]int64, maxEntries int) str
 	return ""
 }
 
+func checkMonthlyNotes(notes map[string]string, maxEntries int) string {
+	if len(notes) > maxEntries {
+		return fmt.Sprintf("Observações demais em uma despesa fixa (máximo %d).", maxEntries)
+	}
+	for m, n := range notes {
+		if msg := first(checkMonth(m), checkNotes(n)); msg != "" {
+			return msg
+		}
+	}
+	return ""
+}
+
 func (l Limits) validateTransaction(t domain.Transaction) string {
 	if t.Type != "income" && t.Type != "expense" {
 		return "O tipo deve ser income ou expense."
@@ -97,7 +109,7 @@ func (l Limits) validateTransaction(t domain.Transaction) string {
 		return "Pagamentos demais em um lançamento."
 	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkPayments(t))
+		checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
 }
 
 func checkCategory(c string) string {
@@ -110,13 +122,27 @@ func checkCategory(c string) string {
 	return ""
 }
 
+func checkCardDay(label string, day int) string {
+	if day < 1 || day > 31 {
+		return "O dia de " + label + " deve ficar entre 1 e 31."
+	}
+	return ""
+}
+
+func validateCard(k domain.CreditCard) string {
+	return first(checkName(k.Name), checkCardDay("fechamento", k.ClosingDay), checkCardDay("vencimento", k.DueDay))
+}
+
 func validateCredit(c domain.CreditTransaction) string {
+	if c.VariableAmount && !c.Recurring {
+		return "Só compras recorrentes têm valor variável."
+	}
 	if c.Recurring {
 		// sem parcelas: o valor mensal fica em TotalAmount e o fim, se houver, em EndMonth
 		if c.Installments != 1 {
 			return "Compra recorrente não tem parcelas."
 		}
-		if len(c.Adjustments) > 0 {
+		if len(c.Adjustments) > 0 && !c.VariableAmount {
 			return "Compra recorrente não tem ajustes de parcela."
 		}
 		if c.EndMonth != "" {
@@ -212,6 +238,7 @@ func (l Limits) validateData(d domain.FinanceData) string {
 	}{
 		{"lançamentos", len(d.Transactions), l.ImportItems},
 		{"compras no crédito", len(d.CreditTransactions), l.ImportItems},
+		{"cartões", len(d.CreditCards), l.CustomCategories},
 		{"anotações", len(d.Notes), l.ImportItems},
 		{"metas", len(d.Goals), l.ImportItems},
 		{"despesas extras", len(d.ExtraExpenses), l.ImportItems},
@@ -232,6 +259,11 @@ func (l Limits) validateData(d domain.FinanceData) string {
 	for _, c := range d.CreditTransactions {
 		if m := validateCredit(c); m != "" {
 			return "Crédito " + quote(c.Name) + ": " + m
+		}
+	}
+	for _, k := range d.CreditCards {
+		if m := validateCard(k); m != "" {
+			return "Cartão " + quote(k.Name) + ": " + m
 		}
 	}
 	for _, n := range d.Notes {

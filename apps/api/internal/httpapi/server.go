@@ -150,7 +150,13 @@ func (s *Server) Router() http.Handler {
 					r.Post("/advance", s.advanceInstallment)
 					r.Put("/", s.editInstallment)
 					r.Delete("/", s.removeInstallment)
+					r.Delete("/value", s.clearInstallmentValue)
 				})
+			})
+			r.Route("/credit-cards", func(r chi.Router) {
+				r.Post("/", s.createCreditCard)
+				r.Patch("/{id}", s.updateCreditCard)
+				r.Delete("/{id}", s.deleteCreditCard)
 			})
 			r.Route("/goals", func(r chi.Router) {
 				r.Post("/", s.createGoal)

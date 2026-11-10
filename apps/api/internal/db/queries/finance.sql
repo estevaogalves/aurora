@@ -42,8 +42,8 @@ VALUES ($1, $2, $3, $4);
 SELECT * FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateCredit :one
-INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month, billing_day)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11)
+INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month, billing_day, card_id, variable_amount)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: UpdateCredit :one
@@ -53,9 +53,35 @@ UPDATE credit_purchases SET
     installments = COALESCE(sqlc.narg('installments'), installments),
     start_month  = COALESCE(sqlc.narg('start_month'), start_month),
     category     = COALESCE(sqlc.narg('category'), category),
-    end_month    = COALESCE(sqlc.narg('end_month'), end_month)
+    end_month    = COALESCE(sqlc.narg('end_month'), end_month),
+    billing_day  = COALESCE(sqlc.narg('billing_day'), billing_day),
+    variable_amount = COALESCE(sqlc.narg('variable_amount'), variable_amount),
+    -- card_id: só muda quando set_card é true; card_id nulo solta a compra do cartão
+    card_id      = CASE WHEN sqlc.arg('set_card')::boolean THEN sqlc.narg('card_id')::uuid ELSE card_id END
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
+
+-- name: ListCreditCards :many
+SELECT * FROM credit_cards WHERE user_id = $1 ORDER BY created_at, id;
+
+-- name: CreateCreditCard :one
+INSERT INTO credit_cards (id, user_id, name, closing_day, due_day)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5)
+RETURNING *;
+
+-- name: UpdateCreditCard :one
+UPDATE credit_cards SET
+    name        = COALESCE(sqlc.narg('name'), name),
+    closing_day = COALESCE(sqlc.narg('closing_day'), closing_day),
+    due_day     = COALESCE(sqlc.narg('due_day'), due_day)
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: DeleteCreditCard :execrows
+DELETE FROM credit_cards WHERE id = $1 AND user_id = $2;
+
+-- name: WipeCreditCards :exec
+DELETE FROM credit_cards WHERE user_id = $1;
 
 -- name: DeleteCredit :execrows
 DELETE FROM credit_purchases WHERE id = $1 AND user_id = $2;
@@ -163,6 +189,11 @@ SELECT * FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE;
 
 -- name: SetTransactionPayments :one
 UPDATE transactions SET payments = $3::jsonb
+WHERE id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: SetTransactionMonthlyNotes :one
+UPDATE transactions SET monthly_notes = $3::jsonb
 WHERE id = $1 AND user_id = $2
 RETURNING *;
 

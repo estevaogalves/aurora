@@ -39,7 +39,7 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) {
 	}
 	in.Name = strings.TrimSpace(in.Name)
 	if !in.Fixed {
-		in.HiddenMonths, in.MonthlyValues = nil, nil
+		in.HiddenMonths, in.MonthlyValues, in.MonthlyNotes = nil, nil, nil
 	}
 	if bad(w, s.lim.validateTransaction(in)) {
 		return
@@ -61,6 +61,7 @@ type transactionPatchReq struct {
 	Fixed         *bool             `json:"fixed"`
 	HiddenMonths  *[]string         `json:"hiddenMonths"`
 	MonthlyValues *map[string]int64 `json:"monthlyValues"`
+	MonthlyNotes  *map[string]string `json:"monthlyNotes"`
 }
 
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -89,13 +90,16 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	if in.MonthlyValues != nil {
 		values = *in.MonthlyValues
 	}
+	if in.MonthlyNotes != nil {
+		msg = first(msg, checkMonthlyNotes(*in.MonthlyNotes, s.lim.MonthOverrides))
+	}
 	if bad(w, first(msg, checkMonthMap(hidden, values, s.lim.MonthOverrides))) {
 		return
 	}
 
 	out, err := s.store.UpdateTransaction(r.Context(), userID(r), chi.URLParam(r, "id"), store.TransactionPatch{
 		Name: trimmed(in.Name), Amount: in.Amount, Category: in.Category, Notes: in.Notes, Fixed: in.Fixed,
-		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues,
+		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes,
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -207,7 +211,11 @@ type creditPatchReq struct {
 	StartMonth   *string `json:"startMonth"`
 	Category     *string `json:"category"`
 	// EndMonth cancela a recorrência: é o último mês que ainda cobra (o servidor nunca o põe antes do mês atual).
-	EndMonth *string `json:"endMonth"`
+	EndMonth       *string `json:"endMonth"`
+	BillingDay     *int    `json:"billingDay"`
+	VariableAmount *bool   `json:"variableAmount"`
+	// CardID: "" solta a compra do cartão; ausente não muda.
+	CardID *string `json:"cardId"`
 }
 
 func (s *Server) updateCredit(w http.ResponseWriter, r *http.Request) {
@@ -234,12 +242,16 @@ func (s *Server) updateCredit(w http.ResponseWriter, r *http.Request) {
 	if in.EndMonth != nil {
 		msg = first(msg, checkMonth(*in.EndMonth))
 	}
+	if in.BillingDay != nil && (*in.BillingDay < 1 || *in.BillingDay > 31) {
+		msg = first(msg, "O dia da cobrança deve ficar entre 1 e 31.")
+	}
 	if bad(w, msg) {
 		return
 	}
 	out, err := s.store.UpdateCredit(r.Context(), userID(r), chi.URLParam(r, "id"), store.CreditPatch{
 		Name: trimmed(in.Name), TotalAmount: in.TotalAmount, Installments: in.Installments,
 		StartMonth: in.StartMonth, Category: in.Category, EndMonth: in.EndMonth, Today: currentMonth(),
+		BillingDay: in.BillingDay, VariableAmount: in.VariableAmount, CardID: in.CardID,
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -617,6 +629,75 @@ func (s *Server) editInstallment(w http.ResponseWriter, r *http.Request) {
 	s.adjustInstallment(w, r, func(c domain.CreditTransaction, n int) (map[string]domain.InstallmentAdjustment, string) {
 		return domain.EditInstallment(c, n, in.Value)
 	})
+}
+
+// clearInstallmentValue tira o valor real de um mês de recorrência variável (volta ao estimado).
+func (s *Server) clearInstallmentValue(w http.ResponseWriter, r *http.Request) {
+	s.adjustInstallment(w, r, func(c domain.CreditTransaction, n int) (map[string]domain.InstallmentAdjustment, string) {
+		return domain.ClearActualValue(c, n)
+	})
+}
+
+/* ---------- cartões de crédito ---------- */
+
+func (s *Server) createCreditCard(w http.ResponseWriter, r *http.Request) {
+	var in domain.CreditCard
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	in.Name = strings.TrimSpace(in.Name)
+	if bad(w, validateCard(in)) {
+		return
+	}
+	out, err := s.store.CreateCreditCard(r.Context(), userID(r), in)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusCreated, out)
+}
+
+type cardPatchReq struct {
+	Name       *string `json:"name"`
+	ClosingDay *int    `json:"closingDay"`
+	DueDay     *int    `json:"dueDay"`
+}
+
+func (s *Server) updateCreditCard(w http.ResponseWriter, r *http.Request) {
+	var in cardPatchReq
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	msg := ""
+	if in.Name != nil {
+		msg = first(msg, checkName(*in.Name))
+	}
+	if in.ClosingDay != nil {
+		msg = first(msg, checkCardDay("fechamento", *in.ClosingDay))
+	}
+	if in.DueDay != nil {
+		msg = first(msg, checkCardDay("vencimento", *in.DueDay))
+	}
+	if bad(w, msg) {
+		return
+	}
+	out, err := s.store.UpdateCreditCard(r.Context(), userID(r), chi.URLParam(r, "id"), store.CardPatch{Name: trimmed(in.Name), ClosingDay: in.ClosingDay, DueDay: in.DueDay})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) deleteCreditCard(w http.ResponseWriter, r *http.Request) {
+	if err := s.store.DeleteCreditCard(r.Context(), userID(r), chi.URLParam(r, "id")); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func (s *Server) removeInstallment(w http.ResponseWriter, r *http.Request) {

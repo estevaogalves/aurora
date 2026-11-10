@@ -28,6 +28,12 @@ func InstallmentMonth(c CreditTransaction, n int) string { return ChangeMonth(c.
 
 // InstallmentValue é o valor da parcela n antes de qualquer desconto: o ajustado, ou a divisão do total.
 func InstallmentValue(c CreditTransaction, n int) int64 {
+	if c.Recurring {
+		if v := c.adjustment(n).Value; c.VariableAmount && v != nil {
+			return *v
+		}
+		return c.TotalAmount
+	}
 	if v := c.adjustment(n).Value; v != nil {
 		return *v
 	}
@@ -89,6 +95,22 @@ func AdvanceInstallment(c CreditTransaction, n int, discount int64, today string
 
 // EditInstallment muda só o valor da parcela n (centavos). Adiantadas e excluídas não mudam.
 func EditInstallment(c CreditTransaction, n int, cents int64) (map[string]InstallmentAdjustment, string) {
+	if c.Recurring {
+		// recorrente de valor variável: o valor real de um mês, sem mexer na recorrência nem nos outros meses
+		last := n
+		if c.EndMonth != "" {
+			last = MonthsDifference(c.EndMonth, c.StartMonth) + 1
+		}
+		if !c.VariableAmount || n < 1 || n > last {
+			return nil, "Só recorrências de valor variável têm valor real por mês."
+		}
+		if cents <= 0 {
+			return nil, "Informe um valor maior que zero."
+		}
+		a := c.adjustment(n)
+		a.Value = &cents
+		return withAdjustment(c, n, a), ""
+	}
 	if n < 1 || n > c.Installments || !c.isOpen(n) {
 		return nil, "Esta parcela não pode ser alterada."
 	}
@@ -98,6 +120,20 @@ func EditInstallment(c CreditTransaction, n int, cents int64) (map[string]Instal
 	a := c.adjustment(n)
 	a.Value = &cents
 	return withAdjustment(c, n, a), ""
+}
+
+// ClearActualValue tira o valor real de um mês de recorrência variável: volta ao estimado.
+func ClearActualValue(c CreditTransaction, n int) (map[string]InstallmentAdjustment, string) {
+	if !c.Recurring || !c.VariableAmount || c.adjustment(n).Value == nil {
+		return nil, "Este mês já está com o valor estimado."
+	}
+	out := make(map[string]InstallmentAdjustment, len(c.Adjustments))
+	for k, v := range c.Adjustments {
+		if k != strconv.Itoa(n) {
+			out[k] = v
+		}
+	}
+	return out, ""
 }
 
 // RemoveInstallment exclui só a cobrança da parcela n; as outras mantêm número e mês.
@@ -115,7 +151,7 @@ func RemoveInstallment(c CreditTransaction, n int) (map[string]InstallmentAdjust
 func ValidateAdjustments(c CreditTransaction) string {
 	for key, a := range c.Adjustments {
 		n, err := strconv.Atoi(key)
-		if err != nil || n < 1 || n > c.Installments {
+		if err != nil || n < 1 || (n > c.Installments && !c.Recurring) {
 			return fmt.Sprintf("Parcela %q fora do intervalo da compra.", key)
 		}
 		if a.Value != nil && *a.Value <= 0 {

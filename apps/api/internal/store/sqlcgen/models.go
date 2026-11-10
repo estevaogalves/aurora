@@ -9,19 +9,30 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CreditCard struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	ClosingDay int32
+	DueDay     int32
+	CreatedAt  pgtype.Timestamptz
+}
+
 type CreditPurchase struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	Name         string
-	TotalCents   int64
-	Installments int32
-	StartMonth   string
-	Category     string
-	CreatedAt    pgtype.Timestamptz
-	Adjustments  []byte
-	Recurring    bool
-	EndMonth     pgtype.Text
-	BillingDay   int32
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Name           string
+	TotalCents     int64
+	Installments   int32
+	StartMonth     string
+	Category       string
+	CreatedAt      pgtype.Timestamptz
+	Adjustments    []byte
+	Recurring      bool
+	EndMonth       pgtype.Text
+	BillingDay     int32
+	CardID         uuid.NullUUID
+	VariableAmount bool
 }
 
 type CustomCategory struct {
@@ -81,17 +92,18 @@ type RefreshToken struct {
 }
 
 type Transaction struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	Name        string
-	AmountCents int64
-	Type        string
-	Category    string
-	Notes       string
-	Fixed       bool
-	Month       string
-	CreatedAt   pgtype.Timestamptz
-	Payments    []byte
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	Name         string
+	AmountCents  int64
+	Type         string
+	Category     string
+	Notes        string
+	Fixed        bool
+	Month        string
+	CreatedAt    pgtype.Timestamptz
+	Payments     []byte
+	MonthlyNotes []byte
 }
 
 type User struct {

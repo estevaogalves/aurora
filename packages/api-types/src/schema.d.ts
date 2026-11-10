@@ -476,7 +476,7 @@ export interface paths {
         head?: never;
         /**
          * Altera só os campos enviados
-         * @description `hiddenMonths` e `monthlyValues`, quando enviados, substituem a lista/mapa inteiro.
+         * @description `hiddenMonths`, `monthlyValues` e `monthlyNotes`, quando enviados, substituem a lista/mapa inteiro.
          */
         patch: {
             parameters: {
@@ -617,6 +617,120 @@ export interface paths {
         };
         trace?: never;
     };
+    "/credit-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cadastra um cartão de crédito
+         * @description Só nome e dias de fechamento e vencimento. Nada sensível (sem número, CVV nem CPF).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreditCard"];
+                };
+            };
+            responses: {
+                /** @description Criado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/credit-cards/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove o cartão
+         * @description As compras ligadas a ele ficam sem cartão (voltam a valer no mês da cobrança); nenhuma compra é apagada.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Removido */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Altera só os campos enviados */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CreditCardPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
     "/credits/{id}/installments/{n}/advance": {
         parameters: {
             query?: never;
@@ -675,6 +789,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/credits/{id}/installments/{n}/value": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                /** @description Posição da parcela na compra (1 a N) */
+                n: components["parameters"]["InstallmentNumber"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Tira o valor real de um mês de recorrência variável
+         * @description O mês volta ao valor estimado. Só recorrências de valor variável.
+         */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Posição da parcela na compra (1 a N) */
+                    n: components["parameters"]["InstallmentNumber"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Compra atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditTransaction"];
+                    };
+                };
+                404: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/credits/{id}/installments/{n}": {
         parameters: {
             query?: never;
@@ -689,7 +852,7 @@ export interface paths {
         get?: never;
         /**
          * Muda só o valor de uma parcela
-         * @description Parcelas adiantadas ou excluídas não podem ser alteradas.
+         * @description Parcelas adiantadas ou excluídas não podem ser alteradas. Em recorrência de valor variável, define o valor real daquele mês (n é o mês contado desde o início).
          */
         put: {
             parameters: {
@@ -1626,6 +1789,10 @@ export interface components {
             monthlyValues?: {
                 [key: string]: components["schemas"]["Cents"];
             };
+            /** @description Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação). */
+            monthlyNotes?: {
+                [key: string]: string;
+            };
             /** @description Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação. */
             payments?: {
                 [key: string]: components["schemas"]["Payment"];
@@ -1651,6 +1818,10 @@ export interface components {
             monthlyValues?: {
                 [key: string]: components["schemas"]["Cents"];
             };
+            /** @description Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação). */
+            monthlyNotes?: {
+                [key: string]: string;
+            };
         };
         CreditTransaction: {
             /** Format: uuid */
@@ -1668,6 +1839,27 @@ export interface components {
             recurring?: boolean;
             /** @description Último mês cobrado de uma recorrente cancelada. Só leitura na criação (o servidor ignora); entra na importação. */
             endMonth?: components["schemas"]["Month"];
+            /** @description Dia da cobrança. Com cartão */
+            billingDay?: number;
+            /**
+             * Format: uuid
+             * @description Cartão da compra. Com cartão, o valor entra no mês do vencimento da fatura; sem, no mês da cobrança.
+             */
+            cardId?: string;
+            /** @description Só recorrentes. totalAmount é uma estimativa; o valor real de cada mês fica em adjustments["n"].value. */
+            variableAmount?: boolean;
+        };
+        CreditCard: {
+            /** Format: uuid */
+            id?: string;
+            name: string;
+            closingDay: number;
+            dueDay: number;
+        };
+        CreditCardPatch: {
+            name?: string;
+            closingDay?: number;
+            dueDay?: number;
         };
         InstallmentAdjustment: {
             /** @description Valor só desta parcela */
@@ -1690,6 +1882,10 @@ export interface components {
             category?: string;
             /** @description Cancela a recorrência (só compras recorrentes). É o último mês cobrado; o servidor nunca o põe antes do mês atual. */
             endMonth?: components["schemas"]["Month"];
+            billingDay?: number;
+            /** @description Troca o cartão; "" solta a compra do cartão. */
+            cardId?: string;
+            variableAmount?: boolean;
         };
         Goal: {
             /** Format: uuid */
@@ -1759,6 +1955,7 @@ export interface components {
         FinanceData: {
             transactions: components["schemas"]["Transaction"][];
             creditTransactions: components["schemas"]["CreditTransaction"][];
+            creditCards?: components["schemas"]["CreditCard"][];
             notes: components["schemas"]["Note"][];
             goals: components["schemas"]["Goal"][];
             extraExpenses: components["schemas"]["ExtraExpense"][];

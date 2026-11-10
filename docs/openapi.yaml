@@ -136,7 +136,7 @@ paths:
     patch:
       tags: [lançamentos]
       summary: Altera só os campos enviados
-      description: "`hiddenMonths` e `monthlyValues`, quando enviados, substituem a lista/mapa inteiro."
+      description: "`hiddenMonths`, `monthlyValues` e `monthlyNotes`, quando enviados, substituem a lista/mapa inteiro."
       requestBody:
         required: true
         content: { application/json: { schema: { $ref: "#/components/schemas/TransactionPatch" } } }
@@ -181,6 +181,37 @@ paths:
         "204": { description: Removida }
         "404": { $ref: "#/components/responses/Error" }
 
+  /credit-cards:
+    post:
+      tags: [crédito]
+      summary: Cadastra um cartão de crédito
+      description: Só nome e dias de fechamento e vencimento. Nada sensível (sem número, CVV nem CPF).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } }
+      responses:
+        "201": { description: Criado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+  /credit-cards/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [crédito]
+      summary: Altera só os campos enviados
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CreditCardPatch" } } }
+      responses:
+        "200": { description: Atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [crédito]
+      summary: Remove o cartão
+      description: As compras ligadas a ele ficam sem cartão (voltam a valer no mês da cobrança); nenhuma compra é apagada.
+      responses:
+        "204": { description: Removido }
+        "404": { $ref: "#/components/responses/Error" }
+
   /credits/{id}/installments/{n}/advance:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -200,6 +231,18 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
         "422": { $ref: "#/components/responses/Error" }
+  /credits/{id}/installments/{n}/value:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/InstallmentNumber" }
+    delete:
+      tags: [crédito]
+      summary: Tira o valor real de um mês de recorrência variável
+      description: O mês volta ao valor estimado. Só recorrências de valor variável.
+      responses:
+        "200": { description: Compra atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/CreditTransaction" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
   /credits/{id}/installments/{n}:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -207,7 +250,7 @@ paths:
     put:
       tags: [crédito]
       summary: Muda só o valor de uma parcela
-      description: Parcelas adiantadas ou excluídas não podem ser alteradas.
+      description: Parcelas adiantadas ou excluídas não podem ser alteradas. Em recorrência de valor variável, define o valor real daquele mês (n é o mês contado desde o início).
       requestBody:
         required: true
         content: { application/json: { schema: { type: object, required: [value], properties: { value: { $ref: "#/components/schemas/Cents" } } } } }
@@ -538,6 +581,7 @@ components:
         month: { $ref: "#/components/schemas/Month" }
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
+        monthlyNotes: { type: object, description: "Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação).", additionalProperties: { type: string } }
         payments:
           type: object
           description: Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação.
@@ -559,6 +603,7 @@ components:
         fixed: { type: boolean }
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
+        monthlyNotes: { type: object, description: "Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação).", additionalProperties: { type: string } }
 
     CreditTransaction:
       type: object
@@ -580,6 +625,28 @@ components:
         endMonth:
           $ref: "#/components/schemas/Month"
           description: Último mês cobrado de uma recorrente cancelada. Só leitura na criação (o servidor ignora); entra na importação.
+        billingDay: { type: integer, minimum: 1, maximum: 31, description: Dia da cobrança. Com cartão, define em qual fatura a cobrança cai. }
+        cardId:
+          type: string
+          format: uuid
+          description: Cartão da compra. Com cartão, o valor entra no mês do vencimento da fatura; sem, no mês da cobrança.
+        variableAmount:
+          type: boolean
+          description: Só recorrentes. totalAmount é uma estimativa; o valor real de cada mês fica em adjustments["n"].value.
+    CreditCard:
+      type: object
+      required: [name, closingDay, dueDay]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        closingDay: { type: integer, minimum: 1, maximum: 31 }
+        dueDay: { type: integer, minimum: 1, maximum: 31 }
+    CreditCardPatch:
+      type: object
+      properties:
+        name: { type: string }
+        closingDay: { type: integer, minimum: 1, maximum: 31 }
+        dueDay: { type: integer, minimum: 1, maximum: 31 }
     InstallmentAdjustment:
       type: object
       properties:
@@ -603,6 +670,9 @@ components:
         endMonth:
           $ref: "#/components/schemas/Month"
           description: Cancela a recorrência (só compras recorrentes). É o último mês cobrado; o servidor nunca o põe antes do mês atual.
+        billingDay: { type: integer, minimum: 1, maximum: 31 }
+        cardId: { type: string, description: 'Troca o cartão; "" solta a compra do cartão.' }
+        variableAmount: { type: boolean }
 
     Goal:
       type: object
@@ -688,6 +758,7 @@ components:
       properties:
         transactions: { type: array, items: { $ref: "#/components/schemas/Transaction" } }
         creditTransactions: { type: array, items: { $ref: "#/components/schemas/CreditTransaction" } }
+        creditCards: { type: array, items: { $ref: "#/components/schemas/CreditCard" } }
         notes: { type: array, items: { $ref: "#/components/schemas/Note" } }
         goals: { type: array, items: { $ref: "#/components/schemas/Goal" } }
         extraExpenses: { type: array, items: { $ref: "#/components/schemas/ExtraExpense" } }

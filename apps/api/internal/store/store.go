@@ -146,6 +146,14 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 		d.CreditTransactions = append(d.CreditTransactions, creditFrom(r))
 	}
 
+	cards, err := s.q.ListCreditCards(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	for _, r := range cards {
+		d.CreditCards = append(d.CreditCards, cardFrom(r))
+	}
+
 	notes, err := s.q.ListNotes(ctx, userID)
 	if err != nil {
 		return d, err
@@ -223,6 +231,12 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 	if len(t.Payments) == 0 {
 		t.Payments = nil
 	}
+	if len(r.MonthlyNotes) > 0 {
+		_ = json.Unmarshal(r.MonthlyNotes, &t.MonthlyNotes)
+	}
+	if len(t.MonthlyNotes) == 0 {
+		t.MonthlyNotes = nil
+	}
 	for _, o := range ov {
 		if o.Hidden {
 			t.HiddenMonths = append(t.HiddenMonths, o.Month)
@@ -243,6 +257,10 @@ func creditFrom(r sqlcgen.CreditPurchase) domain.CreditTransaction {
 		ID: r.ID.String(), Name: r.Name, TotalAmount: r.TotalCents,
 		Installments: int(r.Installments), StartMonth: r.StartMonth, Category: r.Category,
 		Recurring: r.Recurring, EndMonth: r.EndMonth.String, BillingDay: int(r.BillingDay),
+		VariableAmount: r.VariableAmount,
+	}
+	if r.CardID.Valid {
+		c.CardID = r.CardID.UUID.String()
 	}
 	if len(r.Adjustments) > 0 {
 		_ = json.Unmarshal(r.Adjustments, &c.Adjustments)
@@ -257,6 +275,10 @@ func creditFrom(r sqlcgen.CreditPurchase) domain.CreditTransaction {
 type ValidationError struct{ Msg string }
 
 func (e *ValidationError) Error() string { return e.Msg }
+
+func cardFrom(r sqlcgen.CreditCard) domain.CreditCard {
+	return domain.CreditCard{ID: r.ID.String(), Name: r.Name, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
+}
 
 func noteFrom(r sqlcgen.Note) domain.Note {
 	return domain.Note{ID: r.ID.String(), Content: r.Content, Date: r.Date, Pinned: r.Pinned, Month: r.Month}

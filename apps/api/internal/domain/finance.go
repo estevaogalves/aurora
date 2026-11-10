@@ -95,7 +95,14 @@ func CreditByMonth(credits []CreditTransaction, month string) []CreditInstallmen
 			item.Installments = 0
 			item.Recurring = true
 			item.CurrentInstallment = MonthsDifference(month, c.StartMonth) + 1
-			item.InstallmentValue = c.TotalAmount
+			item.InstallmentValue = InstallmentValue(c, item.CurrentInstallment)
+			if c.VariableAmount {
+				if c.adjustment(item.CurrentInstallment).Value != nil {
+					item.Adjusted = true
+				} else {
+					item.Estimated = true
+				}
+			}
 			out = append(out, item)
 			continue
 		}

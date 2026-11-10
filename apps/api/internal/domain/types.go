@@ -15,6 +15,8 @@ type Transaction struct {
 	// Fixas: meses ocultados e valores específicos de um mês.
 	HiddenMonths  []string         `json:"hiddenMonths,omitempty"`
 	MonthlyValues map[string]int64 `json:"monthlyValues,omitempty"`
+	// Fixas: observação de um mês. A observação é só do mês: Notes vale no mês de criação e não se repete.
+	MonthlyNotes map[string]string `json:"monthlyNotes,omitempty"`
 	// Despesas: pagamento por mês ("2026-11"). Só registro, não entra em conta nenhuma.
 	Payments map[string]Payment `json:"payments,omitempty"`
 }
@@ -35,6 +37,11 @@ type CreditTransaction struct {
 	// BillingDay: dia do mês da cobrança (1 a 31), escolhido pela data de início. 0 = não informado.
 	// Em meses mais curtos a cobrança cai no último dia do mês.
 	BillingDay int `json:"billingDay,omitempty"`
+	// CardID: cartão da compra. Com cartão, o valor entra no mês do vencimento da fatura (ResolveCredits).
+	CardID string `json:"cardId,omitempty"`
+	// VariableAmount: recorrente de valor variável. TotalAmount é uma estimativa; o valor real de cada mês
+	// fica em Adjustments[n].Value.
+	VariableAmount bool `json:"variableAmount,omitempty"`
 }
 
 type Note struct {
@@ -54,6 +61,7 @@ type CreditInstallment struct {
 	InstallmentValue   int64  `json:"installmentValue"`
 	TotalAmount        int64  `json:"totalAmount"`
 	Adjusted           bool          `json:"adjusted,omitempty"`
+	Estimated          bool          `json:"estimated,omitempty"`
 	Recurring          bool          `json:"recurring,omitempty"`
 	Advanced           *AdvancedInfo `json:"advanced,omitempty"`
 }
@@ -96,6 +104,7 @@ type DistributionItem struct {
 type FinanceData struct {
 	Transactions       []Transaction       `json:"transactions"`
 	CreditTransactions []CreditTransaction `json:"creditTransactions"`
+	CreditCards        []CreditCard        `json:"creditCards"`
 	Notes              []Note              `json:"notes"`
 	Goals              []Goal              `json:"goals"`
 	ExtraExpenses      []ExtraExpense      `json:"extraExpenses"`
@@ -113,6 +122,9 @@ func (d *FinanceData) Normalize() {
 	}
 	if d.CreditTransactions == nil {
 		d.CreditTransactions = []CreditTransaction{}
+	}
+	if d.CreditCards == nil {
+		d.CreditCards = []CreditCard{}
 	}
 	if d.Notes == nil {
 		d.Notes = []Note{}

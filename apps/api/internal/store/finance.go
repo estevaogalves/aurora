@@ -22,6 +22,7 @@ type TransactionPatch struct {
 	Fixed         *bool
 	HiddenMonths  *[]string
 	MonthlyValues *map[string]int64
+	MonthlyNotes  *map[string]string
 }
 
 func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
@@ -95,6 +96,16 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		})
 		if err != nil {
 			return err
+		}
+
+		if p.MonthlyNotes != nil && row.Fixed {
+			raw, err := json.Marshal(*p.MonthlyNotes)
+			if err != nil {
+				return err
+			}
+			if row, err = q.SetTransactionMonthlyNotes(ctx, sqlcgen.SetTransactionMonthlyNotesParams{ID: tid, UserID: userID, Column3: raw}); err != nil {
+				return err
+			}
 		}
 
 		var ov []sqlcgen.FixedOverride
@@ -227,9 +238,33 @@ type CreditPatch struct {
 	// EndMonth cancela a recorrência (veja domain.CancelRecurrence); Today é o mês atual.
 	EndMonth *string
 	Today    string
+	BillingDay     *int
+	VariableAmount *bool
+	// CardID: nil não muda; ponteiro para "" solta a compra do cartão.
+	CardID *string
+}
+
+// ownsCard recusa um cartão que não existe ou é de outra conta. id vazio = sem cartão.
+func ownsCard(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID, id string) error {
+	if id == "" {
+		return nil
+	}
+	cards, err := q.ListCreditCards(ctx, userID)
+	if err != nil {
+		return err
+	}
+	for _, k := range cards {
+		if k.ID.String() == id {
+			return nil
+		}
+	}
+	return &ValidationError{"Cartão não encontrado."}
 }
 
 func (s *Store) CreateCredit(ctx context.Context, userID uuid.UUID, c domain.CreditTransaction) (domain.CreditTransaction, error) {
+	if err := ownsCard(ctx, s.q, userID, c.CardID); err != nil {
+		return domain.CreditTransaction{}, err
+	}
 	row, err := s.q.CreateCredit(ctx, creditParams(userID, c))
 	return creditFrom(row), mapErr(err)
 }
@@ -244,6 +279,7 @@ func creditParams(userID uuid.UUID, c domain.CreditTransaction) sqlcgen.CreateCr
 		Installments: int32(c.Installments), StartMonth: c.StartMonth, Category: c.Category,
 		Column8: adjustments,
 		Recurring: c.Recurring, EndMonth: text(nilIfEmpty(c.EndMonth)), BillingDay: int32(c.BillingDay),
+		CardID: nullID(c.CardID), VariableAmount: c.VariableAmount,
 	}
 }
 
@@ -260,6 +296,11 @@ func (s *Store) UpdateCredit(ctx context.Context, userID uuid.UUID, id string, p
 		if err != nil {
 			return mapErr(err)
 		}
+		if p.CardID != nil {
+			if err := ownsCard(ctx, q, userID, *p.CardID); err != nil {
+				return err
+			}
+		}
 		if p.Installments != nil && *p.Installments != int(cur.Installments) && !domain.CanChangeInstallments(creditFrom(cur)) {
 			return &ValidationError{"Não dá para mudar o número de parcelas de uma compra com parcelas ajustadas, excluídas ou adiantadas."}
 		}
@@ -274,6 +315,13 @@ func (s *Store) UpdateCredit(ctx context.Context, userID uuid.UUID, id string, p
 		arg := sqlcgen.UpdateCreditParams{
 			Name: text(p.Name), TotalCents: int8v(p.TotalAmount), StartMonth: text(p.StartMonth),
 			Category: text(p.Category), EndMonth: text(endMonth), ID: cid, UserID: userID,
+		}
+		if p.BillingDay != nil {
+			arg.BillingDay.Int32, arg.BillingDay.Valid = int32(*p.BillingDay), true
+		}
+		arg.VariableAmount = boolv(p.VariableAmount)
+		if p.CardID != nil {
+			arg.SetCard, arg.CardID = true, nullID(*p.CardID)
 		}
 		if p.Installments != nil {
 			arg.Installments.Int32, arg.Installments.Valid = int32(*p.Installments), true
@@ -320,6 +368,49 @@ func (s *Store) DeleteCredit(ctx context.Context, userID uuid.UUID, id string) e
 		return err
 	}
 	return notFoundIfZero(s.q.DeleteCredit(ctx, sqlcgen.DeleteCreditParams{ID: cid, UserID: userID}))
+}
+
+/* ---------- cartões de crédito ---------- */
+
+type CardPatch struct {
+	Name       *string
+	ClosingDay *int
+	DueDay     *int
+}
+
+func nullID(id string) uuid.NullUUID {
+	u, err := uuid.Parse(id)
+	return uuid.NullUUID{UUID: u, Valid: err == nil && id != ""}
+}
+
+func (s *Store) CreateCreditCard(ctx context.Context, userID uuid.UUID, c domain.CreditCard) (domain.CreditCard, error) {
+	row, err := s.q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, ClosingDay: int32(c.ClosingDay), DueDay: int32(c.DueDay)})
+	return cardFrom(row), mapErr(err)
+}
+
+func (s *Store) UpdateCreditCard(ctx context.Context, userID uuid.UUID, id string, p CardPatch) (domain.CreditCard, error) {
+	cid, err := parseID(id)
+	if err != nil {
+		return domain.CreditCard{}, err
+	}
+	arg := sqlcgen.UpdateCreditCardParams{Name: text(p.Name), ID: cid, UserID: userID}
+	if p.ClosingDay != nil {
+		arg.ClosingDay.Int32, arg.ClosingDay.Valid = int32(*p.ClosingDay), true
+	}
+	if p.DueDay != nil {
+		arg.DueDay.Int32, arg.DueDay.Valid = int32(*p.DueDay), true
+	}
+	row, err := s.q.UpdateCreditCard(ctx, arg)
+	return cardFrom(row), mapErr(err)
+}
+
+// DeleteCreditCard apaga o cartão; as compras ligadas a ele ficam sem cartão (ON DELETE SET NULL).
+func (s *Store) DeleteCreditCard(ctx context.Context, userID uuid.UUID, id string) error {
+	cid, err := parseID(id)
+	if err != nil {
+		return err
+	}
+	return notFoundIfZero(s.q.DeleteCreditCard(ctx, sqlcgen.DeleteCreditCardParams{ID: cid, UserID: userID}))
 }
 
 /* ---------- metas ---------- */
@@ -470,7 +561,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		} else {
 			for _, wipe := range []func(context.Context, uuid.UUID) error{
-				q.WipeTransactions, q.WipeCredits, q.WipeGoals, q.WipeExtraExpenses, q.WipeNotes, q.WipeCategories,
+				q.WipeTransactions, q.WipeCredits, q.WipeCreditCards, q.WipeGoals, q.WipeExtraExpenses, q.WipeNotes, q.WipeCategories,
 			} {
 				if err := wipe(ctx, userID); err != nil {
 					return err
@@ -482,6 +573,19 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			created, err := createTransaction(ctx, q, userID, t)
 			if err != nil {
 				return err
+			}
+			if len(t.MonthlyNotes) > 0 {
+				raw, err := json.Marshal(t.MonthlyNotes)
+				if err != nil {
+					return err
+				}
+				tid, err := parseID(created.ID)
+				if err != nil {
+					return err
+				}
+				if _, err := q.SetTransactionMonthlyNotes(ctx, sqlcgen.SetTransactionMonthlyNotesParams{ID: tid, UserID: userID, Column3: raw}); err != nil {
+					return err
+				}
 			}
 			if len(t.Payments) > 0 {
 				raw, err := json.Marshal(t.Payments)
@@ -497,7 +601,17 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 				}
 			}
 		}
+		// os ids de origem são ignorados: os cartões ganham ids novos e as compras passam a apontar para eles
+		newCard := map[string]string{}
+		for _, k := range d.CreditCards {
+			created, err := q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{UserID: userID, Name: k.Name, ClosingDay: int32(k.ClosingDay), DueDay: int32(k.DueDay)})
+			if err != nil {
+				return err
+			}
+			newCard[k.ID] = created.ID.String()
+		}
 		for _, c := range d.CreditTransactions {
+			c.CardID = newCard[c.CardID]
 			if _, err := q.CreateCredit(ctx, creditParams(userID, c)); err != nil {
 				return err
 			}
@@ -571,6 +685,9 @@ func emptyIn(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID) (bool, e
 		return false, err
 	}
 	if r, err := q.ListCredits(ctx, userID); err != nil || len(r) > 0 {
+		return false, err
+	}
+	if r, err := q.ListCreditCards(ctx, userID); err != nil || len(r) > 0 {
 		return false, err
 	}
 	if r, err := q.ListNotes(ctx, userID); err != nil || len(r) > 0 {
