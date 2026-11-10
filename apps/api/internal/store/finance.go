@@ -38,7 +38,7 @@ func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domai
 
 func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
-		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
+		ID: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.Fixed && t.VariableAmount,
 	})
 	if err != nil {
@@ -104,7 +104,7 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 			if err != nil {
 				return err
 			}
-			if row, err = q.SetTransactionMonthlyNotes(ctx, sqlcgen.SetTransactionMonthlyNotesParams{ID: tid, UserID: userID, Column3: raw}); err != nil {
+			if row, err = q.SetTransactionMonthlyNotes(ctx, sqlcgen.SetTransactionMonthlyNotesParams{ID: tid, UserID: userID, MonthlyNotes: raw}); err != nil {
 				return err
 			}
 		}
@@ -196,7 +196,7 @@ func (s *Store) SetTransactionPayment(ctx context.Context, userID uuid.UUID, id,
 		if err != nil {
 			return err
 		}
-		row, err := q.SetTransactionPayments(ctx, sqlcgen.SetTransactionPaymentsParams{ID: tid, UserID: userID, Column3: raw})
+		row, err := q.SetTransactionPayments(ctx, sqlcgen.SetTransactionPaymentsParams{ID: tid, UserID: userID, Payments: raw})
 		if err != nil {
 			return mapErr(err)
 		}
@@ -224,7 +224,7 @@ func (s *Store) SetExtraPayment(ctx context.Context, userID uuid.UUID, id string
 			return domain.ExtraExpense{}, err
 		}
 	}
-	row, err := s.q.SetExtraExpensePayment(ctx, sqlcgen.SetExtraExpensePaymentParams{ID: eid, UserID: userID, Column3: raw})
+	row, err := s.q.SetExtraExpensePayment(ctx, sqlcgen.SetExtraExpensePaymentParams{ID: eid, UserID: userID, Payment: raw})
 	return extraFrom(row), mapErr(err)
 }
 
@@ -276,10 +276,10 @@ func creditParams(userID uuid.UUID, c domain.CreditTransaction) sqlcgen.CreateCr
 		adjustments = []byte("{}")
 	}
 	return sqlcgen.CreateCreditParams{
-		Column1: clientID(c.ID), UserID: userID, Name: c.Name, TotalCents: c.TotalAmount,
-		Installments: int32(c.Installments), StartMonth: c.StartMonth, Category: c.Category,
-		Column8: adjustments,
-		Recurring: c.Recurring, EndMonth: text(nilIfEmpty(c.EndMonth)), BillingDay: int32(c.BillingDay),
+		ID: clientID(c.ID), UserID: userID, Name: c.Name, TotalCents: c.TotalAmount,
+		Installments: int64(c.Installments), StartMonth: c.StartMonth, Category: c.Category,
+		Adjustments: adjustments,
+		Recurring: c.Recurring, EndMonth: text(nilIfEmpty(c.EndMonth)), BillingDay: int64(c.BillingDay),
 		CardID: nullID(c.CardID), VariableAmount: c.VariableAmount,
 	}
 }
@@ -318,18 +318,24 @@ func (s *Store) UpdateCredit(ctx context.Context, userID uuid.UUID, id string, p
 			Category: text(p.Category), EndMonth: text(endMonth), ID: cid, UserID: userID,
 		}
 		if p.BillingDay != nil {
-			arg.BillingDay.Int32, arg.BillingDay.Valid = int32(*p.BillingDay), true
+			arg.BillingDay.Int64, arg.BillingDay.Valid = int64(*p.BillingDay), true
 		}
 		arg.VariableAmount = boolv(p.VariableAmount)
-		if p.CardID != nil {
-			arg.SetCard, arg.CardID = true, nullID(*p.CardID)
-		}
 		if p.Installments != nil {
-			arg.Installments.Int32, arg.Installments.Valid = int32(*p.Installments), true
+			arg.Installments.Int64, arg.Installments.Valid = int64(*p.Installments), true
 		}
 		row, err := q.UpdateCredit(ctx, arg)
+		if err != nil {
+			return mapErr(err)
+		}
+		// card_id so muda quando veio na requisicao; id vazio solta a compra do cartao
+		if p.CardID != nil {
+			if row, err = q.SetCreditCard(ctx, sqlcgen.SetCreditCardParams{CardID: nullID(*p.CardID), ID: cid, UserID: userID}); err != nil {
+				return mapErr(err)
+			}
+		}
 		out = creditFrom(row)
-		return mapErr(err)
+		return nil
 	})
 	return out, err
 }
@@ -356,7 +362,7 @@ func (s *Store) AdjustCredit(ctx context.Context, userID uuid.UUID, id string, r
 		if err != nil {
 			return err
 		}
-		row, err := q.SetCreditAdjustments(ctx, sqlcgen.SetCreditAdjustmentsParams{ID: cid, UserID: userID, Column3: raw})
+		row, err := q.SetCreditAdjustments(ctx, sqlcgen.SetCreditAdjustmentsParams{ID: cid, UserID: userID, Adjustments: raw})
 		out = creditFrom(row)
 		return mapErr(err)
 	})
@@ -385,7 +391,7 @@ func nullID(id string) uuid.NullUUID {
 }
 
 func (s *Store) CreateCreditCard(ctx context.Context, userID uuid.UUID, c domain.CreditCard) (domain.CreditCard, error) {
-	row, err := s.q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, ClosingDay: int32(c.ClosingDay), DueDay: int32(c.DueDay)})
+	row, err := s.q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{ID: clientID(c.ID), UserID: userID, Name: c.Name, ClosingDay: int64(c.ClosingDay), DueDay: int64(c.DueDay)})
 	return cardFrom(row), mapErr(err)
 }
 
@@ -396,10 +402,10 @@ func (s *Store) UpdateCreditCard(ctx context.Context, userID uuid.UUID, id strin
 	}
 	arg := sqlcgen.UpdateCreditCardParams{Name: text(p.Name), ID: cid, UserID: userID}
 	if p.ClosingDay != nil {
-		arg.ClosingDay.Int32, arg.ClosingDay.Valid = int32(*p.ClosingDay), true
+		arg.ClosingDay.Int64, arg.ClosingDay.Valid = int64(*p.ClosingDay), true
 	}
 	if p.DueDay != nil {
-		arg.DueDay.Int32, arg.DueDay.Valid = int32(*p.DueDay), true
+		arg.DueDay.Int64, arg.DueDay.Valid = int64(*p.DueDay), true
 	}
 	row, err := s.q.UpdateCreditCard(ctx, arg)
 	return cardFrom(row), mapErr(err)
@@ -434,7 +440,7 @@ func (s *Store) CreateGoal(ctx context.Context, userID uuid.UUID, g domain.Goal)
 
 func goalParams(userID uuid.UUID, g domain.Goal) sqlcgen.CreateGoalParams {
 	return sqlcgen.CreateGoalParams{
-		Column1: clientID(g.ID), UserID: userID, Name: g.Name, TargetCents: g.Target, SavedCents: g.Saved,
+		ID: clientID(g.ID), UserID: userID, Name: g.Name, TargetCents: g.Target, SavedCents: g.Saved,
 		MonthlyCents: g.Monthly, Deadline: text(g.Deadline), YieldTotalCents: g.YieldTotal, Piggy: g.Piggy,
 	}
 }
@@ -444,12 +450,25 @@ func (s *Store) UpdateGoal(ctx context.Context, userID uuid.UUID, id string, p G
 	if err != nil {
 		return domain.Goal{}, err
 	}
-	row, err := s.q.UpdateGoal(ctx, sqlcgen.UpdateGoalParams{
-		Name: text(p.Name), TargetCents: int8v(p.Target), SavedCents: int8v(p.Saved),
-		MonthlyCents: int8v(p.Monthly), YieldTotalCents: int8v(p.YieldTotal),
-		SetDeadline: p.SetDeadline, Deadline: text(p.Deadline), ID: gid, UserID: userID,
+	var out domain.Goal
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		row, err := q.UpdateGoal(ctx, sqlcgen.UpdateGoalParams{
+			Name: text(p.Name), TargetCents: int8v(p.Target), SavedCents: int8v(p.Saved),
+			MonthlyCents: int8v(p.Monthly), YieldTotalCents: int8v(p.YieldTotal), ID: gid, UserID: userID,
+		})
+		if err != nil {
+			return err
+		}
+		// o prazo so muda quando veio na requisicao; Deadline nil limpa
+		if p.SetDeadline {
+			if row, err = q.SetGoalDeadline(ctx, sqlcgen.SetGoalDeadlineParams{Deadline: text(p.Deadline), ID: gid, UserID: userID}); err != nil {
+				return err
+			}
+		}
+		out = goalFrom(row)
+		return nil
 	})
-	return goalFrom(row), mapErr(err)
+	return out, mapErr(err)
 }
 
 func (s *Store) DeleteGoal(ctx context.Context, userID uuid.UUID, id string) error {
@@ -470,7 +489,7 @@ type ExtraPatch struct {
 
 func (s *Store) CreateExtra(ctx context.Context, userID uuid.UUID, e domain.ExtraExpense) (domain.ExtraExpense, error) {
 	row, err := s.q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{
-		Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month,
+		ID: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month,
 	})
 	return extraFrom(row), mapErr(err)
 }
@@ -505,7 +524,7 @@ type NotePatch struct {
 
 func (s *Store) CreateNote(ctx context.Context, userID uuid.UUID, n domain.Note) (domain.Note, error) {
 	row, err := s.q.CreateNote(ctx, sqlcgen.CreateNoteParams{
-		Column1: clientID(n.ID), UserID: userID, Content: n.Content, Date: n.Date, Pinned: n.Pinned, Month: n.Month,
+		ID: clientID(n.ID), UserID: userID, Content: n.Content, Date: n.Date, Pinned: n.Pinned, Month: n.Month,
 	})
 	return noteFrom(row), mapErr(err)
 }
@@ -533,7 +552,7 @@ func (s *Store) DeleteNote(ctx context.Context, userID uuid.UUID, id string) err
 /* ---------- categorias ---------- */
 
 func (s *Store) CreateCategory(ctx context.Context, userID uuid.UUID, c domain.CustomCategory) (domain.CustomCategory, error) {
-	row, err := s.q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, Color: c.Color})
+	row, err := s.q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{ID: clientID(c.ID), UserID: userID, Name: c.Name, Color: c.Color})
 	return domain.CustomCategory{ID: row.ID.String(), Name: row.Name, Color: row.Color}, mapErr(err)
 }
 
@@ -584,7 +603,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 				if err != nil {
 					return err
 				}
-				if _, err := q.SetTransactionMonthlyNotes(ctx, sqlcgen.SetTransactionMonthlyNotesParams{ID: tid, UserID: userID, Column3: raw}); err != nil {
+				if _, err := q.SetTransactionMonthlyNotes(ctx, sqlcgen.SetTransactionMonthlyNotesParams{ID: tid, UserID: userID, MonthlyNotes: raw}); err != nil {
 					return err
 				}
 			}
@@ -597,7 +616,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 				if err != nil {
 					return err
 				}
-				if _, err := q.SetTransactionPayments(ctx, sqlcgen.SetTransactionPaymentsParams{ID: tid, UserID: userID, Column3: raw}); err != nil {
+				if _, err := q.SetTransactionPayments(ctx, sqlcgen.SetTransactionPaymentsParams{ID: tid, UserID: userID, Payments: raw}); err != nil {
 					return err
 				}
 			}
@@ -605,7 +624,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 		// os ids de origem são ignorados: os cartões ganham ids novos e as compras passam a apontar para eles
 		newCard := map[string]string{}
 		for _, k := range d.CreditCards {
-			created, err := q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{UserID: userID, Name: k.Name, ClosingDay: int32(k.ClosingDay), DueDay: int32(k.DueDay)})
+			created, err := q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{ID: uuid.New(), UserID: userID, Name: k.Name, ClosingDay: int64(k.ClosingDay), DueDay: int64(k.DueDay)})
 			if err != nil {
 				return err
 			}
@@ -618,7 +637,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		}
 		for _, n := range d.Notes {
-			if _, err := q.CreateNote(ctx, sqlcgen.CreateNoteParams{Column1: clientID(n.ID), UserID: userID, Content: n.Content, Date: n.Date, Pinned: n.Pinned, Month: n.Month}); err != nil {
+			if _, err := q.CreateNote(ctx, sqlcgen.CreateNoteParams{ID: clientID(n.ID), UserID: userID, Content: n.Content, Date: n.Date, Pinned: n.Pinned, Month: n.Month}); err != nil {
 				return err
 			}
 		}
@@ -628,7 +647,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		}
 		for _, e := range d.ExtraExpenses {
-			created, err := q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month})
+			created, err := q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{ID: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month})
 			if err != nil {
 				return err
 			}
@@ -637,13 +656,13 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 				if err != nil {
 					return err
 				}
-				if _, err := q.SetExtraExpensePayment(ctx, sqlcgen.SetExtraExpensePaymentParams{ID: created.ID, UserID: userID, Column3: raw}); err != nil {
+				if _, err := q.SetExtraExpensePayment(ctx, sqlcgen.SetExtraExpensePaymentParams{ID: created.ID, UserID: userID, Payment: raw}); err != nil {
 					return err
 				}
 			}
 		}
 		for _, c := range d.CustomCategories {
-			if _, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, Color: c.Color}); err != nil {
+			if _, err := q.CreateCategory(ctx, sqlcgen.CreateCategoryParams{ID: clientID(c.ID), UserID: userID, Name: c.Name, Color: c.Color}); err != nil {
 				return err
 			}
 		}

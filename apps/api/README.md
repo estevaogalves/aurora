@@ -1,18 +1,20 @@
 # Aurora API
 
-Backend em Go: chi, pgx, sqlc, goose, Redis. Tudo sob `/api/v1`.
+Backend em Go: chi, sqlc, goose, SQLite (`modernc.org/sqlite`, sem CGO) e Redis embutido (miniredis). Tudo sob `/api/v1`.
+
+> Esta é a branch `local-sqlite`: o banco é um arquivo (`DB_PATH`, padrão `/data/aurora.db`) e não há Postgres nem Redis externos. As seções de Postgres/Supabase de outros documentos valem para a `main`.
 
 ## Rodar
 
 ```bash
-docker compose up --build        # na raiz: Postgres, Redis, API e web
+docker compose up --build        # na raiz: API e web (banco em ./data/aurora.db)
 # web em http://localhost:8080 · API direta em http://127.0.0.1:8081
 ```
 
-Sem Docker, com Go 1.26+ e um Postgres/Redis locais:
+Sem Docker, com Go 1.26+ (`DB_PATH=./aurora.db JWT_SECRET=... go run ./cmd/api`):
 
 ```bash
-export DATABASE_URL=postgres://aurora:aurora@localhost:5432/aurora?sslmode=disable
+export DB_PATH=./data/aurora.db      # o arquivo do banco (a pasta é criada)
 export JWT_SECRET=$(openssl rand -hex 32)
 export APP_ENV=development COOKIE_SECURE=false   # só em dev local, sem HTTPS
 go run ./cmd/api          # aplica as migrations ao iniciar
@@ -20,10 +22,9 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 
 | Variável | Padrão | Para quê |
 |---|---|---|
-| `DATABASE_URL` | (obrigatória) | Postgres |
+| `DB_PATH` | `/data/aurora.db` | arquivo do banco SQLite |
 | `JWT_SECRET` | (obrigatória, 32+ caracteres) | assinatura do token de acesso |
-| `MIGRATE_DATABASE_URL` | vazio | conexão direta só para as migrations (use com pooler em modo transação) |
-| `REDIS_URL` | `redis://localhost:6379/0` | refresh tokens, rate limit, cache |
+| `REDIS_URL` | vazio | Redis externo. Vazio = Redis embutido na API (memória) para refresh tokens, rate limit e cache |
 | `API_ADDR` | `:8080` | endereço do servidor |
 | `ACCESS_TTL` / `REFRESH_TTL` | `15m` / `720h` | validade dos tokens |
 | `APP_ENV` | `production` | `production` ou `development`; em `production` a API não inicia com `COOKIE_SECURE=false` |
@@ -34,8 +35,6 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 | `HASH_MAX_QUEUE` / `HASH_QUEUE_TIMEOUT` | `4×` a concorrência / `3s` | fila de espera por uma vaga de hash; fila cheia ou tempo esgotado => `503` + `Retry-After` |
 | `REGISTRATION_ENABLED` | `true` | `false` fecha o cadastro: `POST /auth/register` responde `403` ("O cadastro está fechado no momento…"); o login não muda. Só `true`/`false` (outro valor impede a API de iniciar) |
 | `REGISTER_MAX_PER_IP` / `REGISTER_WINDOW` | `5` / `1h` | cadastros por IP na janela; passou => `429` + `Retry-After` (a chave é o IP: veja `TRUST_PROXY`) |
-| `DB_MAX_CONNS` | `10` | conexões do pool da API; reduzido sozinho para caber no `max_connections` do servidor (descontadas as reservadas e 20% de margem). Com várias réplicas: valor × réplicas deve caber |
-| `DB_STATEMENT_TIMEOUT` | `15s` | `statement_timeout` **só do pool da API** (migrations usam outra conexão, sem limite). `0` desliga (pooler em modo transação que rejeita o parâmetro: use `ALTER ROLE ... SET statement_timeout`) |
 | `MAX_BODY_BYTES` / `MAX_IMPORT_BYTES` | `256 KiB` / `10 MiB` | corpo máximo de uma requisição / da importação (413 ao passar) |
 | `MAX_IMPORT_ITEMS` | `25000` | itens por coleção na importação (400 ao passar) |
 | `MAX_MONTH_OVERRIDES` | `600` | `hiddenMonths` + `monthlyValues` de uma despesa fixa (50 anos) |
@@ -71,28 +70,27 @@ go run ./cmd/api          # aplica as migrations ao iniciar
 ## Desenvolvimento
 
 ```bash
-go test ./...                                   # unitários (domínio e auth)
-TEST_DATABASE_URL=postgres://... go test ./...  # inclui os testes de integração da API
+go test ./...    # unitários e testes de integração (cada teste usa um arquivo SQLite temporário)
 ```
 
 - Migrations: `internal/db/migrations` (goose, embutidas no binário e aplicadas ao iniciar).
 - Queries: `internal/db/queries/*.sql`. Depois de mudar queries ou migrations, regenere com `sqlc generate` (saída em `internal/store/sqlcgen`, versionada).
 - `internal/domain` é a versão em Go de `apps/web/src/domain` (mesmas regras e mesmos testes de conta).
 
-## Banco externo (Postgres local ou Supabase)
+## Banco: SQLite em arquivo
 
-A API só precisa de `DATABASE_URL`; as migrations rodam ao iniciar. O Redis continua obrigatório (refresh tokens, rate limit e cache), e o Supabase não o oferece: use um Redis local ou um serviço como o Upstash (`rediss://...`).
+`DB_PATH` aponta para o arquivo (a pasta é criada se não existir; as migrations rodam ao iniciar). O driver abre o arquivo com
+`journal_mode=WAL`, `foreign_keys=ON` (o `ON DELETE CASCADE` depende disso), `busy_timeout` e `_txlock=immediate`: toda
+transação começa com `BEGIN IMMEDIATE`, então só uma escreve por vez, e isso faz o papel do `SELECT ... FOR UPDATE` do Postgres.
 
-**Postgres na própria máquina:** crie usuário e banco (`CREATE USER aurora ...; CREATE DATABASE aurora OWNER aurora;`) e use `postgres://aurora:senha@localhost:5432/aurora?sslmode=disable`. A migration 1 cria a extensão `pgcrypto`, então o usuário precisa de permissão para isso na primeira vez. Com a API no Docker, o host é `host.docker.internal`, e o Postgres precisa aceitar conexões vindas da rede do Docker: com `listen_addresses = 'localhost'` (o padrão de muitas instalações) a conexão é recusada. Ajuste `listen_addresses` e o `pg_hba.conf` (ou rode a API fora do Docker, com `localhost`).
+- Os ids são UUIDs gerados no Go; as colunas JSON são `TEXT` (tipos em `internal/sqlitetypes`, ligados pelo `sqlc.yaml`).
+- **Atenção ao mexer em `internal/db/queries/*.sql`:** o sqlc para SQLite calcula posições em bytes, então comentários com acentos corrompem as queries seguintes. Escreva os comentários desses arquivos sem acento.
+- Backup consistente com a API no ar: `docker compose exec api api backup /data/copia.db` (`VACUUM INTO`).
+- Testes de integração usam um arquivo temporário por teste: `go test ./...`, sem nada para configurar.
 
-**Supabase:** use a connection string do projeto com `sslmode=require`.
+## Redis embutido
 
-- Conexão direta (porta 5432) e *session pooler* funcionam sem ajustes (a direta é só IPv6 no plano gratuito).
-- *Transaction pooler* (porta 6543) não aceita os prepared statements do `pgx`: acrescente `default_query_exec_mode=simple_protocol` à `DATABASE_URL` e defina `MIGRATE_DATABASE_URL` com a conexão direta ou session, para o goose.
-- A migration 2 liga o RLS (sem policies) em todas as tabelas, para que a API REST do Supabase, que expõe o schema `public`, não devolva nada com a chave pública. A API conecta como dono das tabelas e não é afetada.
-- O Supabase Auth não é usado: o Aurora tem usuários e sessões próprios.
-
-Em produção: `APP_ENV=production`, `COOKIE_SECURE=true` (obrigatório), `JWT_SECRET` forte e `CORS_ORIGINS` com o domínio real. Nunca aponte `TEST_DATABASE_URL` para o banco real, pois os testes criam dados.
+Sem `REDIS_URL`, a API sobe um Redis dentro do próprio processo (miniredis, só em `127.0.0.1`) para refresh tokens, limites de requisição e o cache dos resumos. Tudo isso é descartável: some ao reiniciar a API (as pessoas fazem login de novo). Com `REDIS_URL`, usa esse Redis.
 
 ## Abrir e fechar o cadastro
 
@@ -126,7 +124,7 @@ docker compose exec api api admin demote  voce@dominio.com
 - `promote` falha com mensagem clara se o e-mail não existe; é idempotente.
 - `demote` recusa rebaixar o **último** admin (travado em transação: dois rebaixamentos simultâneos não zeram a lista).
 - O papel viaja no token de acesso: vale a partir do próximo login (ou em até `ACCESS_TTL`, 15 min).
-- Sem Docker: `DATABASE_URL=... go run ./cmd/api admin promote voce@dominio.com`.
+- Sem Docker: `DB_PATH=./data/aurora.db go run ./cmd/api admin promote voce@dominio.com`.
 - A variável antiga `ADMIN_EMAIL` não tem mais efeito (a API só registra um aviso se ela estiver definida).
 
 ## Logs de auditoria
@@ -153,27 +151,3 @@ docker compose logs api | grep '"event":"auth.refresh_reuse"'                # p
 
 Para detectar força bruta, procure muitos `auth.login_failed`/`auth.login_blocked` do mesmo `ip` (com `TRUST_PROXY` correto,
 veja `docs/ip-real-atras-de-proxy.md`) ou do mesmo `user_id`. O log não tem rotação própria: configure no Docker/orquestrador.
-
-## Senha do Redis
-
-O Redis guarda refresh tokens (só o hash), contadores de limite e cache. Por isso exige senha: no compose, `REDIS_PASSWORD`
-é **obrigatória** (sem valor padrão; `make env` gera), o `redis-server` sobe com `--requirepass`, e a `REDIS_URL` padrão da API
-já leva a senha (`redis://:SENHA@redis:6379/0`). Com Redis externo, informe a senha na `REDIS_URL` (e defina `REDIS_PASSWORD` com
-qualquer valor: o compose exige a variável). Em `APP_ENV=production`, a API registra um aviso se a `REDIS_URL` não tiver senha.
-
-**Como comprovar:**
-```bash
-docker compose exec redis sh -c 'redis-cli ping'                     # PONG  (o healthcheck usa REDISCLI_AUTH)
-docker run --rm --network <pasta>_default redis:7-alpine redis-cli -h redis ping      # NOAUTH Authentication required.
-docker run --rm --network <pasta>_default redis:7-alpine redis-cli -h redis -a errada ping   # WRONGPASS
-```
-
-**Trocar a senha** (procedimento executado e verificado). O Redis do compose não persiste dados (`--save ""`), então não há o que
-migrar: trocar a senha **desloga todos** (todos fazem login de novo, o que já acontece a cada reinício do Redis).
-```bash
-NEW=$(openssl rand -hex 24)                                   # só letras e números (vai dentro da URL)
-sed -i "s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=$NEW/" .env
-docker compose up -d                                          # recria redis e api com a senha nova
-docker compose ps                                             # todos "healthy"
-```
-Com Redis externo: troque no provedor e atualize a `REDIS_URL`.

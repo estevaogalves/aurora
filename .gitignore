@@ -26,3 +26,6 @@ dist-ssr
 # variáveis locais do docker compose
 .env
 backups/
+
+# banco SQLite local (versão local-sqlite): cada computador tem o seu
+data/

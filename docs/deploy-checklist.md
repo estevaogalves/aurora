@@ -1,3 +1,5 @@
+> **Branch `local-sqlite`:** este checklist é da `main` (Postgres e Redis em containers, para abrir ao público). Nesta branch o banco é um arquivo SQLite e o uso previsto é pessoal, em um computador; os itens de `POSTGRES_PASSWORD`, `REDIS_PASSWORD` e a troca de senha do Postgres não se aplicam.
+
 # Checklist de deploy — correções de segurança (SEC-01 a SEC-09, SEC-13 a SEC-19) e requisitos para abrir ao público
 
 ## Requisitos antes de abrir para clientes

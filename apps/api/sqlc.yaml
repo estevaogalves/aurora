@@ -1,13 +1,12 @@
 version: "2"
 sql:
-  - engine: "postgresql"
+  - engine: "sqlite"
     schema: "internal/db/migrations"
     queries: "internal/db/queries"
     gen:
       go:
         package: "sqlcgen"
         out: "internal/store/sqlcgen"
-        sql_package: "pgx/v5"
         emit_json_tags: false
         overrides:
           - db_type: "uuid"
@@ -15,3 +14,10 @@ sql:
           - db_type: "uuid"
             nullable: true
             go_type: "github.com/google/uuid.NullUUID"
+          - db_type: "jsontext"
+            go_type: "aurora/api/internal/sqlitetypes.JSON"
+          - db_type: "jsontext"
+            nullable: true
+            go_type: "aurora/api/internal/sqlitetypes.JSON"
+          - db_type: "textlist"
+            go_type: "aurora/api/internal/sqlitetypes.TextList"

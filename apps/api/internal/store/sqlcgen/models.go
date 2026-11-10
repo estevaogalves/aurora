@@ -5,17 +5,20 @@
 package sqlcgen
 
 import (
+	"database/sql"
+	"time"
+
+	"aurora/api/internal/sqlitetypes"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type CreditCard struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
 	Name       string
-	ClosingDay int32
-	DueDay     int32
-	CreatedAt  pgtype.Timestamptz
+	ClosingDay int64
+	DueDay     int64
+	CreatedAt  time.Time
 }
 
 type CreditPurchase struct {
@@ -23,16 +26,16 @@ type CreditPurchase struct {
 	UserID         uuid.UUID
 	Name           string
 	TotalCents     int64
-	Installments   int32
+	Installments   int64
 	StartMonth     string
 	Category       string
-	CreatedAt      pgtype.Timestamptz
-	Adjustments    []byte
+	Adjustments    sqlitetypes.JSON
 	Recurring      bool
-	EndMonth       pgtype.Text
-	BillingDay     int32
+	EndMonth       sql.NullString
+	BillingDay     int64
 	CardID         uuid.NullUUID
 	VariableAmount bool
+	CreatedAt      time.Time
 }
 
 type CustomCategory struct {
@@ -48,15 +51,15 @@ type ExtraExpense struct {
 	Name        string
 	AmountCents int64
 	Month       string
-	CreatedAt   pgtype.Timestamptz
-	Payment     []byte
+	Payment     sqlitetypes.JSON
+	CreatedAt   time.Time
 }
 
 type FixedOverride struct {
 	TransactionID uuid.UUID
 	Month         string
 	Hidden        bool
-	AmountCents   pgtype.Int8
+	AmountCents   sql.NullInt64
 }
 
 type Goal struct {
@@ -66,10 +69,10 @@ type Goal struct {
 	TargetCents     int64
 	SavedCents      int64
 	MonthlyCents    int64
-	Deadline        pgtype.Text
+	Deadline        sql.NullString
 	YieldTotalCents int64
-	CreatedAt       pgtype.Timestamptz
 	Piggy           bool
+	CreatedAt       time.Time
 }
 
 type Note struct {
@@ -79,16 +82,16 @@ type Note struct {
 	Date      string
 	Pinned    bool
 	Month     string
-	CreatedAt pgtype.Timestamptz
+	CreatedAt time.Time
 }
 
 type RefreshToken struct {
-	ID        uuid.UUID
+	ID        int64
 	UserID    uuid.UUID
 	TokenHash string
-	ExpiresAt pgtype.Timestamptz
-	RevokedAt pgtype.Timestamptz
-	CreatedAt pgtype.Timestamptz
+	ExpiresAt time.Time
+	RevokedAt sql.NullTime
+	CreatedAt time.Time
 }
 
 type Transaction struct {
@@ -101,10 +104,10 @@ type Transaction struct {
 	Notes          string
 	Fixed          bool
 	Month          string
-	CreatedAt      pgtype.Timestamptz
-	Payments       []byte
-	MonthlyNotes   []byte
+	Payments       sqlitetypes.JSON
+	MonthlyNotes   sqlitetypes.JSON
 	VariableAmount bool
+	CreatedAt      time.Time
 }
 
 type User struct {
@@ -113,12 +116,12 @@ type User struct {
 	Name         string
 	PasswordHash string
 	Role         string
-	CreatedAt    pgtype.Timestamptz
+	CreatedAt    time.Time
 }
 
 type UserSetting struct {
 	UserID       uuid.UUID
-	Distribution []byte
-	SeenAlerts   []string
-	Onboarding   []byte
+	Distribution sqlitetypes.JSON
+	SeenAlerts   sqlitetypes.TextList
+	Onboarding   sqlitetypes.JSON
 }

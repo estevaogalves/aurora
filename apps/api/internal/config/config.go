@@ -15,14 +15,15 @@ type Config struct {
 	// "production" (padrão) ou "development". Em produção, COOKIE_SECURE=false é recusado.
 	AppEnv      string
 	Addr        string
-	DatabaseURL string
-	// Opcional: conexão direta só para as migrations (use quando DatabaseURL passa por um pooler em modo transação).
-	MigrateDatabaseURL string
-	RedisURL           string
-	JWTSecret          string
-	AccessTTL          time.Duration
-	RefreshTTL         time.Duration
-	CookieSecure       bool
+	// Arquivo do banco SQLite (DB_PATH). A pasta é criada se não existir.
+	DBPath string
+	// Opcional: URL de um Redis externo. Vazia (padrão), a API sobe um Redis embutido no próprio processo
+	// (cache, limites de requisição e refresh tokens ficam na memória e somem ao reiniciar).
+	RedisURL     string
+	JWTSecret    string
+	AccessTTL    time.Duration
+	RefreshTTL   time.Duration
+	CookieSecure bool
 	// Confia em X-Forwarded-For/X-Real-IP (só ligue atrás de um proxy seu).
 	TrustProxy    bool
 	AllowedOrigin []string
@@ -46,12 +47,6 @@ type Config struct {
 	APIRateMax    int
 	APIRateWindow time.Duration
 
-	// Pool do banco da API. DBMaxConns é reduzido na inicialização se passar do max_connections do
-	// servidor (com margem); multiplique por réplica ao dimensionar. DBStatementTimeout vale só para o
-	// pool da API (as migrations usam outra conexão, sem timeout); 0 desliga.
-	DBMaxConns         int
-	DBStatementTimeout time.Duration
-
 	// Tetos de requisição (calibragem em httpapi/limits.go).
 	MaxBodyBytes         int64 // corpo de uma requisição comum
 	MaxImportBytes       int64 // corpo da importação
@@ -65,9 +60,8 @@ func Load() (Config, error) {
 	c := Config{
 		AppEnv:             strings.ToLower(env("APP_ENV", "production")),
 		Addr:               env("API_ADDR", ":8080"),
-		DatabaseURL:        os.Getenv("DATABASE_URL"),
-		MigrateDatabaseURL: os.Getenv("MIGRATE_DATABASE_URL"),
-		RedisURL:           env("REDIS_URL", "redis://localhost:6379/0"),
+		DBPath:             env("DB_PATH", "/data/aurora.db"),
+		RedisURL:           os.Getenv("REDIS_URL"),
 		JWTSecret:          os.Getenv("JWT_SECRET"),
 		AccessTTL:          envDuration("ACCESS_TTL", 15*time.Minute),
 		RefreshTTL:         envDuration("REFRESH_TTL", 30*24*time.Hour),
@@ -83,9 +77,6 @@ func Load() (Config, error) {
 		RegisterWindow:     envDuration("REGISTER_WINDOW", time.Hour),
 		APIRateMax:         envInt("API_RATE_MAX", 600),
 		APIRateWindow:      envDuration("API_RATE_WINDOW", time.Minute),
-
-		DBMaxConns:         envInt("DB_MAX_CONNS", 10),
-		DBStatementTimeout: envDurationAllowZero("DB_STATEMENT_TIMEOUT", 15*time.Second),
 
 		MaxBodyBytes:         int64(envInt("MAX_BODY_BYTES", 256<<10)),
 		MaxImportBytes:       int64(envInt("MAX_IMPORT_BYTES", 10<<20)),
@@ -114,17 +105,12 @@ func Load() (Config, error) {
 		if !c.CookieSecure {
 			problems = append(problems, errors.New("COOKIE_SECURE=false não é permitido com APP_ENV=production: sirva por HTTPS ou use APP_ENV=development só em desenvolvimento local"))
 		}
-		for _, d := range []struct{ name, url string }{{"DATABASE_URL", c.DatabaseURL}, {"MIGRATE_DATABASE_URL", c.MigrateDatabaseURL}} {
-			if err := checkDBTransport(d.name, d.url); err != nil {
-				problems = append(problems, err)
-			}
-		}
 	case "development":
 	default:
 		problems = append(problems, fmt.Errorf("APP_ENV deve ser production ou development, recebi %q", c.AppEnv))
 	}
-	if c.DatabaseURL == "" {
-		problems = append(problems, errors.New("DATABASE_URL é obrigatória"))
+	if c.DBPath == "" {
+		problems = append(problems, errors.New("DB_PATH não pode ficar vazio"))
 	}
 	if err := checkJWTSecret(c.JWTSecret); err != nil {
 		problems = append(problems, err)
@@ -196,17 +182,6 @@ func envInt(key string, def int) int {
 	return def
 }
 
-// envDurationAllowZero é como envDuration, mas aceita "0" (desligar); valores negativos viram o padrão.
-func envDurationAllowZero(key string, def time.Duration) time.Duration {
-	if os.Getenv(key) == "0" {
-		return 0
-	}
-	if d := envDuration(key, def); d >= 0 {
-		return d
-	}
-	return def
-}
-
 func envDuration(key string, def time.Duration) time.Duration {
 	if v := os.Getenv(key); v != "" {
 		if d, err := time.ParseDuration(v); err == nil {
@@ -215,28 +190,4 @@ func envDuration(key string, def time.Duration) time.Duration {
 		fmt.Fprintf(os.Stderr, "aviso: %s=%q inválido, usando %s\n", key, v, def)
 	}
 	return def
-}
-
-// checkDBTransport recusa, em produção, conexão com banco em outra máquina sem TLS (sslmode=disable, allow
-// ou prefer, ou ausente): senha e dados financeiros iriam em texto puro pela rede. Hosts de rede interna ficam
-// de fora: nome sem ponto (serviço do compose, como "postgres"), localhost, loopback e *.internal
-// (host.docker.internal). DB_ALLOW_INSECURE=true libera por decisão consciente (ex.: VPN já criptografada).
-func checkDBTransport(name, raw string) error {
-	if raw == "" || envBool("DB_ALLOW_INSECURE", false) {
-		return nil
-	}
-	u, err := url.Parse(raw)
-	if err != nil || u.Host == "" {
-		return nil // formato key=value ou inválido: quem valida é o driver
-	}
-	host := strings.ToLower(u.Hostname())
-	if !strings.Contains(host, ".") || host == "localhost" || strings.HasSuffix(host, ".internal") ||
-		strings.HasSuffix(host, ".localhost") || host == "127.0.0.1" || host == "::1" {
-		return nil
-	}
-	switch u.Query().Get("sslmode") {
-	case "require", "verify-ca", "verify-full":
-		return nil
-	}
-	return fmt.Errorf("%s aponta para %q sem TLS: use sslmode=require (ou verify-full) na URL, ou DB_ALLOW_INSECURE=true se a rede já for criptografada", name, host)
 }

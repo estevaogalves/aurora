@@ -29,7 +29,7 @@ describe("CI", () => {
 
   it("imagens de serviço da CI têm digest", () => {
     const images = [...ci.matchAll(/^\s*image:\s*(\S+)/gm)].map((m) => m[1]);
-    expect(images.length).toBeGreaterThan(0);
+    // sem serviços (a versão local usa SQLite em arquivo): se algum voltar, precisa de digest
     for (const i of images) expect(i, i).toMatch(/@sha256:[0-9a-f]{64}$/);
   });
 

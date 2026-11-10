@@ -23,6 +23,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "admin" {
 		os.Exit(adminMain(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "backup" {
+		os.Exit(backupMain(os.Args[2:]))
+	}
 	if err := run(log); err != nil {
 		log.Error("falha ao iniciar", "err", err)
 		os.Exit(1)
@@ -47,40 +50,23 @@ func run(log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	// As migrations rodam numa conexão própria, SEM statement_timeout (uma migration longa não pode ser
-	// cortada), e só depois abrimos o pool da API, com limite de conexões e timeout.
-	migrateURL := cfg.MigrateDatabaseURL
-	if migrateURL == "" {
-		migrateURL = cfg.DatabaseURL
-	}
-	if err := db.MigrateURL(ctx, migrateURL); err != nil {
-		return err
-	}
-	pool, poolInfo, err := db.ConnectAPI(ctx, cfg.DatabaseURL, db.PoolOptions{
-		MaxConns: cfg.DBMaxConns, StatementTimeout: cfg.DBStatementTimeout,
-	})
+	d, err := db.Open(ctx, cfg.DBPath)
 	if err != nil {
 		return err
 	}
-	defer pool.Close()
-	log.Info("pool do banco", "max_conns", poolInfo.MaxConns, "statement_timeout", cfg.DBStatementTimeout.String(),
-		"servidor_max_connections", poolInfo.ServerMax)
-	if poolInfo.Clamped {
-		log.Warn("DB_MAX_CONNS reduzido para caber no max_connections do servidor",
-			"pedido", cfg.DBMaxConns, "efetivo", poolInfo.MaxConns)
+	defer d.Close()
+	if err := db.Migrate(ctx, d); err != nil {
+		return err
 	}
+	log.Info("banco SQLite", "arquivo", cfg.DBPath)
 
-	if cfg.AppEnv == "production" && !config.RedisURLHasPassword(cfg.RedisURL) {
-		log.Warn("REDIS_URL sem senha: quem alcançar o Redis lê/escreve refresh tokens e contadores. " +
-			"Exija senha no Redis e informe-a na URL (redis://:senha@host:6379/0)")
-	}
-	rdb, err := connectRedis(ctx, cfg.RedisURL)
+	rdb, closeRedis, err := openRedis(ctx, cfg, log)
 	if err != nil {
 		return err
 	}
-	defer rdb.Close()
+	defer closeRedis()
 
-	st := store.New(pool)
+	st := store.New(d)
 	srv, err := httpapi.New(cfg, st, rdb, log)
 	if err != nil {
 		return err

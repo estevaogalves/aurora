@@ -9,7 +9,7 @@ contornando o limite de login). Eles **atacam de propósito** o alvo que você i
 
 ## Laboratório
 
-Requer Docker e Node. Sobe Postgres, Redis, API e nginx numa rede própria (`aurora-lab`), com banco vazio e
+Requer Docker e Node. Sobe API e nginx numa rede própria (`aurora-lab`), com banco SQLite vazio e
 segredo aleatório, publicado só em `127.0.0.1:18080`. Não toca no `docker compose` do projeto nem nos seus dados.
 
 ```sh

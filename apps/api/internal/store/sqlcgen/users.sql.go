@@ -7,9 +7,10 @@ package sqlcgen
 
 import (
 	"context"
+	"time"
 
+	"aurora/api/internal/sqlitetypes"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const countUsers = `-- name: CountUsers :one
@@ -17,34 +18,35 @@ SELECT count(*) FROM users
 `
 
 func (q *Queries) CountUsers(ctx context.Context) (int64, error) {
-	row := q.db.QueryRow(ctx, countUsers)
+	row := q.db.QueryRowContext(ctx, countUsers)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const createRefreshToken = `-- name: CreateRefreshToken :exec
-INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)
+INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES (?, ?, ?)
 `
 
 type CreateRefreshTokenParams struct {
 	UserID    uuid.UUID
 	TokenHash string
-	ExpiresAt pgtype.Timestamptz
+	ExpiresAt time.Time
 }
 
 func (q *Queries) CreateRefreshToken(ctx context.Context, arg CreateRefreshTokenParams) error {
-	_, err := q.db.Exec(ctx, createRefreshToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
+	_, err := q.db.ExecContext(ctx, createRefreshToken, arg.UserID, arg.TokenHash, arg.ExpiresAt)
 	return err
 }
 
 const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, name, password_hash, role)
-VALUES ($1, $2, $3, $4)
+INSERT INTO users (id, email, name, password_hash, role)
+VALUES (?, ?, ?, ?, ?)
 RETURNING id, email, name, password_hash, role, created_at
 `
 
 type CreateUserParams struct {
+	ID           uuid.UUID
 	Email        string
 	Name         string
 	PasswordHash string
@@ -52,7 +54,8 @@ type CreateUserParams struct {
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser,
+	row := q.db.QueryRowContext(ctx, createUser,
+		arg.ID,
 		arg.Email,
 		arg.Name,
 		arg.PasswordHash,
@@ -71,42 +74,42 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 }
 
 const deleteExpiredRefreshTokens = `-- name: DeleteExpiredRefreshTokens :exec
-DELETE FROM refresh_tokens WHERE expires_at < now() - interval '7 days'
+DELETE FROM refresh_tokens WHERE expires_at < strftime('%Y-%m-%d %H:%M:%f', 'now', '-7 days')
 `
 
 func (q *Queries) DeleteExpiredRefreshTokens(ctx context.Context) error {
-	_, err := q.db.Exec(ctx, deleteExpiredRefreshTokens)
+	_, err := q.db.ExecContext(ctx, deleteExpiredRefreshTokens)
 	return err
 }
 
 const deleteUser = `-- name: DeleteUser :execrows
-DELETE FROM users WHERE id = $1
+DELETE FROM users WHERE id = ?
 `
 
-// Apaga a conta e, em cascata, tudo que é dela (lançamentos, metas, notas, configurações, refresh tokens).
+// Apaga a conta e, em cascata, tudo que e dela (lancamentos, metas, notas, configuracoes, refresh tokens).
 func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteUser, id)
+	result, err := q.db.ExecContext(ctx, deleteUser, id)
 	if err != nil {
 		return 0, err
 	}
-	return result.RowsAffected(), nil
+	return result.RowsAffected()
 }
 
 const ensureSettings = `-- name: EnsureSettings :exec
-INSERT INTO user_settings (user_id) VALUES ($1) ON CONFLICT DO NOTHING
+INSERT INTO user_settings (user_id) VALUES (?) ON CONFLICT DO NOTHING
 `
 
 func (q *Queries) EnsureSettings(ctx context.Context, userID uuid.UUID) error {
-	_, err := q.db.Exec(ctx, ensureSettings, userID)
+	_, err := q.db.ExecContext(ctx, ensureSettings, userID)
 	return err
 }
 
 const getRefreshToken = `-- name: GetRefreshToken :one
-SELECT id, user_id, token_hash, expires_at, revoked_at, created_at FROM refresh_tokens WHERE token_hash = $1
+SELECT id, user_id, token_hash, expires_at, revoked_at, created_at FROM refresh_tokens WHERE token_hash = ?
 `
 
 func (q *Queries) GetRefreshToken(ctx context.Context, tokenHash string) (RefreshToken, error) {
-	row := q.db.QueryRow(ctx, getRefreshToken, tokenHash)
+	row := q.db.QueryRowContext(ctx, getRefreshToken, tokenHash)
 	var i RefreshToken
 	err := row.Scan(
 		&i.ID,
@@ -120,11 +123,11 @@ func (q *Queries) GetRefreshToken(ctx context.Context, tokenHash string) (Refres
 }
 
 const getSettings = `-- name: GetSettings :one
-SELECT user_id, distribution, seen_alerts, onboarding FROM user_settings WHERE user_id = $1
+SELECT user_id, distribution, seen_alerts, onboarding FROM user_settings WHERE user_id = ?
 `
 
 func (q *Queries) GetSettings(ctx context.Context, userID uuid.UUID) (UserSetting, error) {
-	row := q.db.QueryRow(ctx, getSettings, userID)
+	row := q.db.QueryRowContext(ctx, getSettings, userID)
 	var i UserSetting
 	err := row.Scan(
 		&i.UserID,
@@ -136,11 +139,11 @@ func (q *Queries) GetSettings(ctx context.Context, userID uuid.UUID) (UserSettin
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, name, password_hash, role, created_at FROM users WHERE lower(email) = lower($1)
+SELECT id, email, name, password_hash, role, created_at FROM users WHERE lower(email) = lower(?)
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByEmail, lower)
+	row := q.db.QueryRowContext(ctx, getUserByEmail, lower)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -154,11 +157,11 @@ func (q *Queries) GetUserByEmail(ctx context.Context, lower string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, name, password_hash, role, created_at FROM users WHERE id = $1
+SELECT id, email, name, password_hash, role, created_at FROM users WHERE id = ?
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
-	row := q.db.QueryRow(ctx, getUserByID, id)
+	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
 		&i.ID,
@@ -176,7 +179,7 @@ SELECT id, email, name, password_hash, role, created_at FROM users ORDER BY crea
 `
 
 func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := q.db.Query(ctx, listUsers)
+	rows, err := q.db.QueryContext(ctx, listUsers)
 	if err != nil {
 		return nil, err
 	}
@@ -196,6 +199,9 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 		}
 		items = append(items, i)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -203,12 +209,13 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 }
 
 const lockAdmins = `-- name: LockAdmins :many
-SELECT id FROM users WHERE role = 'admin' ORDER BY id FOR UPDATE
+SELECT id FROM users WHERE role = 'admin' ORDER BY id
 `
 
-// Trava as linhas dos admins até o fim da transação (evita rebaixar os dois últimos ao mesmo tempo).
+// As transacoes do SQLite comecam com BEGIN IMMEDIATE (veja db.Open): so uma escreve por vez, entao
+// dois rebaixamentos simultaneos nao zeram a lista de admins.
 func (q *Queries) LockAdmins(ctx context.Context) ([]uuid.UUID, error) {
-	rows, err := q.db.Query(ctx, lockAdmins)
+	rows, err := q.db.QueryContext(ctx, lockAdmins)
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +228,9 @@ func (q *Queries) LockAdmins(ctx context.Context) ([]uuid.UUID, error) {
 		}
 		items = append(items, id)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -228,37 +238,37 @@ func (q *Queries) LockAdmins(ctx context.Context) ([]uuid.UUID, error) {
 }
 
 const mergeOnboarding = `-- name: MergeOnboarding :exec
-INSERT INTO user_settings (user_id, onboarding) VALUES ($1, $2)
-ON CONFLICT (user_id) DO UPDATE SET onboarding = user_settings.onboarding || EXCLUDED.onboarding
+INSERT INTO user_settings (user_id, onboarding) VALUES (?, ?)
+ON CONFLICT (user_id) DO UPDATE SET onboarding = json_patch(user_settings.onboarding, EXCLUDED.onboarding)
 `
 
 type MergeOnboardingParams struct {
 	UserID     uuid.UUID
-	Onboarding []byte
+	Onboarding sqlitetypes.JSON
 }
 
 func (q *Queries) MergeOnboarding(ctx context.Context, arg MergeOnboardingParams) error {
-	_, err := q.db.Exec(ctx, mergeOnboarding, arg.UserID, arg.Onboarding)
+	_, err := q.db.ExecContext(ctx, mergeOnboarding, arg.UserID, arg.Onboarding)
 	return err
 }
 
 const revokeRefreshToken = `-- name: RevokeRefreshToken :exec
-UPDATE refresh_tokens SET revoked_at = now() WHERE token_hash = $1 AND revoked_at IS NULL
+UPDATE refresh_tokens SET revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now') WHERE token_hash = ? AND revoked_at IS NULL
 `
 
 func (q *Queries) RevokeRefreshToken(ctx context.Context, tokenHash string) error {
-	_, err := q.db.Exec(ctx, revokeRefreshToken, tokenHash)
+	_, err := q.db.ExecContext(ctx, revokeRefreshToken, tokenHash)
 	return err
 }
 
 const revokeUserRefreshTokens = `-- name: RevokeUserRefreshTokens :many
-UPDATE refresh_tokens SET revoked_at = now()
-WHERE user_id = $1 AND revoked_at IS NULL
+UPDATE refresh_tokens SET revoked_at = strftime('%Y-%m-%d %H:%M:%f', 'now')
+WHERE user_id = ? AND revoked_at IS NULL
 RETURNING token_hash
 `
 
 func (q *Queries) RevokeUserRefreshTokens(ctx context.Context, userID uuid.UUID) ([]string, error) {
-	rows, err := q.db.Query(ctx, revokeUserRefreshTokens, userID)
+	rows, err := q.db.QueryContext(ctx, revokeUserRefreshTokens, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +281,9 @@ func (q *Queries) RevokeUserRefreshTokens(ctx context.Context, userID uuid.UUID)
 		}
 		items = append(items, token_hash)
 	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
@@ -278,25 +291,25 @@ func (q *Queries) RevokeUserRefreshTokens(ctx context.Context, userID uuid.UUID)
 }
 
 const setDistribution = `-- name: SetDistribution :exec
-INSERT INTO user_settings (user_id, distribution) VALUES ($1, $2)
+INSERT INTO user_settings (user_id, distribution) VALUES (?, ?)
 ON CONFLICT (user_id) DO UPDATE SET distribution = EXCLUDED.distribution
 `
 
 type SetDistributionParams struct {
 	UserID       uuid.UUID
-	Distribution []byte
+	Distribution sqlitetypes.JSON
 }
 
 func (q *Queries) SetDistribution(ctx context.Context, arg SetDistributionParams) error {
-	_, err := q.db.Exec(ctx, setDistribution, arg.UserID, arg.Distribution)
+	_, err := q.db.ExecContext(ctx, setDistribution, arg.UserID, arg.Distribution)
 	return err
 }
 
 const setOnboardingScreen = `-- name: SetOnboardingScreen :exec
 INSERT INTO user_settings (user_id, onboarding)
-VALUES ($1, jsonb_build_object($2::text, $3::text))
+VALUES (?, json_object(CAST(?2 AS TEXT), CAST(?3 AS TEXT)))
 ON CONFLICT (user_id) DO UPDATE
-SET onboarding = user_settings.onboarding || jsonb_build_object($2::text, $3::text)
+SET onboarding = json_patch(user_settings.onboarding, EXCLUDED.onboarding)
 `
 
 type SetOnboardingScreenParams struct {
@@ -305,38 +318,38 @@ type SetOnboardingScreenParams struct {
 	State  string
 }
 
-// Muda só a chave da tela, para dois dispositivos não apagarem as respostas um do outro.
+// Muda so a chave da tela, para dois dispositivos nao apagarem as respostas um do outro.
 func (q *Queries) SetOnboardingScreen(ctx context.Context, arg SetOnboardingScreenParams) error {
-	_, err := q.db.Exec(ctx, setOnboardingScreen, arg.UserID, arg.Screen, arg.State)
+	_, err := q.db.ExecContext(ctx, setOnboardingScreen, arg.UserID, arg.Screen, arg.State)
 	return err
 }
 
 const setSeenAlerts = `-- name: SetSeenAlerts :exec
-INSERT INTO user_settings (user_id, seen_alerts) VALUES ($1, $2)
+INSERT INTO user_settings (user_id, seen_alerts) VALUES (?, ?)
 ON CONFLICT (user_id) DO UPDATE SET seen_alerts = EXCLUDED.seen_alerts
 `
 
 type SetSeenAlertsParams struct {
 	UserID     uuid.UUID
-	SeenAlerts []string
+	SeenAlerts sqlitetypes.TextList
 }
 
 func (q *Queries) SetSeenAlerts(ctx context.Context, arg SetSeenAlertsParams) error {
-	_, err := q.db.Exec(ctx, setSeenAlerts, arg.UserID, arg.SeenAlerts)
+	_, err := q.db.ExecContext(ctx, setSeenAlerts, arg.UserID, arg.SeenAlerts)
 	return err
 }
 
 const setUserRole = `-- name: SetUserRole :one
-UPDATE users SET role = $2 WHERE id = $1 RETURNING id, email, name, password_hash, role, created_at
+UPDATE users SET role = ? WHERE id = ? RETURNING id, email, name, password_hash, role, created_at
 `
 
 type SetUserRoleParams struct {
-	ID   uuid.UUID
 	Role string
+	ID   uuid.UUID
 }
 
 func (q *Queries) SetUserRole(ctx context.Context, arg SetUserRoleParams) (User, error) {
-	row := q.db.QueryRow(ctx, setUserRole, arg.ID, arg.Role)
+	row := q.db.QueryRowContext(ctx, setUserRole, arg.Role, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

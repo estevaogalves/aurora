@@ -1,74 +1,19 @@
-# Aurora: Postgres, Redis, API (Go) e web (nginx sem root).
+# Aurora (versão local): API (Go) e web (nginx sem root). Sem Postgres e sem Redis:
+#   - o banco é um arquivo SQLite em ./data/aurora.db (fica junto do projeto, fora do Git);
+#   - o Redis é embutido na própria API (memória), então nada de cache/limites sobrevive a um reinício.
 #   docker compose up --build        -> http://localhost:8080 (web) e http://localhost:8081 (API direta, só loopback)
-# Variáveis vêm de um arquivo .env na raiz (veja .env.example; `make env` o cria com segredos aleatórios).
+# Variáveis vêm de um arquivo .env na raiz (veja .env.example; scripts/aurora-iniciar.bat o cria sozinho).
 #
 # Imagens fixadas por digest (tag@sha256): o build não muda sozinho quando a tag é republicada. O Dependabot
 # (.github/dependabot.yml) propõe as atualizações. Para atualizar à mão: docker pull <imagem> e copie o novo
 # digest de `docker inspect --format '{{index .RepoDigests 0}}' <imagem>`.
 services:
-  postgres:
-    image: postgres:17@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER:-aurora}
-      # Obrigatória, sem valor padrão. Use só letras e números (ela entra na DATABASE_URL): openssl rand -hex 24.
-      # ATENÇÃO: o Postgres só lê esta variável quando CRIA o volume. Para trocar a senha de um volume que já
-      # existe, veja docs/trocar-senha-postgres.md. (Com banco externo, defina qualquer valor: o compose exige a variável.)
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env (openssl rand -hex 24)}
-      POSTGRES_DB: ${POSTGRES_DB:-aurora}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    # o entrypoint começa como root (ajusta o dono do volume) e troca para o usuário postgres
-    cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-aurora} -d ${POSTGRES_DB:-aurora}"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine@sha256:c5d34a98396a4775e223c74e929162c35c5a2182901ba26b50ade939941ce14b
-    # Senha obrigatória, sem valor padrão (openssl rand -hex 24). Vai como argumento do redis-server (e não via
-    # `sh -c`) para o entrypoint continuar largando o root antes de iniciar o Redis.
-    command:
-      - redis-server
-      - --save
-      - ""
-      - --appendonly
-      - "no"
-      - --requirepass
-      - ${REDIS_PASSWORD:?defina REDIS_PASSWORD no .env (openssl rand -hex 24)}
-    environment:
-      # o redis-cli do healthcheck lê a senha daqui (não aparece na linha de comando)
-      REDISCLI_AUTH: ${REDIS_PASSWORD}
-    read_only: true
-    cap_drop: [ALL]
-    cap_add: [CHOWN, SETUID, SETGID]
-    security_opt:
-      - no-new-privileges:true
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    restart: unless-stopped
-
   api:
     build: ./apps/api
-    depends_on:
-      postgres: { condition: service_healthy }
-      redis: { condition: service_healthy }
     environment:
       API_ADDR: ":8080"
-      # Para usar outro banco (Postgres no host, Supabase...) ou outro Redis, defina DATABASE_URL / REDIS_URL no .env
-      # e suba sem os containers de banco: docker compose up --build --no-deps api web.
-      # Sem DATABASE_URL, usa o Postgres do compose com POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB.
-      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-aurora}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-aurora}?sslmode=disable}
-      MIGRATE_DATABASE_URL: ${MIGRATE_DATABASE_URL:-}
-      REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379/0}
+      # Arquivo do banco dentro do container (a pasta ./data do projeto é montada em /data, abaixo).
+      DB_PATH: /data/aurora.db
       # obrigatório, sem valor padrão: gere com `openssl rand -hex 32` (ou `make env`) e ponha no .env
       JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env (openssl rand -hex 32)}
       # produção (padrão): HTTPS e cookie Secure. Em desenvolvimento local, o .env define APP_ENV=development e COOKIE_SECURE=false.
@@ -88,11 +33,6 @@ services:
       # Cadastros por IP na janela (429 ao passar)
       REGISTER_MAX_PER_IP: ${REGISTER_MAX_PER_IP:-}
       REGISTER_WINDOW: ${REGISTER_WINDOW:-}
-      # Banco: conexões do pool da API e statement_timeout (só do pool da API; migrations não têm timeout)
-      DB_MAX_CONNS: ${DB_MAX_CONNS:-}
-      DB_STATEMENT_TIMEOUT: ${DB_STATEMENT_TIMEOUT:-}
-      # Em produção, banco em outra máquina exige TLS (sslmode=require). true libera só se a rede já for criptografada.
-      DB_ALLOW_INSECURE: ${DB_ALLOW_INSECURE:-}
       # Requisições autenticadas por usuário na janela (429 ao passar). Padrão: 600 por minuto.
       API_RATE_MAX: ${API_RATE_MAX:-}
       API_RATE_WINDOW: ${API_RATE_WINDOW:-}
@@ -103,13 +43,13 @@ services:
       MAX_MONTH_OVERRIDES: ${MAX_MONTH_OVERRIDES:-}
       MAX_CUSTOM_CATEGORIES: ${MAX_CUSTOM_CATEGORIES:-}
       MAX_DISTRIBUTION_ITEMS: ${MAX_DISTRIBUTION_ITEMS:-}
-    # permite alcançar um Postgres/Redis que rodam na própria máquina (host.docker.internal)
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    # o banco: um arquivo na pasta do projeto, que sobrevive a `docker compose down` e a rebuilds
+    volumes:
+      - ./data:/data
     # base do cálculo de quantos hashes de senha podem rodar juntos (40% disso / 64 MiB por hash)
     mem_limit: ${API_MEM_LIMIT:-512m}
     pids_limit: 256
-    # binário estático, usuário sem privilégios (uid 10001), sem escrita no disco e sem capabilities
+    # binário estático, usuário sem privilégios (uid 10001), sem escrita no disco (só em /data) e sem capabilities
     read_only: true
     tmpfs:
       - /tmp
@@ -149,6 +89,3 @@ services:
     ports:
       - "${WEB_PORT:-8080}:8080"
     restart: unless-stopped
-
-volumes:
-  pgdata:

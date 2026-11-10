@@ -29,7 +29,7 @@ func TestCheckJWTSecret(t *testing.T) {
 }
 
 func TestLoadRejectsExampleSecret(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("DB_PATH", "/tmp/aurora-test.db")
 	t.Setenv("JWT_SECRET", "dev-only-secret-change-me-0123456789abcdef")
 	if _, err := Load(); err == nil || !strings.Contains(err.Error(), "JWT_SECRET") {
 		t.Fatalf("Load devia recusar o segredo de exemplo, erro=%v", err)
@@ -43,7 +43,7 @@ func TestLoadRejectsExampleSecret(t *testing.T) {
 const strongSecret = "3f9a1c7e5b2d48860e1fa3c9d7b45e2a91c06d8b7f3e4a5c2d1b0e9f8a7c6d5b"
 
 func baseEnv(t *testing.T) {
-	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("DB_PATH", "/tmp/aurora-test.db")
 	t.Setenv("JWT_SECRET", strongSecret)
 	t.Setenv("APP_ENV", "")
 	t.Setenv("COOKIE_SECURE", "")
@@ -120,34 +120,25 @@ func TestAbuseProtectionDefaults(t *testing.T) {
 	}
 }
 
-func TestLimitsAndPoolDefaults(t *testing.T) {
+func TestLimitsDefaults(t *testing.T) {
 	baseEnv(t)
 	c, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.DBMaxConns != 10 || c.DBStatementTimeout.String() != "15s" {
-		t.Errorf("pool: %d / %v", c.DBMaxConns, c.DBStatementTimeout)
+	if c.DBPath != "/tmp/aurora-test.db" || c.RedisURL != "" {
+		t.Errorf("banco: %q, redis: %q", c.DBPath, c.RedisURL)
 	}
 	if c.MaxBodyBytes != 256<<10 || c.MaxImportBytes != 10<<20 || c.MaxImportItems != 25000 ||
 		c.MaxMonthOverrides != 600 || c.MaxCustomCategories != 200 || c.MaxDistributionItems != 50 {
 		t.Errorf("tetos: %+v", c)
 	}
 
-	t.Setenv("DB_MAX_CONNS", "25")
-	t.Setenv("DB_STATEMENT_TIMEOUT", "0") // desliga (pooler que rejeita parâmetros de inicialização)
 	t.Setenv("MAX_IMPORT_ITEMS", "1000")
 	t.Setenv("MAX_BODY_BYTES", "4096")
 	c, _ = Load()
-	if c.DBMaxConns != 25 || c.DBStatementTimeout != 0 || c.MaxImportItems != 1000 || c.MaxBodyBytes != 4096 {
+	if c.MaxImportItems != 1000 || c.MaxBodyBytes != 4096 {
 		t.Errorf("sobrescrita: %+v", c)
-	}
-
-	t.Setenv("DB_STATEMENT_TIMEOUT", "-5s") // inválido volta ao padrão
-	t.Setenv("DB_MAX_CONNS", "-1")
-	c, _ = Load()
-	if c.DBStatementTimeout.String() != "15s" || c.DBMaxConns != 10 {
-		t.Errorf("inválidos deveriam cair no padrão: %v / %d", c.DBStatementTimeout, c.DBMaxConns)
 	}
 }
 
@@ -201,31 +192,5 @@ func TestRegistrationEnabled(t *testing.T) {
 		if _, err := Load(); err == nil || !strings.Contains(err.Error(), "REGISTRATION_ENABLED") {
 			t.Errorf("REGISTRATION_ENABLED=%q deveria dar erro de inicialização, erro=%v", v, err)
 		}
-	}
-}
-
-func TestCheckDBTransport(t *testing.T) {
-	cases := []struct {
-		url string
-		ok  bool
-	}{
-		{"postgres://u:p@postgres:5432/aurora?sslmode=disable", true}, // serviço do compose
-		{"postgres://u:p@localhost:5432/aurora?sslmode=disable", true},
-		{"postgres://u:p@host.docker.internal:5432/aurora?sslmode=disable", true},
-		{"postgres://u:p@db.exemplo.com:5432/aurora", false},
-		{"postgres://u:p@db.exemplo.com:5432/aurora?sslmode=disable", false},
-		{"postgres://u:p@db.exemplo.com:5432/aurora?sslmode=prefer", false},
-		{"postgres://u:p@db.exemplo.com:5432/aurora?sslmode=require", true},
-		{"postgres://u:p@db.exemplo.com:5432/aurora?sslmode=verify-full", true},
-		{"", true},
-	}
-	for _, c := range cases {
-		if err := checkDBTransport("DATABASE_URL", c.url); (err == nil) != c.ok {
-			t.Errorf("%s: ok=%v erro=%v", c.url, c.ok, err)
-		}
-	}
-	t.Setenv("DB_ALLOW_INSECURE", "true")
-	if err := checkDBTransport("DATABASE_URL", "postgres://u:p@db.exemplo.com/aurora?sslmode=disable"); err != nil {
-		t.Errorf("DB_ALLOW_INSECURE deveria liberar: %v", err)
 	}
 }

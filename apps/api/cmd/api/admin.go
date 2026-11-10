@@ -14,21 +14,20 @@ import (
 	"aurora/api/internal/store"
 )
 
-// adminMain liga o comando ao banco (só precisa de DATABASE_URL; não exige JWT_SECRET nem sobe o servidor).
+// adminMain liga o comando ao banco (só precisa de DB_PATH; não exige JWT_SECRET nem sobe o servidor).
 func adminMain(args []string) int {
-	url := os.Getenv("DATABASE_URL")
-	if url == "" {
-		fmt.Fprintln(os.Stderr, "DATABASE_URL é obrigatória")
-		return 1
+	path := os.Getenv("DB_PATH")
+	if path == "" {
+		path = "/data/aurora.db"
 	}
 	ctx := context.Background()
-	pool, err := db.Connect(ctx, url)
+	d, err := db.Open(ctx, path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "erro: %v\n", err)
 		return 1
 	}
-	defer pool.Close()
-	return runAdmin(ctx, store.New(pool), audit.New(slog.New(slog.NewJSONHandler(os.Stdout, nil))), args, os.Stdout, os.Stderr)
+	defer d.Close()
+	return runAdmin(ctx, store.New(d), audit.New(slog.New(slog.NewJSONHandler(os.Stdout, nil))), args, os.Stdout, os.Stderr)
 }
 
 // adminStore é o que o comando `api admin` precisa do banco (facilita o teste).
@@ -41,7 +40,7 @@ const adminUsage = `uso: api admin promote <e-mail>
      api admin demote <e-mail>
 
 O papel de admin só é concedido por este comando, executado no servidor com acesso ao banco
-(DATABASE_URL). Exemplo com o compose:
+(o arquivo DB_PATH). Exemplo com o compose:
   docker compose exec api api admin promote voce@dominio.com
 Quem já está com a sessão aberta só passa a valer como admin no próximo login (ou em até ACCESS_TTL).`
 

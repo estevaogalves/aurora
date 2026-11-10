@@ -1,0 +1,5 @@
+# Scripts do Windows precisam de CRLF (o cmd erra o goto em arquivos só com LF) e os de shell precisam de LF,
+# independente da configuração de autocrlf de quem clona.
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+*.sh  text eol=lf

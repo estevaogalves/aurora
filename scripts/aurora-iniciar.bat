@@ -1,7 +1,26 @@
 @echo off
-rem Sobe o Aurora (Postgres, Redis, API e web) e abre no navegador.
-rem Os dados ficam no volume Docker "pgdata" e sobrevivem ao aurora-parar.bat.
+rem Sobe o Aurora (API e web, com o banco SQLite em data\aurora.db) e abre no navegador.
+rem Os dados ficam no arquivo data\aurora.db, dentro do projeto, e sobrevivem ao aurora-parar.bat.
 cd /d "%~dp0.."
+
+where docker >nul 2>&1
+if errorlevel 1 (
+  echo O Docker Desktop nao esta instalado. Instale em https://www.docker.com/products/docker-desktop e tente de novo.
+  pause
+  exit /b 1
+)
+
+rem primeira vez: pasta do banco e .env com segredo proprio (sem precisar de terminal, make ou openssl)
+if not exist data mkdir data
+if not exist .env (
+  echo Primeira vez: criando a configuracao...
+  powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0criar-env.ps1"
+  if errorlevel 1 (
+    echo Falha ao criar o .env.
+    pause
+    exit /b 1
+  )
+)
 
 docker info >nul 2>&1
 if errorlevel 1 (
@@ -23,5 +42,5 @@ if errorlevel 1 (
 )
 
 start "" http://localhost:8080
-echo Aurora no ar em http://localhost:8080 ^(DBeaver: localhost:5432^).
+echo Aurora no ar em http://localhost:8080 ^(banco: data\aurora.db^).
 timeout /t 4 >nul

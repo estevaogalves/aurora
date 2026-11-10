@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Para o Aurora. Os dados do banco ficam (volume pgdata). Equivalente Linux do aurora-parar.bat.
+# Para o Aurora. Os dados ficam em data/aurora.db. Equivalente Linux do aurora-parar.bat.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")/.."
 docker compose -f docker-compose.yml -f docker-compose.personal.yml down

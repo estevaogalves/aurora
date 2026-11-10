@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# Sobe o Aurora (Postgres, Redis, API e web) e abre no navegador. Equivalente Linux do aurora-iniciar.bat.
-# Uso: aurora-iniciar.sh [--dbeaver]   (--dbeaver abre também o DBeaver já conectado ao banco do Aurora)
-# Os dados ficam no volume Docker "pgdata" e sobrevivem ao aurora-parar.sh.
+# Sobe o Aurora (API e web, com o banco SQLite em data/aurora.db) e abre no navegador. Equivalente Linux do aurora-iniciar.bat.
+# Os dados ficam no arquivo data/aurora.db, dentro do projeto, e sobrevivem ao aurora-parar.sh.
 set -euo pipefail
 cd "$(dirname "$(readlink -f "$0")")/.."
 
@@ -14,7 +13,9 @@ aviso() { notify-send -a Aurora "Aurora" "$1" 2>/dev/null || true; }
 falha() { aviso "Falhou: $1 (log: $LOG)"; echo "ERRO: $1"; exit 1; }
 
 command -v docker >/dev/null || falha "Docker não encontrado"
-[ -f .env ] || { make env || falha "não consegui criar o .env"; echo "POSTGRES_PORT=5433" >> .env; }
+[ -f .env ] || { make env || falha "não consegui criar o .env"; }
+# a pasta do banco: a API roda como uid 10001 no container e precisa conseguir gravar nela (máquina de um usuário só)
+mkdir -p data && chmod 777 data
 
 aviso "Iniciando o Aurora..."
 # O dockerd sobe sob demanda (docker.socket); espera ele responder.
@@ -25,8 +26,5 @@ docker compose -f docker-compose.yml -f docker-compose.personal.yml up -d --buil
   || falha "docker compose up"
 
 set -a; . ./.env; set +a
-if [ "${1:-}" = "--dbeaver" ]; then
-  nohup dbeaver-ce -con "name=Aurora|driver=postgresql|host=localhost|port=${POSTGRES_PORT:-5432}|database=${POSTGRES_DB:-aurora}|user=${POSTGRES_USER:-aurora}|password=${POSTGRES_PASSWORD}|savePassword=false|connect=true|folder=Aurora" >/dev/null 2>&1 &
-fi
 xdg-open "http://localhost:${WEB_PORT:-8080}" >/dev/null 2>&1 || true
-aviso "Aurora no ar: http://localhost:${WEB_PORT:-8080} (Postgres: localhost:${POSTGRES_PORT:-5432})"
+aviso "Aurora no ar: http://localhost:${WEB_PORT:-8080} (banco: data/aurora.db)"

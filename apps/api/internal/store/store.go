@@ -4,15 +4,14 @@ package store
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"sort"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"modernc.org/sqlite"
+	sqlite3 "modernc.org/sqlite/lib"
 
 	"aurora/api/internal/domain"
 	"aurora/api/internal/store/sqlcgen"
@@ -26,37 +25,41 @@ var (
 )
 
 type Store struct {
-	pool *pgxpool.Pool
-	q    *sqlcgen.Queries
+	db *sql.DB
+	q  *sqlcgen.Queries
 }
 
-func New(pool *pgxpool.Pool) *Store { return &Store{pool: pool, q: sqlcgen.New(pool)} }
+func New(db *sql.DB) *Store { return &Store{db: db, q: sqlcgen.New(db)} }
 
-// Pool expõe o pool (healthcheck).
-func (s *Store) Pool() *pgxpool.Pool { return s.pool }
+// Ping confere a conexão com o banco (healthcheck).
+func (s *Store) Ping(ctx context.Context) error { return s.db.PingContext(ctx) }
 
+// inTx roda fn numa transação. O banco abre as transações com BEGIN IMMEDIATE (veja db.Open): uma por vez.
 func (s *Store) inTx(ctx context.Context, fn func(q *sqlcgen.Queries) error) error {
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck
+	defer tx.Rollback() //nolint:errcheck
 	if err := fn(s.q.WithTx(tx)); err != nil {
 		return err
 	}
-	return tx.Commit(ctx)
+	return tx.Commit()
 }
 
 func mapErr(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, pgx.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		return ErrNotFound
 	}
-	var pg *pgconn.PgError
-	if errors.As(err, &pg) && pg.Code == "23505" {
-		return ErrDuplicate
+	var se *sqlite.Error
+	if errors.As(err, &se) {
+		switch se.Code() {
+		case sqlite3.SQLITE_CONSTRAINT_UNIQUE, sqlite3.SQLITE_CONSTRAINT_PRIMARYKEY:
+			return ErrDuplicate
+		}
 	}
 	return err
 }
@@ -71,11 +74,11 @@ func notFoundIfZero(rows int64, err error) error {
 	return nil
 }
 
-func text(s *string) pgtype.Text {
+func text(s *string) sql.NullString {
 	if s == nil {
-		return pgtype.Text{}
+		return sql.NullString{}
 	}
-	return pgtype.Text{String: *s, Valid: true}
+	return sql.NullString{String: *s, Valid: true}
 }
 
 func nilIfEmpty(s string) *string {
@@ -85,25 +88,25 @@ func nilIfEmpty(s string) *string {
 	return &s
 }
 
-func int8v(v *int64) pgtype.Int8 {
+func int8v(v *int64) sql.NullInt64 {
 	if v == nil {
-		return pgtype.Int8{}
+		return sql.NullInt64{}
 	}
-	return pgtype.Int8{Int64: *v, Valid: true}
+	return sql.NullInt64{Int64: *v, Valid: true}
 }
-func boolv(v *bool) pgtype.Bool {
+func boolv(v *bool) sql.NullBool {
 	if v == nil {
-		return pgtype.Bool{}
+		return sql.NullBool{}
 	}
-	return pgtype.Bool{Bool: *v, Valid: true}
+	return sql.NullBool{Bool: *v, Valid: true}
 }
 
 // clientID aproveita o id gerado pelo cliente (o front cria UUIDs e usa o mesmo id nas
-// atualizações seguintes). Id ausente ou que não seja UUID vira uuid.Nil: o banco gera um.
+// atualizações seguintes). Id ausente ou que não seja UUID ganha um novo (o SQLite não gera UUID sozinho).
 func clientID(id string) uuid.UUID {
 	u, err := uuid.Parse(id)
-	if err != nil {
-		return uuid.Nil
+	if err != nil || u == uuid.Nil {
+		return uuid.New()
 	}
 	return u
 }
@@ -187,7 +190,7 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 	}
 
 	settings, err := s.q.GetSettings(ctx, userID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return d, err
 	}
 	if err == nil {

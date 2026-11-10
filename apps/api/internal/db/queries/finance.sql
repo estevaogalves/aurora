@@ -1,12 +1,12 @@
 -- name: ListTransactions :many
-SELECT * FROM transactions WHERE user_id = $1 ORDER BY created_at, id;
+SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at, rowid;
 
 -- name: GetTransaction :one
-SELECT * FROM transactions WHERE id = $1 AND user_id = $2;
+SELECT * FROM transactions WHERE id = ? AND user_id = ?;
 
 -- name: CreateTransaction :one
 INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -16,36 +16,36 @@ UPDATE transactions SET
     category     = COALESCE(sqlc.narg('category'), category),
     notes        = COALESCE(sqlc.narg('notes'), notes),
     fixed        = COALESCE(sqlc.narg('fixed'), fixed),
-    -- só fixa tem valor variável: deixar de ser fixa desliga
+    -- so fixa tem valor variavel: deixar de ser fixa desliga
     variable_amount = COALESCE(sqlc.narg('fixed'), fixed) AND COALESCE(sqlc.narg('variable_amount'), variable_amount)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
 -- name: DeleteTransaction :execrows
-DELETE FROM transactions WHERE id = $1 AND user_id = $2;
+DELETE FROM transactions WHERE id = ? AND user_id = ?;
 
 -- name: ListOverrides :many
 SELECT o.* FROM fixed_overrides o
 JOIN transactions t ON t.id = o.transaction_id
-WHERE t.user_id = $1
+WHERE t.user_id = ?
 ORDER BY o.transaction_id, o.month;
 
 -- name: ListTransactionOverrides :many
-SELECT * FROM fixed_overrides WHERE transaction_id = $1 ORDER BY month;
+SELECT * FROM fixed_overrides WHERE transaction_id = ? ORDER BY month;
 
 -- name: DeleteTransactionOverrides :exec
-DELETE FROM fixed_overrides WHERE transaction_id = $1;
+DELETE FROM fixed_overrides WHERE transaction_id = ?;
 
 -- name: InsertOverride :exec
 INSERT INTO fixed_overrides (transaction_id, month, hidden, amount_cents)
-VALUES ($1, $2, $3, $4);
+VALUES (?, ?, ?, ?);
 
 -- name: ListCredits :many
-SELECT * FROM credit_purchases WHERE user_id = $1 ORDER BY created_at, id;
+SELECT * FROM credit_purchases WHERE user_id = ? ORDER BY created_at, rowid;
 
 -- name: CreateCredit :one
 INSERT INTO credit_purchases (id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month, billing_day, card_id, variable_amount)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateCredit :one
@@ -57,18 +57,20 @@ UPDATE credit_purchases SET
     category     = COALESCE(sqlc.narg('category'), category),
     end_month    = COALESCE(sqlc.narg('end_month'), end_month),
     billing_day  = COALESCE(sqlc.narg('billing_day'), billing_day),
-    variable_amount = COALESCE(sqlc.narg('variable_amount'), variable_amount),
-    -- card_id: só muda quando set_card é true; card_id nulo solta a compra do cartão
-    card_id      = CASE WHEN sqlc.arg('set_card')::boolean THEN sqlc.narg('card_id')::uuid ELSE card_id END
+    variable_amount = COALESCE(sqlc.narg('variable_amount'), variable_amount)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
+-- name: SetCreditCard :one
+-- card_id nulo solta a compra do cartao.
+UPDATE credit_purchases SET card_id = ? WHERE id = ? AND user_id = ? RETURNING *;
+
 -- name: ListCreditCards :many
-SELECT * FROM credit_cards WHERE user_id = $1 ORDER BY created_at, id;
+SELECT * FROM credit_cards WHERE user_id = ? ORDER BY created_at, rowid;
 
 -- name: CreateCreditCard :one
 INSERT INTO credit_cards (id, user_id, name, closing_day, due_day)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5)
+VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateCreditCard :one
@@ -80,20 +82,20 @@ WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
 -- name: DeleteCreditCard :execrows
-DELETE FROM credit_cards WHERE id = $1 AND user_id = $2;
+DELETE FROM credit_cards WHERE id = ? AND user_id = ?;
 
 -- name: WipeCreditCards :exec
-DELETE FROM credit_cards WHERE user_id = $1;
+DELETE FROM credit_cards WHERE user_id = ?;
 
 -- name: DeleteCredit :execrows
-DELETE FROM credit_purchases WHERE id = $1 AND user_id = $2;
+DELETE FROM credit_purchases WHERE id = ? AND user_id = ?;
 
 -- name: ListGoals :many
-SELECT * FROM goals WHERE user_id = $1 ORDER BY created_at, id;
+SELECT * FROM goals WHERE user_id = ? ORDER BY created_at, rowid;
 
 -- name: CreateGoal :one
 INSERT INTO goals (id, user_id, name, target_cents, saved_cents, monthly_cents, deadline, yield_total_cents, piggy)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateGoal :one
@@ -102,20 +104,23 @@ UPDATE goals SET
     target_cents      = COALESCE(sqlc.narg('target_cents'), target_cents),
     saved_cents       = COALESCE(sqlc.narg('saved_cents'), saved_cents),
     monthly_cents     = COALESCE(sqlc.narg('monthly_cents'), monthly_cents),
-    yield_total_cents = COALESCE(sqlc.narg('yield_total_cents'), yield_total_cents),
-    deadline          = CASE WHEN sqlc.arg('set_deadline')::boolean THEN sqlc.narg('deadline') ELSE deadline END
+    yield_total_cents = COALESCE(sqlc.narg('yield_total_cents'), yield_total_cents)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
+-- name: SetGoalDeadline :one
+-- deadline nulo limpa o prazo.
+UPDATE goals SET deadline = ? WHERE id = ? AND user_id = ? RETURNING *;
+
 -- name: DeleteGoal :execrows
-DELETE FROM goals WHERE id = $1 AND user_id = $2;
+DELETE FROM goals WHERE id = ? AND user_id = ?;
 
 -- name: ListExtraExpenses :many
-SELECT * FROM extra_expenses WHERE user_id = $1 ORDER BY created_at, id;
+SELECT * FROM extra_expenses WHERE user_id = ? ORDER BY created_at, rowid;
 
 -- name: CreateExtraExpense :one
 INSERT INTO extra_expenses (id, user_id, name, amount_cents, month)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5)
+VALUES (?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateExtraExpense :one
@@ -127,14 +132,14 @@ WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
 -- name: DeleteExtraExpense :execrows
-DELETE FROM extra_expenses WHERE id = $1 AND user_id = $2;
+DELETE FROM extra_expenses WHERE id = ? AND user_id = ?;
 
 -- name: ListNotes :many
-SELECT * FROM notes WHERE user_id = $1 ORDER BY created_at, id;
+SELECT * FROM notes WHERE user_id = ? ORDER BY created_at, rowid;
 
 -- name: CreateNote :one
 INSERT INTO notes (id, user_id, content, date, pinned, month)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6)
+VALUES (?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateNote :one
@@ -147,62 +152,62 @@ WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
 -- name: DeleteNote :execrows
-DELETE FROM notes WHERE id = $1 AND user_id = $2;
+DELETE FROM notes WHERE id = ? AND user_id = ?;
 
 -- name: ListCategories :many
-SELECT * FROM custom_categories WHERE user_id = $1 ORDER BY name;
+SELECT * FROM custom_categories WHERE user_id = ? ORDER BY name;
 
 -- name: CreateCategory :one
 INSERT INTO custom_categories (id, user_id, name, color)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4)
+VALUES (?, ?, ?, ?)
 RETURNING *;
 
 -- name: DeleteCategory :execrows
-DELETE FROM custom_categories WHERE id = $1 AND user_id = $2;
+DELETE FROM custom_categories WHERE id = ? AND user_id = ?;
 
 -- name: WipeTransactions :exec
-DELETE FROM transactions WHERE user_id = $1;
+DELETE FROM transactions WHERE user_id = ?;
 
 -- name: WipeCredits :exec
-DELETE FROM credit_purchases WHERE user_id = $1;
+DELETE FROM credit_purchases WHERE user_id = ?;
 
 -- name: WipeGoals :exec
-DELETE FROM goals WHERE user_id = $1;
+DELETE FROM goals WHERE user_id = ?;
 
 -- name: WipeExtraExpenses :exec
-DELETE FROM extra_expenses WHERE user_id = $1;
+DELETE FROM extra_expenses WHERE user_id = ?;
 
 -- name: WipeNotes :exec
-DELETE FROM notes WHERE user_id = $1;
+DELETE FROM notes WHERE user_id = ?;
 
 -- name: WipeCategories :exec
-DELETE FROM custom_categories WHERE user_id = $1;
+DELETE FROM custom_categories WHERE user_id = ?;
 
 -- name: GetCreditForUpdate :one
-SELECT * FROM credit_purchases WHERE id = $1 AND user_id = $2 FOR UPDATE;
+SELECT * FROM credit_purchases WHERE id = ? AND user_id = ?;
 
 -- name: SetCreditAdjustments :one
-UPDATE credit_purchases SET adjustments = $3::jsonb
-WHERE id = $1 AND user_id = $2
+UPDATE credit_purchases SET adjustments = ?
+WHERE id = ? AND user_id = ?
 RETURNING *;
 
 -- name: GetTransactionForUpdate :one
-SELECT * FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE;
+SELECT * FROM transactions WHERE id = ? AND user_id = ?;
 
 -- name: SetTransactionPayments :one
-UPDATE transactions SET payments = $3::jsonb
-WHERE id = $1 AND user_id = $2
+UPDATE transactions SET payments = ?
+WHERE id = ? AND user_id = ?
 RETURNING *;
 
 -- name: SetTransactionMonthlyNotes :one
-UPDATE transactions SET monthly_notes = $3::jsonb
-WHERE id = $1 AND user_id = $2
+UPDATE transactions SET monthly_notes = ?
+WHERE id = ? AND user_id = ?
 RETURNING *;
 
 -- name: GetExtraExpenseForUpdate :one
-SELECT * FROM extra_expenses WHERE id = $1 AND user_id = $2 FOR UPDATE;
+SELECT * FROM extra_expenses WHERE id = ? AND user_id = ?;
 
 -- name: SetExtraExpensePayment :one
-UPDATE extra_expenses SET payment = $3::jsonb
-WHERE id = $1 AND user_id = $2
+UPDATE extra_expenses SET payment = ?
+WHERE id = ? AND user_id = ?
 RETURNING *;

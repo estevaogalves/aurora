@@ -3,6 +3,7 @@ package httpapi_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"errors"
 	"encoding/json"
 	"fmt"
@@ -10,7 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -25,11 +26,11 @@ import (
 	"aurora/api/internal/store"
 )
 
-// Testes de integração: precisam de um Postgres (TEST_DATABASE_URL). Sem ele, são pulados.
-// Exemplo: TEST_DATABASE_URL=postgres://aurora:aurora@localhost:5432/aurora_test go test ./...
+// Testes de integração: cada teste abre o seu próprio arquivo SQLite temporário (nada para instalar nem configurar).
 
 type env struct {
 	srv *httptest.Server
+	db  *sql.DB
 	mr  *miniredis.Miniredis
 	cfg config.Config
 	st  *store.Store
@@ -38,17 +39,13 @@ type env struct {
 
 func setup(t *testing.T, opts ...func(*config.Config)) *env {
 	t.Helper()
-	url := os.Getenv("TEST_DATABASE_URL")
-	if url == "" {
-		t.Skip("TEST_DATABASE_URL não definida; teste de integração pulado")
-	}
 	ctx := context.Background()
-	pool, err := db.Connect(ctx, url)
+	sqlDB, err := db.Open(ctx, filepath.Join(t.TempDir(), "aurora-test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(pool.Close)
-	if err := db.Migrate(ctx, pool); err != nil {
+	t.Cleanup(func() { sqlDB.Close() })
+	if err := db.Migrate(ctx, sqlDB); err != nil {
 		t.Fatal(err)
 	}
 
@@ -63,7 +60,7 @@ func setup(t *testing.T, opts ...func(*config.Config)) *env {
 	for _, o := range opts {
 		o(&cfg)
 	}
-	st := store.New(pool)
+	st := store.New(sqlDB)
 	logs := &syncBuffer{}
 	srv, err := httpapi.New(cfg, st, rdb, slog.New(slog.NewJSONHandler(logs, nil)))
 	if err != nil {
@@ -71,7 +68,7 @@ func setup(t *testing.T, opts ...func(*config.Config)) *env {
 	}
 	ts := httptest.NewServer(srv.Router())
 	t.Cleanup(ts.Close)
-	return &env{srv: ts, mr: mr, cfg: cfg, st: st, logs: logs}
+	return &env{srv: ts, db: sqlDB, mr: mr, cfg: cfg, st: st, logs: logs}
 }
 
 type resp struct {
@@ -301,10 +298,6 @@ func TestAdminRole(t *testing.T) {
 func TestCannotDemoteLastAdmin(t *testing.T) {
 	e := setup(t)
 	ctx := context.Background()
-	// o banco de teste é compartilhado: começa com um conjunto limpo de admins
-	if _, err := e.st.Pool().Exec(ctx, "UPDATE users SET role = 'user' WHERE role = 'admin'"); err != nil {
-		t.Fatal(err)
-	}
 	a := e.register(t, "")
 	b := e.register(t, "")
 	for _, u := range []session{a, b} {
@@ -339,7 +332,7 @@ func TestCannotDemoteLastAdmin(t *testing.T) {
 		t.Fatalf("de dois rebaixamentos simultâneos, exatamente um deve passar: ok=%d recusados=%d", ok, refused)
 	}
 	var n int
-	if err := e.st.Pool().QueryRow(ctx, "SELECT count(*) FROM users WHERE role = 'admin'").Scan(&n); err != nil || n != 1 {
+	if err := e.db.QueryRowContext(ctx, "SELECT count(*) FROM users WHERE role = 'admin'").Scan(&n); err != nil || n != 1 {
 		t.Fatalf("deveria sobrar 1 admin: n=%d err=%v", n, err)
 	}
 }

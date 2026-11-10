@@ -1,19 +1,25 @@
 #!/bin/sh
-# Restaura um backup feito por backup.sh.
-#   BACKUP_PASSPHRASE=... sh scripts/ops/restore.sh <arquivo.sql.gz.enc> [url-do-postgres-de-destino]
-# Sem o 2º argumento restaura no Postgres do compose (SOBRESCREVE os dados atuais: pede confirmação).
-# Para ensaiar a restauração sem risco, use um Postgres descartável: `make backup-verify`.
+# Restaura um backup feito por backup.sh, no banco ./data/aurora.db.
+#   BACKUP_PASSPHRASE=... sh scripts/ops/restore.sh <arquivo.db.gz.enc>
+# SOBRESCREVE os dados atuais (pede confirmação). A API é parada durante a troca e religada no fim.
+# Para ensaiar a restauração sem risco, use `make backup-verify`.
 set -eu
 FILE="${1:?informe o arquivo de backup}"
 : "${BACKUP_PASSPHRASE:?defina BACKUP_PASSPHRASE}"
-decrypt() { openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_PASSPHRASE -in "$FILE" | gunzip; }
 
-if [ -n "${2:-}" ]; then
-  decrypt | psql "$2" -v ON_ERROR_STOP=1 -q
-else
-  printf 'Isto SOBRESCREVE o banco do compose. Digite "restaurar" para continuar: '
-  read -r ans
-  [ "$ans" = "restaurar" ] || { echo "cancelado"; exit 1; }
-  decrypt | docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1 -q'
-fi
+printf 'Isto SOBRESCREVE ./data/aurora.db. Digite "restaurar" para continuar: '
+read -r ans
+[ "$ans" = "restaurar" ] || { echo "cancelado"; exit 1; }
+
+mkdir -p ./data
+TMP="./data/aurora-restore.tmp"
+trap 'rm -f "$TMP"' EXIT
+openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_PASSPHRASE -in "$FILE" | gunzip > "$TMP"
+[ "$(head -c 15 "$TMP")" = "SQLite format 3" ] || { echo "o arquivo não é um banco SQLite (senha errada?)" >&2; exit 1; }
+
+docker compose stop api
+# um banco novo no lugar do antigo; os arquivos -wal e -shm do antigo não valem para o novo
+mv -f "$TMP" ./data/aurora.db
+rm -f ./data/aurora.db-wal ./data/aurora.db-shm
+docker compose start api
 echo "restauração concluída"

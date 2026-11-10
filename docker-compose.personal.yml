@@ -2,22 +2,11 @@
 #   docker compose -f docker-compose.yml -f docker-compose.personal.yml up -d --build
 # (scripts/aurora-iniciar.bat faz isso.)
 #
-# - Publica o Postgres só em loopback, para o DBeaver conectar em localhost:5432.
 # - restart "no": nada sobe sozinho quando o Docker Desktop abre; só quando você inicia o Aurora.
+# - healthchecks mais frequentes, só para o Aurora abrir mais rápido.
 services:
-  postgres:
-    ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
-    restart: "no"
-    healthcheck:
-      interval: 1s
-  redis:
-    restart: "no"
-    healthcheck:
-      interval: 1s
   api:
     restart: "no"
-    # checagens mais frequentes só para o Aurora abrir mais rápido (o compose principal fica como está)
     healthcheck:
       interval: 2s
       start_period: 2s

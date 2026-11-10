@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 
 	"aurora/api/internal/domain"
 	"aurora/api/internal/store/sqlcgen"
@@ -18,7 +17,7 @@ func (s *Store) CreateUser(ctx context.Context, email, name, passwordHash, role 
 	var u User
 	err := s.inTx(ctx, func(q *sqlcgen.Queries) error {
 		var err error
-		u, err = q.CreateUser(ctx, sqlcgen.CreateUserParams{Email: email, Name: name, PasswordHash: passwordHash, Role: role})
+		u, err = q.CreateUser(ctx, sqlcgen.CreateUserParams{ID: uuid.New(), Email: email, Name: name, PasswordHash: passwordHash, Role: role})
 		if err != nil {
 			return err
 		}
@@ -45,7 +44,7 @@ func (s *Store) CountUsers(ctx context.Context) (int64, error) { return s.q.Coun
 
 func (s *Store) SaveRefreshToken(ctx context.Context, userID uuid.UUID, hash string, expires time.Time) error {
 	return s.q.CreateRefreshToken(ctx, sqlcgen.CreateRefreshTokenParams{
-		UserID: userID, TokenHash: hash, ExpiresAt: pgtype.Timestamptz{Time: expires, Valid: true},
+		UserID: userID, TokenHash: hash, ExpiresAt: expires.UTC(),
 	})
 }
 

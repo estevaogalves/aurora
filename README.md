@@ -2,12 +2,17 @@
 
 Controle financeiro pessoal: rendas, despesas (fixas e comuns), compras no crédito, metas, projeção, comparação entre meses e relatórios em PDF.
 
+> **Branch `local-sqlite` (uso local em um computador).** Esta versão não usa Postgres nem Redis: o banco é um arquivo SQLite
+> em `data/aurora.db`, dentro do projeto (fora do Git), e o Redis é embutido na API. Só `api` e `web` rodam no Docker.
+> No Windows, dê duplo clique em `scripts\criar-atalho.bat` (uma vez) e use o atalho **Aurora** da Área de Trabalho para
+> ligar tudo, sem terminal. Detalhes em [`docs/uso-pessoal-local.md`](docs/uso-pessoal-local.md). A `main` continua com Postgres.
+
 Monorepo pnpm:
 
 | Pasta | O que é |
 |---|---|
 | `apps/web` | Front: React 19, TypeScript, Vite, Tailwind, Zustand |
-| `apps/api` | Backend: Go (chi, pgx, sqlc, goose), Postgres e Redis. Detalhes em [`apps/api/README.md`](apps/api/README.md) |
+| `apps/api` | Backend: Go (chi, sqlc, goose), SQLite em arquivo e Redis embutido. Detalhes em [`apps/api/README.md`](apps/api/README.md) |
 | `packages/api-types` | Tipos TypeScript gerados de `docs/openapi.yaml` |
 | `docs` | Contrato da API (`openapi.yaml`) e o acompanhamento das fases (`REFERENCIAS.md`) |
 
@@ -16,14 +21,14 @@ Monorepo pnpm:
 Pré-requisitos: Node 22+, pnpm 11 (`corepack enable`) e Docker. Go não precisa estar instalado.
 
 ```bash
-make env                # cria o .env com JWT_SECRET, POSTGRES_PASSWORD e REDIS_PASSWORD aleatórios (obrigatórios; sem valor padrão)
+make env                # cria o .env com um JWT_SECRET aleatório (obrigatório; sem valor padrão)
 make up                  # tudo no Docker: http://localhost:8080
 ```
 
 Para desenvolver o front com recarga automática, contra a API no Docker:
 
 ```bash
-make dev                 # Postgres + Redis + API no Docker, front em http://localhost:5173
+make dev                 # API no Docker, front em http://localhost:5173
 ```
 
 Só o front, sem backend (dados no `localStorage`, sem login):
@@ -43,9 +48,10 @@ DEV_ALLOWED_HOSTS=meu-app.ngrok.app pnpm dev      # túnel (ngrok, Cloudflare Tu
 ```
 `DEV_ALLOWED_HOSTS` aceita vários nomes separados por vírgula (`.ngrok.app` com ponto libera subdomínios); curingas são recusados.
 
-## Banco externo
+## Onde ficam os dados
 
-Para usar um Postgres local ou o Supabase em vez do container, veja `.env.example` e a seção "Banco externo" em [`apps/api/README.md`](apps/api/README.md).
+No arquivo `data/aurora.db` (mais `aurora.db-wal` e `-shm` enquanto a API roda). Para levar os dados a outro computador, use
+**Exportar** e **Importar** no menu da conta, ou copie o `.db` com a API parada. `data/` está no `.gitignore`.
 
 ## Modos de dados
 
@@ -64,7 +70,7 @@ Quem já tinha dados no navegador pode levá-los para a conta em **Importar dado
 |---|---|
 | `make up` / `make down` | Sobe e para tudo no Docker |
 | `make dev` | API no Docker e front em modo dev |
-| `make test` | Testes do front (Vitest) e da API (Go, com Postgres no Docker) |
+| `make test` | Testes do front (Vitest) e da API (Go no Docker, SQLite temporário) |
 | `make check` | O que o CI roda no front: lint, `tsc -b`, testes, build e tipos da API |
 | `make generate` | Regenera os tipos (`openapi.yaml`) e o código do sqlc |
 | `make clean` | Para tudo e apaga o banco do Docker |
@@ -78,10 +84,10 @@ Quem já tinha dados no navegador pode levá-los para a conta em **Importar dado
 `.github/workflows/ci.yml`, em todo push na `main` e em pull requests:
 
 - **Front:** tipos gerados em dia, `eslint`, `tsc -b`, Vitest e build.
-- **API:** `go vet`, `go test` (com Postgres de verdade, incluindo os testes de integração) e `sqlc diff`.
+- **API:** `go vet`, `go test` (SQLite de verdade em arquivo temporário, incluindo os testes de integração) e `sqlc diff`.
 
 ## Variáveis de ambiente
 
-- Raiz (`docker compose`): veja `.env.example`. Em produção use `APP_ENV=production` (padrão), um `JWT_SECRET`, uma `POSTGRES_PASSWORD` e uma `REDIS_PASSWORD` próprios e HTTPS: a API recusa `COOKIE_SECURE=false` nesse modo.
+- Raiz (`docker compose`): veja `.env.example`. Em produção use `APP_ENV=production` (padrão), um `JWT_SECRET` próprio e HTTPS: a API recusa `COOKIE_SECURE=false` nesse modo.
 - API: tabela completa em `apps/api/README.md`.
 - Front: `apps/web/.env.example`.

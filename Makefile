@@ -3,19 +3,18 @@
 .PHONY: help env install dev up down logs test test-web test-api lint typecheck build generate check clean backup backup-verify
 
 GO_IMAGE  ?= golang:1.26-alpine
-PG_IMAGE  ?= postgres:17
 
 help: ## Lista os comandos
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  make %-10s %s\n", $$1, $$2}'
 
-env: ## Cria o .env a partir do exemplo, com JWT_SECRET, POSTGRES_PASSWORD e REDIS_PASSWORD aleatórios (não sobrescreve)
-	@test -f .env && echo ".env já existe, nada a fazer" || { sed -e "s/^JWT_SECRET=.*/JWT_SECRET=$$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')/" -e "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$$(node -e 'process.stdout.write(require("crypto").randomBytes(24).toString("hex"))')/" -e "s/^REDIS_PASSWORD=.*/REDIS_PASSWORD=$$(node -e 'process.stdout.write(require("crypto").randomBytes(24).toString("hex"))')/" .env.example > .env; echo ".env criado com JWT_SECRET, POSTGRES_PASSWORD e REDIS_PASSWORD novos"; }
+env: ## Cria o .env a partir do exemplo, com JWT_SECRET aleatório (não sobrescreve)
+	@test -f .env && echo ".env já existe, nada a fazer" || { sed -e "s/^JWT_SECRET=.*/JWT_SECRET=$$(node -e 'process.stdout.write(require("crypto").randomBytes(32).toString("hex"))')/" .env.example > .env; echo ".env criado com um JWT_SECRET novo"; }
 
 install: ## Instala as dependências do front
 	pnpm install
 
-dev: install env ## Postgres, Redis e API no Docker + front em modo dev (http://localhost:5173)
-	docker compose up -d --build postgres redis api
+dev: install env ## API no Docker + front em modo dev (http://localhost:5173)
+	docker compose up -d --build api
 	VITE_DATA_SOURCE=api pnpm dev
 
 up: env ## Sobe tudo no Docker (web em http://localhost:8080)
@@ -32,16 +31,9 @@ test: test-web test-api ## Testes do front e da API
 test-web: ## Testes do front (Vitest)
 	pnpm test
 
-# Go não precisa estar instalado: roda no Docker, com um Postgres descartável para os testes de integração.
-test-api: ## Testes da API (Go + Postgres no Docker)
-	@docker rm -f aurora-test-pg >/dev/null 2>&1 || true
-	@docker run -d --rm --name aurora-test-pg -e POSTGRES_PASSWORD=t -e POSTGRES_DB=t $(PG_IMAGE) >/dev/null
-	@until docker exec aurora-test-pg pg_isready -U postgres -d t >/dev/null 2>&1; do sleep 1; done
-	@IP=$$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' aurora-test-pg); \
-	docker run --rm -v "$(CURDIR)/apps/api":/src -w /src \
-	  -e TEST_DATABASE_URL="postgres://postgres:t@$$IP:5432/t?sslmode=disable" $(GO_IMAGE) \
-	  sh -c "go vet ./... && go test ./..."; \
-	status=$$?; docker rm -f aurora-test-pg >/dev/null 2>&1; exit $$status
+# Go não precisa estar instalado: roda no Docker. Os testes de integração usam um arquivo SQLite temporário.
+test-api: ## Testes da API (Go no Docker)
+	docker run --rm -v "$(CURDIR)/apps/api":/src -w /src $(GO_IMAGE) sh -c "go vet ./... && go test ./..."
 
 lint: ## ESLint do front
 	pnpm lint
@@ -59,19 +51,18 @@ generate: ## Regenera os tipos (openapi.yaml) e o código do sqlc
 check: lint typecheck test-web build ## O que o CI roda no front
 	pnpm --filter @aurora/api-types check
 
-clean: ## Para tudo e apaga o banco do Docker (cuidado: perde os dados)
-	docker compose down -v
+clean: ## Para tudo e apaga o banco (./data/aurora.db). Cuidado: perde os dados
+	docker compose down
+	rm -f data/aurora.db data/aurora.db-wal data/aurora.db-shm
 
-backup: ## Backup criptografado do Postgres do compose (BACKUP_PASSPHRASE=... make backup)
+backup: ## Backup criptografado do banco (BACKUP_PASSPHRASE=... make backup)
 	@sh scripts/ops/backup.sh
 
-# Restaura o backup MAIS RECENTE em um Postgres descartável e confere se os dados voltaram (ensaio de restauração).
-backup-verify: ## Ensaia a restauração do último backup num Postgres descartável
-	@f=$$(ls -1t backups/aurora-*.sql.gz.enc 2>/dev/null | head -1); test -n "$$f" || { echo "nenhum backup em ./backups"; exit 1; }; \
-	docker rm -f aurora-restore-test >/dev/null 2>&1 || true; \
-	docker run -d --rm --name aurora-restore-test -e POSTGRES_PASSWORD=t -e POSTGRES_DB=t $(PG_IMAGE) >/dev/null; \
-	until docker exec aurora-restore-test pg_isready -U postgres -d t >/dev/null 2>&1; do sleep 1; done; \
-	openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_PASSPHRASE -in "$$f" | gunzip | docker exec -i aurora-restore-test psql -U postgres -d t -v ON_ERROR_STOP=1 -q >/dev/null \
-	  && docker exec aurora-restore-test psql -U postgres -d t -tAc "select 'usuarios: '||count(*) from users" \
+# Abre o backup MAIS RECENTE num SQLite descartável e confere se os dados voltaram (ensaio de restauração).
+backup-verify: ## Ensaia a restauração do último backup
+	@f=$$(ls -1t backups/aurora-*.db.gz.enc 2>/dev/null | head -1); test -n "$$f" || { echo "nenhum backup em ./backups"; exit 1; }; \
+	d=$$(mktemp -d); \
+	openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass env:BACKUP_PASSPHRASE -in "$$f" | gunzip > "$$d/aurora.db" \
+	  && docker run --rm -v "$$d":/d alpine:3.21 sh -c "apk add -q --no-cache sqlite >/dev/null && sqlite3 /d/aurora.db \"select 'usuarios: '||count(*) from users\"" \
 	  && echo "restauração de $$f OK"; \
-	docker rm -f aurora-restore-test >/dev/null 2>&1 || true
+	rm -rf "$$d"

@@ -3,10 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alicebob/miniredis/v2"
+
+	"aurora/api/internal/config"
 )
 
 // SEC-14: o Redis exige senha e a API só conecta com a senha certa na REDIS_URL.
@@ -45,4 +50,30 @@ func TestConnectRedisInvalidURL(t *testing.T) {
 	if _, err := connectRedis(context.Background(), "http://nao-e-redis"); err == nil {
 		t.Fatal("URL que não é de Redis deveria dar erro")
 	}
+}
+
+// Sem REDIS_URL a API sobe um Redis embutido. O miniredis não expira chaves sozinho: o relógio avançado em
+// openRedis é o que faz o TTL (refresh tokens, janelas de limite) valer de verdade.
+func TestEmbeddedRedisExpiresKeys(t *testing.T) {
+	ctx := context.Background()
+	rdb, closeFn, err := openRedis(ctx, config.Config{AppEnv: "development"}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeFn()
+
+	if err := rdb.Set(ctx, "k", "v", 1*time.Second).Err(); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := rdb.Get(ctx, "k").Result(); err != nil || got != "v" {
+		t.Fatalf("antes de expirar: %q %v", got, err)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := rdb.Get(ctx, "k").Result(); err != nil {
+			return // expirou
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+	t.Fatal("a chave com TTL de 1s deveria ter expirado")
 }

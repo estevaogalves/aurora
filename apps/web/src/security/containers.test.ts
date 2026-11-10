@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 // Regressão do SEC-16: containers endurecidos, sem senha padrão e com imagens fixadas por digest.
+// (Versão local-sqlite: sem Postgres e sem Redis; o banco é o arquivo ./data/aurora.db.)
 // vitest roda com a pasta apps/web como diretório atual.
 const root = (file: string) => readFileSync(resolve(process.cwd(), "../..", file), "utf8").replace(/\r\n/g, "\n");
 
@@ -12,55 +13,30 @@ const nginxConf = root("apps/web/nginx.conf");
 
 /** Bloco de um serviço do compose (do "  nome:" até o próximo serviço ou o fim de `services`). */
 function service(name: string): string {
-  const m = compose.match(new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  \\w[\\w-]*:\\n|^\\w)`, "m"));
+  const m = compose.match(new RegExp(`^  ${name}:\\n([\\s\\S]*?)(?=^  \\w[\\w-]*:\\n|^\\w|(?![\\s\\S]))`, "m"));
   if (!m) throw new Error(`serviço ${name} não encontrado`);
   return m[1];
 }
 
-describe("sem senha padrão do Postgres", () => {
-  it("o compose exige POSTGRES_PASSWORD (sem valor padrão)", () => {
-    expect(compose).toMatch(/POSTGRES_PASSWORD: \$\{POSTGRES_PASSWORD:\?/);
-    expect(compose).not.toMatch(/POSTGRES_PASSWORD:-/);
+describe("versão local: SQLite em arquivo, sem Postgres e sem Redis", () => {
+  it("o compose só tem api e web (nada de Postgres nem Redis, e nenhuma senha de banco)", () => {
+    expect(compose).not.toMatch(/^ {2}(postgres|redis):$/m);
+    expect(compose).not.toMatch(/POSTGRES_|REDIS_PASSWORD|DATABASE_URL|REDIS_URL/);
   });
 
-  it("nenhum arquivo traz aurora:aurora nem a senha 'aurora' como padrão", () => {
-    for (const text of [compose, envExample]) {
-      expect(text).not.toContain("aurora:aurora@");
-      expect(text).not.toMatch(/^POSTGRES_PASSWORD=aurora\s*$/m);
-    }
-    // a DATABASE_URL padrão usa a variável, não um literal
-    expect(compose).toContain("${POSTGRES_USER:-aurora}:${POSTGRES_PASSWORD}@postgres");
+  it("o banco é um arquivo em ./data, montado só na API", () => {
+    expect(service("api")).toContain("DB_PATH: /data/aurora.db");
+    expect(service("api")).toMatch(/^ {4}volumes:\n {6}- \.\/data:\/data$/m);
+    expect(service("web")).not.toContain("/data");
   });
 
-  it(".env.example deixa POSTGRES_PASSWORD e JWT_SECRET vazios (make env preenche)", () => {
-    expect(envExample).toMatch(/^POSTGRES_PASSWORD=$/m);
+  it("o arquivo do banco não vai para o Git (cada computador tem o seu)", () => {
+    expect(root(".gitignore")).toMatch(/^data\/$/m);
+  });
+
+  it(".env.example deixa o JWT_SECRET vazio (aurora-iniciar.bat e make env preenchem)", () => {
     expect(envExample).toMatch(/^JWT_SECRET=$/m);
-  });
-});
-
-describe("Redis com senha (SEC-14)", () => {
-  it("o compose exige REDIS_PASSWORD (sem valor padrão) e o redis-server a usa", () => {
-    expect(compose).toMatch(/\$\{REDIS_PASSWORD:\?/);
-    expect(compose).not.toMatch(/REDIS_PASSWORD:-/);
-    const redis = service("redis");
-    expect(redis).toMatch(/- --requirepass\n\s+- \$\{REDIS_PASSWORD:\?/);
-  });
-
-  it("a REDIS_URL padrão da API leva a senha, e o healthcheck autentica sem pôr a senha na linha de comando", () => {
-    expect(service("api")).toContain("REDIS_URL: ${REDIS_URL:-redis://:${REDIS_PASSWORD}@redis:6379/0}");
-    const redis = service("redis");
-    expect(redis).toContain("REDISCLI_AUTH: ${REDIS_PASSWORD}");
-    expect(redis).not.toMatch(/redis-cli[^\n]*(-a|--pass)/);
-  });
-
-  it("nenhuma URL do Redis sem senha como padrão e .env.example deixa a senha vazia", () => {
-    expect(compose).not.toMatch(/redis:\/\/redis:6379/);
-    expect(envExample).toMatch(/^REDIS_PASSWORD=$/m);
-  });
-
-  it("o redis-server é o primeiro argumento do comando (o entrypoint só larga o root assim)", () => {
-    expect(service("redis")).toMatch(/command:\n\s+- redis-server\n/);
-    expect(service("redis")).not.toMatch(/command:.*\bsh\b/);
+    expect(envExample).not.toMatch(/^(POSTGRES_PASSWORD|REDIS_PASSWORD)=/m);
   });
 });
 
@@ -88,15 +64,6 @@ describe("api e web endurecidos", () => {
   it("web só sobe depois de a API estar saudável", () => {
     expect(service("web")).toMatch(/api: \{ condition: service_healthy \}/);
   });
-
-  it("postgres e redis: sem novos privilégios, capabilities mínimas e sem portas publicadas", () => {
-    for (const name of ["postgres", "redis"]) {
-      const s = service(name);
-      expect(s).toMatch(/^ {4}cap_drop: \[ALL\]$/m);
-      expect(s).toContain("no-new-privileges:true");
-      expect(s).not.toMatch(/^ {4}ports:$/m);
-    }
-  });
 });
 
 describe("imagens fixadas por digest", () => {
@@ -104,7 +71,6 @@ describe("imagens fixadas por digest", () => {
 
   it("toda imagem do compose tem digest", () => {
     const images = [...compose.matchAll(/^ {4}image: (\S+)$/gm)].map((m) => m[1]);
-    expect(images.length).toBeGreaterThanOrEqual(2);
     for (const image of images) expect(image, image).toMatch(digest);
   });
 

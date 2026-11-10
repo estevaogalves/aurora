@@ -338,7 +338,7 @@ func (s *Server) touch(ctx context.Context, uid uuid.UUID) {
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
-	if err := s.store.Pool().Ping(ctx); err != nil {
+	if err := s.store.Ping(ctx); err != nil {
 		writeError(w, http.StatusServiceUnavailable, "banco indisponível")
 		return
 	}
