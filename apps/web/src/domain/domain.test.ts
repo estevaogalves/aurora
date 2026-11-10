@@ -10,6 +10,7 @@ import {
   getTransactionsByMonth,
   patchAmountForMonth,
   patchAmountFromMonth,
+  patchNotesForMonth,
   patchHideInMonth,
   patchRestoreInMonth,
   patchToggleFixed,
@@ -313,5 +314,30 @@ describe("getProjection", () => {
 
   it("devolve lista vazia para 0 meses", () => {
     expect(getProjection(data, extras, "2026-04", 0)).toEqual([]);
+  });
+});
+
+describe("observação de despesa fixa", () => {
+  const fixa = tx({ id: "f", fixed: true, month: "2026-11", notes: "de novembro" });
+
+  it("não se repete nos outros meses", () => {
+    expect(getTransactionsByMonth([fixa], "2026-11")[0].notes).toBe("de novembro");
+    expect(getTransactionsByMonth([fixa], "2026-12")[0].notes).toBe("");
+    expect(getTransactionsByMonth([fixa], "2027-03")[0].notes).toBe("");
+  });
+
+  it("cada mês tem a sua, e só aquele mês muda", () => {
+    const edited = { ...fixa, ...patchNotesForMonth(fixa, "2026-12", "só dezembro") };
+    expect(getTransactionsByMonth([edited], "2026-11")[0].notes).toBe("de novembro");
+    expect(getTransactionsByMonth([edited], "2026-12")[0].notes).toBe("só dezembro");
+    expect(getTransactionsByMonth([edited], "2027-01")[0].notes).toBe("");
+    // limpar a de criação não faz ela voltar
+    const cleared = { ...edited, ...patchNotesForMonth(edited, "2026-11", "") };
+    expect(getTransactionsByMonth([cleared], "2026-11")[0].notes).toBe("");
+  });
+
+  it("transação comum guarda a observação nela mesma", () => {
+    const comum = tx({ id: "c", fixed: false, month: "2026-11" });
+    expect(patchNotesForMonth(comum, "2026-11", "oi")).toEqual({ notes: "oi" });
   });
 });

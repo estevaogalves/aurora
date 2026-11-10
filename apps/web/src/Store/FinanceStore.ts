@@ -1,20 +1,24 @@
 import { create } from "zustand";
 import {
   getCreditByMonth,
+  resolveCredits,
   patchAdvanceInstallment,
   patchCancelRecurrence,
+  patchClearActualValue,
   patchEditInstallment,
   patchRemoveInstallment,
   type PatchResult,
   getHiddenTransactionsByMonth,
   getTransactionsByMonth,
   patchAmountForMonth,
+  patchNotesForMonth,
   patchAmountFromMonth,
   patchHideInMonth,
   patchRestoreInMonth,
   patchToggleFixed,
   type CreditInstallment,
   patchContribution,
+  type CreditCard,
   type CreditTransaction,
   type CustomCategory,
   type DistributionItem,
@@ -29,9 +33,9 @@ import {
 } from "../domain";
 import { repository } from "../repositories";
 import type { Category } from "../Types/Category";
-import { getCurrentMonth } from "../Utils/Date";
+import { changeMonth, getCurrentMonth, monthsDifference } from "../Utils/Date";
 
-export type { CreditInstallment, CreditTransaction, CustomCategory, DistributionItem, ExtraExpense, Goal, Note, Transaction };
+export type { CreditCard, CreditInstallment, CreditTransaction, CustomCategory, DistributionItem, ExtraExpense, Goal, Note, Transaction };
 
 /**
  * Estado do app. Os dados vêm do repositório (hoje o localStorage) e a store
@@ -50,6 +54,7 @@ interface FinanceState {
 
   transactions: Transaction[];
   creditTransactions: CreditTransaction[];
+  creditCards: CreditCard[];
   notes: Note[];
   goals: Goal[];
   extraExpenses: ExtraExpense[];
@@ -66,7 +71,8 @@ interface FinanceState {
   removeTransaction: (id: string) => void;
   updateTransactionName: (id: string, name: string) => void;
   updateTransactionCategory: (id: string, category: Category) => void;
-  updateTransactionNotes: (id: string, notes: string) => void;
+  /** Observação só do mês visto (fixa não repete nos outros meses). */
+  updateTransactionNotes: (id: string, month: string, notes: string) => void;
   updateTransactionAmountForMonth: (id: string, month: string, cents: number) => void;
   /** Fixa: o novo valor vale deste mês em diante (os anteriores não mudam). */
   updateTransactionAmountFromMonth: (id: string, month: string, cents: number) => void;
@@ -77,7 +83,12 @@ interface FinanceState {
 
   addCreditTransaction: (credit: CreditTransaction) => void;
   updateCreditTransaction: (id: string, patch: Partial<CreditTransaction>) => void;
+  addCreditCard: (card: CreditCard) => void;
+  updateCreditCard: (id: string, patch: Partial<CreditCard>) => void;
+  removeCreditCard: (id: string) => void;
   removeCreditTransaction: (id: string) => void;
+  /** Volta um mês de recorrência variável para o valor estimado. Devolve a mensagem de erro, se houver. */
+  clearCreditActualValue: (id: string, n: number) => string | null;
   /** Adianta a última parcela (futura) com desconto em centavos. Devolve a mensagem de erro, ou null se deu certo. */
   advanceCreditInstallment: (id: string, n: number, discount: number) => string | null;
   /** Muda só o valor (centavos) de uma parcela. Devolve a mensagem de erro, ou null. */
@@ -166,6 +177,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         hydrated: false,
         transactions: [],
         creditTransactions: [],
+        creditCards: [],
         notes: [],
         goals: [],
         extraExpenses: [],
@@ -180,6 +192,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     transactions: [],
     creditTransactions: [],
+    creditCards: [],
     notes: [],
     goals: [],
     extraExpenses: [],
@@ -209,7 +222,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     updateTransactionCategory: (id, category) => patchTransaction(id, { category }),
 
-    updateTransactionNotes: (id, notes) => patchTransaction(id, { notes }),
+    updateTransactionNotes: (id, month, notes) => {
+      const t = findTransaction(id);
+      if (t) patchTransaction(id, patchNotesForMonth(t, month, notes));
+    },
 
     updateTransactionAmountForMonth: (id, month, cents) => {
       const t = findTransaction(id);
@@ -254,6 +270,24 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       sync(repository.updateCredit(id, patch));
     },
 
+    addCreditCard: (card) => {
+      set((state) => ({ creditCards: [...state.creditCards, card] }));
+      sync(repository.addCreditCard(card));
+    },
+
+    updateCreditCard: (id, patch) => {
+      set((state) => ({ creditCards: state.creditCards.map((k) => (k.id === id ? { ...k, ...patch } : k)) }));
+      sync(repository.updateCreditCard(id, patch));
+    },
+
+    removeCreditCard: (id) => {
+      set((state) => ({
+        creditCards: state.creditCards.filter((k) => k.id !== id),
+        creditTransactions: state.creditTransactions.map((c) => (c.cardId === id ? { ...c, cardId: undefined } : c)),
+      }));
+      sync(repository.removeCreditCard(id));
+    },
+
     removeCreditTransaction: (id) => {
       set((state) => ({
         creditTransactions: state.creditTransactions.filter((c) => c.id !== id),
@@ -270,12 +304,18 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeCreditInstallment: (id, n) =>
       adjustCredit(id, (c) => patchRemoveInstallment(c, n), () => repository.removeInstallment(id, n)),
 
+    clearCreditActualValue: (id, n) =>
+      adjustCredit(id, (c) => patchClearActualValue(c, n), () => repository.clearInstallmentValue(id, n)),
+
     cancelCreditRecurrence: (id, last) => {
       const credit = get().creditTransactions.find((c) => c.id === id);
       if (!credit) return "Compra não encontrada.";
-      const result = patchCancelRecurrence(credit, last, getCurrentMonth());
+      // `last` é um mês já contado pelo vencimento da fatura; o que fica salvo é o mês da cobrança
+      const [shown] = resolveCredits([credit], get().creditCards);
+      const result = patchCancelRecurrence(shown, last, getCurrentMonth());
       if (!result.ok) return result.error;
-      return adjustCredit(id, () => result, () => repository.updateCredit(id, result.patch));
+      const saved = { ok: true as const, patch: { endMonth: changeMonth(result.patch.endMonth!, -monthsDifference(shown.startMonth, credit.startMonth)) } };
+      return adjustCredit(id, () => saved, () => repository.updateCredit(id, saved.patch));
     },
 
     addNote: (note) => {
@@ -391,7 +431,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       getHiddenTransactionsByMonth(get().transactions, month),
 
     getCreditTransactionsByMonth: (month) =>
-      getCreditByMonth(get().creditTransactions, month),
+      getCreditByMonth(resolveCredits(get().creditTransactions, get().creditCards), month),
 
     getNotesByMonth: (month) => get().notes.filter((n) => n.month === month),
   };

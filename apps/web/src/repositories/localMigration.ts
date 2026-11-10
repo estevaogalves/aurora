@@ -1,5 +1,6 @@
 import { toCents } from "../lib/money";
 import type {
+  CreditCard,
   CreditTransaction,
   CustomCategory,
   DistributionItem,
@@ -12,7 +13,7 @@ import type {
 } from "../domain/types";
 
 /** Versão atual do formato salvo. Aumente ao mudar o formato e trate em `migrateStored`. */
-export const CURRENT_VERSION = 6;
+export const CURRENT_VERSION = 7;
 
 /** Onde os dados vivem hoje. */
 export const STORAGE_KEY = "aurora:finance";
@@ -28,6 +29,7 @@ export interface StoredEnvelope {
 export const emptyData = (): FinanceData => ({
   transactions: [],
   creditTransactions: [],
+  creditCards: [],
   notes: [],
   goals: [],
   extraExpenses: [],
@@ -72,7 +74,7 @@ export function migrateLegacy(raw: unknown): FinanceData | null {
 
   const notes = asArray<Note>(state.notes);
 
-  return { transactions, creditTransactions, notes, goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} };
+  return { transactions, creditTransactions, creditCards: [], notes, goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} };
 }
 
 /** Só aceita respostas válidas; qualquer outra coisa é ignorada. */
@@ -91,13 +93,14 @@ export function migrateStored(raw: unknown): FinanceData | null {
     return null;
   }
 
-  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`; v3 -> v4: `distribution`; v4 -> v5: `seenAlerts`; v5 -> v6: `onboarding`.
+  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`; v3 -> v4: `distribution`; v4 -> v5: `seenAlerts`; v5 -> v6: `onboarding`; v6 -> v7: `creditCards`.
   // Quem não tem esses campos recebe listas vazias abaixo.
   if (raw.version > CURRENT_VERSION) return null;
 
   return {
     transactions: asArray<Transaction>(raw.data.transactions),
     creditTransactions: asArray<CreditTransaction>(raw.data.creditTransactions),
+    creditCards: asArray<CreditCard>(raw.data.creditCards),
     notes: asArray<Note>(raw.data.notes),
     goals: asArray<Goal>(raw.data.goals),
     extraExpenses: asArray<ExtraExpense>(raw.data.extraExpenses),

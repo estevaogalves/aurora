@@ -1,13 +1,17 @@
 import { create } from "zustand";
 import { calcReduce, initialCalc, type CalcKey, type CalcState } from "../Features/Calculator/calc";
 
-export type LaunchTab = "expense" | "income" | "credit" | "extra" | "goal";
+export type LaunchTab = "expense" | "income" | "credit" | "card" | "extra" | "goal";
 
 interface UiState {
   launchOpen: boolean;
   launchTab: LaunchTab;
   openLaunch: (tab?: LaunchTab) => void;
   closeLaunch: () => void;
+  /** Janela de cartões de crédito (modo API: aberta pelo menu do perfil). */
+  cardsOpen: boolean;
+  openCards: () => void;
+  closeCards: () => void;
   /** Calculadora: aberta ou fechada independente do "Lançar". A conta em andamento sobrevive à troca de lugar do card e também ao fechar; só o botão C limpa. */
   calcOpen: boolean;
   calc: CalcState;
@@ -29,6 +33,9 @@ export const useUiStore = create<UiState>((set) => ({
   openLaunch: (tab) => set((s) => ({ launchOpen: true, launchTab: tab ?? s.launchTab })),
   // fechar o "Lançar" leva a calculadora junto; o contrário não acontece
   closeLaunch: () => set({ launchOpen: false, calcOpen: false }),
+  cardsOpen: false,
+  openCards: () => set({ cardsOpen: true }),
+  closeCards: () => set({ cardsOpen: false }),
   calcOpen: false,
   calc: initialCalc,
   toggleCalc: () => set((s) => ({ calcOpen: !s.calcOpen })),

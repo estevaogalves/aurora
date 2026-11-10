@@ -1,5 +1,6 @@
 import { CREDIT_CATEGORY, getMonthSummary } from "./summary";
 import { getCreditByMonth } from "./credit";
+import { resolveCredits } from "./invoice";
 import { getTransactionsByMonth } from "./transactions";
 import { formatPaymentDate, formatPaymentDay, paymentMethodLabel, paymentOf, paymentStatusLabel } from "./payment";
 import { getMonthsBetween, changeMonth, formatMonth } from "../Utils/Date";
@@ -7,7 +8,7 @@ import { formatBRL } from "../lib/money";
 import type { Category } from "../Types/Category";
 import type { FinanceData, Month, MonthSummary, Payment } from "./types";
 
-type Source = Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses">>;
+type Source = Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses" | "creditCards">>;
 
 /** Os `count` meses terminando em `end` (inclusive), do mais antigo ao mais novo. */
 export function lastMonths(end: Month, count: number): Month[] {
@@ -93,7 +94,7 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
       }
     }
     if (options.credit) {
-      for (const c of getCreditByMonth(data.creditTransactions, month)) {
+      for (const c of getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month)) {
         rows.push({
           month,
           name: c.name,

@@ -16,10 +16,25 @@ export function getTransactionsByMonth(
   return transactions
     .filter((t) => (t.fixed ? isFixedActiveIn(t, month) : t.month === month))
     .map((t) => {
-      const override = t.fixed ? t.monthlyValues?.[month] : undefined;
+      if (!t.fixed) return t;
+      const override = t.monthlyValues?.[month];
+      // a observação de uma fixa é só do mês: a própria `notes` vale no mês de criação, os outros têm a sua (ou nenhuma)
+      const notes = noteOfMonth(t, month);
       // 0 é um valor válido: só ignora quando não há valor definido
-      return override !== undefined ? { ...t, amount: override } : t;
+      return { ...t, ...(override !== undefined && { amount: override }), notes };
     });
+}
+
+/** Observação de uma transação em um mês. Fixa: a do mês, ou a de criação no mês de criação; nunca a de outro mês. */
+export function noteOfMonth(t: Transaction, month: Month): string {
+  if (!t.fixed) return t.notes ?? "";
+  return t.monthlyNotes?.[month] ?? (month === t.month ? (t.notes ?? "") : "");
+}
+
+/** Muda a observação: fixa guarda por mês (só vale naquele mês), normal troca a observação. */
+export function patchNotesForMonth(t: Transaction, month: Month, notes: string): Partial<Transaction> {
+  if (t.fixed) return { monthlyNotes: { ...t.monthlyNotes, [month]: notes } };
+  return { notes };
 }
 
 /** Fixas que o usuário ocultou neste mês (para poder restaurar). */

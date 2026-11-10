@@ -1,5 +1,6 @@
 import { api } from "../api/http";
 import type {
+  CreditCard,
   CreditTransaction,
   CustomCategory,
   DistributionItem,
@@ -20,8 +21,9 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
   return out;
 }
 
-const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues"] as const;
-const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth"] as const;
+const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes"] as const;
+const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
+const CARD_PATCH = ["name", "closingDay", "dueDay"] as const;
 const GOAL_PATCH = ["name", "target", "saved", "monthly", "yieldTotal", "deadline"] as const;
 const EXTRA_PATCH = ["name", "amount", "month"] as const;
 const NOTE_PATCH = ["content", "date", "pinned", "month"] as const;
@@ -43,6 +45,7 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
       };
     }),
     creditTransactions: raw.creditTransactions ?? [],
+    creditCards: raw.creditCards ?? [],
     notes: raw.notes ?? [],
     goals: (raw.goals ?? []).map((g) => ({ ...g, deadline: g.deadline ?? null, yieldTotal: g.yieldTotal ?? 0 })),
     extraExpenses: raw.extraExpenses ?? [],
@@ -81,10 +84,15 @@ export class ApiRepository implements FinanceRepository {
   updateCredit = (id: string, patch: Partial<CreditTransaction>) =>
     this.enqueue(() => api.patch(`/credits/${id}`, pick(patch, CREDIT_PATCH)));
   removeCredit = (id: string) => this.enqueue(() => api.delete(`/credits/${id}`));
+  addCreditCard = (c: CreditCard) => this.enqueue(() => api.post("/credit-cards", c));
+  updateCreditCard = (id: string, patch: Partial<CreditCard>) =>
+    this.enqueue(() => api.patch(`/credit-cards/${id}`, pick(patch, CARD_PATCH)));
+  removeCreditCard = (id: string) => this.enqueue(() => api.delete(`/credit-cards/${id}`));
   advanceInstallment = (id: string, n: number, discount: number) =>
     this.enqueue(() => api.post(`/credits/${id}/installments/${n}/advance`, { discount }));
   editInstallment = (id: string, n: number, cents: number) =>
     this.enqueue(() => api.put(`/credits/${id}/installments/${n}`, { value: cents }));
+  clearInstallmentValue = (id: string, n: number) => this.enqueue(() => api.delete(`/credits/${id}/installments/${n}/value`));
   removeInstallment = (id: string, n: number) => this.enqueue(() => api.delete(`/credits/${id}/installments/${n}`));
 
   setTransactionPayment = (id: string, month: string, payment: Payment | null) =>

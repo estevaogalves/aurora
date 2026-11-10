@@ -34,6 +34,8 @@ export interface Transaction {
   hiddenMonths?: Month[];
   /** Fixas: valor (em centavos) específico de um mês. */
   monthlyValues?: Record<Month, number>;
+  /** Fixas: observação de um mês. A observação é só do mês: `notes` vale apenas no mês de criação e não se repete nos seguintes. */
+  monthlyNotes?: Record<Month, string>;
   /** Despesas: pagamento por mês (fixa pode estar paga em um mês e não em outro). Só registro. */
   payments?: Record<Month, Payment>;
 }
@@ -74,6 +76,18 @@ export interface CreditTransaction {
   endMonth?: Month;
   /** Dia da cobrança (1 a 31), tirado da data de início escolhida. Ausente = não informado. */
   billingDay?: number;
+  /** Cartão da compra. Com cartão, o valor entra no mês do vencimento da fatura. Ausente = mês da cobrança. */
+  cardId?: string;
+  /** Recorrente de valor variável: `totalAmount` é uma estimativa; cada mês pode ter o valor real (`adjustments[n].value`). */
+  variableAmount?: boolean;
+}
+
+/** Cartão de crédito: só nome e dias de fechamento e vencimento (1 a 31). Nada sensível. */
+export interface CreditCard {
+  id: string;
+  name: string;
+  closingDay: number;
+  dueDay: number;
 }
 
 export interface Note {
@@ -95,8 +109,10 @@ export interface CreditInstallment {
   installmentValue: number;
   /** centavos do total da compra */
   totalAmount: number;
-  /** parcela com valor ajustado só para ela */
+  /** parcela com valor ajustado só para ela (em recorrente variável: o valor real do mês) */
   adjusted?: boolean;
+  /** recorrente de valor variável ainda sem o valor real deste mês: o valor é uma estimativa */
+  estimated?: boolean;
   /** cobrança de uma compra recorrente: `installments` é 0 e `currentInstallment` conta os meses desde o início */
   recurring?: boolean;
   /** parcela adiantada: cobrada neste mês, com o mês original e o desconto */
@@ -156,6 +172,8 @@ export type OnboardingState = "done" | "dismissed";
 export interface FinanceData {
   transactions: Transaction[];
   creditTransactions: CreditTransaction[];
+  /** Cartões cadastrados. Ausente = nenhum. */
+  creditCards?: CreditCard[];
   notes: Note[];
   goals: Goal[];
   extraExpenses: ExtraExpense[];

@@ -1,4 +1,5 @@
 import type {
+  CreditCard,
   CreditTransaction,
   CustomCategory,
   DistributionItem,
@@ -11,7 +12,8 @@ import type {
   Transaction,
 } from "../domain/types";
 import { patchClearPayment, patchSetPayment } from "../domain/payment";
-import { patchAdvanceInstallment, patchEditInstallment, patchRemoveInstallment, type PatchResult } from "../domain/credit";
+import { patchAdvanceInstallment, patchClearActualValue,
+  patchEditInstallment, patchRemoveInstallment, type PatchResult } from "../domain/credit";
 import { getCurrentMonth } from "../Utils/Date";
 import type { FinanceRepository } from "./FinanceRepository";
 import {
@@ -88,6 +90,22 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async addCreditCard(card: CreditCard) {
+    this.data.creditCards = [...(this.data.creditCards ?? []), card];
+    this.persist();
+  }
+
+  async updateCreditCard(id: string, patch: Partial<CreditCard>) {
+    this.data.creditCards = (this.data.creditCards ?? []).map((k) => (k.id === id ? { ...k, ...patch } : k));
+    this.persist();
+  }
+
+  async removeCreditCard(id: string) {
+    this.data.creditCards = (this.data.creditCards ?? []).filter((k) => k.id !== id);
+    this.data.creditTransactions = this.data.creditTransactions.map((c) => (c.cardId === id ? { ...c, cardId: undefined } : c));
+    this.persist();
+  }
+
   /** Aplica o patch de uma regra de domínio na compra (a API faz o mesmo no servidor). */
   private adjustCredit(id: string, rule: (credit: CreditTransaction) => PatchResult) {
     const credit = this.data.creditTransactions.find((c) => c.id === id);
@@ -104,6 +122,10 @@ export class LocalRepository implements FinanceRepository {
 
   async editInstallment(id: string, n: number, cents: number) {
     this.adjustCredit(id, (c) => patchEditInstallment(c, n, cents));
+  }
+
+  async clearInstallmentValue(id: string, n: number) {
+    this.adjustCredit(id, (c) => patchClearActualValue(c, n));
   }
 
   async removeInstallment(id: string, n: number) {
@@ -200,6 +222,7 @@ export class LocalRepository implements FinanceRepository {
     return {
       transactions: this.data.transactions,
       creditTransactions: this.data.creditTransactions,
+      creditCards: this.data.creditCards ?? [],
       notes: this.data.notes,
       goals: this.data.goals,
       extraExpenses: this.data.extraExpenses,

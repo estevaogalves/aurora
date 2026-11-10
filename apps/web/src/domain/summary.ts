@@ -1,6 +1,7 @@
 import { changeMonth, compareMonths, getMonthsBetween } from "../Utils/Date";
 import type { Category } from "../Types/Category";
 import { getCreditByMonth, getCreditTotalByMonth } from "./credit";
+import { resolveCredits } from "./invoice";
 import { getTransactionsByMonth } from "./transactions";
 import type {
   CreditTransaction,
@@ -18,11 +19,11 @@ const EXTRA_CATEGORY: Category = "Outros";
 
 /** Resumo de um mês: renda, despesas (com as parcelas do crédito), saldo e por categoria. */
 export function getMonthSummary(
-  data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses">>,
+  data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses" | "creditCards">>,
   month: Month,
 ): MonthSummary {
   const monthTransactions = getTransactionsByMonth(data.transactions, month);
-  const installments = getCreditByMonth(data.creditTransactions, month);
+  const installments = getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month);
 
   let totalIncome = 0;
   let directExpense = 0;
@@ -115,13 +116,14 @@ function creditEndMonth(c: CreditTransaction): Month {
  * em ordem. Fixas contam só pelo mês em que foram criadas.
  */
 export function getAvailableMonths(
-  data: Pick<FinanceData, "transactions" | "creditTransactions" | "notes">,
+  data: Pick<FinanceData, "transactions" | "creditTransactions" | "notes"> & Partial<Pick<FinanceData, "creditCards">>,
   today: Month,
 ): Month[] {
+  const credits = resolveCredits(data.creditTransactions, data.creditCards);
   const points: Month[] = [
     ...data.transactions.map((t) => t.month),
-    ...data.creditTransactions.map((c) => c.startMonth),
-    ...data.creditTransactions.map(creditEndMonth),
+    ...credits.map((c) => c.startMonth),
+    ...credits.map(creditEndMonth),
   ];
 
   if (points.length === 0) return [];
@@ -167,7 +169,7 @@ export interface ProjectionLine {
 
 /** O que compõe a renda e a despesa projetadas de um mês, linha a linha (soma igual à de `getProjection`). */
 export function getProjectionDetail(
-  data: Pick<FinanceData, "transactions" | "creditTransactions">,
+  data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "creditCards">>,
   extras: ExtraExpense[],
   month: Month,
 ): { incomes: ProjectionLine[]; expenses: ProjectionLine[] } {
@@ -177,7 +179,7 @@ export function getProjectionDetail(
     incomes: fixed.filter((t) => t.type === "income").map(line),
     expenses: [
       ...fixed.filter((t) => t.type === "expense").map(line),
-      ...getCreditByMonth(data.creditTransactions, month).map((c): ProjectionLine => ({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" })),
+      ...getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month).map((c): ProjectionLine => ({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" })),
       ...extras.filter((e) => e.month === month).map((e): ProjectionLine => ({ name: e.name, amount: e.amount, kind: "extra" })),
     ],
   };
@@ -189,7 +191,7 @@ export function getProjectionDetail(
  * parcelas do crédito e despesas extras planejadas.
  */
 export function getProjection(
-  data: Pick<FinanceData, "transactions" | "creditTransactions">,
+  data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "creditCards">>,
   extras: ExtraExpense[],
   startMonth: Month,
   count: number,
@@ -202,7 +204,7 @@ export function getProjection(
 
     const income = fixedTotal(data.transactions, month, "income");
     const fixedExpense = fixedTotal(data.transactions, month, "expense");
-    const creditExpense = getCreditTotalByMonth(data.creditTransactions, month);
+    const creditExpense = getCreditTotalByMonth(resolveCredits(data.creditTransactions, data.creditCards), month);
     const extraExpense = extras
       .filter((e) => e.month === month)
       .reduce((s, e) => s + e.amount, 0);
@@ -227,7 +229,7 @@ export function getProjection(
 
 /* ---------- navegação entre meses ---------- */
 
-type NavigationData = Pick<FinanceData, "transactions" | "creditTransactions" | "extraExpenses" | "notes" | "goals">;
+type NavigationData = Pick<FinanceData, "transactions" | "creditTransactions" | "extraExpenses" | "notes" | "goals"> & Partial<Pick<FinanceData, "creditCards">>;
 
 /** Mês com renda, despesa (inclui parcela e extra), anotação ou meta com prazo nele. */
 export function hasMonthMovement(data: NavigationData, month: Month): boolean {
@@ -258,7 +260,7 @@ export function getAdjacentMonth(data: NavigationData, from: Month, today: Month
   if (compareMonths(next, today) >= 0) return next;
   const oldest = [
     ...data.transactions.map((t) => t.month),
-    ...data.creditTransactions.map((c) => c.startMonth),
+    ...resolveCredits(data.creditTransactions, data.creditCards).map((c) => c.startMonth),
     ...data.extraExpenses.map((e) => e.month),
     ...data.notes.map((n) => n.month),
     ...data.goals.flatMap((g) => (g.deadline ? [g.deadline] : [])),

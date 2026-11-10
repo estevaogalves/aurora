@@ -2,7 +2,7 @@ import { changeMonth, compareMonths, monthsDifference } from "../Utils/Date";
 import { splitInstallments } from "../lib/money";
 import type { CreditInstallment, CreditTransaction, InstallmentAdjustment, Month } from "./types";
 
-type Schedule = Pick<CreditTransaction, "totalAmount" | "installments" | "startMonth" | "adjustments" | "recurring" | "endMonth">;
+type Schedule = Pick<CreditTransaction, "totalAmount" | "installments" | "startMonth" | "adjustments" | "recurring" | "endMonth" | "variableAmount">;
 
 /** A compra recorrente cobra neste mês: do mês inicial até o mês final, se foi cancelada. */
 export function recurringCharges(
@@ -34,7 +34,7 @@ const adjustmentOf = (credit: Pick<CreditTransaction, "adjustments">, n: number)
 
 /** Valor da parcela `n` antes de qualquer desconto: o ajustado, ou a divisão do total (centavos que sobram nas primeiras). */
 export function getInstallmentValue(credit: Schedule, n: number): number {
-  if (credit.recurring) return credit.totalAmount;
+  if (credit.recurring) return (credit.variableAmount ? adjustmentOf(credit, n)?.value : undefined) ?? credit.totalAmount;
   return adjustmentOf(credit, n)?.value ?? splitInstallments(credit.totalAmount, credit.installments)[n - 1];
 }
 
@@ -73,12 +73,15 @@ export function getCreditByMonth(
     };
 
     if (recurringCharges(credit, month)) {
+      const n = monthsDifference(month, credit.startMonth) + 1;
+      const real = credit.variableAmount && adjustmentOf(credit, n)?.value !== undefined;
       result.push({
         ...base,
         installments: 0,
         recurring: true,
-        currentInstallment: monthsDifference(month, credit.startMonth) + 1,
-        installmentValue: credit.totalAmount,
+        currentInstallment: n,
+        installmentValue: getInstallmentValue(credit, n),
+        ...(credit.variableAmount && (real ? { adjusted: true } : { estimated: true })),
       });
       continue;
     }
@@ -176,9 +179,24 @@ export function patchAdvanceInstallment(credit: Schedule, n: number, discount: n
 
 /** Muda só o valor de uma parcela (centavos). Parcelas adiantadas ou excluídas não mudam. */
 export function patchEditInstallment(credit: Schedule, n: number, cents: number): PatchResult {
+  if (credit.recurring) {
+    // recorrente de valor variável: o valor real de um mês, sem mexer na recorrência nem nos outros meses
+    const last = credit.endMonth ? monthsDifference(credit.endMonth, credit.startMonth) + 1 : Infinity;
+    if (!credit.variableAmount || n < 1 || n > last) return { ok: false, error: "Só recorrências de valor variável têm valor real por mês." };
+    if (!Number.isInteger(cents) || cents <= 0) return { ok: false, error: "Informe um valor maior que zero." };
+    return withAdjustment(credit, n, { ...adjustmentOf(credit, n), value: cents });
+  }
   if (n < 1 || n > credit.installments || !isOpen(credit, n)) return { ok: false, error: "Esta parcela não pode ser alterada." };
   if (!Number.isInteger(cents) || cents <= 0) return { ok: false, error: "Informe um valor maior que zero." };
   return withAdjustment(credit, n, { ...adjustmentOf(credit, n), value: cents });
+}
+
+/** Volta uma recorrência variável deste mês para o valor estimado. */
+export function patchClearActualValue(credit: Schedule, n: number): PatchResult {
+  if (!credit.recurring || !credit.variableAmount || !adjustmentOf(credit, n)?.value) return { ok: false, error: "Este mês já está com o valor estimado." };
+  const rest = { ...credit.adjustments };
+  delete rest[String(n)];
+  return { ok: true, patch: { adjustments: rest } };
 }
 
 /** Remove só a cobrança de uma parcela; as outras mantêm número e mês. */
@@ -205,7 +223,7 @@ export function patchCancelRecurrence(
 /** Editar todas: troca nome, categoria e total (e nº de parcelas, só enquanto não houver ajustes). As adiantadas e ajustadas ficam como estão. */
 export function patchEditAll(
   credit: Schedule,
-  changes: Partial<Pick<CreditTransaction, "name" | "category" | "totalAmount" | "installments">>,
+  changes: Partial<Pick<CreditTransaction, "name" | "category" | "totalAmount" | "installments" | "cardId" | "variableAmount">>,
 ): { ok: true; patch: Partial<CreditTransaction> } | { ok: false; error: string } {
   const hasAdjustments = Object.keys(credit.adjustments ?? {}).length > 0;
   if (hasAdjustments && changes.installments !== undefined && changes.installments !== credit.installments) {

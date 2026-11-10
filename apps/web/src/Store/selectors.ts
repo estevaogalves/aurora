@@ -6,6 +6,7 @@ import {
   getExpensesByCategory,
   getHiddenTransactionsByMonth,
   getMonthSummary,
+  resolveCredits,
   getTransactionsByMonth,
 } from "../domain";
 import { useFinanceStore } from "./FinanceStore";
@@ -25,11 +26,12 @@ export function useMonthSummary(month?: string) {
   const m = useMonth(month);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
   return useMemo(
-    () => getMonthSummary({ transactions, creditTransactions, extraExpenses }, m),
-    [transactions, creditTransactions, extraExpenses, m],
+    () => getMonthSummary({ transactions, creditTransactions, creditCards, extraExpenses }, m),
+    [transactions, creditTransactions, creditCards, extraExpenses, m],
   );
 }
 
@@ -52,9 +54,16 @@ export function useHiddenTransactions(month?: string) {
 
 export function useMonthCredit(month?: string) {
   const m = useMonth(month);
-  const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const resolved = useResolvedCredits();
 
-  return useMemo(() => getCreditByMonth(creditTransactions, m), [creditTransactions, m]);
+  return useMemo(() => getCreditByMonth(resolved, m), [resolved, m]);
+}
+
+/** Compras no crédito já no mês em que entram no cálculo (o do vencimento da fatura do cartão). */
+export function useResolvedCredits() {
+  const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
+  return useMemo(() => resolveCredits(creditTransactions, creditCards), [creditTransactions, creditCards]);
 }
 
 export function useCategoryTotals(month?: string) {
