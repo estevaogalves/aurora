@@ -582,6 +582,7 @@ components:
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
         monthlyNotes: { type: object, description: "Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação).", additionalProperties: { type: string } }
+        variableAmount: { type: boolean, description: "Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado." }
         payments:
           type: object
           description: Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação.
@@ -604,6 +605,7 @@ components:
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
         monthlyNotes: { type: object, description: "Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação).", additionalProperties: { type: string } }
+        variableAmount: { type: boolean, description: "Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado." }
 
     CreditTransaction:
       type: object

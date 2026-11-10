@@ -253,21 +253,22 @@ func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, e
 }
 
 const createTransaction = `-- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount
 `
 
 type CreateTransactionParams struct {
-	Column1     uuid.UUID
-	UserID      uuid.UUID
-	Name        string
-	AmountCents int64
-	Type        string
-	Category    string
-	Notes       string
-	Fixed       bool
-	Month       string
+	Column1        uuid.UUID
+	UserID         uuid.UUID
+	Name           string
+	AmountCents    int64
+	Type           string
+	Category       string
+	Notes          string
+	Fixed          bool
+	Month          string
+	VariableAmount bool
 }
 
 func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error) {
@@ -281,6 +282,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.Notes,
 		arg.Fixed,
 		arg.Month,
+		arg.VariableAmount,
 	)
 	var i Transaction
 	err := row.Scan(
@@ -296,6 +298,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.CreatedAt,
 		&i.Payments,
 		&i.MonthlyNotes,
+		&i.VariableAmount,
 	)
 	return i, err
 }
@@ -484,7 +487,7 @@ func (q *Queries) GetExtraExpenseForUpdate(ctx context.Context, arg GetExtraExpe
 }
 
 const getTransaction = `-- name: GetTransaction :one
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes FROM transactions WHERE id = $1 AND user_id = $2
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount FROM transactions WHERE id = $1 AND user_id = $2
 `
 
 type GetTransactionParams struct {
@@ -508,12 +511,13 @@ func (q *Queries) GetTransaction(ctx context.Context, arg GetTransactionParams) 
 		&i.CreatedAt,
 		&i.Payments,
 		&i.MonthlyNotes,
+		&i.VariableAmount,
 	)
 	return i, err
 }
 
 const getTransactionForUpdate = `-- name: GetTransactionForUpdate :one
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE
 `
 
 type GetTransactionForUpdateParams struct {
@@ -537,6 +541,7 @@ func (q *Queries) GetTransactionForUpdate(ctx context.Context, arg GetTransactio
 		&i.CreatedAt,
 		&i.Payments,
 		&i.MonthlyNotes,
+		&i.VariableAmount,
 	)
 	return i, err
 }
@@ -823,7 +828,7 @@ func (q *Queries) ListTransactionOverrides(ctx context.Context, transactionID uu
 }
 
 const listTransactions = `-- name: ListTransactions :many
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes FROM transactions WHERE user_id = $1 ORDER BY created_at, id
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount FROM transactions WHERE user_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Transaction, error) {
@@ -848,6 +853,7 @@ func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Tra
 			&i.CreatedAt,
 			&i.Payments,
 			&i.MonthlyNotes,
+			&i.VariableAmount,
 		); err != nil {
 			return nil, err
 		}
@@ -923,7 +929,7 @@ func (q *Queries) SetExtraExpensePayment(ctx context.Context, arg SetExtraExpens
 const setTransactionMonthlyNotes = `-- name: SetTransactionMonthlyNotes :one
 UPDATE transactions SET monthly_notes = $3::jsonb
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount
 `
 
 type SetTransactionMonthlyNotesParams struct {
@@ -948,6 +954,7 @@ func (q *Queries) SetTransactionMonthlyNotes(ctx context.Context, arg SetTransac
 		&i.CreatedAt,
 		&i.Payments,
 		&i.MonthlyNotes,
+		&i.VariableAmount,
 	)
 	return i, err
 }
@@ -955,7 +962,7 @@ func (q *Queries) SetTransactionMonthlyNotes(ctx context.Context, arg SetTransac
 const setTransactionPayments = `-- name: SetTransactionPayments :one
 UPDATE transactions SET payments = $3::jsonb
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount
 `
 
 type SetTransactionPaymentsParams struct {
@@ -980,6 +987,7 @@ func (q *Queries) SetTransactionPayments(ctx context.Context, arg SetTransaction
 		&i.CreatedAt,
 		&i.Payments,
 		&i.MonthlyNotes,
+		&i.VariableAmount,
 	)
 	return i, err
 }
@@ -1224,19 +1232,22 @@ UPDATE transactions SET
     amount_cents = COALESCE($2, amount_cents),
     category     = COALESCE($3, category),
     notes        = COALESCE($4, notes),
-    fixed        = COALESCE($5, fixed)
-WHERE id = $6 AND user_id = $7
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes
+    fixed        = COALESCE($5, fixed),
+    -- só fixa tem valor variável: deixar de ser fixa desliga
+    variable_amount = COALESCE($5, fixed) AND COALESCE($6, variable_amount)
+WHERE id = $7 AND user_id = $8
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount
 `
 
 type UpdateTransactionParams struct {
-	Name        pgtype.Text
-	AmountCents pgtype.Int8
-	Category    pgtype.Text
-	Notes       pgtype.Text
-	Fixed       pgtype.Bool
-	ID          uuid.UUID
-	UserID      uuid.UUID
+	Name           pgtype.Text
+	AmountCents    pgtype.Int8
+	Category       pgtype.Text
+	Notes          pgtype.Text
+	Fixed          pgtype.Bool
+	VariableAmount pgtype.Bool
+	ID             uuid.UUID
+	UserID         uuid.UUID
 }
 
 func (q *Queries) UpdateTransaction(ctx context.Context, arg UpdateTransactionParams) (Transaction, error) {
@@ -1246,6 +1257,7 @@ func (q *Queries) UpdateTransaction(ctx context.Context, arg UpdateTransactionPa
 		arg.Category,
 		arg.Notes,
 		arg.Fixed,
+		arg.VariableAmount,
 		arg.ID,
 		arg.UserID,
 	)
@@ -1263,6 +1275,7 @@ func (q *Queries) UpdateTransaction(ctx context.Context, arg UpdateTransactionPa
 		&i.CreatedAt,
 		&i.Payments,
 		&i.MonthlyNotes,
+		&i.VariableAmount,
 	)
 	return i, err
 }

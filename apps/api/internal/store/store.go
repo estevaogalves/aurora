@@ -223,7 +223,7 @@ func (s *Store) IsEmpty(ctx context.Context, userID uuid.UUID) (bool, error) {
 func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.Transaction {
 	t := domain.Transaction{
 		ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Type: r.Type,
-		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month,
+		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month, VariableAmount: r.VariableAmount,
 	}
 	if len(r.Payments) > 0 {
 		_ = json.Unmarshal(r.Payments, &t.Payments)

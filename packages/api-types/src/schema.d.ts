@@ -1793,6 +1793,8 @@ export interface components {
             monthlyNotes?: {
                 [key: string]: string;
             };
+            /** @description Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado. */
+            variableAmount?: boolean;
             /** @description Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação. */
             payments?: {
                 [key: string]: components["schemas"]["Payment"];
@@ -1822,6 +1824,8 @@ export interface components {
             monthlyNotes?: {
                 [key: string]: string;
             };
+            /** @description Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado. */
+            variableAmount?: boolean;
         };
         CreditTransaction: {
             /** Format: uuid */

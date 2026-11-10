@@ -17,6 +17,8 @@ type Transaction struct {
 	MonthlyValues map[string]int64 `json:"monthlyValues,omitempty"`
 	// Fixas: observação de um mês. A observação é só do mês: Notes vale no mês de criação e não se repete.
 	MonthlyNotes map[string]string `json:"monthlyNotes,omitempty"`
+	// VariableAmount: fixa de valor variável. Amount é uma estimativa; os meses com valor em MonthlyValues têm o valor real.
+	VariableAmount bool `json:"variableAmount,omitempty"`
 	// Despesas: pagamento por mês ("2026-11"). Só registro, não entra em conta nenhuma.
 	Payments map[string]Payment `json:"payments,omitempty"`
 }

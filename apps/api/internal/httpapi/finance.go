@@ -40,6 +40,7 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) {
 	in.Name = strings.TrimSpace(in.Name)
 	if !in.Fixed {
 		in.HiddenMonths, in.MonthlyValues, in.MonthlyNotes = nil, nil, nil
+		in.VariableAmount = false
 	}
 	if bad(w, s.lim.validateTransaction(in)) {
 		return
@@ -62,6 +63,7 @@ type transactionPatchReq struct {
 	HiddenMonths  *[]string         `json:"hiddenMonths"`
 	MonthlyValues *map[string]int64 `json:"monthlyValues"`
 	MonthlyNotes  *map[string]string `json:"monthlyNotes"`
+	VariableAmount *bool            `json:"variableAmount"`
 }
 
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -99,7 +101,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 
 	out, err := s.store.UpdateTransaction(r.Context(), userID(r), chi.URLParam(r, "id"), store.TransactionPatch{
 		Name: trimmed(in.Name), Amount: in.Amount, Category: in.Category, Notes: in.Notes, Fixed: in.Fixed,
-		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes,
+		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes, VariableAmount: in.VariableAmount,
 	})
 	if err != nil {
 		s.fail(w, r, err)

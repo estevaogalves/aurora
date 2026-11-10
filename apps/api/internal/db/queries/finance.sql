@@ -5,8 +5,8 @@ SELECT * FROM transactions WHERE user_id = $1 ORDER BY created_at, id;
 SELECT * FROM transactions WHERE id = $1 AND user_id = $2;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -15,7 +15,9 @@ UPDATE transactions SET
     amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
     category     = COALESCE(sqlc.narg('category'), category),
     notes        = COALESCE(sqlc.narg('notes'), notes),
-    fixed        = COALESCE(sqlc.narg('fixed'), fixed)
+    fixed        = COALESCE(sqlc.narg('fixed'), fixed),
+    -- só fixa tem valor variável: deixar de ser fixa desliga
+    variable_amount = COALESCE(sqlc.narg('fixed'), fixed) AND COALESCE(sqlc.narg('variable_amount'), variable_amount)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 

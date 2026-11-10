@@ -92,18 +92,19 @@ type RefreshToken struct {
 }
 
 type Transaction struct {
-	ID           uuid.UUID
-	UserID       uuid.UUID
-	Name         string
-	AmountCents  int64
-	Type         string
-	Category     string
-	Notes        string
-	Fixed        bool
-	Month        string
-	CreatedAt    pgtype.Timestamptz
-	Payments     []byte
-	MonthlyNotes []byte
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	Name           string
+	AmountCents    int64
+	Type           string
+	Category       string
+	Notes          string
+	Fixed          bool
+	Month          string
+	CreatedAt      pgtype.Timestamptz
+	Payments       []byte
+	MonthlyNotes   []byte
+	VariableAmount bool
 }
 
 type User struct {

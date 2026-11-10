@@ -98,3 +98,63 @@ func TestFixedMonthlyNotes(t *testing.T) {
 		t.Fatalf("dados: %+v", data.Transactions)
 	}
 }
+
+// Despesa/renda fixa de valor variável: o valor da fixa é a estimativa e o valor real de um mês é um monthlyValues.
+func TestFixedTransactionVariableAmount(t *testing.T) {
+	e := setup(t)
+	tk := e.register(t, "").AccessToken
+
+	// só fixa tem valor variável: numa lançada avulsa a marca é ignorada
+	r := e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{
+		"name": "Avulsa", "amount": 5000, "type": "expense", "category": "Outros", "month": "2026-11", "variableAmount": true,
+	})
+	want(t, r, http.StatusCreated)
+	var plain domain.Transaction
+	r.json(t, &plain)
+	if plain.VariableAmount {
+		t.Fatalf("avulsa não pode ser variável: %+v", plain)
+	}
+
+	r = e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{
+		"name": "Luz", "amount": 18000, "type": "expense", "category": "Moradia", "month": "2026-11", "fixed": true, "variableAmount": true,
+	})
+	want(t, r, http.StatusCreated)
+	var luz domain.Transaction
+	r.json(t, &luz)
+	if !luz.VariableAmount || !luz.Fixed {
+		t.Fatalf("luz=%+v", luz)
+	}
+
+	// valor real de um mês; voltar ao estimado = tirar o mês do mapa
+	r = e.do(t, "PATCH", "/api/v1/transactions/"+luz.ID, tk, map[string]any{"monthlyValues": map[string]int64{"2026-12": 21050}})
+	want(t, r, 200)
+	var real domain.Transaction
+	r.json(t, &real)
+	if !real.VariableAmount || real.MonthlyValues["2026-12"] != 21050 {
+		t.Fatalf("com valor real: %+v", real)
+	}
+	r = e.do(t, "PATCH", "/api/v1/transactions/"+luz.ID, tk, map[string]any{"monthlyValues": map[string]int64{}})
+	want(t, r, 200)
+	var back domain.Transaction
+	r.json(t, &back)
+	if len(back.MonthlyValues) != 0 || !back.VariableAmount {
+		t.Fatalf("de volta ao estimado: %+v", back)
+	}
+
+	// desligar o variável sem mexer no resto, e deixar de ser fixa também desliga
+	r = e.do(t, "PATCH", "/api/v1/transactions/"+luz.ID, tk, map[string]any{"variableAmount": false})
+	want(t, r, 200)
+	var off domain.Transaction
+	r.json(t, &off)
+	if off.VariableAmount || !off.Fixed {
+		t.Fatalf("desligada: %+v", off)
+	}
+	want(t, e.do(t, "PATCH", "/api/v1/transactions/"+luz.ID, tk, map[string]any{"variableAmount": true}), 200)
+	r = e.do(t, "PATCH", "/api/v1/transactions/"+luz.ID, tk, map[string]any{"fixed": false})
+	want(t, r, 200)
+	var unfixed domain.Transaction
+	r.json(t, &unfixed)
+	if unfixed.VariableAmount {
+		t.Fatalf("deixou de ser fixa e continua variável: %+v", unfixed)
+	}
+}

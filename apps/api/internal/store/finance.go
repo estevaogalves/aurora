@@ -23,6 +23,7 @@ type TransactionPatch struct {
 	HiddenMonths  *[]string
 	MonthlyValues *map[string]int64
 	MonthlyNotes  *map[string]string
+	VariableAmount *bool
 }
 
 func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
@@ -38,7 +39,7 @@ func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domai
 func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
-		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month,
+		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.Fixed && t.VariableAmount,
 	})
 	if err != nil {
 		return domain.Transaction{}, err
@@ -92,7 +93,7 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
 		row, err := q.UpdateTransaction(ctx, sqlcgen.UpdateTransactionParams{
 			Name: text(p.Name), AmountCents: int8v(p.Amount), Category: text(p.Category),
-			Notes: text(p.Notes), Fixed: boolv(p.Fixed), ID: tid, UserID: userID,
+			Notes: text(p.Notes), Fixed: boolv(p.Fixed), VariableAmount: boolv(p.VariableAmount), ID: tid, UserID: userID,
 		})
 		if err != nil {
 			return err
