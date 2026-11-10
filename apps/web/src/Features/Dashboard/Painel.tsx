@@ -106,7 +106,8 @@ function Suggestion() {
   const items = useDistributionItems();
   const setDistribution = useFinanceStore((s) => s.setDistribution);
   const customized = useFinanceStore((s) => s.distribution) !== null;
-  const parts = useMemo(() => distributeBalance(balance, items), [balance, items]);
+  // categorias com 0% continuam cadastradas, mas não aparecem na apresentação
+  const parts = useMemo(() => distributeBalance(balance, items).filter((p) => p.item.percent > 0), [balance, items]);
   const [editing, setEditing] = useState(false);
 
   const menu = (
@@ -142,7 +143,7 @@ function Suggestion() {
       ) : (
         <Panel tour="sugestao" title="Sugestão para o saldo" subtitle={`Como dividir ${formatBRLShort(balance)}`} action={menu}>
           <div className="mb-3.5 flex h-3.5 gap-0.5 overflow-hidden rounded-full">
-            {parts.filter((p) => p.item.percent > 0).map((p) => (
+            {parts.map((p) => (
               <i key={p.item.id} className="block min-w-1" style={{ flex: p.item.percent, background: sliceColor(items, p.item.id) }} title={`${p.item.label}: ${formatBRL(p.value)}`} />
             ))}
           </div>
