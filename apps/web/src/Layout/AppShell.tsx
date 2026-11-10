@@ -35,7 +35,7 @@ export default function AppShell() {
   }, []);
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-dvh">
       <header className={`z-20 transition-colors min-[700px]:sticky min-[700px]:top-0 ${scrolled ? "border-b border-border bg-background/85 backdrop-blur-[14px]" : "border-b border-transparent"}`}>
         <div className={`${CONTAINER} flex flex-wrap items-center gap-x-2 gap-y-2 py-3.5`}>
           <NavLink to="/painel" aria-label={APP_NAME} className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-[-0.02em]">

@@ -68,7 +68,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   };
 
   return (
-    <div className="grid min-h-screen place-items-center px-4 py-10">
+    <div className="grid min-h-dvh place-items-center px-4 py-10">
       <div className="absolute right-4 top-4">
         <ThemeToggle />
       </div>
