@@ -21,7 +21,7 @@ export function getTransactionsByMonth(
       // a observação de uma fixa é só do mês: a própria `notes` vale no mês de criação, os outros têm a sua (ou nenhuma)
       const notes = noteOfMonth(t, month);
       // 0 é um valor válido: só ignora quando não há valor definido
-      return { ...t, ...(override !== undefined && { amount: override }), notes };
+      return { ...t, ...(override !== undefined && { amount: override }), notes, ...(t.variableAmount && override === undefined && { estimated: true }) };
     });
 }
 
@@ -107,5 +107,13 @@ export function patchToggleFixed(t: Transaction): Partial<Transaction> {
   if (!t.fixed) {
     return { fixed: true, hiddenMonths: [] };
   }
-  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined };
+  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, variableAmount: undefined };
+}
+
+/** Fixa de valor variável: tira o valor real deste mês e ele volta ao estimado. null se o mês já está estimado. */
+export function patchClearMonthValue(t: Transaction, month: Month): Partial<Transaction> | null {
+  if (!t.fixed || !t.variableAmount || t.monthlyValues?.[month] === undefined) return null;
+  const rest = { ...t.monthlyValues };
+  delete rest[month];
+  return { monthlyValues: rest };
 }

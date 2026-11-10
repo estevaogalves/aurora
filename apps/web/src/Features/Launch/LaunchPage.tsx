@@ -88,6 +88,7 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
         <div className="min-w-0">
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="break-words">{t.name}</span>
+            {t.estimated && <Pill>Estimado</Pill>}
             {payment && <PaidBadge payment={payment} />}
           </span>
           {note.text}

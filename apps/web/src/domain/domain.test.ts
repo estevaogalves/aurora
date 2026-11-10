@@ -14,6 +14,7 @@ import {
   patchHideInMonth,
   patchRestoreInMonth,
   patchToggleFixed,
+  patchClearMonthValue,
   type CreditTransaction,
   type ExtraExpense,
   type Transaction,
@@ -339,5 +340,32 @@ describe("observação de despesa fixa", () => {
   it("transação comum guarda a observação nela mesma", () => {
     const comum = tx({ id: "c", fixed: false, month: "2026-11" });
     expect(patchNotesForMonth(comum, "2026-11", "oi")).toEqual({ notes: "oi" });
+  });
+});
+
+describe("fixa de valor variável (estimado)", () => {
+  const luz = tx({ fixed: true, variableAmount: true, amount: 18000, month: "2026-01", monthlyValues: { "2026-02": 21050 } });
+
+  it("marca como estimado só os meses sem valor real", () => {
+    const [jan] = getTransactionsByMonth([luz], "2026-01");
+    const [fev] = getTransactionsByMonth([luz], "2026-02");
+    const [mar] = getTransactionsByMonth([luz], "2026-03");
+    expect([jan.estimated, fev.estimated, mar.estimated]).toEqual([true, undefined, true]);
+    expect([jan.amount, fev.amount, mar.amount]).toEqual([18000, 21050, 18000]);
+  });
+
+  it("fixa comum nunca é estimada", () => {
+    const [comum] = getTransactionsByMonth([tx({ fixed: true, amount: 100 })], "2026-03");
+    expect(comum.estimated).toBeUndefined();
+  });
+
+  it("voltar ao estimado tira só o valor real do mês", () => {
+    expect(patchClearMonthValue(luz, "2026-02")).toEqual({ monthlyValues: {} });
+    expect(patchClearMonthValue(luz, "2026-03")).toBeNull();
+    expect(patchClearMonthValue({ ...luz, variableAmount: false }, "2026-02")).toBeNull();
+  });
+
+  it("deixar de ser fixa desliga o valor variável", () => {
+    expect(patchToggleFixed(luz)).toMatchObject({ fixed: false, variableAmount: undefined });
   });
 });

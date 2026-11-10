@@ -39,7 +39,7 @@ export function EditTransactionDialog({ transaction, onClose }: { transaction: T
 
 function TransactionFields({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
   const month = useFinanceStore((s) => s.currentMonth);
-  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth } = useFinanceStore();
+  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, clearTransactionActualValue } = useFinanceStore();
   const income = transaction.type === "income";
 
   const [name, setName] = useState(transaction.name);
@@ -48,6 +48,9 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
   const [notes, setNotes] = useState(transaction.notes ?? "");
   // fixa: o valor vale só para o mês visto ou também para os seguintes
   const [scope, setScope] = useState<"month" | "following">("month");
+  const [variable, setVariable] = useState(!!transaction.variableAmount);
+  // fixa variável com valor real neste mês (o `estimated` vem de getTransactionsByMonth)
+  const hasActual = !!transaction.variableAmount && !transaction.estimated;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,6 +60,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
     if (cents === null) return showToast({ type: "error", text: "Informe um valor válido" });
 
     if (trimmed !== transaction.name) updateTransactionName(transaction.id, trimmed);
+    if (transaction.fixed && variable !== !!transaction.variableAmount) setTransactionVariable(transaction.id, variable);
     if (cents !== transaction.amount) {
       if (transaction.fixed && scope === "following") updateTransactionAmountFromMonth(transaction.id, month, cents);
       else updateTransactionAmountForMonth(transaction.id, month, cents);
@@ -79,13 +83,25 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
       {transaction.fixed && (
         <fieldset className="flex flex-col gap-2 rounded-md border border-border bg-secondary p-3">
           <legend className="px-1 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">O novo valor vale para</legend>
-          {([["month", `Apenas ${formatMonthTitle(month)}`], ["following", `${formatMonthTitle(month)} e todos os meses seguintes`]] as const).map(([value, text]) => (
+          {([
+            ["month", transaction.variableAmount ? `Apenas ${formatMonthTitle(month)} (valor real do mês)` : `Apenas ${formatMonthTitle(month)}`],
+            ["following", transaction.variableAmount ? `${formatMonthTitle(month)} e seguintes (novo valor estimado)` : `${formatMonthTitle(month)} e todos os meses seguintes`],
+          ] as const).map(([value, text]) => (
             <label key={value} className="flex cursor-pointer items-center gap-2.5 text-sm">
               <input type="radio" name="edit-scope" value={value} checked={scope === value} onChange={() => setScope(value)} className="h-4 w-4 accent-[hsl(var(--primary))]" />
               {text}
             </label>
           ))}
         </fieldset>
+      )}
+      {transaction.fixed && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
+          <Checkbox checked={variable} onCheckedChange={(c) => setVariable(Boolean(c))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Valor variável (estimado)</span>
+            <span className="block text-xs text-muted-foreground">O valor é uma estimativa; cada mês pode ter o valor real.</span>
+          </span>
+        </label>
       )}
       {!income && (
         <Field label="Categoria" htmlFor="edit-category">
@@ -97,6 +113,9 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
         <Textarea id="edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[64px] rounded-md border-border-strong bg-secondary" />
       </Field>
       <div className="flex justify-end gap-2">
+        {hasActual && (
+          <Button type="button" variant="secondary" onClick={() => { clearTransactionActualValue(transaction.id, month); showToast({ type: "success", text: "Mês voltou ao valor estimado" }); onClose(); }}>Voltar ao estimado</Button>
+        )}
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
         <Button type="submit">Salvar</Button>
       </div>

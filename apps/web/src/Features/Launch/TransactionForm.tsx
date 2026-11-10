@@ -239,6 +239,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setAmount("");
     setNotes("");
     setFixed(false);
+    setVariable(false);
     setCategory("Moradia");
     setExtraMonth(changeMonth(currentMonth, 1));
     setInstallments(2);
@@ -302,14 +303,14 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       });
       showToast({ type: "success", text: recurring ? `Compra recorrente "${trimmed}" adicionada` : `Compra parcelada "${trimmed}" adicionada` });
     } else if (kind === "income") {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: currentMonth });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: currentMonth, ...(fixed && variable && { variableAmount: true }) });
       showToast({ type: "success", text: `Renda "${trimmed}" adicionada` });
     } else if (kind === "extra") {
       if (!extraMonth) return showToast({ type: "error", text: "Escolha o mês da despesa extra" });
       addExtraExpense({ id: uuid(), name: trimmed, amount: cents, month: extraMonth });
       showToast({ type: "success", text: `Despesa extra "${trimmed}" adicionada` });
     } else {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: currentMonth });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: currentMonth, ...(fixed && variable && { variableAmount: true }) });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada` });
     }
 
@@ -452,13 +453,22 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       )}
 
       {(kind === "expense" || kind === "income") && (
-        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
-          <Checkbox checked={fixed} onCheckedChange={(c) => setFixed(Boolean(c))} className="mt-0.5" />
-          <span>
-            <span className="block text-sm font-medium text-foreground">{kind === "income" ? "Renda fixa" : "Despesa fixa"}</span>
-            <span className="block text-xs text-muted-foreground">Repete todo mês a partir deste. Dá para ajustar o valor de cada mês depois.</span>
-          </span>
-        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
+            <Checkbox checked={fixed} onCheckedChange={(c) => { setFixed(Boolean(c)); if (!c) setVariable(false); }} className="mt-0.5" />
+            <span>
+              <span className="block text-sm font-medium text-foreground">{kind === "income" ? "Renda fixa" : "Despesa fixa"}</span>
+              <span className="block text-xs text-muted-foreground">Repete todo mês a partir deste. Dá para ajustar o valor de cada mês depois.</span>
+            </span>
+          </label>
+          <label className={`flex items-start gap-3 rounded-md border border-border bg-secondary p-3 ${fixed ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
+            <Checkbox checked={variable} disabled={!fixed} onCheckedChange={(c) => setVariable(Boolean(c))} className="mt-0.5" />
+            <span>
+              <span className="block text-sm font-medium text-foreground">Valor variável (estimado)</span>
+              <span className="block text-xs text-muted-foreground">O valor é uma estimativa; cada mês aceita o valor real.</span>
+            </span>
+          </label>
+        </div>
       )}
 
       <div className="flex justify-end gap-2 pt-1">

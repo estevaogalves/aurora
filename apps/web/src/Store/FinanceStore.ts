@@ -16,6 +16,7 @@ import {
   patchHideInMonth,
   patchRestoreInMonth,
   patchToggleFixed,
+  patchClearMonthValue,
   type CreditInstallment,
   patchContribution,
   type CreditCard,
@@ -77,6 +78,10 @@ interface FinanceState {
   /** Fixa: o novo valor vale deste mês em diante (os anteriores não mudam). */
   updateTransactionAmountFromMonth: (id: string, month: string, cents: number) => void;
   toggleTransactionFixed: (id: string) => void;
+  /** Fixa: liga ou desliga o valor variável (estimado). */
+  setTransactionVariable: (id: string, variable: boolean) => void;
+  /** Fixa variável: tira o valor real do mês e volta ao estimado. */
+  clearTransactionActualValue: (id: string, month: string) => void;
   /** Fixa: oculta no mês. Comum: remove de vez. */
   removeTransactionByMonth: (id: string, month: string) => void;
   restoreTransactionByMonth: (id: string, month: string) => void;
@@ -240,6 +245,17 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     toggleTransactionFixed: (id) => {
       const t = findTransaction(id);
       if (t) patchTransaction(id, patchToggleFixed(t));
+    },
+
+    setTransactionVariable: (id, variable) => {
+      const t = findTransaction(id);
+      if (t?.fixed) patchTransaction(id, { variableAmount: variable });
+    },
+
+    clearTransactionActualValue: (id, month) => {
+      const t = findTransaction(id);
+      const patch = t && patchClearMonthValue(t, month);
+      if (patch) patchTransaction(id, patch);
     },
 
     removeTransactionByMonth: (id, month) => {
