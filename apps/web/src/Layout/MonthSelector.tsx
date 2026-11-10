@@ -13,6 +13,7 @@ export default function MonthSelector() {
   const setCurrentMonth = useFinanceStore((s) => s.setCurrentMonth);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
   const notes = useFinanceStore((s) => s.notes);
   const goals = useFinanceStore((s) => s.goals);
@@ -20,12 +21,12 @@ export default function MonthSelector() {
   const realCurrentMonth = getCurrentMonth();
 
   const previous = useMemo(
-    () => getAdjacentMonth({ transactions, creditTransactions, extraExpenses, notes, goals }, currentMonth, realCurrentMonth, -1),
-    [transactions, creditTransactions, extraExpenses, notes, goals, currentMonth, realCurrentMonth],
+    () => getAdjacentMonth({ transactions, creditTransactions, creditCards, extraExpenses, notes, goals }, currentMonth, realCurrentMonth, -1),
+    [transactions, creditTransactions, creditCards, extraExpenses, notes, goals, currentMonth, realCurrentMonth],
   );
   const next = useMemo(
-    () => getAdjacentMonth({ transactions, creditTransactions, extraExpenses, notes, goals }, currentMonth, realCurrentMonth, 1),
-    [transactions, creditTransactions, extraExpenses, notes, goals, currentMonth, realCurrentMonth],
+    () => getAdjacentMonth({ transactions, creditTransactions, creditCards, extraExpenses, notes, goals }, currentMonth, realCurrentMonth, 1),
+    [transactions, creditTransactions, creditCards, extraExpenses, notes, goals, currentMonth, realCurrentMonth],
   );
 
   const arrow =

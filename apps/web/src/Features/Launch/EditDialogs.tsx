@@ -3,13 +3,15 @@ import { useState } from "react";
 import CategorySelect from "@/components/shared/CategorySelect";
 import { Field, FREE_TEXT_WARNING, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { patchEditAll } from "@/domain";
+import { chargeDate, patchEditAll } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type Transaction } from "@/Store/FinanceStore";
 import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
+import CardField from "./CardField";
 
 function Shell({ open, title, description, onClose, children }: { open: boolean; title: string; description: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -60,7 +62,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
       else updateTransactionAmountForMonth(transaction.id, month, cents);
     }
     if (!income && category !== transaction.category) updateTransactionCategory(transaction.id, category);
-    if (notes.trim() !== (transaction.notes ?? "")) updateTransactionNotes(transaction.id, notes.trim());
+    if (notes.trim() !== (transaction.notes ?? "")) updateTransactionNotes(transaction.id, month, notes.trim());
 
     showToast({ type: "success", text: "Alterações salvas" });
     onClose();
@@ -117,6 +119,8 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
   const [total, setTotal] = useState(centsToInput(credit.totalAmount));
   const [installments, setInstallments] = useState(credit.installments);
   const [category, setCategory] = useState(credit.category);
+  const [cardId, setCardId] = useState(credit.cardId ?? "");
+  const [variable, setVariable] = useState(!!credit.variableAmount);
   // com parcelas ajustadas, excluídas ou adiantadas o nº de parcelas fica travado
   const locked = Object.keys(credit.adjustments ?? {}).length > 0;
   const recurring = !!credit.recurring;
@@ -132,6 +136,9 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
       totalAmount: cents,
       installments: recurring ? 1 : Math.min(60, Math.max(1, Math.floor(installments) || 1)),
       category,
+      // "" desliga o cartão (a API limpa o campo)
+      cardId,
+      ...(recurring && { variableAmount: variable }),
     });
     if (!result.ok) return showToast({ type: "error", text: result.error });
     update(credit.id, result.patch);
@@ -157,6 +164,16 @@ function CreditFields({ credit, onClose }: { credit: CreditTransaction; onClose:
       <Field label="Categoria" htmlFor="edit-credit-category">
         <CategorySelect id="edit-credit-category" value={category} onChange={setCategory} />
       </Field>
+      <CardField cardId={cardId} onChange={setCardId} date={credit.billingDay ? chargeDate(credit.billingDay, credit.startMonth) : ""} onNavigate={onClose} />
+      {recurring && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
+          <Checkbox checked={variable} onCheckedChange={(c) => setVariable(Boolean(c))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Valor variável (estimado)</span>
+            <span className="block text-xs text-muted-foreground">O valor mensal é uma estimativa; cada mês pode ter o valor real.</span>
+          </span>
+        </label>
+      )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
         <Button type="submit">Salvar</Button>

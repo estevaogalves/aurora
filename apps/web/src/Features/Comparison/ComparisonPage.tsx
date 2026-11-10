@@ -27,19 +27,20 @@ const chipLabel = (m: string) => `${shortLabel(m)}/${m.slice(2, 4)}`;
 export default function ComparisonPage() {
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
   const notes = useFinanceStore((s) => s.notes);
   const customCategories = useFinanceStore((s) => s.customCategories);
   const colorOf = useCategoryColor();
 
-  const data = useMemo(() => ({ transactions, creditTransactions, extraExpenses }), [transactions, creditTransactions, extraExpenses]);
+  const data = useMemo(() => ({ transactions, creditTransactions, creditCards, extraExpenses }), [transactions, creditTransactions, creditCards, extraExpenses]);
 
   // só meses que já aconteceram e tiveram movimentação (renda ou despesa)
   const real = useMemo(() => {
     const today = getCurrentMonth();
-    const months = getAvailableMonths({ transactions, creditTransactions, notes }, today).filter((m) => compareMonths(m, today) <= 0);
+    const months = getAvailableMonths({ transactions, creditTransactions, creditCards, notes }, today).filter((m) => compareMonths(m, today) <= 0);
     return months.map((m) => getMonthSummary(data, m)).filter((s) => s.totalIncome > 0 || s.totalExpense > 0).slice(-MAX_MONTHS);
-  }, [transactions, creditTransactions, notes, data]);
+  }, [transactions, creditTransactions, creditCards, notes, data]);
   // durante o tour, quem ainda não tem 2 meses vê meses de exemplo (o tour não depende de dados do usuário)
   const demo = useUiStore((s) => s.tourDemo) && real.length < 2;
   const summaries = useMemo(() => (demo ? getDemoSummaries() : real), [demo, real]);

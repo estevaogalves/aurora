@@ -13,6 +13,7 @@ import GoalBell from "./GoalBell";
 import ImportBanner from "./ImportBanner";
 import MonthSelector from "./MonthSelector";
 import AppTour from "../components/tour/AppTour";
+import CardsDialog from "@/Features/Profile/CardsDialog";
 import { NAV_ITEMS } from "./navigation";
 import UserMenu from "./UserMenu";
 
@@ -75,6 +76,7 @@ export default function AppShell() {
       <ImportBanner />
       <ToastContainer />
       <TransactionForm />
+      <CardsDialog />
       <FloatingCalculator />
 
       <main className={`${CONTAINER} pb-[70px] pt-[26px] max-[700px]:pb-[104px] max-[700px]:pt-3.5`}>
@@ -97,7 +99,7 @@ function TopTabs() {
           key={item.path}
           to={item.path}
           className={({ isActive }) =>
-            `flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-2 text-[13px] font-semibold ${
+            `flex items-center gap-1 whitespace-nowrap rounded-full px-1.5 py-2 text-[13px] font-semibold min-[701px]:max-[1299px]:flex-auto min-[701px]:max-[1299px]:justify-center ${
               isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`
           }

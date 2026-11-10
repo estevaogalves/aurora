@@ -9,7 +9,7 @@ import { btnClass } from "@/components/shared/styles";
 import { canAdvanceInstallment, chargeDay, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
-import { useHiddenTransactions, useMonthCredit, useMonthTransactions } from "@/Store/selectors";
+import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 import EditExtraDialog from "../Projection/EditExtraDialog";
@@ -311,6 +311,8 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, 
         meta={
           <>
             <Pill>Recorrente</Pill>
+            {c.estimated && <Pill>Estimado</Pill>}
+            {c.adjusted && <Pill tone="good">Valor real</Pill>}
             {credit?.billingDay && <span>Cobra dia {chargeDay(credit.billingDay, month)}</span>}
             <span>{ending ? `Cancelada · última cobrança em ${formatMonthAbbr(ending)}` : "Cobrada todo mês"}</span>
           </>
@@ -353,7 +355,9 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, 
 /** Compras parceladas com parcela no mês visto: mesma fonte (`useMonthCredit`) do Painel, do saldo e da Projeção. */
 function InstallmentsPanel() {
   const credit = useMonthCredit();
-  const credits = useFinanceStore((s) => s.creditTransactions);
+  const rawCredits = useFinanceStore((s) => s.creditTransactions);
+  // meses já contados pelo vencimento da fatura do cartão; a edição da compra inteira usa a salva
+  const credits = useResolvedCredits();
   const month = useFinanceStore((s) => s.currentMonth);
   const removeCredit = useFinanceStore((s) => s.removeCreditTransaction);
   const removeInstallment = useFinanceStore((s) => s.removeCreditInstallment);
@@ -364,12 +368,14 @@ function InstallmentsPanel() {
   const [target, setTarget] = useState<{ id: string; n: number; advanced: boolean } | null>(null);
   const [step, setStep] = useState<"edit-scope" | "delete-scope" | "edit-one" | "edit-all" | "delete-one" | "delete-all" | "advance" | "cancel-recurrence" | null>(null);
   const targetCredit = credits.find((x) => x.id === target?.id) ?? null;
+  const rawTarget = rawCredits.find((x) => x.id === target?.id) ?? null;
   const close = () => { setStep(null); setTarget(null); };
   const open = (c: ReturnType<typeof useMonthCredit>[number], action: "edit" | "delete" | "advance" | "cancel-recurrence") => {
     setTarget({ id: c.id, n: c.currentInstallment, advanced: !!c.advanced });
     // parcela adiantada não muda individualmente: só "todas"; recorrente não tem parcelas, então também só "todas"
     if (action === "advance") setStep("advance");
     else if (action === "cancel-recurrence") setStep("cancel-recurrence");
+    else if (c.recurring && (c.estimated || c.adjusted)) setStep(action === "edit" ? "edit-scope" : "delete-all");
     else if (c.advanced || c.recurring) setStep(action === "edit" ? "edit-all" : "delete-all");
     else setStep(action === "edit" ? "edit-scope" : "delete-scope");
   };
@@ -402,8 +408,8 @@ function InstallmentsPanel() {
         open={step === "edit-scope"}
         title="Editar parcela"
         name={targetCredit?.name ?? ""}
-        installmentLabel={`${scopeLabel}. Muda só o valor desta parcela.`}
-        allNote="Muda nome, categoria e valor total. Parcelas adiantadas e com valor próprio não mudam."
+        installmentLabel={targetCredit?.recurring ? `Valor real de ${formatMonthTitle(month)}. Os outros meses e a recorrência não mudam.` : `${scopeLabel}. Muda só o valor desta parcela.`}
+        allNote={targetCredit?.recurring ? "Muda nome, categoria, cartão e a estimativa mensal. Meses com valor real não mudam." : "Muda nome, categoria e valor total. Parcelas adiantadas e com valor próprio não mudam."}
         confirmLabel="Continuar"
         onChoose={(scope) => setStep(scope === "one" ? "edit-one" : "edit-all")}
         onClose={close}
@@ -420,7 +426,7 @@ function InstallmentsPanel() {
         onClose={close}
       />
       <EditInstallmentDialog credit={step === "edit-one" ? targetCredit : null} n={target?.n ?? 1} onClose={close} />
-      <EditCreditDialog credit={step === "edit-all" ? targetCredit : null} onClose={close} />
+      <EditCreditDialog credit={step === "edit-all" ? rawTarget : null} onClose={close} />
       <AdvanceDialog credit={step === "advance" ? targetCredit : null} n={target?.n ?? 1} onClose={close} />
       <CancelRecurrenceDialog credit={step === "cancel-recurrence" ? targetCredit : null} month={month} onClose={close} />
       <ConfirmDeletion

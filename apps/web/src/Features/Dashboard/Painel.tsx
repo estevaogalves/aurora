@@ -55,17 +55,18 @@ function Trend() {
   const month = useFinanceStore((s) => s.currentMonth);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
   const { labels, income, expense } = useMemo(() => {
     const months = Array.from({ length: 6 }, (_, i) => changeMonth(month, i - 5));
-    const sums = months.map((m) => getMonthSummary({ transactions, creditTransactions, extraExpenses }, m));
+    const sums = months.map((m) => getMonthSummary({ transactions, creditTransactions, creditCards, extraExpenses }, m));
     return {
       labels: months.map((m) => { const t = formatMonthShort(m).split(" ")[0]; return t.charAt(0).toUpperCase() + t.slice(1); }),
       income: sums.map((s) => s.totalIncome),
       expense: sums.map((s) => s.totalExpense),
     };
-  }, [month, transactions, creditTransactions, extraExpenses]);
+  }, [month, transactions, creditTransactions, creditCards, extraExpenses]);
 
   return (
     <Panel tour="tendencia" title="Últimos 6 meses" subtitle="Renda e despesas">

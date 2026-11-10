@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { advancedAmount, getInstallmentMonth, getInstallmentValue, patchCancelRecurrence, validateDiscount } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction } from "@/Store/FinanceStore";
-import { formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
+import { changeMonth, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 
 function Shell({ open, title, description, onClose, children }: { open: boolean; title: string; description: string; onClose: () => void; children: React.ReactNode }) {
@@ -115,8 +115,8 @@ export function EditInstallmentDialog({ credit, n, onClose }: { credit: CreditTr
   return (
     <Shell
       open={!!credit}
-      title="Editar esta parcela"
-      description={credit ? `${credit.name} · parcela ${n}/${credit.installments} (${formatMonthTitle(getInstallmentMonth(credit, n))}). As outras parcelas não mudam.` : ""}
+      title={credit?.recurring ? "Valor real do mês" : "Editar esta parcela"}
+      description={credit ? (credit.recurring ? `${credit.name} · ${formatMonthTitle(changeMonth(credit.startMonth, n - 1))}. Os outros meses e a recorrência não mudam.` : `${credit.name} · parcela ${n}/${credit.installments} (${formatMonthTitle(getInstallmentMonth(credit, n))}). As outras parcelas não mudam.`) : ""}
       onClose={onClose}
     >
       {credit && <InstallmentValueFields key={`${credit.id}-${n}`} credit={credit} n={n} onClose={onClose} />}
@@ -126,6 +126,7 @@ export function EditInstallmentDialog({ credit, n, onClose }: { credit: CreditTr
 
 function InstallmentValueFields({ credit, n, onClose }: { credit: CreditTransaction; n: number; onClose: () => void }) {
   const update = useFinanceStore((s) => s.updateCreditInstallment);
+  const clear = useFinanceStore((s) => s.clearCreditActualValue);
   const [value, setValue] = useState(centsToInput(getInstallmentValue(credit, n)));
 
   function submit(e: React.FormEvent) {
@@ -140,10 +141,13 @@ function InstallmentValueFields({ credit, n, onClose }: { credit: CreditTransact
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <Field label="Valor da parcela" htmlFor="edit-installment-value">
+      <Field label={credit.recurring ? "Valor real cobrado" : "Valor da parcela"} htmlFor="edit-installment-value">
         <MoneyInput id="edit-installment-value" value={value} onChange={setValue} />
       </Field>
       <div className="flex justify-end gap-2">
+        {credit.recurring && credit.adjustments?.[String(n)]?.value !== undefined && (
+          <Button type="button" variant="secondary" onClick={() => { const e = clear(credit.id, n); if (e) return showToast({ type: "error", text: e }); showToast({ type: "success", text: "Mês voltou ao valor estimado" }); onClose(); }}>Voltar ao estimado</Button>
+        )}
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
         <Button type="submit">Salvar</Button>
       </div>

@@ -28,6 +28,7 @@ export default function ReportsPage() {
   const current = useFinanceStore((s) => s.currentMonth);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
   // null = acompanha o seletor do cabeçalho (os 6 meses que terminam nele)
@@ -35,7 +36,7 @@ export default function ReportsPage() {
   const [format, setFormat] = useState<Format>("PDF");
   const [content, setContent] = useState({ summary: true, entries: true, credit: true, distribution: false });
 
-  const data = useMemo(() => ({ transactions, creditTransactions, extraExpenses }), [transactions, creditTransactions, extraExpenses]);
+  const data = useMemo(() => ({ transactions, creditTransactions, creditCards, extraExpenses }), [transactions, creditTransactions, creditCards, extraExpenses]);
   const maxMonth = getCurrentMonth();
   const range = custom ?? { start: changeMonth(current, -(MAX_MONTHS - 1)), end: current };
   const months = useMemo(() => getMonthsBetween(range.start, range.end), [range.start, range.end]);
@@ -165,17 +166,22 @@ export default function ReportsPage() {
             </div>
 
             <div className="mb-1 mt-3.5 flex flex-col gap-2.5">
-              {CONTENT.map((c) => (
-                <label key={c.key} className="flex items-start gap-2.5 text-[13.5px]">
-                  <input
-                    type="checkbox"
-                    checked={content[c.key]}
-                    onChange={(e) => setContent({ ...content, [c.key]: e.target.checked })}
-                    className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]"
-                  />
-                  {c.label}
-                </label>
-              ))}
+              {CONTENT.map((c) => {
+                // a sugestão de distribuição só existe no PDF: com CSV ou TXT o campo fica bloqueado (e desmarcado na tela)
+                const blocked = c.key === "distribution" && format !== "PDF";
+                return (
+                  <label key={c.key} className={`flex items-start gap-2.5 text-[13.5px] ${blocked ? "cursor-not-allowed opacity-50" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={blocked ? false : content[c.key]}
+                      disabled={blocked}
+                      onChange={(e) => setContent({ ...content, [c.key]: e.target.checked })}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--primary))] disabled:cursor-not-allowed"
+                    />
+                    {c.label}
+                  </label>
+                );
+              })}
             </div>
 
             <div className="mt-4">

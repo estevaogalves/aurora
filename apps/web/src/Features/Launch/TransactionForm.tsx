@@ -1,8 +1,9 @@
-import { billingDayOf, todayISO } from "@/domain";
+import { billingDayOf, isValidCard, todayISO } from "@/domain";
 import { canAutoFocus } from "@/lib/device";
 import { uuid } from "@/lib/uuid";
 import MonthPicker from "@/components/shared/MonthPicker";
 import { useEffect, useState } from "react";
+import { CardSelect, InvoiceInfo } from "./CardField";
 import TourHelpButton from "@/components/tour/TourHelpButton";
 import { btnClass } from "@/components/shared/styles";
 import CategorySelect from "@/components/shared/CategorySelect";
@@ -22,15 +23,16 @@ import Calculator, { CALCULATOR_ATTR } from "../Calculator/Calculator";
 import { showToast } from "../Warnings/toast";
 
 const tabClass =
-  "min-h-10 whitespace-nowrap rounded-[10px] px-0.5 py-2 text-[12px] font-semibold sm:px-1.5 sm:text-[12.5px] text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
+  "min-h-10 flex-auto whitespace-nowrap rounded-[10px] px-1.5 py-2 text-[11.5px] font-semibold sm:px-3 sm:text-[12.5px] text-ink2 data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow";
 
-const LAUNCH_TABS: LaunchTab[] = ["expense", "income", "credit", "extra", "goal"];
+const LAUNCH_TABS: LaunchTab[] = ["expense", "income", "credit", "card", "extra", "goal"];
 
 /** Mini tour do modal: o que cada aba representa. */
 const TAB_HELP: Record<LaunchTab, { title: string; text: string }> = {
   expense: { title: "Despesa", text: "Um gasto do mês, como aluguel, mercado ou internet. Marque “Despesa fixa” para repetir todo mês; sem marcar, vale só neste mês." },
   income: { title: "Renda", text: "Dinheiro que entra, como salário ou freelance. A renda fixa repete todo mês; a variável vale só no mês em que foi lançada." },
   credit: { title: "Crédito parcelado", text: "Compra no cartão em várias vezes. Informe o valor total e o número de parcelas: o app divide e lança uma parcela por mês, a partir deste. Marque “Compra recorrente” para uma assinatura: um valor único, cobrado todo mês até você cancelar." },
+  card: { title: "Cartão", text: "Cadastre um cartão de crédito com o dia de fechamento e o de vencimento. Ao escolhê-lo em uma compra, o valor entra no mês em que a fatura vence. Para ver, editar ou excluir seus cartões, use o ícone de perfil no topo (ou a aba Cartões, no uso local)." },
   extra: { title: "Despesa extra", text: "Gasto que não se repete todo mês e que você quer planejar, como IPVA ou uma viagem. Escolha o mês futuro; ela aparece na aba Projeção." },
   goal: { title: "Meta", text: "Um objetivo para juntar dinheiro, como a reserva de emergência. Informe o valor, o aporte mensal e o prazo (opcionais) e acompanhe na aba Metas. Marque “Porquinho” para guardar sem valor de meta: só nome, já guardado, aporte e prazo; ele fica abaixo das metas principais." },
 };
@@ -131,14 +133,15 @@ export default function TransactionForm() {
               <Icon name="calc" size={15} />
             </button>
           </div>
-          <DialogDescription>Um só formulário para renda, despesa, compra parcelada, despesa extra e meta. A janela continua aberta para você lançar em sequência.</DialogDescription>
+          <DialogDescription>Um só formulário para renda, despesa, compra parcelada, cartão, despesa extra e meta. A janela continua aberta para você lançar em sequência.</DialogDescription>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => openLaunch(v as LaunchTab)}>
-          <TabsList className={`grid h-auto w-full grid-cols-5 gap-1 rounded-md bg-secondary p-1 ${help !== null ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""}`}>
+          <TabsList className={`flex h-auto w-full gap-1 rounded-md bg-secondary p-1 ${help !== null ? "ring-2 ring-primary ring-offset-2 ring-offset-card" : ""}`}>
             <TabsTrigger value="expense" className={tabClass}>Despesa</TabsTrigger>
             <TabsTrigger value="income" className={tabClass}>Renda</TabsTrigger>
             <TabsTrigger value="credit" className={tabClass}><span className="sm:hidden">Crédito</span><span className="max-sm:hidden">Crédito parcelado</span></TabsTrigger>
+            <TabsTrigger value="card" className={tabClass}>Cartão</TabsTrigger>
             <TabsTrigger value="extra" className={tabClass}><span className="sm:hidden">Extra</span><span className="max-sm:hidden">Despesa extra</span></TabsTrigger>
             <TabsTrigger value="goal" className={tabClass}>Meta</TabsTrigger>
           </TabsList>
@@ -192,7 +195,8 @@ function defaultStartDate(month: string) {
 const LABELS = {
   expense: { name: "Nome da despesa", placeholder: "Ex.: Aluguel, internet...", amount: "Valor deste mês" },
   income: { name: "Nome da renda", placeholder: "Ex.: Salário, freelance...", amount: "Valor deste mês" },
-  credit: { name: "Nome da compra", placeholder: "Ex.: Notebook", amount: "Valor total da compra" },
+  credit: { name: "Nome da compra", placeholder: "Ex.: Notebook", amount: "Valor total" },
+  card: { name: "Nome do cartão", placeholder: "Ex.: Nubank", amount: "" },
   extra: { name: "Descrição", placeholder: "Ex.: Seguro do carro", amount: "Valor" },
   goal: { name: "Nome da meta", placeholder: "Ex.: Viagem de férias", amount: "Valor da meta" },
 } as const;
@@ -204,6 +208,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const addCreditTransaction = useFinanceStore((s) => s.addCreditTransaction);
   const addExtraExpense = useFinanceStore((s) => s.addExtraExpense);
   const addGoal = useFinanceStore((s) => s.addGoal);
+  const addCreditCard = useFinanceStore((s) => s.addCreditCard);
 
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -212,8 +217,12 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [notes, setNotes] = useState("");
   const [installments, setInstallments] = useState(2);
   const [recurring, setRecurring] = useState(false);
+  const [variable, setVariable] = useState(false);
+  const [cardId, setCardId] = useState("");
   // data de início da cobrança (crédito parcelado e recorrente): dá o mês inicial e o dia das cobranças seguintes
   const [startDate, setStartDate] = useState(() => defaultStartDate(currentMonth));
+  const [closingDay, setClosingDay] = useState("");
+  const [dueDay, setDueDay] = useState("");
   const [piggy, setPiggy] = useState(false);
   const [extraMonth, setExtraMonth] = useState(changeMonth(currentMonth, 1));
   const [monthly, setMonthly] = useState("");
@@ -234,7 +243,10 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setExtraMonth(changeMonth(currentMonth, 1));
     setInstallments(2);
     setRecurring(false);
+    setVariable(false);
     setStartDate(defaultStartDate(currentMonth));
+    setClosingDay("");
+    setDueDay("");
     setPiggy(false);
     setMonthly("");
     setSaved("");
@@ -247,6 +259,15 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
 
     const trimmed = name.trim();
     if (!trimmed) return showToast({ type: "error", text: "Preencha o nome" });
+
+    if (kind === "card") {
+      const card = { name: trimmed, closingDay: Number(closingDay), dueDay: Number(dueDay) };
+      if (!isValidCard(card)) return showToast({ type: "error", text: "Informe os dias de fechamento e vencimento (1 a 31)" });
+      addCreditCard({ id: uuid(), ...card });
+      showToast({ type: "success", text: `Cartão "${trimmed}" cadastrado` });
+      reset();
+      return;
+    }
 
     if (kind === "credit" && !billingDayOf(startDate)) return showToast({ type: "error", text: "Informe a data de início da cobrança" });
 
@@ -276,6 +297,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         billingDay: billingDayOf(startDate),
         category,
         ...(recurring && { recurring: true }),
+        ...(recurring && variable && { variableAmount: true }),
+        ...(cardId && { cardId }),
       });
       showToast({ type: "success", text: recurring ? `Compra recorrente "${trimmed}" adicionada` : `Compra parcelada "${trimmed}" adicionada` });
     } else if (kind === "income") {
@@ -294,24 +317,32 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   }
 
   const labels = kind === "credit" && recurring
-    ? { name: "Nome da compra", placeholder: "Ex.: Streaming, academia...", amount: "Valor cobrado por mês" }
+    ? { name: "Nome da compra", placeholder: "Ex.: Streaming, academia...", amount: "Valor por mês" }
     : kind === "goal" && piggy
       ? { ...LABELS.goal, name: "Nome do porquinho", placeholder: "Ex.: Troca de celular" }
       : LABELS[kind];
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-4">
-      <Field label={labels.name} htmlFor="launch-name">
-        <input
-          key={round}
-          id="launch-name"
-          autoFocus={focusName && canAutoFocus()}
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder={labels.placeholder}
-          className={inputClass}
-        />
-      </Field>
+      <div className={kind === "credit" ? "grid gap-4 sm:grid-cols-2" : "contents"}>
+        <Field label={labels.name} htmlFor="launch-name">
+          <input
+            key={round}
+            id="launch-name"
+            autoFocus={focusName && canAutoFocus()}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder={labels.placeholder}
+            className={inputClass}
+          />
+        </Field>
+
+        {kind === "credit" && (
+          <Field label={labels.amount} htmlFor="launch-amount">
+            <MoneyInput id="launch-amount" value={amount} onChange={setAmount} />
+          </Field>
+        )}
+      </div>
 
       {kind === "goal" && (
         <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
@@ -323,44 +354,66 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         </label>
       )}
 
-      <div className={kind === "credit" && !recurring ? "grid gap-4 sm:grid-cols-2" : ""}>
-        {!(kind === "goal" && piggy) && (
-          <Field label={labels.amount} htmlFor="launch-amount">
-            <MoneyInput id="launch-amount" value={amount} onChange={setAmount} />
+      {kind === "card" && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Dia de fechamento" htmlFor="launch-card-closing">
+            <input id="launch-card-closing" type="number" inputMode="numeric" min={1} max={31} value={closingDay} onChange={(e) => setClosingDay(e.target.value)} placeholder="Ex.: 2" className={inputClass} />
           </Field>
-        )}
-
-        {kind === "credit" && !recurring && (
-          <Field label="Parcelas" htmlFor="launch-installments">
-            <input id="launch-installments" type="number" min={1} max={60} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} className={inputClass} />
+          <Field label="Dia de vencimento" htmlFor="launch-card-due">
+            <input id="launch-card-due" type="number" inputMode="numeric" min={1} max={31} value={dueDay} onChange={(e) => setDueDay(e.target.value)} placeholder="Ex.: 9" className={inputClass} />
           </Field>
-        )}
-      </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">Não informe número do cartão, CVV nem CPF: só o nome e os dias. Para ver, editar ou excluir, use o ícone de perfil no topo.</p>
+        </div>
+      )}
 
-      {kind === "credit" && (
-        <Field label="Início da cobrança" htmlFor="launch-start-date" hint="(o dia se repete todo mês)">
-          <input id="launch-start-date" type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} block min-h-11 min-w-0 max-w-full appearance-none`} />
+      {kind !== "credit" && kind !== "card" && !(kind === "goal" && piggy) && (
+        <Field label={labels.amount} htmlFor="launch-amount">
+          <MoneyInput id="launch-amount" value={amount} onChange={setAmount} />
         </Field>
       )}
 
       {kind === "credit" && (
-        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
-          <Checkbox checked={recurring} onCheckedChange={(c) => setRecurring(Boolean(c))} className="mt-0.5" />
-          <span>
-            <span className="block text-sm font-medium text-foreground">Compra recorrente</span>
-            <span className="block text-xs text-muted-foreground">Sem parcelas: o mesmo valor se repete todo mês no cartão, a partir deste, até você cancelar a recorrência.</span>
-          </span>
-        </label>
-      )}
+        <>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Início da cobrança" htmlFor="launch-start-date">
+              <input id="launch-start-date" type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} className={`${inputClass} block min-h-11 min-w-0 max-w-full appearance-none`} />
+            </Field>
+            <CardSelect cardId={cardId} onChange={setCardId} onNavigate={onClose} />
+          </div>
+          <InvoiceInfo cardId={cardId} date={startDate} />
 
-      {kind === "credit" && (
-        <p className="text-sm text-muted-foreground">
-          {recurring ? (
-            <>Cobrança de <strong className="text-foreground">R$ {centsToInput(totalCents) || "0,00"}</strong> todo mês, a partir de {formatMonthTitle(startDate.slice(0, 7) || currentMonth)}{billingDayOf(startDate) ? `, dia ${billingDayOf(startDate)}` : ""}.</>
-          ) : (
-            <>Parcela de <strong className="text-foreground">R$ {centsToInput(installmentValue) || "0,00"}</strong>, a partir de {formatMonthTitle(startDate.slice(0, 7) || currentMonth)}{billingDayOf(startDate) ? `, dia ${billingDayOf(startDate)}` : ""}.</>
-          )}
-        </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-md border border-border bg-secondary p-3">
+              <Checkbox checked={recurring} onCheckedChange={(c) => { setRecurring(Boolean(c)); if (!c) setVariable(false); }} className="mt-0.5" />
+              <span>
+                <span className="block text-sm font-medium text-foreground">Compra recorrente</span>
+                <span className="block text-xs text-muted-foreground">Mesmo valor todo mês, sem parcelas, até cancelar.</span>
+              </span>
+            </label>
+            <label className={`flex items-start gap-2.5 rounded-md border border-border bg-secondary p-3 ${recurring ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
+              <Checkbox checked={variable} disabled={!recurring} onCheckedChange={(c) => setVariable(Boolean(c))} className="mt-0.5" />
+              <span>
+                <span className="block text-sm font-medium text-foreground">Valor variável (estimado)</span>
+                <span className="block text-xs text-muted-foreground">O valor é uma estimativa; cada mês aceita o valor real.</span>
+              </span>
+            </label>
+          </div>
+
+          <div className={recurring ? "" : "grid items-end gap-4 sm:grid-cols-2"}>
+            {!recurring && (
+              <Field label="Parcelas" htmlFor="launch-installments">
+                <input id="launch-installments" type="number" min={1} max={60} value={installments} onChange={(e) => setInstallments(Number(e.target.value))} className={inputClass} />
+              </Field>
+            )}
+            <p className="pb-2.5 text-sm text-muted-foreground">
+              {recurring ? (
+                <>Cobrança {variable ? "estimada " : ""}de <strong className="text-foreground">R$ {centsToInput(totalCents) || "0,00"}</strong> todo mês, a partir de {formatMonthTitle(startDate.slice(0, 7) || currentMonth)}{billingDayOf(startDate) ? `, dia ${billingDayOf(startDate)}` : ""}.</>
+              ) : (
+                <>Parcela de <strong className="text-foreground">R$ {centsToInput(installmentValue) || "0,00"}</strong>, a partir de {formatMonthTitle(startDate.slice(0, 7) || currentMonth)}{billingDayOf(startDate) ? `, dia ${billingDayOf(startDate)}` : ""}.</>
+              )}
+            </p>
+          </div>
+        </>
       )}
 
       {kind === "goal" && (
