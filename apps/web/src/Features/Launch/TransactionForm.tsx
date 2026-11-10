@@ -224,6 +224,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [closingDay, setClosingDay] = useState("");
   const [dueDay, setDueDay] = useState("");
   const [piggy, setPiggy] = useState(false);
+  // mês de uma renda/despesa: vazio = o mês que está sendo visto; dá para escolher um mês futuro
+  const [txMonth, setTxMonth] = useState("");
   const [extraMonth, setExtraMonth] = useState(changeMonth(currentMonth, 1));
   const [monthly, setMonthly] = useState("");
   const [saved, setSaved] = useState("");
@@ -231,6 +233,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   // muda a cada lançamento: reinicia o foco e o campo de nome sem fechar o modal
   const [round, setRound] = useState(0);
 
+  const launchMonth = txMonth || currentMonth;
+  const inFuture = launchMonth !== currentMonth;
   const totalCents = parseBRL(amount) ?? 0;
   const installmentValue = kind === "credit" && !recurring && installments > 0 ? splitInstallments(totalCents, installments)[0] : 0;
 
@@ -241,6 +245,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setFixed(false);
     setVariable(false);
     setCategory("Moradia");
+    setTxMonth("");
     setExtraMonth(changeMonth(currentMonth, 1));
     setInstallments(2);
     setRecurring(false);
@@ -303,15 +308,15 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       });
       showToast({ type: "success", text: recurring ? `Compra recorrente "${trimmed}" adicionada` : `Compra parcelada "${trimmed}" adicionada` });
     } else if (kind === "income") {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: currentMonth, ...(fixed && variable && { variableAmount: true }) });
-      showToast({ type: "success", text: `Renda "${trimmed}" adicionada` });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: launchMonth, ...(fixed && variable && { variableAmount: true }) });
+      showToast({ type: "success", text: `Renda "${trimmed}" adicionada${inFuture ? ` a partir de ${formatMonthTitle(launchMonth)}` : ""}` });
     } else if (kind === "extra") {
       if (!extraMonth) return showToast({ type: "error", text: "Escolha o mês da despesa extra" });
       addExtraExpense({ id: uuid(), name: trimmed, amount: cents, month: extraMonth });
       showToast({ type: "success", text: `Despesa extra "${trimmed}" adicionada` });
     } else {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: currentMonth, ...(fixed && variable && { variableAmount: true }) });
-      showToast({ type: "success", text: `Despesa "${trimmed}" adicionada` });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(fixed && variable && { variableAmount: true }) });
+      showToast({ type: "success", text: `Despesa "${trimmed}" adicionada${inFuture ? ` a partir de ${formatMonthTitle(launchMonth)}` : ""}` });
     }
 
     reset();
@@ -442,6 +447,13 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       {(kind === "expense" || kind === "credit") && (
         <Field label="Categoria" htmlFor="launch-category">
           <CategorySelect id="launch-category" value={category} onChange={setCategory} />
+        </Field>
+      )}
+
+      {(kind === "expense" || kind === "income") && (
+        <Field label={fixed ? "Vale a partir de" : "Mês do lançamento"} htmlFor="launch-month" hint="(pode ser um mês futuro)">
+          <MonthPicker id="launch-month" value={launchMonth} min={currentMonth} onChange={setTxMonth} />
+          {inFuture && <p className="mt-1 text-xs text-muted-foreground">Aparece em Lançamentos ao navegar até {formatMonthTitle(launchMonth)}{fixed ? ", e se repete nos meses seguintes" : ""}.</p>}
         </Field>
       )}
 
