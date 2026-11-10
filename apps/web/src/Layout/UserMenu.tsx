@@ -1,6 +1,4 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { exportMyData } from "@/api/auth";
 import Icon from "@/components/Icon";
 import { btnClass } from "@/components/shared/styles";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -8,20 +6,18 @@ import { DATA_SOURCE } from "@/config";
 import { downloadText } from "@/Services/download";
 import { useAuthStore } from "@/Store/AuthStore";
 import { useUiStore } from "@/Store/UiStore";
-import { showToast } from "@/Features/Warnings/toast";
 import { BACKUP_FILENAME, buildBackup } from "@/Services/backup";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import DeleteAccountDialog from "./AccountDialogs";
 import BackupDialog from "./BackupDialog";
 
 /**
- * Menu da conta. Com a API: cartões, importar dados locais, backup, excluir a conta e sair.
+ * Menu da conta. Com a API: cartões, backup (um exportar e um importar), excluir a conta e sair.
  * Sem a API (dados só no navegador): só o backup, para levar os dados a outro lugar.
  */
 export default function UserMenu() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
-  const navigate = useNavigate();
   const openCards = useUiStore((s) => s.openCards);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
@@ -32,14 +28,6 @@ export default function UserMenu() {
   const exportBackup = () => {
     const { transactions, creditTransactions, creditCards, notes, goals, extraExpenses, customCategories, distribution, seenAlerts, onboarding } = useFinanceStore.getState();
     downloadText(BACKUP_FILENAME(), buildBackup({ transactions, creditTransactions, creditCards, notes, goals, extraExpenses, customCategories, distribution, seenAlerts, onboarding }), "application/json");
-  };
-
-  const exportData = async () => {
-    try {
-      downloadText("aurora-meus-dados.json", JSON.stringify(await exportMyData(), null, 2), "application/json");
-    } catch {
-      showToast({ type: "error", text: "Não foi possível exportar seus dados. Tente novamente." });
-    }
   };
 
   return (
@@ -58,10 +46,6 @@ export default function UserMenu() {
                 <Icon name="relatorios" size={15} />
                 Cartões de crédito
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => navigate("/importar")}>
-                <Icon name="upload" size={15} />
-                Importar dados locais
-              </DropdownMenuItem>
             </>
           )}
           <DropdownMenuItem onSelect={exportBackup}>
@@ -74,10 +58,6 @@ export default function UserMenu() {
           </DropdownMenuItem>
           {api && (
             <>
-              <DropdownMenuItem onSelect={() => void exportData()}>
-                <Icon name="down" size={15} />
-                Exportar meus dados (conta)
-              </DropdownMenuItem>
               <DropdownMenuItem destructive onSelect={() => setDeleting(true)}>
                 <Icon name="trash" size={15} />
                 Excluir minha conta
