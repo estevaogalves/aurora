@@ -21,6 +21,10 @@ type Transaction struct {
 	VariableAmount bool `json:"variableAmount,omitempty"`
 	// Despesas: pagamento por mês ("2026-11"). Só registro, não entra em conta nenhuma.
 	Payments map[string]Payment `json:"payments,omitempty"`
+	// CardID e PurchaseDate: despesa avulsa paga no cartão. Com os dois, o valor entra no mês do vencimento da
+	// fatura (ResolveCardTransactions); Month e PurchaseDate ficam como foram lançados. Fixa não tem cartão.
+	CardID       string `json:"cardId,omitempty"`
+	PurchaseDate string `json:"purchaseDate,omitempty"`
 }
 
 type CreditTransaction struct {
@@ -75,6 +79,9 @@ type ExtraExpense struct {
 	Month  string `json:"month"`
 	// Pagamento da despesa (única, pois ela existe em um só mês). Só registro, não entra em conta nenhuma.
 	Payment *Payment `json:"payment,omitempty"`
+	// CardID e PurchaseDate: igual a Transaction.
+	CardID       string `json:"cardId,omitempty"`
+	PurchaseDate string `json:"purchaseDate,omitempty"`
 }
 
 type CustomCategory struct {

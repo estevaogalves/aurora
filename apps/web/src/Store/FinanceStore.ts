@@ -339,6 +339,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       set((state) => ({
         creditCards: state.creditCards.filter((k) => k.id !== id),
         creditTransactions: state.creditTransactions.map((c) => (c.cardId === id ? { ...c, cardId: undefined } : c)),
+        // despesas avulsas e extras também soltam o cartão: voltam a valer no mês em que foram lançadas, nenhuma some
+        transactions: state.transactions.map((t) => (t.cardId === id ? { ...t, cardId: undefined } : t)),
+        extraExpenses: state.extraExpenses.map((e) => (e.cardId === id ? { ...e, cardId: undefined } : e)),
       }));
       sync(repository.removeCreditCard(id));
     },

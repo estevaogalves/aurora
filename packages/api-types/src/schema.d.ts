@@ -2034,6 +2034,16 @@ export interface components {
             payments?: {
                 [key: string]: components["schemas"]["Payment"];
             };
+            /**
+             * Format: uuid
+             * @description Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`.
+             */
+            cardId?: string;
+            /**
+             * Format: date
+             * @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido.
+             */
+            purchaseDate?: string;
         };
         Payment: {
             /** @enum {string} */
@@ -2061,6 +2071,10 @@ export interface components {
             };
             /** @description Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado. */
             variableAmount?: boolean;
+            /** @description Despesa avulsa no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, a despesa tem que ter `purchaseDate` (no mesmo pedido ou já guardado) e não pode ser fixa. */
+            cardId?: string;
+            /** @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido. */
+            purchaseDate?: string;
         };
         CreditTransaction: {
             /** Format: uuid */
@@ -2094,11 +2108,15 @@ export interface components {
             name: string;
             closingDay: number;
             dueDay: number;
+            /** @description Teto mensal da fatura. Ausente ou 0 = sem teto. Só acompanhamento, não bloqueia nada. */
+            limit?: components["schemas"]["Cents"];
         };
         CreditCardPatch: {
             name?: string;
             closingDay?: number;
             dueDay?: number;
+            /** @description Teto mensal da fatura (0 tira o teto). */
+            limit?: components["schemas"]["Cents"];
         };
         /**
          * @description Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos e outros.
@@ -2255,11 +2273,25 @@ export interface components {
             month: components["schemas"]["Month"];
             /** @description Pagamento da despesa (só registro). Na criação o servidor ignora; entra na importação. */
             payment?: components["schemas"]["Payment"];
+            /**
+             * Format: uuid
+             * @description Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`.
+             */
+            cardId?: string;
+            /**
+             * Format: date
+             * @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido.
+             */
+            purchaseDate?: string;
         };
         ExtraExpensePatch: {
             name?: string;
             amount?: components["schemas"]["Cents"];
             month?: components["schemas"]["Month"];
+            /** @description Despesa extra no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, tem que ter `purchaseDate`. */
+            cardId?: string;
+            /** @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido. */
+            purchaseDate?: string;
         };
         Note: {
             /** Format: uuid */

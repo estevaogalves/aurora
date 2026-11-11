@@ -109,7 +109,7 @@ func (l Limits) validateTransaction(t domain.Transaction) string {
 		return "Pagamentos demais em um lançamento."
 	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
+		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
 }
 
 func checkCategory(c string) string {
@@ -129,8 +129,39 @@ func checkCardDay(label string, day int) string {
 	return ""
 }
 
+func checkCardLimit(limit int64) string {
+	if limit < 0 {
+		return "O teto do cartão não pode ser negativo."
+	}
+	if limit > domain.MaxInvestmentCents {
+		return "O teto do cartão está acima do limite de R$ 1 bilhão."
+	}
+	return ""
+}
+
 func validateCard(k domain.CreditCard) string {
-	return first(checkName(k.Name), checkCardDay("fechamento", k.ClosingDay), checkCardDay("vencimento", k.DueDay))
+	return first(checkName(k.Name), checkCardDay("fechamento", k.ClosingDay), checkCardDay("vencimento", k.DueDay), checkCardLimit(k.Limit))
+}
+
+// checkCardFields confere cartão e dia da compra de uma despesa. Com cartão, a despesa tem que ser avulsa e ter o
+// dia da compra (sem ele não dá para saber em que fatura cai). O dia da compra sem cartão é aceito: é o que fica
+// no histórico depois que o cartão é removido.
+func checkCardFields(fixed bool, typ, cardID, purchaseDate string) string {
+	if purchaseDate != "" && !domain.IsValidDate(purchaseDate) {
+		return "Dia da compra inválido. Use o formato AAAA-MM-DD."
+	}
+	if cardID == "" {
+		return ""
+	}
+	switch {
+	case typ == "income":
+		return "Só despesas podem ser pagas no cartão."
+	case fixed:
+		return "Despesa fixa não pode ser paga no cartão."
+	case purchaseDate == "":
+		return "Informe o dia da compra no cartão."
+	}
+	return ""
 }
 
 func validateCredit(c domain.CreditTransaction) string {
@@ -192,7 +223,7 @@ func checkPayment(p domain.Payment) string {
 }
 
 func validateExtra(e domain.ExtraExpense) string {
-	msg := first(checkName(e.Name), checkAmount(e.Amount), checkMonth(e.Month))
+	msg := first(checkName(e.Name), checkAmount(e.Amount), checkMonth(e.Month), checkCardFields(false, "expense", e.CardID, e.PurchaseDate))
 	if e.Payment != nil {
 		msg = first(msg, checkPayment(*e.Payment))
 	}

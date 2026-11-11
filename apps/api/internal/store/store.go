@@ -240,6 +240,10 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 	t := domain.Transaction{
 		ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Type: r.Type,
 		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month, VariableAmount: r.VariableAmount,
+		PurchaseDate: r.PurchaseDate,
+	}
+	if r.CardID.Valid {
+		t.CardID = r.CardID.UUID.String()
 	}
 	if len(r.Payments) > 0 {
 		_ = json.Unmarshal(r.Payments, &t.Payments)
@@ -287,13 +291,30 @@ func creditFrom(r sqlcgen.CreditPurchase) domain.CreditTransaction {
 	return c
 }
 
+// checkCardState confere o resultado de uma alteração: despesa com cartão tem que ser avulsa, ser despesa e ter o
+// dia da compra (sem ele não dá para saber em que fatura cai). Sem cartão, nada a conferir.
+func checkCardState(fixed bool, typ string, cardID uuid.NullUUID, purchaseDate string) error {
+	if !cardID.Valid {
+		return nil
+	}
+	switch {
+	case typ == "income":
+		return &ValidationError{"Só despesas podem ser pagas no cartão."}
+	case fixed:
+		return &ValidationError{"Despesa fixa não pode ser paga no cartão."}
+	case !domain.IsValidDate(purchaseDate):
+		return &ValidationError{"Informe o dia da compra no cartão."}
+	}
+	return nil
+}
+
 // ValidationError: a operação foi recusada por uma regra de negócio (a mensagem é segura para mostrar ao usuário).
 type ValidationError struct{ Msg string }
 
 func (e *ValidationError) Error() string { return e.Msg }
 
 func cardFrom(r sqlcgen.CreditCard) domain.CreditCard {
-	return domain.CreditCard{ID: r.ID.String(), Name: r.Name, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
+	return domain.CreditCard{ID: r.ID.String(), Name: r.Name, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay), Limit: r.LimitCents}
 }
 
 func noteFrom(r sqlcgen.Note) domain.Note {
@@ -313,7 +334,10 @@ func goalFrom(r sqlcgen.Goal) domain.Goal {
 }
 
 func extraFrom(r sqlcgen.ExtraExpense) domain.ExtraExpense {
-	e := domain.ExtraExpense{ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Month: r.Month}
+	e := domain.ExtraExpense{ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Month: r.Month, PurchaseDate: r.PurchaseDate}
+	if r.CardID.Valid {
+		e.CardID = r.CardID.UUID.String()
+	}
 	if len(r.Payment) > 0 && string(r.Payment) != "null" {
 		var p domain.Payment
 		if json.Unmarshal(r.Payment, &p) == nil {

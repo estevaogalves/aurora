@@ -1,6 +1,6 @@
 import { CREDIT_CATEGORY, getMonthSummary } from "./summary";
 import { getCreditByMonth } from "./credit";
-import { resolveCredits } from "./invoice";
+import { resolveCardExpenses, resolveCredits } from "./invoice";
 import { getTransactionsByMonth } from "./transactions";
 import { formatPaymentDate, formatPaymentDay, paymentMethodLabel, paymentOf, paymentStatusLabel } from "./payment";
 import { getMonthsBetween, changeMonth, formatMonth } from "../Utils/Date";
@@ -76,7 +76,7 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
   const rows: ReportRow[] = [];
   for (const month of months) {
     if (options.entries) {
-      for (const t of getTransactionsByMonth(data.transactions, month)) {
+      for (const t of getTransactionsByMonth(resolveCardExpenses(data.transactions, data.creditCards), month)) {
         rows.push({
           month,
           name: t.name,
@@ -89,7 +89,7 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
       }
     }
     if (options.entries) {
-      for (const e of data.extraExpenses ?? []) {
+      for (const e of resolveCardExpenses(data.extraExpenses ?? [], data.creditCards)) {
         if (e.month === month) rows.push({ month, name: e.name, category: "Outros", type: "Despesa", amount: e.amount, note: "Despesa extra", payment: e.payment });
       }
     }

@@ -6,6 +6,7 @@ import {
   getExpensesByCategory,
   getHiddenTransactionsByMonth,
   getMonthSummary,
+  resolveCardExpenses,
   resolveCredits,
   getTransactionsByMonth,
 } from "../domain";
@@ -38,8 +39,10 @@ export function useMonthSummary(month?: string) {
 export function useMonthTransactions(month?: string) {
   const m = useMonth(month);
   const transactions = useFinanceStore((s) => s.transactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
 
-  return useMemo(() => getTransactionsByMonth(transactions, m), [transactions, m]);
+  // despesa avulsa no cartão aparece no mês do vencimento da fatura
+  return useMemo(() => getTransactionsByMonth(resolveCardExpenses(transactions, creditCards), m), [transactions, creditCards, m]);
 }
 
 export function useHiddenTransactions(month?: string) {
@@ -50,6 +53,13 @@ export function useHiddenTransactions(month?: string) {
     () => getHiddenTransactionsByMonth(transactions, m),
     [transactions, m],
   );
+}
+
+/** Despesas extras já no mês em que entram no cálculo (as com cartão, no mês do vencimento da fatura). */
+export function useResolvedExtras() {
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
+  const creditCards = useFinanceStore((s) => s.creditCards);
+  return useMemo(() => resolveCardExpenses(extraExpenses, creditCards), [extraExpenses, creditCards]);
 }
 
 export function useMonthCredit(month?: string) {

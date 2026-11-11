@@ -16,6 +16,7 @@ type CreditCard struct {
 	ClosingDay int32
 	DueDay     int32
 	CreatedAt  pgtype.Timestamptz
+	LimitCents int64
 }
 
 type CreditPurchase struct {
@@ -43,13 +44,15 @@ type CustomCategory struct {
 }
 
 type ExtraExpense struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	Name        string
-	AmountCents int64
-	Month       string
-	CreatedAt   pgtype.Timestamptz
-	Payment     []byte
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	Name         string
+	AmountCents  int64
+	Month        string
+	CreatedAt    pgtype.Timestamptz
+	Payment      []byte
+	CardID       uuid.NullUUID
+	PurchaseDate string
 }
 
 type FixedOverride struct {
@@ -141,6 +144,8 @@ type Transaction struct {
 	Payments       []byte
 	MonthlyNotes   []byte
 	VariableAmount bool
+	CardID         uuid.NullUUID
+	PurchaseDate   string
 }
 
 type User struct {

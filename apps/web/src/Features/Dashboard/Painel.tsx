@@ -9,7 +9,7 @@ import { distributeBalance, getCategoryDetail, getMonthSummary, goalPercent } fr
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
-import { useCategoryTotals, useDistributionItems, useMonthCredit, useMonthSummary, useMonthTransactions } from "@/Store/selectors";
+import { useCategoryTotals, useDistributionItems, useMonthCredit, useMonthSummary, useMonthTransactions, useResolvedExtras } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
@@ -236,7 +236,7 @@ function RecentExpenses() {
   const expenses = useMonthTransactions().filter((t) => t.type === "expense");
   const credit = useMonthCredit();
   const month = useFinanceStore((s) => s.currentMonth);
-  const extras = useFinanceStore((s) => s.extraExpenses).filter((e) => e.month === month);
+  const extras = useResolvedExtras().filter((e) => e.month === month);
 
   const lines: ExpenseLine[] = [
     ...[...expenses].reverse().map((e) => ({ id: e.id, name: e.name, category: e.category, amount: e.amount, fixed: e.fixed })),

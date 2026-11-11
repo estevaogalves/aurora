@@ -9,7 +9,7 @@ import { btnClass } from "@/components/shared/styles";
 import { canAdvanceInstallment, chargeDay, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
-import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits } from "@/Store/selectors";
+import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits, useResolvedExtras } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 import EditExtraDialog from "../Projection/EditExtraDialog";
@@ -219,7 +219,7 @@ function ExpensesPanel() {
   const expenses = useMonthTransactions().filter((t) => t.type === "expense");
   const month = useFinanceStore((s) => s.currentMonth);
   const removeByMonth = useFinanceStore((s) => s.removeTransactionByMonth);
-  const extras = useFinanceStore((s) => s.extraExpenses).filter((e) => e.month === month);
+  const extras = useResolvedExtras().filter((e) => e.month === month);
   const removeExtra = useFinanceStore((s) => s.removeExtraExpense);
   const setTransactionPayment = useFinanceStore((s) => s.setTransactionPayment);
   const setExtraPayment = useFinanceStore((s) => s.setExtraPayment);

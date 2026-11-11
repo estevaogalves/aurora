@@ -35,6 +35,41 @@ describe("normalizeFinanceData (omitempty da API)", () => {
   });
 });
 
+describe("ApiRepository: despesas no cartão", () => {
+  it("manda cartão e dia da compra nas despesas e nas extras", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.updateTransaction("t1", { id: "t1", cardId: "nu", purchaseDate: "2026-11-07" });
+    await repo.updateExtraExpense("e1", { id: "e1", cardId: "nu", purchaseDate: "2026-12-01" });
+    expect(calls[0]).toMatchObject({ url: "/api/v1/transactions/t1", method: "PATCH", body: { cardId: "nu", purchaseDate: "2026-11-07" } });
+    expect(calls[1]).toMatchObject({ url: "/api/v1/extra-expenses/e1", method: "PATCH", body: { cardId: "nu", purchaseDate: "2026-12-01" } });
+  });
+
+  it("soltar o cartão (cardId undefined) manda \"\", que a API entende como soltar", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.updateTransaction("t1", { cardId: undefined });
+    await repo.updateExtraExpense("e1", { cardId: undefined });
+    expect(calls[0].body).toEqual({ cardId: "" });
+    expect(calls[1].body).toEqual({ cardId: "" });
+    // sem a chave, não muda
+    await repo.updateTransaction("t1", { name: "Novo" });
+    expect(calls[2].body).toEqual({ name: "Novo" });
+  });
+
+  it("o teto do cartão vai como centavos, e limpar o teto manda 0", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.updateCreditCard("k", { limit: 30000 });
+    await repo.updateCreditCard("k", { limit: undefined });
+    await repo.updateCreditCard("k", { name: "Renomeado" });
+    expect(calls.map((c) => c.body)).toEqual([{ limit: 30000 }, { limit: 0 }, { name: "Renomeado" }]);
+  });
+});
+
 describe("ApiRepository: investimentos", () => {
   it("load traz investimentos e movimentações; sem eles, listas vazias", async () => {
     setAccessToken("t");

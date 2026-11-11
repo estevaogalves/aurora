@@ -42,6 +42,14 @@ export interface Transaction {
   estimated?: boolean;
   /** Despesas: pagamento por mês (fixa pode estar paga em um mês e não em outro). Só registro. */
   payments?: Record<Month, Payment>;
+  /**
+   * Despesa avulsa paga no cartão. Com `cardId` e `purchaseDate`, o valor entra no mês do vencimento da
+   * fatura (veja `resolveCardExpenses`); `month` e `purchaseDate` ficam como foram lançados. Só despesas
+   * avulsas: fixa não tem cartão. Ausente = despesa comum, no próprio mês.
+   */
+  cardId?: string;
+  /** Dia da compra no cartão, "YYYY-MM-DD". Vem junto com `cardId`. */
+  purchaseDate?: string;
 }
 
 /** Parcela adiantada: o valor com desconto é cobrado em `month` (o mês de hoje no momento do adiantamento). */
@@ -92,6 +100,8 @@ export interface CreditCard {
   name: string;
   closingDay: number;
   dueDay: number;
+  /** Teto mensal da fatura, em centavos. Ausente = sem teto. Só acompanhamento: não bloqueia nada. */
+  limit?: number;
 }
 
 export interface Note {
@@ -132,6 +142,9 @@ export interface ExtraExpense {
   month: Month;
   /** Pagamento da despesa (só registro). */
   payment?: Payment;
+  /** Cartão e dia da compra: igual a `Transaction.cardId` e `Transaction.purchaseDate`. */
+  cardId?: string;
+  purchaseDate?: string;
 }
 
 /** Categoria criada pelo usuário, com cor própria (hex, ex.: "#FF8800"). */

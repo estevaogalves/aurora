@@ -23,16 +23,16 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
   return out;
 }
 
-const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount"] as const;
+const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate"] as const;
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
-const CARD_PATCH = ["name", "closingDay", "dueDay"] as const;
+const CARD_PATCH = ["name", "closingDay", "dueDay", "limit"] as const;
 const GOAL_PATCH = ["name", "target", "saved", "monthly", "yieldTotal", "deadline"] as const;
 const INVESTMENT_PATCH = [
   "name", "family", "product", "institution", "appliedAt", "currentValue", "maturityDate", "indexer", "rate",
   "liquidity", "graceUntil", "earlyRedeem", "quantity", "avgPrice", "redeemDays", "ticker", "fees", "notes",
 ] as const;
 const MOVEMENT_PATCH = ["type", "date", "amount", "quantity", "unitPrice"] as const;
-const EXTRA_PATCH = ["name", "amount", "month"] as const;
+const EXTRA_PATCH = ["name", "amount", "month", "cardId", "purchaseDate"] as const;
 const NOTE_PATCH = ["content", "date", "pinned", "month"] as const;
 
 /**
@@ -46,6 +46,23 @@ export function investmentPatchBody(patch: Partial<Investment>): Record<string, 
     earlyRedeem: false, redeemDays: 0, quantity: null, avgPrice: null,
   };
   for (const [key, empty] of Object.entries(cleared)) if (key in body && body[key] === undefined) body[key] = empty;
+  return body;
+}
+
+/**
+ * Despesa avulsa ou extra no cartão: soltar o cartão deixa `cardId` como `undefined` na store, e o JSON descartaria a
+ * chave (a API entenderia "não mudou"). Aqui vira `""`, que solta o cartão. O dia da compra fica como está.
+ */
+export function cardExpensePatchBody<T extends { cardId?: string }>(patch: Partial<T>, keys: readonly (keyof T)[]): Record<string, unknown> {
+  const body: Record<string, unknown> = pick(patch as T, keys);
+  if ("cardId" in body && body.cardId === undefined) body.cardId = "";
+  return body;
+}
+
+/** Teto do cartão limpo (`undefined`) vira 0, que tira o teto; sem 0 a API entenderia "não mudou". */
+export function cardPatchBody(patch: Partial<CreditCard>): Record<string, unknown> {
+  const body: Record<string, unknown> = pick(patch, CARD_PATCH);
+  if ("limit" in body && body.limit === undefined) body.limit = 0;
   return body;
 }
 
@@ -107,7 +124,7 @@ export class ApiRepository implements FinanceRepository {
   replaceAll = (data: FinanceData) => this.enqueue(async () => { await api.post("/import?replace=true", data); });
   addTransaction = (t: Transaction) => this.enqueue(() => api.post("/transactions", t));
   updateTransaction = (id: string, patch: Partial<Transaction>) =>
-    this.enqueue(() => api.patch(`/transactions/${id}`, pick(patch, TRANSACTION_PATCH)));
+    this.enqueue(() => api.patch(`/transactions/${id}`, cardExpensePatchBody(patch, TRANSACTION_PATCH)));
   removeTransaction = (id: string) => this.enqueue(() => api.delete(`/transactions/${id}`));
 
   addCredit = (c: CreditTransaction) => this.enqueue(() => api.post("/credits", c));
@@ -116,7 +133,7 @@ export class ApiRepository implements FinanceRepository {
   removeCredit = (id: string) => this.enqueue(() => api.delete(`/credits/${id}`));
   addCreditCard = (c: CreditCard) => this.enqueue(() => api.post("/credit-cards", c));
   updateCreditCard = (id: string, patch: Partial<CreditCard>) =>
-    this.enqueue(() => api.patch(`/credit-cards/${id}`, pick(patch, CARD_PATCH)));
+    this.enqueue(() => api.patch(`/credit-cards/${id}`, cardPatchBody(patch)));
   removeCreditCard = (id: string) => this.enqueue(() => api.delete(`/credit-cards/${id}`));
   advanceInstallment = (id: string, n: number, discount: number) =>
     this.enqueue(() => api.post(`/credits/${id}/installments/${n}/advance`, { discount }));
@@ -151,7 +168,7 @@ export class ApiRepository implements FinanceRepository {
 
   addExtraExpense = (e: ExtraExpense) => this.enqueue(() => api.post("/extra-expenses", e));
   updateExtraExpense = (id: string, patch: Partial<ExtraExpense>) =>
-    this.enqueue(() => api.patch(`/extra-expenses/${id}`, pick(patch, EXTRA_PATCH)));
+    this.enqueue(() => api.patch(`/extra-expenses/${id}`, cardExpensePatchBody(patch, EXTRA_PATCH)));
   removeExtraExpense = (id: string) => this.enqueue(() => api.delete(`/extra-expenses/${id}`));
 
   addCategory = (c: CustomCategory) => this.enqueue(() => api.post("/categories", c));

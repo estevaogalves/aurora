@@ -42,7 +42,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	sum := domain.GetMonthSummary(d.Transactions, domain.ResolveCredits(d.CreditTransactions, d.CreditCards), month)
+	sum := domain.GetMonthSummary(domain.ResolveCardTransactions(d.Transactions, d.CreditCards), domain.ResolveCredits(d.CreditTransactions, d.CreditCards), month)
 	s.cache.Set(r.Context(), uid, month, sum)
 	w.Header().Set("X-Cache", "MISS")
 	writeJSON(w, http.StatusOK, sum)
@@ -72,7 +72,7 @@ func (s *Server) projection(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, domain.GetProjection(d.Transactions, domain.ResolveCredits(d.CreditTransactions, d.CreditCards), d.ExtraExpenses, start, count))
+	writeJSON(w, http.StatusOK, domain.GetProjection(domain.ResolveCardTransactions(d.Transactions, d.CreditCards), domain.ResolveCredits(d.CreditTransactions, d.CreditCards), domain.ResolveCardExtras(d.ExtraExpenses, d.CreditCards), start, count))
 }
 
 // comparison: GET /comparison?months=2026-01,2026-02 (de 2 a 12 meses).
@@ -101,7 +101,7 @@ func (s *Server) comparison(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, domain.Compare(d.Transactions, domain.ResolveCredits(d.CreditTransactions, d.CreditCards), months))
+	writeJSON(w, http.StatusOK, domain.Compare(domain.ResolveCardTransactions(d.Transactions, d.CreditCards), domain.ResolveCredits(d.CreditTransactions, d.CreditCards), months))
 }
 
 // importData: POST /import[?replace=true] com os dados do localStorage (formato do front).

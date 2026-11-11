@@ -24,11 +24,17 @@ type TransactionPatch struct {
 	MonthlyValues *map[string]int64
 	MonthlyNotes  *map[string]string
 	VariableAmount *bool
+	// CardID: nil não muda; ponteiro para "" solta a despesa do cartão. PurchaseDate: dia da compra no cartão.
+	CardID       *string
+	PurchaseDate *string
 }
 
 func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
 	var out domain.Transaction
 	err := s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		if err := ownsCard(ctx, q, userID, t.CardID); err != nil {
+			return err
+		}
 		var err error
 		out, err = createTransaction(ctx, q, userID, t)
 		return err
@@ -40,6 +46,7 @@ func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.Fixed && t.VariableAmount,
+		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate,
 	})
 	if err != nil {
 		return domain.Transaction{}, err
@@ -91,11 +98,23 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 	}
 	var out domain.Transaction
 	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
-		row, err := q.UpdateTransaction(ctx, sqlcgen.UpdateTransactionParams{
+		arg := sqlcgen.UpdateTransactionParams{
 			Name: text(p.Name), AmountCents: int8v(p.Amount), Category: text(p.Category),
-			Notes: text(p.Notes), Fixed: boolv(p.Fixed), VariableAmount: boolv(p.VariableAmount), ID: tid, UserID: userID,
-		})
+			Notes: text(p.Notes), Fixed: boolv(p.Fixed), VariableAmount: boolv(p.VariableAmount),
+			PurchaseDate: text(p.PurchaseDate), ID: tid, UserID: userID,
+		}
+		if p.CardID != nil {
+			if err := ownsCard(ctx, q, userID, *p.CardID); err != nil {
+				return err
+			}
+			arg.SetCard, arg.CardID = true, nullID(*p.CardID)
+		}
+		row, err := q.UpdateTransaction(ctx, arg)
 		if err != nil {
+			return err
+		}
+		// o resultado tem que ser uma despesa avulsa válida: virar fixa com cartão, por exemplo, é recusado
+		if err := checkCardState(row.Fixed, row.Type, row.CardID, row.PurchaseDate); err != nil {
 			return err
 		}
 
@@ -377,6 +396,8 @@ type CardPatch struct {
 	Name       *string
 	ClosingDay *int
 	DueDay     *int
+	// Limit: teto mensal da fatura em centavos (0 = sem teto).
+	Limit *int64
 }
 
 func nullID(id string) uuid.NullUUID {
@@ -385,7 +406,7 @@ func nullID(id string) uuid.NullUUID {
 }
 
 func (s *Store) CreateCreditCard(ctx context.Context, userID uuid.UUID, c domain.CreditCard) (domain.CreditCard, error) {
-	row, err := s.q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, ClosingDay: int32(c.ClosingDay), DueDay: int32(c.DueDay)})
+	row, err := s.q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, ClosingDay: int32(c.ClosingDay), DueDay: int32(c.DueDay), LimitCents: c.Limit})
 	return cardFrom(row), mapErr(err)
 }
 
@@ -394,7 +415,7 @@ func (s *Store) UpdateCreditCard(ctx context.Context, userID uuid.UUID, id strin
 	if err != nil {
 		return domain.CreditCard{}, err
 	}
-	arg := sqlcgen.UpdateCreditCardParams{Name: text(p.Name), ID: cid, UserID: userID}
+	arg := sqlcgen.UpdateCreditCardParams{Name: text(p.Name), LimitCents: int8v(p.Limit), ID: cid, UserID: userID}
 	if p.ClosingDay != nil {
 		arg.ClosingDay.Int32, arg.ClosingDay.Valid = int32(*p.ClosingDay), true
 	}
@@ -466,11 +487,18 @@ type ExtraPatch struct {
 	Name   *string
 	Amount *int64
 	Month  *string
+	// CardID: nil não muda; ponteiro para "" solta a despesa do cartão. PurchaseDate: dia da compra no cartão.
+	CardID       *string
+	PurchaseDate *string
 }
 
 func (s *Store) CreateExtra(ctx context.Context, userID uuid.UUID, e domain.ExtraExpense) (domain.ExtraExpense, error) {
+	if err := ownsCard(ctx, s.q, userID, e.CardID); err != nil {
+		return domain.ExtraExpense{}, err
+	}
 	row, err := s.q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{
 		Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month,
+		CardID: nullID(e.CardID), PurchaseDate: e.PurchaseDate,
 	})
 	return extraFrom(row), mapErr(err)
 }
@@ -480,10 +508,28 @@ func (s *Store) UpdateExtra(ctx context.Context, userID uuid.UUID, id string, p 
 	if err != nil {
 		return domain.ExtraExpense{}, err
 	}
-	row, err := s.q.UpdateExtraExpense(ctx, sqlcgen.UpdateExtraExpenseParams{
-		Name: text(p.Name), AmountCents: int8v(p.Amount), Month: text(p.Month), ID: eid, UserID: userID,
+	var out domain.ExtraExpense
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		arg := sqlcgen.UpdateExtraExpenseParams{
+			Name: text(p.Name), AmountCents: int8v(p.Amount), Month: text(p.Month), PurchaseDate: text(p.PurchaseDate), ID: eid, UserID: userID,
+		}
+		if p.CardID != nil {
+			if err := ownsCard(ctx, q, userID, *p.CardID); err != nil {
+				return err
+			}
+			arg.SetCard, arg.CardID = true, nullID(*p.CardID)
+		}
+		row, err := q.UpdateExtraExpense(ctx, arg)
+		if err != nil {
+			return err
+		}
+		if err := checkCardState(false, "expense", row.CardID, row.PurchaseDate); err != nil {
+			return err
+		}
+		out = extraFrom(row)
+		return nil
 	})
-	return extraFrom(row), mapErr(err)
+	return out, mapErr(err)
 }
 
 func (s *Store) DeleteExtra(ctx context.Context, userID uuid.UUID, id string) error {
@@ -570,7 +616,18 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		}
 
+		// os ids de origem são ignorados: os cartões ganham ids novos e as compras e despesas passam a apontar para eles
+		newCard := map[string]string{}
+		for _, k := range d.CreditCards {
+			created, err := q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{UserID: userID, Name: k.Name, ClosingDay: int32(k.ClosingDay), DueDay: int32(k.DueDay), LimitCents: k.Limit})
+			if err != nil {
+				return err
+			}
+			newCard[k.ID] = created.ID.String()
+		}
+
 		for _, t := range d.Transactions {
+			t.CardID = newCard[t.CardID]
 			created, err := createTransaction(ctx, q, userID, t)
 			if err != nil {
 				return err
@@ -601,15 +658,6 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 					return err
 				}
 			}
-		}
-		// os ids de origem são ignorados: os cartões ganham ids novos e as compras passam a apontar para eles
-		newCard := map[string]string{}
-		for _, k := range d.CreditCards {
-			created, err := q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{UserID: userID, Name: k.Name, ClosingDay: int32(k.ClosingDay), DueDay: int32(k.DueDay)})
-			if err != nil {
-				return err
-			}
-			newCard[k.ID] = created.ID.String()
 		}
 		for _, c := range d.CreditTransactions {
 			c.CardID = newCard[c.CardID]
@@ -650,7 +698,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		}
 		for _, e := range d.ExtraExpenses {
-			created, err := q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month})
+			created, err := q.CreateExtraExpense(ctx, sqlcgen.CreateExtraExpenseParams{Column1: clientID(e.ID), UserID: userID, Name: e.Name, AmountCents: e.Amount, Month: e.Month, CardID: nullID(newCard[e.CardID]), PurchaseDate: e.PurchaseDate})
 			if err != nil {
 				return err
 			}

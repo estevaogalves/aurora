@@ -1,7 +1,7 @@
 import { changeMonth, compareMonths, getMonthsBetween } from "../Utils/Date";
 import type { Category } from "../Types/Category";
 import { getCreditByMonth, getCreditTotalByMonth } from "./credit";
-import { resolveCredits } from "./invoice";
+import { resolveCardExpenses, resolveCredits } from "./invoice";
 import { getTransactionsByMonth } from "./transactions";
 import type {
   CreditTransaction,
@@ -22,7 +22,7 @@ export function getMonthSummary(
   data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses" | "creditCards">>,
   month: Month,
 ): MonthSummary {
-  const monthTransactions = getTransactionsByMonth(data.transactions, month);
+  const monthTransactions = getTransactionsByMonth(resolveCardExpenses(data.transactions, data.creditCards), month);
   const installments = getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month);
 
   let totalIncome = 0;
@@ -44,7 +44,7 @@ export function getMonthSummary(
   }
 
   // despesas extras planejadas para o mês (as mesmas que a Projeção usa)
-  const extraExpense = (data.extraExpenses ?? []).filter((e) => e.month === month).reduce((sum, e) => sum + e.amount, 0);
+  const extraExpense = resolveCardExpenses(data.extraExpenses ?? [], data.creditCards).filter((e) => e.month === month).reduce((sum, e) => sum + e.amount, 0);
   if (extraExpense > 0) {
     byCategory[EXTRA_CATEGORY] = (byCategory[EXTRA_CATEGORY] ?? 0) + extraExpense;
   }
@@ -121,7 +121,7 @@ export function getAvailableMonths(
 ): Month[] {
   const credits = resolveCredits(data.creditTransactions, data.creditCards);
   const points: Month[] = [
-    ...data.transactions.map((t) => t.month),
+    ...resolveCardExpenses(data.transactions, data.creditCards).map((t) => t.month),
     ...credits.map((c) => c.startMonth),
     ...credits.map(creditEndMonth),
   ];
@@ -173,7 +173,7 @@ export function getCategoryDetail(
   month: Month,
   category: Category,
 ): ProjectionLine[] {
-  const lines: ProjectionLine[] = getTransactionsByMonth(data.transactions, month)
+  const lines: ProjectionLine[] = getTransactionsByMonth(resolveCardExpenses(data.transactions, data.creditCards), month)
     .filter((t) => t.type === "expense" && t.category === category)
     .map((t) => ({ name: t.name, amount: t.amount, kind: "fixed" as const }));
 
@@ -183,7 +183,7 @@ export function getCategoryDetail(
     }
   }
   if (category === EXTRA_CATEGORY) {
-    for (const e of (data.extraExpenses ?? []).filter((x) => x.month === month)) lines.push({ name: e.name, amount: e.amount, kind: "extra" });
+    for (const e of resolveCardExpenses(data.extraExpenses ?? [], data.creditCards).filter((x) => x.month === month)) lines.push({ name: e.name, amount: e.amount, kind: "extra" });
   }
   return lines.sort((a, b) => b.amount - a.amount);
 }
@@ -201,7 +201,7 @@ export function getProjectionDetail(
     expenses: [
       ...fixed.filter((t) => t.type === "expense").map(line),
       ...getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month).map((c): ProjectionLine => ({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" })),
-      ...extras.filter((e) => e.month === month).map((e): ProjectionLine => ({ name: e.name, amount: e.amount, kind: "extra" })),
+      ...resolveCardExpenses(extras, data.creditCards).filter((e) => e.month === month).map((e): ProjectionLine => ({ name: e.name, amount: e.amount, kind: "extra" })),
     ],
   };
 }
@@ -219,6 +219,7 @@ export function getProjection(
 ): ProjectionMonth[] {
   const result: ProjectionMonth[] = [];
   let accumulated = 0;
+  const plannedExtras = resolveCardExpenses(extras, data.creditCards);
 
   for (let i = 0; i < count; i++) {
     const month = changeMonth(startMonth, i);
@@ -226,7 +227,7 @@ export function getProjection(
     const income = fixedTotal(data.transactions, month, "income");
     const fixedExpense = fixedTotal(data.transactions, month, "expense");
     const creditExpense = getCreditTotalByMonth(resolveCredits(data.creditTransactions, data.creditCards), month);
-    const extraExpense = extras
+    const extraExpense = plannedExtras
       .filter((e) => e.month === month)
       .reduce((s, e) => s + e.amount, 0);
 
@@ -280,9 +281,9 @@ export function getAdjacentMonth(data: NavigationData, from: Month, today: Month
 
   if (compareMonths(next, today) >= 0) return next;
   const oldest = [
-    ...data.transactions.map((t) => t.month),
+    ...resolveCardExpenses(data.transactions, data.creditCards).map((t) => t.month),
     ...resolveCredits(data.creditTransactions, data.creditCards).map((c) => c.startMonth),
-    ...data.extraExpenses.map((e) => e.month),
+    ...resolveCardExpenses(data.extraExpenses, data.creditCards).map((e) => e.month),
     ...data.notes.map((n) => n.month),
     ...data.goals.flatMap((g) => (g.deadline ? [g.deadline] : [])),
   ].sort(compareMonths)[0];

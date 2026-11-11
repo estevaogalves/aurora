@@ -122,32 +122,37 @@ Um investimento com produto que saiu da lista continua editável (o produto anti
 
 ---
 
-## Plano para depois: despesas com cartão e fatura
+## Despesas com cartão e fatura
 
-Funcionalidade **separada** dos investimentos, registrada aqui para continuarmos depois. Substitui a linha manual "Cartão" por uma fatura calculada a partir de despesas ligadas ao cartão.
+**Status (branch `feature/despesas-cartao-fatura`):** Fases 0 a 3 feitas no domínio, na API e nos testes; **ainda não há tela** (Fase 4) e a linha manual "Cartão" continua como está (Fase 5). Sem cartão cadastrado, nada muda no cálculo.
+
+Funcionalidade **separada** dos investimentos. Substitui a linha manual "Cartão" por uma fatura calculada a partir de despesas ligadas ao cartão.
 
 ### Fase 0: segurança
 
-- [ ] Trabalhar numa branch e guardar uma cópia dos dados atuais (exportação ou cópia do JSON salvo) antes de qualquer migração.
+- [ ok ] Branch `feature/despesas-cartao-fatura` criada a partir dos commits de investimentos.
+- [ ] **Pendente (você):** guardar uma cópia dos dados atuais antes de qualquer migração (menu da conta → Exportar, no modo local e na conta da API).
 
 ### Fase 1: modelo de dados (só campos opcionais)
 
-- [ ] Despesas e despesas extras ganham `cardId` e `purchaseDate`.
-- [ ] O cadastro do cartão ganha `limit` (o teto mensal, opcional).
-- [ ] Os três campos entram nas listas de campos permitidos (despesas, despesas extras e cartões) e na normalização ao carregar os dados. Sem isso, o campo novo seria descartado ao salvar.
-- [ ] Conferir no backend que a validação de `/api/v1/data` aceita os campos novos.
-- [ ] Registros antigos continuam válidos, porque tudo é opcional.
+- [ ok ] Despesas e despesas extras ganham `cardId` e `purchaseDate` (`domain/types.ts`, `domain/types.go`).
+- [ ok ] O cadastro do cartão ganha `limit` (o teto mensal, opcional, em centavos; 0 ou ausente = sem teto).
+- [ ok ] Os três campos entram nas listas de campos do `ApiRepository` (`TRANSACTION_PATCH`, `EXTRA_PATCH`, `CARD_PATCH`). No modo local os objetos são guardados inteiros, então não precisou de migração de formato nem de nova versão do backup. Soltar o cartão manda `cardId: ""` e limpar o teto manda `limit: 0`, porque o JSON descarta `undefined`.
+- [ ok ] Backend: migration `00013_card_expenses.sql` (colunas opcionais, `ON DELETE SET NULL`), queries, rotas, importação (os cartões entram antes e as despesas apontam para os ids novos), `openapi.yaml` e tipos. **A migration não foi aplicada em nenhum banco real.**
+- [ ok ] Registros antigos continuam válidos, porque tudo é opcional.
+- [ ok ] Regras de validação (decisões desta etapa): com cartão, a despesa precisa ter o dia da compra, ser despesa e não ser fixa (a API responde 400 ou 422); o dia da compra sem cartão é aceito, porque é o que fica no histórico depois que o cartão é removido; cartão de outra conta é recusado.
 
 ### Fase 2: regra de fatura
 
-- [ ] Reaproveitar a função de fechamento e vencimento atual. Para uma avulsa com cartão, o mês da despesa passa a ser o mês da fatura calculado a partir de `purchaseDate`, igual ao que já acontece com as parcelas. A data original fica guardada no histórico.
-- [ ] Criar uma função pura `faturaDoCartao(dados, cartão, mês)`. Ela devolve parcelas, recorrências, avulsas, total, teto, fechamento e vencimento.
-- [ ] Ao remover um cartão, o comportamento atual (limpar o vínculo e manter as parcelas) passa a valer também para as avulsas, para nenhuma despesa sumir.
+- [ ok ] `resolveCardExpenses` (`domain/invoice.ts`) e `ResolveCardTransactions` / `ResolveCardExtras` (Go): a despesa avulsa com cartão vale no mês do vencimento da fatura, a partir de `purchaseDate`, igual às parcelas. `month` e `purchaseDate` ficam como foram lançados (a resolução é na leitura, os dados salvos não mudam). Aplicada em resumo do mês, detalhe por categoria, projeção, comparação, relatórios, meses com dados, setas de mês e nos seletores das telas.
+- Decisão: **despesa fixa não tem cartão** (recorrência no cartão já existe em Crédito).
+- [ ok ] `getCardInvoice(dados, cartão, mês)` (nome em inglês, como o resto do domínio): devolve parcelas, recorrências, compras avulsas (comuns e extras, ordenadas pelo dia da compra), subtotais, total, teto, % usado, se estourou, fechamento e vencimento. `invoiceDates` calcula as datas da fatura que vence no mês e concorda com `getInvoice`.
+- [ ok ] Ao remover um cartão, o vínculo das despesas avulsas e extras também é limpo (na store e no banco, `ON DELETE SET NULL`) e nenhuma some. O dia da compra fica no histórico, e a despesa volta a valer no mês em que foi lançada.
 
 ### Fase 3: indicadores
 
-- [ ] O cálculo mensal do dashboard continua somando cada lançamento uma vez, na própria categoria. A fatura é só uma visão agrupada e nunca entra na soma.
-- [ ] Conferir Relatórios, Projeção e Comparação, que usam as mesmas listas, e ver que nenhum deles soma a fatura por cima.
+- [ ok ] O cálculo mensal continua somando cada lançamento uma vez, na própria categoria. A fatura é só uma visão agrupada e nunca entra na soma (teste de consistência: despesas do mês = despesas sem cartão + soma das faturas).
+- [ ok ] Relatórios, Projeção e Comparação usam as mesmas funções e o mesmo resolvedor; nenhum soma a fatura por cima. Falta olhar nas telas quando a Fase 4 existir.
 
 ### Fase 4: telas
 
@@ -164,8 +169,8 @@ Funcionalidade **separada** dos investimentos, registrada aqui para continuarmos
 
 ### Fase 6: testes e conferência
 
-- [ ] Testes da função de fatura: compra antes e depois do fechamento, recorrência no mês de virada, parcela, cartão removido, fatura vazia.
-- [ ] Teste de consistência: a soma das despesas do mês no dashboard tem que ser igual às despesas sem cartão mais a soma das faturas.
+- [ ok ] Testes da função de fatura (`domain/cardInvoice.test.ts`): compra antes e depois do fechamento, virada de ano, recorrência, parcela, cartão removido, fatura vazia, teto, datas.
+- [ ok ] Teste de consistência: a soma das despesas do mês tem que ser igual às despesas sem cartão mais a soma das faturas.
 - [ ] Conferência manual em dezembro:
   - Antes: despesas sem parcelas R$ 2.521,45 (com os R$ 300) + parcelas R$ 217,99 = R$ 2.739,44.
   - Depois, sem a linha de R$ 300: R$ 2.221,45 + R$ 217,99 = R$ 2.439,44.
@@ -179,3 +184,8 @@ Funcionalidade **separada** dos investimentos, registrada aqui para continuarmos
 - Front: 317 testes (`ApiRepository`, `FinanceStore` com repositório falso, avisos de vencimento, exemplos do tour), `eslint`, `tsc -b` e `vite build` sem erros. `pnpm --filter @aurora/api-types generate` sem diferença.
 - Navegador (Chromium, Playwright), **modo local e modo API contra o Go real**: tour com 11 etapas e exemplos que somem sem gravar nada; cadastrar, movimentar e ver o valor refeito; sino com o aviso, "Marcar como visto", "Já vistos", link para Investimentos; recarregar mantém tudo (no modo API, vindo do servidor); mudar o vencimento reabre o aviso; excluir persiste; sino e página sem rolagem horizontal a 390 px.
 - No modo API o console mostra um 401 em `POST /auth/refresh` ao abrir sem sessão: é a checagem de sessão antes do login, anterior a este trabalho.
+
+### Verificação das Fases 1 a 3
+
+- Go (`go vet` e `go test ./...` com Postgres descartável): `domain/card_expenses_test.go` (mesmos casos do front) e `httpapi/card_expenses_test.go` (validação, ligar e soltar, virar fixa recusado, teto, mês da fatura em `/summary` e `/projection`, apagar o cartão solta e nada some, importar e exportar). Todos os pacotes verdes.
+- Front: 336 testes (`cardInvoice.test.ts`, remover cartão na store, `ApiRepository` com os campos novos), `eslint` e `tsc -b` limpos; `pnpm --filter @aurora/api-types generate` regenerado.

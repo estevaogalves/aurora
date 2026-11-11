@@ -5,8 +5,8 @@ SELECT * FROM transactions WHERE user_id = $1 ORDER BY created_at, id;
 SELECT * FROM transactions WHERE id = $1 AND user_id = $2;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -17,7 +17,10 @@ UPDATE transactions SET
     notes        = COALESCE(sqlc.narg('notes'), notes),
     fixed        = COALESCE(sqlc.narg('fixed'), fixed),
     -- só fixa tem valor variável: deixar de ser fixa desliga
-    variable_amount = COALESCE(sqlc.narg('fixed'), fixed) AND COALESCE(sqlc.narg('variable_amount'), variable_amount)
+    variable_amount = COALESCE(sqlc.narg('fixed'), fixed) AND COALESCE(sqlc.narg('variable_amount'), variable_amount),
+    -- card_id: só muda quando set_card é true; card_id nulo solta a despesa do cartão
+    card_id       = CASE WHEN sqlc.arg('set_card')::boolean THEN sqlc.narg('card_id')::uuid ELSE card_id END,
+    purchase_date = COALESCE(sqlc.narg('purchase_date'), purchase_date)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
@@ -67,15 +70,16 @@ RETURNING *;
 SELECT * FROM credit_cards WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateCreditCard :one
-INSERT INTO credit_cards (id, user_id, name, closing_day, due_day)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5)
+INSERT INTO credit_cards (id, user_id, name, closing_day, due_day, limit_cents)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6)
 RETURNING *;
 
 -- name: UpdateCreditCard :one
 UPDATE credit_cards SET
     name        = COALESCE(sqlc.narg('name'), name),
     closing_day = COALESCE(sqlc.narg('closing_day'), closing_day),
-    due_day     = COALESCE(sqlc.narg('due_day'), due_day)
+    due_day     = COALESCE(sqlc.narg('due_day'), due_day),
+    limit_cents = COALESCE(sqlc.narg('limit_cents'), limit_cents)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
@@ -114,15 +118,17 @@ DELETE FROM goals WHERE id = $1 AND user_id = $2;
 SELECT * FROM extra_expenses WHERE user_id = $1 ORDER BY created_at, id;
 
 -- name: CreateExtraExpense :one
-INSERT INTO extra_expenses (id, user_id, name, amount_cents, month)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5)
+INSERT INTO extra_expenses (id, user_id, name, amount_cents, month, card_id, purchase_date)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7)
 RETURNING *;
 
 -- name: UpdateExtraExpense :one
 UPDATE extra_expenses SET
     name         = COALESCE(sqlc.narg('name'), name),
     amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
-    month        = COALESCE(sqlc.narg('month'), month)
+    month        = COALESCE(sqlc.narg('month'), month),
+    card_id       = CASE WHEN sqlc.arg('set_card')::boolean THEN sqlc.narg('card_id')::uuid ELSE card_id END,
+    purchase_date = COALESCE(sqlc.narg('purchase_date'), purchase_date)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 

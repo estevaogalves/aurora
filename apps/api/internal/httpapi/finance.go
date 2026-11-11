@@ -64,6 +64,9 @@ type transactionPatchReq struct {
 	MonthlyValues *map[string]int64 `json:"monthlyValues"`
 	MonthlyNotes  *map[string]string `json:"monthlyNotes"`
 	VariableAmount *bool            `json:"variableAmount"`
+	// CardID: "" solta a despesa do cartão; ausente não muda.
+	CardID       *string `json:"cardId"`
+	PurchaseDate *string `json:"purchaseDate"`
 }
 
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -84,6 +87,9 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	if in.Notes != nil {
 		msg = first(msg, checkNotes(*in.Notes))
 	}
+	if in.PurchaseDate != nil && *in.PurchaseDate != "" {
+		msg = first(msg, checkDate("Dia da compra", *in.PurchaseDate, false))
+	}
 	var hidden []string
 	var values map[string]int64
 	if in.HiddenMonths != nil {
@@ -102,6 +108,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	out, err := s.store.UpdateTransaction(r.Context(), userID(r), chi.URLParam(r, "id"), store.TransactionPatch{
 		Name: trimmed(in.Name), Amount: in.Amount, Category: in.Category, Notes: in.Notes, Fixed: in.Fixed,
 		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes, VariableAmount: in.VariableAmount,
+		CardID: in.CardID, PurchaseDate: in.PurchaseDate,
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -376,6 +383,9 @@ type extraPatchReq struct {
 	Name   *string `json:"name"`
 	Amount *int64  `json:"amount"`
 	Month  *string `json:"month"`
+	// CardID: "" solta a despesa do cartão; ausente não muda.
+	CardID       *string `json:"cardId"`
+	PurchaseDate *string `json:"purchaseDate"`
 }
 
 func (s *Server) updateExtra(w http.ResponseWriter, r *http.Request) {
@@ -393,11 +403,14 @@ func (s *Server) updateExtra(w http.ResponseWriter, r *http.Request) {
 	if in.Month != nil {
 		msg = first(msg, checkMonth(*in.Month))
 	}
+	if in.PurchaseDate != nil && *in.PurchaseDate != "" {
+		msg = first(msg, checkDate("Dia da compra", *in.PurchaseDate, false))
+	}
 	if bad(w, msg) {
 		return
 	}
 	out, err := s.store.UpdateExtra(r.Context(), userID(r), chi.URLParam(r, "id"),
-		store.ExtraPatch{Name: trimmed(in.Name), Amount: in.Amount, Month: in.Month})
+		store.ExtraPatch{Name: trimmed(in.Name), Amount: in.Amount, Month: in.Month, CardID: in.CardID, PurchaseDate: in.PurchaseDate})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -664,6 +677,8 @@ type cardPatchReq struct {
 	Name       *string `json:"name"`
 	ClosingDay *int    `json:"closingDay"`
 	DueDay     *int    `json:"dueDay"`
+	// Limit: teto mensal da fatura em centavos (0 = sem teto).
+	Limit *int64 `json:"limit"`
 }
 
 func (s *Server) updateCreditCard(w http.ResponseWriter, r *http.Request) {
@@ -681,10 +696,13 @@ func (s *Server) updateCreditCard(w http.ResponseWriter, r *http.Request) {
 	if in.DueDay != nil {
 		msg = first(msg, checkCardDay("vencimento", *in.DueDay))
 	}
+	if in.Limit != nil {
+		msg = first(msg, checkCardLimit(*in.Limit))
+	}
 	if bad(w, msg) {
 		return
 	}
-	out, err := s.store.UpdateCreditCard(r.Context(), userID(r), chi.URLParam(r, "id"), store.CardPatch{Name: trimmed(in.Name), ClosingDay: in.ClosingDay, DueDay: in.DueDay})
+	out, err := s.store.UpdateCreditCard(r.Context(), userID(r), chi.URLParam(r, "id"), store.CardPatch{Name: trimmed(in.Name), ClosingDay: in.ClosingDay, DueDay: in.DueDay, Limit: in.Limit})
 	if err != nil {
 		s.fail(w, r, err)
 		return
