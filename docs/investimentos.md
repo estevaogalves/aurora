@@ -124,7 +124,7 @@ Um investimento com produto que saiu da lista continua editável (o produto anti
 
 ## Despesas com cartão e fatura
 
-**Status (branch `feature/despesas-cartao-fatura`):** Fases 0 a 4 feitas (domínio, API, telas e testes). A linha manual "Cartão" continua como está (Fase 5, migração dos seus dados, ainda não feita). Sem cartão cadastrado, nada muda no cálculo.
+**Status (branch `feature/despesas-cartao-fatura`):** Fases 0 a 4 feitas (domínio, API, telas e testes). A Fase 5 (migrar a sua linha manual "Cartão") tem o recurso pronto, mas **a migração dos seus dados é feita por você, na tela, com backup** (passo a passo abaixo). Sem cartão cadastrado, nada muda no cálculo.
 
 Funcionalidade **separada** dos investimentos. Substitui a linha manual "Cartão" por uma fatura calculada a partir de despesas ligadas ao cartão.
 
@@ -164,9 +164,14 @@ Funcionalidade **separada** dos investimentos. Substitui a linha manual "Cartão
 
 ### Fase 5: migração da linha manual "Cartão"
 
-- [ ] Remover a despesa "Cartão" só de dezembro de 2026 em diante, usando o mecanismo que o app já tem para encerrar uma despesa fixa "a partir deste mês". Novembro e anteriores (como os R$ 732,47 pagos) ficam como estão.
-- [ ] Se o teto do cartão estiver vazio, preencher com R$ 300, em vez de perder esse número.
-- [ ] Confirmar o resultado olhando novembro antes e depois da migração.
+- [ ok ] **O mecanismo que o plano supunha não existia** (o app só ocultava a fixa mês a mês). Foi criado: **"Encerrar a partir daqui"** no menu ⋮ de despesas e rendas fixas, com `Transaction.endMonth` (o último mês em que a fixa vale). Os meses anteriores, os valores por mês e os pagamentos não mudam. A fixa encerrada vai para a lista **Encerradas**, nos meses em que já não vale, com **Reativar a partir daqui**: ela volta a valer só do mês visto em diante, e os meses desativados entre o fim e esse mês continuam desativados (passam a constar como "ocultos", e dá para restaurar cada um). Backend: migration `00015_fixed_end_month.sql` (**não aplicada em nenhum banco real**), validação (só fixa; o fim não pode ser antes do início; pagamento depois do fim é recusado) e import/export.
+- [ ] **Com você:** cadastrar (ou editar) o cartão com **teto mensal de R$ 300**, para não perder esse número (perfil → Cartões → Editar, ou Lançar → Cartão).
+- [ ] **Com você, passo a passo** (nada disso foi feito nos seus dados):
+  1. Exporte o backup (menu da conta → Exportar), no modo local e/ou na conta da API.
+  2. Anote em **Lançamentos → Despesas do mês** os totais de **novembro de 2026** e de **dezembro de 2026**.
+  3. Vá para **dezembro de 2026**, abra o ⋮ da linha fixa "Cartão" → **Encerrar a partir daqui** → Encerrar.
+  4. Confira: novembro igual ao anotado (com o valor real e o selo de pago); dezembro cai o valor da linha; a lista **Encerradas** mostra "Valeu até novembro de 2026".
+  5. Cadastre as compras avulsas no cartão (Lançar → Despesa, escolhendo o cartão e o dia da compra) e confira a fatura em Compras parceladas. Se algo não bater, **Reativar** desfaz o encerramento.
 
 ### Fase 6: testes e conferência
 
@@ -196,3 +201,27 @@ Funcionalidade **separada** dos investimentos. Substitui a linha manual "Cartão
 - Go: `go vet` e `go test ./...` verdes, incluindo `TestCardInvoicePayment` (validação, só boleto futuro, mês por fatura, isolamento entre contas, desmarcar idempotente, criar ignora pagamentos, importar e exportar, o pagamento não muda o total do mês).
 - Front: 346 testes (pagamento da fatura no domínio, na store e no `ApiRepository`; ligar e soltar o cartão de uma despesa), `eslint`, `tsc -b` e `vite build` limpos.
 - Navegador (Chromium, Playwright), **modo local (36/36) e modo API contra o Go real (37/37)**: cadastrar cartão com teto; TV parcelada e Streaming recorrente no cartão; compras avulsas; a fatura soma 100 + 20 + 42 = R$ 162,00 com subtotais, datas e 54% do teto; as linhas de parcela e recorrente iguais; a compra que vence no mês seguinte só aparece lá (parcela 2 + recorrente + compra = R$ 150,00); marcar como paga, recarregar, editar e desmarcar; **pagar a fatura não muda nenhum número do Painel**; passar do teto avisa R$ 62,00 acima; soltar a despesa do cartão tira da fatura; remover o cartão não apaga nada; tour com a etapa da fatura; sem rolagem horizontal a 390 px; nenhuma chamada da API falhou.
+
+### Verificação do "Encerrar a partir daqui"
+
+- Go: `domain/end_fixed_test.go` e `httpapi/end_fixed_test.go` (regra, novembro intacto, dezembro e meses seguintes sem a fixa, projeção, fim inválido, pagamento depois do fim recusado, reativar com `""`, deixar de ser fixa, isolamento entre contas, import e export). Todos os pacotes verdes.
+- Front: 363 testes (`endFixed.test.ts`, store, `ApiRepository`), `eslint` e `tsc` limpos.
+- Navegador, **modo local (18/18) e modo API (19/19)**, no cenário da Fase 5 (fixa variável "Cartão" de R$ 300, valor real de novembro R$ 732,47 pago): encerrar a partir de dezembro deixa novembro idêntico (R$ 1.732,47, com o selo de pago e o valor real), dezembro e fevereiro só com o aluguel (R$ 1.000,00), a lista Encerradas com Reativar, persistência depois de recarregar, reativar volta a R$ 1.300,00, no mês em que a fixa começa recusa e orienta a usar Excluir, e despesa comum não oferece Encerrar.
+
+### Valores gigantes
+
+`formatBRL` e `formatBRLShort` (`lib/money.ts`) mostram por inteiro até `R$ 999.999.999.999,99` (21 caracteres) e cortam acima disso com `…`; os rótulos dos eixos dos gráficos têm o mesmo corte (`charts/scale.ts`), e o saldo do Painel e o `StatCard` truncam. Testado com um valor de 56 dígitos em todas as telas, a 1280, 1024 e 390 px, sem estourar a largura. O campo de dinheiro continua aceitando qualquer quantidade de dígitos (só os investimentos limitam a R$ 1 bilhão).
+
+### Valor por extenso ao passar o mouse
+
+Ao manter o mouse (cerca de meio segundo) sobre qualquer valor em dinheiro, em qualquer tela, frase, gráfico ou diálogo, aparece um balão com o valor por extenso: `R$ 110,00` -> "cento e dez reais". A partir de R$ 1.000, o balão ganha uma segunda linha com a forma abreviada ("mil duzentos e trinta e quatro reais..." / "R$ 1 mil 234"; "dois bilhões e um milhão de reais" / "R$ 2 bi 1 mi"); se o por extenso fica longo demais (mais de 140 caracteres), mostra só o abreviado; acima de 10^66 usa notação científica.
+
+- Funciona lendo o texto que a tela já mostra (`components/shared/MoneyTooltip.tsx`, montado no `AppShell`), então não precisou mexer nos ~100 lugares que mostram valores. A regra do texto está em `lib/moneyWords.ts` (extenso e abreviado, sem passar por `number`) e `lib/moneyHover.ts` (achar o valor sob o mouse).
+- Valor cortado com `…` (acima de R$ 999.999.999.999,99) volta à grandeza original por um registro que `formatBRL` guarda, então o balão diz o número inteiro. Acima de 15 dígitos significativos o balão avisa "cerca de" (um número não guarda mais que isso com precisão).
+- Valores com `formatBRLShort` (sem centavos, como "R$ 1.235") são descritos como estão na tela.
+- É só leitura: não muda nem guarda nada. Não aparece em telas de toque (não há "passar o mouse").
+
+### Gráficos com valores grandes
+
+Os rótulos do eixo dos gráficos (Últimos 6 meses, Renda × despesa projetadas, Saldo acumulado e Comparação) usam `shortReais` (`components/charts/scale.ts`): `950`, `1,5 mil`, `15 mil`, `1,5 mi`, `2 bi`, `3 tri` e, passando de 10^15, `1,5e18`, sempre com no máximo 8 caracteres. A margem esquerda do gráfico (`axisPadding`) cresce para caber o maior rótulo (nunca abaixo dos 44 px de sempre), então o rótulo não sai do card. O total no centro da rosca diminui a letra para caber dentro do anel. Verificado de milhares a 10^55 em 390, 1024 e 1280 px (o mesmo teste, rodado no código antigo, acusa rótulos como `1.000 mil` e `10.000.000 mil` saindo até 399 px do card).
+
