@@ -1,6 +1,6 @@
 import { CREDIT_CATEGORY, getMonthSummary } from "./summary";
 import { getCreditByMonth } from "./credit";
-import { resolveCardExpenses, resolveCredits } from "./invoice";
+import { cardPaymentOf, dayMonth, getCardInvoice, resolveCardExpenses, resolveCredits } from "./invoice";
 import { getTransactionsByMonth } from "./transactions";
 import { formatPaymentDate, formatPaymentDay, paymentMethodLabel, paymentOf, paymentStatusLabel } from "./payment";
 import { getMonthsBetween, changeMonth, formatMonth } from "../Utils/Date";
@@ -49,10 +49,14 @@ export interface ReportOptions {
   summary: boolean;
   entries: boolean;
   credit: boolean;
+  /** faturas dos cartões, cada uma com o total e a descrição dos gastos (visão agrupada: não soma nada) */
+  invoices?: boolean;
 }
 
 export interface ReportRow {
   month: Month;
+  /** de onde vem a linha: lançamento (renda, despesa, despesa extra) ou parcela/recorrência do crédito */
+  source: "entry" | "credit";
   name: string;
   category: string;
   type: "Receita" | "Despesa";
@@ -79,6 +83,7 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
       for (const t of getTransactionsByMonth(resolveCardExpenses(data.transactions, data.creditCards), month)) {
         rows.push({
           month,
+          source: "entry",
           name: t.name,
           category: t.category,
           type: t.type === "income" ? "Receita" : "Despesa",
@@ -90,13 +95,14 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
     }
     if (options.entries) {
       for (const e of resolveCardExpenses(data.extraExpenses ?? [], data.creditCards)) {
-        if (e.month === month) rows.push({ month, name: e.name, category: "Outros", type: "Despesa", amount: e.amount, note: "Despesa extra", payment: e.payment });
+        if (e.month === month) rows.push({ month, source: "entry", name: e.name, category: "Outros", type: "Despesa", amount: e.amount, note: "Despesa extra", payment: e.payment });
       }
     }
     if (options.credit) {
       for (const c of getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month)) {
         rows.push({
           month,
+          source: "credit",
           name: c.name,
           category: CREDIT_CATEGORY,
           type: "Despesa",
@@ -112,6 +118,70 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
   }
   return rows;
 }
+
+/* ---------- faturas dos cartões ---------- */
+
+export interface ReportInvoiceItem {
+  kind: "installment" | "recurring" | "purchase";
+  /** "TV (parcela 1/3)", "Streaming (recorrente)", "01/11 · Padaria", "20/11 · Viagem (despesa extra)" */
+  description: string;
+  /** centavos */
+  amount: number;
+  /** só nas compras avulsas: dia da compra, "AAAA-MM-DD" */
+  purchaseDate?: string;
+}
+
+/** Uma fatura no relatório: o cartão, o mês do vencimento, o total e o que há dentro dela. */
+export interface ReportInvoice {
+  /** mês do vencimento (o mês em que o valor é contabilizado) */
+  month: Month;
+  cardName: string;
+  /** "AAAA-MM-DD" */
+  closingDate: string;
+  dueDate: string;
+  /** centavos: parcelas + recorrências + compras avulsas */
+  total: number;
+  limit: number | null;
+  overLimit: boolean;
+  /** pagamento da fatura (só registro) */
+  payment?: Payment;
+  /** parcelas, depois recorrências, depois compras avulsas (pelo dia da compra) */
+  items: ReportInvoiceItem[];
+}
+
+/**
+ * Faturas dos cartões com movimento nos meses do período (ou já pagas). É só uma visão agrupada dos lançamentos que
+ * já estão nos totais do período: nenhum valor daqui é somado de novo.
+ */
+export function getReportInvoices(data: Source, months: Month[]): ReportInvoice[] {
+  const out: ReportInvoice[] = [];
+  for (const month of months) {
+    for (const card of data.creditCards ?? []) {
+      const inv = getCardInvoice(data, card, month);
+      const payment = cardPaymentOf(card, month);
+      if (inv.total === 0 && !payment) continue;
+      const items: ReportInvoiceItem[] = [
+        ...inv.installments.map((c): ReportInvoiceItem => ({
+          kind: "installment",
+          description: `${c.name} (parcela ${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`,
+          amount: c.installmentValue,
+        })),
+        ...inv.recurring.map((c): ReportInvoiceItem => ({ kind: "recurring", description: `${c.name} (recorrente)`, amount: c.installmentValue })),
+        ...inv.purchases.map((p): ReportInvoiceItem => ({
+          kind: "purchase",
+          description: `${dayMonth(p.purchaseDate)} · ${p.name}${p.source === "extra" ? " (despesa extra)" : ""}`,
+          amount: p.amount,
+          purchaseDate: p.purchaseDate,
+        })),
+      ];
+      out.push({ month, cardName: card.name, closingDate: inv.closingDate, dueDate: inv.dueDate, total: inv.total, limit: inv.limit, overLimit: inv.overLimit, payment, items });
+    }
+  }
+  return out;
+}
+
+/** "Fatura Nubank" */
+export const invoiceTitle = (i: Pick<ReportInvoice, "cardName">) => `Fatura ${i.cardName}`;
 
 /**
  * Injeção de fórmula (CSV injection): o Excel/LibreOffice executam como fórmula uma célula de texto que começa com
@@ -153,6 +223,27 @@ export function buildCsv(data: Source, months: Month[], options: ReportOptions):
     }
   }
 
+  if (options.invoices) {
+    const invoices = getReportInvoices(data, months);
+    if (invoices.length > 0) {
+      if (lines.length > 0) lines.push("");
+      lines.push("Faturas dos cartões");
+      lines.push(["Mês", "Cartão", "Fechamento", "Vencimento", "Tipo", "Descrição", "Data da compra", "Valor", "Situação", "Pagamento", "Data do pagamento", "Obs. do pagamento"].join(";"));
+      for (const i of invoices) {
+        const p = i.payment;
+        // a primeira linha de cada fatura é o total; as seguintes, a descrição dos gastos
+        lines.push([
+          i.month, csvCell(i.cardName), i.closingDate, i.dueDate, "Fatura", csvCell(invoiceTitle(i)), "", reais(i.total),
+          p ? paymentStatusLabel(p) : "", p ? paymentMethodLabel(p.method) : "", p ? formatPaymentDate(p.date) : "", p ? csvCell(p.notes ?? "") : "",
+        ].join(";"));
+        for (const it of i.items) {
+          const kind = it.kind === "installment" ? "Parcela" : it.kind === "recurring" ? "Recorrente" : "Compra avulsa";
+          lines.push([i.month, csvCell(i.cardName), "", "", kind, csvCell(it.description), it.purchaseDate ?? "", reais(it.amount), "", "", "", ""].join(";"));
+        }
+      }
+    }
+  }
+
   return lines.join("\n").trimEnd() + "\n";
 }
 
@@ -173,6 +264,17 @@ export function buildTxt(data: Source, months: Month[], options: ReportOptions):
     lines.push("LANÇAMENTOS");
     for (const r of getReportRows(data, months, options)) {
       lines.push(`${r.month} · ${r.type} · ${r.name} (${r.category}${r.note ? `, ${r.note}` : ""}): ${formatBRL(r.amount)}${r.payment ? ` [${describePaidRow(r.payment)}]` : ""}`);
+    }
+  }
+
+  if (options.invoices) {
+    const invoices = getReportInvoices(data, months);
+    if (invoices.length > 0) {
+      lines.push("", "FATURAS DOS CARTÕES");
+      for (const i of invoices) {
+        lines.push(`${invoiceTitle(i)} · ${formatMonth(i.month)} · fecha ${dayMonth(i.closingDate)} · vence ${formatPaymentDate(i.dueDate)}: ${formatBRL(i.total)}${i.payment ? ` [${describePaidRow(i.payment)}]` : ""}`);
+        for (const it of i.items) lines.push(`  - ${it.description}: ${formatBRL(it.amount)}`);
+      }
     }
   }
 

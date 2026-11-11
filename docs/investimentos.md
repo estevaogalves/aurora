@@ -225,3 +225,26 @@ Ao manter o mouse (cerca de meio segundo) sobre qualquer valor em dinheiro, em q
 
 Os rótulos do eixo dos gráficos (Últimos 6 meses, Renda × despesa projetadas, Saldo acumulado e Comparação) usam `shortReais` (`components/charts/scale.ts`): `950`, `1,5 mil`, `15 mil`, `1,5 mi`, `2 bi`, `3 tri` e, passando de 10^15, `1,5e18`, sempre com no máximo 8 caracteres. A margem esquerda do gráfico (`axisPadding`) cresce para caber o maior rótulo (nunca abaixo dos 44 px de sempre), então o rótulo não sai do card. O total no centro da rosca diminui a letra para caber dentro do anel. Verificado de milhares a 10^55 em 390, 1024 e 1280 px (o mesmo teste, rodado no código antigo, acusa rótulos como `1.000 mil` e `10.000.000 mil` saindo até 399 px do card).
 
+### Faturas nos relatórios
+
+- Em **Relatórios**, o bloco **Faturas dos cartões** mostra, para cada cartão e mês com movimento no período, o título **"Fatura <cartão>"**, o total, fechamento, vencimento (com o selo de pago, se for o caso) e, abaixo, a descrição de cada gasto: parcelas ("TV (parcela 1/3)"), recorrências ("Streaming (recorrente)") e compras avulsas ("01/11 · Padaria", "(despesa extra)").
+- No bloco **Exportar relatório** há a opção "Faturas dos cartões" (marcada por padrão) e as faturas saem no **PDF** (depois dos lançamentos, uma tabela por fatura com o título repetido se quebrar de página), no **CSV** (seção própria: uma linha de total por fatura, depois uma por gasto) e no **TXT**. Desmarcada a opção, o arquivo sai exatamente como antes.
+- É só uma visão agrupada: os gastos continuam nas listas de lançamentos e nos totais do período, e nada é somado de novo (`getReportInvoices` em `domain/report.ts`, que usa `getCardInvoice`).
+- Verificado no navegador baixando os três formatos (o PDF lido com `pdftotext -raw`) e por testes de domínio (`reportInvoices.test.ts`). Obs.: `pdftotext -layout` desloca valores nas tabelas com linhas de alturas diferentes (acontece também na seção Lançamentos que já existia); o PDF em si está alinhado.
+
+### Salvar alterações no bloco Exportar relatório
+
+O botão **Salvar alterações** guarda o formato (PDF, CSV ou TXT) e o que está marcado (resumo, lançamentos, parcelas, faturas, distribuição) como o padrão da tela: da próxima vez que abrir Relatórios, já vem assim, sem precisar marcar ou desmarcar. O botão só habilita quando há mudança em relação ao salvo; recarregar sem salvar descarta a mexida. O padrão fica no **navegador** (localStorage, chave `aurora:report-prefs`), então vale para esta máquina e navegador, no modo local e no modo com API; não acompanha a conta em outro navegador. O período não é salvo (continua acompanhando o seletor do topo). Lógica em `Features/Reports/prefs.ts`; texto corrompido ou sem permissão do navegador volta ao padrão sem quebrar a tela.
+
+
+## PDF do relatório: páginas por seção
+
+O PDF não continua mais uma informação na página seguinte. Cada seção abre a sua página, nesta ordem:
+
+1. **Resumo**: totais, gráfico e tabela mês a mês.
+2. **Despesas por categoria** (com a sugestão de distribuição, quando cabe na mesma página).
+3. **Lançamentos**: um bloco por mês, cada um inteiro numa página.
+4. **Parcelas do crédito**.
+5. **Faturas dos cartões**: cada fatura inteira (título, total e gastos), várias por página.
+
+Se um bloco não cabe no espaço que sobra, ele vai para a página seguinte. Se ainda for maior que uma página, a letra é reduzida até caber. Só quando nem isso resolve (mais de ~60 linhas num único mês) o bloco continua na página seguinte. Todas as páginas têm "Página n de N", e da segunda em diante um cabeçalho fino.

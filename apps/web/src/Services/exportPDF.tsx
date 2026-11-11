@@ -1,7 +1,23 @@
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import autoTable, { type CellHookData } from "jspdf-autotable";
 import { niceTicks, shortReais } from "../components/charts/scale";
-import { DEFAULT_DISTRIBUTION, describePaidBadge, distributeBalance, isScheduled, getPeriodTotals, getReportRows, type Payment, type ReportOptions } from "../domain";
+import {
+  DEFAULT_DISTRIBUTION,
+  dayMonth,
+  describePaidBadge,
+  describePaidRow,
+  distributeBalance,
+  formatPaymentDate,
+  getPeriodTotals,
+  getReportInvoices,
+  getReportRows,
+  invoiceTitle,
+  isScheduled,
+  type Payment,
+  type ReportInvoice,
+  type ReportOptions,
+  type ReportRow,
+} from "../domain";
 import { downloadBlob } from "./download";
 import { formatBRL } from "../lib/money";
 import { useFinanceStore } from "../Store/FinanceStore";
@@ -14,6 +30,8 @@ export interface PdfOptions extends ReportOptions {
 
 type RGB = [number, number, number];
 type LastTable = { lastAutoTable: { finalY: number } };
+/** Desenha um bloco inteiro em `d` a partir de `startY`, na escala dada, e devolve onde ele termina. */
+type Draw = (d: jsPDF, startY: number, scale: number) => number;
 
 /* Visual "Painel": cabeçalho escuro, cartões coloridos, barras e as cores das categorias. */
 const INK: RGB = [13, 16, 23];
@@ -39,17 +57,45 @@ const MARGIN = 14;
 const PAGE_W = 210;
 const PAGE_H = 297;
 const CONTENT_W = PAGE_W - MARGIN * 2;
-/** Onde o conteúdo começa na 1ª página (abaixo do cabeçalho) e nas seguintes (sem cabeçalho). */
+/** Onde o conteúdo começa na 1ª página (abaixo do cabeçalho grande) e nas seguintes (abaixo do cabeçalho fino). */
 const BODY_TOP = 46;
-const CONTINUE_TOP = 16;
-/** O rodapé só existe na última página (faixa de 12 mm), então o conteúdo para um pouco antes dela. */
+const CONTINUE_TOP = 22;
+/** Toda página tem rodapé (faixa de 12 mm), então o conteúdo para um pouco antes dela. */
 const BODY_BOTTOM = PAGE_H - 18;
+/** Espaço útil de uma página inteira, sem o cabeçalho grande. */
+const PAGE_ROOM = BODY_BOTTOM - CONTINUE_TOP;
+/**
+ * Escalas tentadas, da maior para a menor: um bloco que não cabe numa página reduz a letra e o espaçamento até caber.
+ * Só se nem na menor couber é que ele continua na página seguinte (muitas centenas de linhas).
+ */
+const SCALES = [1, 0.94, 0.88, 0.82, 0.76, 0.7];
 
 const MONTH_ABBR = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 /** "2026-06" -> "Jun/26" */
 const shortMonth = (month: string) => `${MONTH_ABBR[Number(month.slice(5, 7)) - 1]}/${month.slice(2, 4)}`;
 
-/** Gera o PDF do período (lista de meses "YYYY-MM"). Se pedida, inclui a sugestão de distribuição (do mês ou do saldo somado do período). */
+const tableDefaults = (d: jsPDF, scale = 1) => ({
+  margin: { top: CONTINUE_TOP, bottom: 18, left: MARGIN, right: MARGIN },
+  theme: "plain" as const,
+  styles: { fontSize: 11 * scale, cellPadding: { top: 2.4 * scale, bottom: 2.4 * scale, left: 1.5, right: 1.5 }, textColor: TEXT, lineWidth: 0 },
+  headStyles: { fontSize: 9.5 * scale, textColor: GRAY, fontStyle: "bold" as const },
+  // linha fina embaixo de cada linha; mais grossa no cabeçalho
+  didDrawCell: (c: CellHookData) => {
+    const { x, y: cy, width, height } = c.cell;
+    d.setDrawColor(...(c.section === "head" ? INK : LINE));
+    d.setLineWidth(c.section === "head" ? 0.5 : 0.2);
+    d.line(x, cy + height, x + width, cy + height);
+  },
+});
+
+const finalY = (d: jsPDF) => (d as unknown as LastTable).lastAutoTable.finalY;
+
+/**
+ * Gera o PDF do período (lista de meses "YYYY-MM"). Cada parte do relatório ocupa páginas próprias, em sequência:
+ * 1. Resumo (totais, gráfico e mês a mês), 2. Despesas por categoria (e a sugestão de distribuição, se couber),
+ * 3. Lançamentos, 4. Parcelas do crédito, 5. Faturas dos cartões. Nenhum bloco é cortado ao meio: o que não cabe
+ * no que sobrou da página vai inteiro para a seguinte, e um bloco maior que uma página reduz a letra até caber.
+ */
 export function exportPDF(months: string[], options: PdfOptions) {
   const doc = new jsPDF();
   const store = useFinanceStore.getState();
@@ -59,7 +105,7 @@ export function exportPDF(months: string[], options: PdfOptions) {
   const periodLabel = multi ? `${formatMonth(months[0])} a ${formatMonth(months[months.length - 1])}` : formatMonth(months[0]);
   const hex = (category: string) => hexToRgb(categoryHex(category, store.customCategories));
 
-  /* ---------- peças da página ---------- */
+  /* ---------- cabeçalhos e rodapé ---------- */
   const drawHeader = () => {
     doc.setFillColor(...INK);
     doc.rect(0, 0, PAGE_W, 34, "F");
@@ -80,34 +126,48 @@ export function exportPDF(months: string[], options: PdfOptions) {
     doc.setTextColor(...TEXT);
   };
 
-  /** Rodapé só na última página. */
-  const drawFooter = () => {
-    const pages = doc.getNumberOfPages();
-    doc.setPage(pages);
+  /** Cabeçalho fino das páginas seguintes: de que relatório e de que período é a folha. */
+  const drawRunningHeader = () => {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.setTextColor(...VIOLET);
+    doc.text("AURORA", MARGIN, 10);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(...GRAY);
+    doc.text("Relatório financeiro", MARGIN + 17, 10);
+    doc.text(periodLabel, PAGE_W - MARGIN, 10, { align: "right" });
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, 13, PAGE_W - MARGIN, 13);
+    doc.setTextColor(...TEXT);
+  };
+
+  /** Rodapé em todas as páginas, com a numeração. */
+  const drawFooter = (page: number, pages: number) => {
     doc.setFillColor(...INK);
     doc.rect(0, PAGE_H - 12, PAGE_W, 12, "F");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(...SOFT_TEXT);
     doc.text(`Gerado em ${getToday()} • Aurora`, MARGIN, PAGE_H - 4.5);
-    doc.text(`${pages} ${pages === 1 ? "página" : "páginas"}`, PAGE_W - MARGIN, PAGE_H - 4.5, { align: "right" });
+    doc.text(`Página ${page} de ${pages}`, PAGE_W - MARGIN, PAGE_H - 4.5, { align: "right" });
   };
 
-  // cabeçalho só na primeira página
   drawHeader();
   let y = BODY_TOP;
+  /** a página atual já tem conteúdo (então a próxima seção abre outra página) */
+  let pageUsed = false;
+  /** acabou de desenhar o título de uma seção: o primeiro bloco tem que caber no que sobrou dessa página */
+  let titlePending = false;
 
   const newPage = () => {
     doc.addPage();
     y = CONTINUE_TOP;
-  };
-  /** Garante `h` mm livres; senão começa outra página. */
-  const ensure = (h: number) => {
-    if (y + h > BODY_BOTTOM) newPage();
+    pageUsed = false;
+    titlePending = false;
   };
 
-  const section = (title: string, subtitle?: string) => {
-    ensure(subtitle ? 18 : 12);
+  const drawSectionTitle = (title: string, subtitle?: string) => {
     doc.setFont("helvetica", "bold");
     doc.setFontSize(15);
     doc.setTextColor(...TEXT);
@@ -121,23 +181,47 @@ export function exportPDF(months: string[], options: PdfOptions) {
       y += 5.5;
     }
     doc.setTextColor(...TEXT);
+    y += 3;
   };
 
-  const tableDefaults = () => ({
-    margin: { top: CONTINUE_TOP, bottom: 18, left: MARGIN, right: MARGIN },
-    theme: "plain" as const,
-    styles: { fontSize: 11, cellPadding: { top: 2.4, bottom: 2.4, left: 1.5, right: 1.5 }, textColor: TEXT, lineWidth: 0 },
-    headStyles: { fontSize: 9.5, textColor: GRAY, fontStyle: "bold" as const },
-    // linha fina embaixo de cada linha; mais grossa no cabeçalho
-    didDrawCell: (cell: { section: string; cell: { x: number; y: number; width: number; height: number } }) => {
-      const { x, y: cy, width, height } = cell.cell;
-      doc.setDrawColor(...(cell.section === "head" ? INK : LINE));
-      doc.setLineWidth(cell.section === "head" ? 0.5 : 0.2);
-      doc.line(x, cy + height, x + width, cy + height);
-    },
-  });
+  /** Abre uma seção em página própria (na primeira página, se ainda estiver vazia). */
+  const startSection = (title: string, subtitle?: string) => {
+    if (pageUsed) newPage();
+    drawSectionTitle(title, subtitle);
+    pageUsed = true;
+    titlePending = true;
+  };
 
-  /* ---------- cartões de total ---------- */
+  /** Garante `h` mm livres na página atual; senão abre a próxima (sem deixar um título sozinho). */
+  const needs = (h: number) => {
+    if (pageUsed && y + h > BODY_BOTTOM) newPage();
+  };
+
+  /**
+   * Põe um bloco inteiro: mede num PDF de rascunho, escolhe a maior escala em que ele cabe numa página e o desenha
+   * na página atual se couber no que sobrou, ou na seguinte. Só continua em outra página se nem na menor escala couber.
+   */
+  const place = (draw: Draw, gap = 6) => {
+    const room = titlePending ? BODY_BOTTOM - y : PAGE_ROOM;
+    let chosen = SCALES[SCALES.length - 1];
+    let height = Infinity;
+    for (const scale of SCALES) {
+      const scratch = new jsPDF();
+      const end = draw(scratch, CONTINUE_TOP, scale);
+      const h = end - CONTINUE_TOP;
+      if (scratch.getNumberOfPages() === 1 && h <= room) {
+        chosen = scale;
+        height = h;
+        break;
+      }
+    }
+    if (!titlePending && pageUsed && (height === Infinity || y + height > BODY_BOTTOM)) newPage();
+    y = draw(doc, y, chosen) + gap;
+    pageUsed = true;
+    titlePending = false;
+  };
+
+  /* ====================== 1. Resumo: totais, gráfico e mês a mês ====================== */
   if (options.summary) {
     const tiles: [string, number, RGB][] = [
       ["Receitas", totals.income, TEAL],
@@ -160,11 +244,12 @@ export function exportPDF(months: string[], options: PdfOptions) {
     });
     doc.setTextColor(...TEXT);
     y += 24 + 8;
+    pageUsed = true;
 
-    /* ---------- gráfico: renda e despesas por mês ---------- */
-    section("Renda e despesas por mês", multi ? "Os meses do período, lado a lado" : "O mês escolhido");
+    /* gráfico: renda e despesas por mês */
+    drawSectionTitle("Renda e despesas por mês", multi ? "Os meses do período, lado a lado" : "O mês escolhido");
     const chartH = 50;
-    const chartTop = y + 3;
+    const chartTop = y;
     const axisW = 14;
     const plotX = MARGIN + axisW;
     const plotW = CONTENT_W - axisW;
@@ -207,28 +292,29 @@ export function exportPDF(months: string[], options: PdfOptions) {
       doc.setTextColor(...GRAY);
       doc.text(label as string, x + 5, y);
     });
-    y += 7;
+    y += 9;
 
-    /* ---------- resumo numérico por mês ---------- */
-    ensure(16 + totals.months.length * 10);
-    autoTable(doc, {
-      ...tableDefaults(),
-      startY: y,
-      head: [["Mês", "Receitas", "Despesas", "Saldo"]],
-      body: totals.months.map((m) => [formatMonth(m.month), formatBRL(m.totalIncome), formatBRL(m.totalExpense), formatBRL(m.balance)]),
-      foot: multi ? [["Total", formatBRL(totals.income), formatBRL(totals.expense), formatBRL(totals.balance)]] : undefined,
-      footStyles: { fontStyle: "bold", textColor: TEXT },
-      showFoot: "lastPage",
-      columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" } },
-      didParseCell: (c) => {
-        if (c.section === "head" && c.column.index > 0) c.cell.styles.halign = "right";
-        if (c.section === "foot" && c.column.index > 0) c.cell.styles.halign = "right";
-        if (c.section === "body" && c.column.index === 3) c.cell.styles.textColor = totals.months[c.row.index].balance < 0 ? RED : GREEN;
-      },
+    /* resumo numérico por mês (a tabela vai inteira para a mesma página do gráfico, ou inteira para a seguinte) */
+    place((d, startY, scale) => {
+      autoTable(d, {
+        ...tableDefaults(d, scale),
+        startY,
+        head: [["Mês", "Receitas", "Despesas", "Saldo"]],
+        body: totals.months.map((m) => [formatMonth(m.month), formatBRL(m.totalIncome), formatBRL(m.totalExpense), formatBRL(m.balance)]),
+        foot: multi ? [["Total", formatBRL(totals.income), formatBRL(totals.expense), formatBRL(totals.balance)]] : undefined,
+        footStyles: { fontStyle: "bold", textColor: TEXT },
+        showFoot: "lastPage",
+        columnStyles: { 1: { halign: "right" }, 2: { halign: "right" }, 3: { halign: "right", fontStyle: "bold" } },
+        didParseCell: (c) => {
+          if (c.section === "head" && c.column.index > 0) c.cell.styles.halign = "right";
+          if (c.section === "foot" && c.column.index > 0) c.cell.styles.halign = "right";
+          if (c.section === "body" && c.column.index === 3) c.cell.styles.textColor = totals.months[c.row.index].balance < 0 ? RED : GREEN;
+        },
+      });
+      return finalY(d);
     });
-    y = (doc as unknown as LastTable).lastAutoTable.finalY + 8;
 
-    /* ---------- despesas por categoria ---------- */
+    /* ====================== 2. Despesas por categoria ====================== */
     const cats = Object.entries(
       totals.months.reduce<Record<string, number>>((acc, m) => {
         for (const [c, v] of Object.entries(m.byCategory)) acc[c] = (acc[c] ?? 0) + (v ?? 0);
@@ -239,35 +325,40 @@ export function exportPDF(months: string[], options: PdfOptions) {
       .sort((a, b) => b[1] - a[1]);
 
     if (cats.length > 0) {
-      ensure(18 + Math.min(cats.length, 2) * 9.5); // título com pelo menos 2 barras; o resto segue na página seguinte se precisar
-      section("Despesas por categoria", `Total de ${formatBRL(totals.expense)} no período`);
+      startSection("Despesas por categoria", `Total de ${formatBRL(totals.expense)} no período`);
       const labelW = 46;
       const valueW = 38;
       const barArea = CONTENT_W - labelW - valueW;
       const top = cats[0][1];
+      // com muitas categorias, as linhas se aproximam para a lista inteira caber na página
+      const pitch = Math.max(6.2, Math.min(9.5, (BODY_BOTTOM - y) / cats.length));
+      const barH = Math.min(4.6, pitch - 3);
       for (const [name, value] of cats) {
-        ensure(9.5);
+        needs(pitch);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(10.5);
+        doc.setFontSize(Math.min(10.5, pitch + 1));
         doc.setTextColor(...TEXT);
-        doc.text(name, MARGIN, y + 3.4, { maxWidth: labelW - 2 });
+        doc.text(name, MARGIN, y + barH / 2 + 1.2, { maxWidth: labelW - 2 });
         doc.setFillColor(...hex(name));
-        doc.roundedRect(MARGIN + labelW, y, Math.max(1.5, (value / top) * barArea), 4.6, 2.3, 2.3, "F");
+        doc.roundedRect(MARGIN + labelW, y, Math.max(1.5, (value / top) * barArea), barH, barH / 2, barH / 2, "F");
         doc.setFont("helvetica", "bold");
-        doc.text(formatBRL(value), PAGE_W - MARGIN, y + 3.4, { align: "right" });
-        y += 9.5;
+        doc.text(formatBRL(value), PAGE_W - MARGIN, y + barH / 2 + 1.2, { align: "right" });
+        y += pitch;
       }
       y += 3;
+      titlePending = false;
     }
   }
 
-  /* ---------- sugestão de distribuição: do mês, ou do saldo somado do período ---------- */
+  /* ====================== Sugestão de distribuição: do mês, ou do saldo somado do período ====================== */
   if (options.distribution) {
     const balance = multi ? totals.balance : totals.months[0].balance;
     if (balance > 0) {
       const parts = distributeBalance(balance, store.distribution ?? DEFAULT_DISTRIBUTION).filter((p) => p.item.percent > 0);
-      ensure(24 + parts.length * 9);
-      section("Sugestão de distribuição do saldo", `${multi ? `Saldo de ${periodLabel}` : `Saldo de ${formatMonth(months[0])}`}: ${formatBRL(balance)}`);
+      // o bloco inteiro (título, barra e legenda) fica junto: cabe na página da categoria ou vai inteiro para a seguinte
+      needs(30 + parts.length * 8);
+      pageUsed = true;
+      drawSectionTitle("Sugestão de distribuição do saldo", `${multi ? `Saldo de ${periodLabel}` : `Saldo de ${formatMonth(months[0])}`}: ${formatBRL(balance)}`);
       let x = MARGIN;
       parts.forEach((p, i) => {
         const w = (CONTENT_W * p.item.percent) / 100;
@@ -277,7 +368,6 @@ export function exportPDF(months: string[], options: PdfOptions) {
       });
       y += 11;
       parts.forEach((p, i) => {
-        ensure(9);
         doc.setFillColor(...hexToRgb(DIST_COLORS[i % DIST_COLORS.length]));
         doc.roundedRect(MARGIN + 1, y - 2.6, 3, 3, 0.6, 0.6, "F");
         doc.setFont("helvetica", "normal");
@@ -292,8 +382,10 @@ export function exportPDF(months: string[], options: PdfOptions) {
         y += 8;
       });
       y += 4;
+      titlePending = false;
     } else {
-      ensure(12);
+      needs(14);
+      pageUsed = true;
       doc.setFontSize(10);
       doc.setTextColor(...GRAY);
       doc.text("Sem saldo disponível para distribuição.", MARGIN, y);
@@ -302,124 +394,145 @@ export function exportPDF(months: string[], options: PdfOptions) {
     }
   }
 
-  /* ---------- lançamentos ---------- */
-  if (options.entries || options.credit) {
-    const rows = getReportRows(data, months, options);
-    if (rows.length > 0) {
-      // segue na mesma página se couber o título e algumas linhas; a tabela continua sozinha nas seguintes
-      ensure(36);
-      section("Lançamentos", "Receitas em verde, despesas em vermelho");
-      // com vários meses, cada mês ganha uma faixa de título (em vez de repetir o mês em cada linha)
-      type Line = { kind: "month"; month: string } | { kind: "row"; row: (typeof rows)[number] };
-      const lines: Line[] = [];
-      let lastMonth = "";
-      for (const r of rows) {
-        if (multi && r.month !== lastMonth) {
-          lines.push({ kind: "month", month: r.month });
-          lastMonth = r.month;
+  /* ====================== lançamentos e parcelas: um bloco por mês, cada um inteiro numa página ====================== */
+
+  /** Selo do pagamento na mesma linha do nome: arredondado e colorido (azul-petróleo = paga, laranja = agendada). */
+  const pillWidth = (d: jsPDF, p: Payment, scale: number) => {
+    d.setFont("helvetica", "bold");
+    d.setFontSize(7.5 * scale);
+    return d.getTextWidth(describePaidBadge(p)) + 5 * scale;
+  };
+  const drawPill = (d: jsPDF, p: Payment, x: number, centerY: number, scale: number) => {
+    const scheduled = isScheduled(p);
+    const w = pillWidth(d, p, scale);
+    const h = 4.6 * scale;
+    d.setFillColor(...(scheduled ? SCHEDULED_BG : PAID_BG));
+    d.roundedRect(x, centerY - h / 2, w, h, h / 2, h / 2, "F");
+    d.setTextColor(...(scheduled ? SCHEDULED_TEXT : PAID_TEXT));
+    d.text(describePaidBadge(p), x + 2.5 * scale, centerY, { baseline: "middle" });
+    return x + w;
+  };
+
+  type RowsBlock = { title?: string; rows: ReportRow[] };
+  const drawRowsBlock = (block: RowsBlock): Draw => (d, startY, scale) => {
+    const base = tableDefaults(d, scale);
+    const pad = { top: 2.6 * scale, bottom: 2.6 * scale, left: 6, right: 1.5 };
+    autoTable(d, {
+      ...base,
+      startY,
+      // com vários meses, a faixa do mês é o cabeçalho do bloco; com um só, o cabeçalho é "Nome / Valor"
+      head: [
+        block.title
+          ? [{ content: block.title, colSpan: 2, styles: { fillColor: MONTH_BAND, fontStyle: "bold" as const, fontSize: 11 * scale, textColor: VIOLET, cellPadding: { top: 3.2 * scale, bottom: 3.2 * scale, left: 3, right: 1.5 } } }]
+          : ["Nome", "Valor"],
+      ],
+      body: block.rows.map((r) => [r.note ? `${r.name} (${r.note})` : r.name, formatBRL(r.amount)]),
+      columnStyles: { 0: { cellPadding: pad }, 1: { halign: "right", fontStyle: "bold", cellWidth: 40 } },
+      didParseCell: (c) => {
+        if (c.section === "head" && c.column.index === 1 && !block.title) c.cell.styles.halign = "right";
+        const row = c.section === "body" ? block.rows[c.row.index] : undefined;
+        if (row && c.column.index === 1) c.cell.styles.textColor = row.type === "Receita" ? GREEN : RED;
+        // reserva à direita o espaço do selo, para o nome quebrar antes dele em vez de passar por cima
+        if (row?.payment && c.column.index === 0) c.cell.styles.cellPadding = { ...pad, right: pillWidth(d, row.payment, scale) + 4 };
+      },
+      didDrawCell: (c) => {
+        if (c.section === "head" && block.title) {
+          // traço forte no topo da faixa do mês
+          d.setDrawColor(...VIOLET);
+          d.setLineWidth(0.7);
+          d.line(c.cell.x, c.cell.y, c.cell.x + c.cell.width, c.cell.y);
+          return;
         }
-        lines.push({ kind: "row", row: r });
-      }
-      /** Selo do pagamento na mesma linha do nome: arredondado e colorido (azul-petróleo = paga, laranja = agendada). */
-      const PILL_FONT = 7.5;
-      const pillWidth = (p: Payment) => {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(PILL_FONT);
-        return doc.getTextWidth(describePaidBadge(p)) + 5;
-      };
-      const drawPill = (p: Payment, x: number, centerY: number) => {
-        const scheduled = isScheduled(p);
-        const w = pillWidth(p);
-        const h = 4.6;
-        doc.setFillColor(...(scheduled ? SCHEDULED_BG : PAID_BG));
-        doc.roundedRect(x, centerY - h / 2, w, h, h / 2, h / 2, "F");
-        doc.setTextColor(...(scheduled ? SCHEDULED_TEXT : PAID_TEXT));
-        doc.text(describePaidBadge(p), x + 2.5, centerY, { baseline: "middle" });
-        return x + w;
-      };
-      // quando a tabela quebra de página no meio de um mês, o topo da nova página repete o mês
-      let drawnUpTo = -1; // maior linha já desenhada
-      let previousEnd = -1; // última linha da página anterior
-      autoTable(doc, {
-        ...tableDefaults(),
-        margin: { ...tableDefaults().margin, top: CONTINUE_TOP + (multi ? 8 : 0) },
-        startY: y,
-        head: [["Nome", "Valor"]],
-        body: lines.map((l) =>
-          l.kind === "month"
-            ? [{ content: formatMonthTitle(l.month), colSpan: 2, styles: { fillColor: MONTH_BAND, fontStyle: "bold" as const, textColor: VIOLET, cellPadding: { top: 3.2, bottom: 3.2, left: 3, right: 1.5 } } }]
-            : [l.row.note ? `${l.row.name} (${l.row.note})` : l.row.name, formatBRL(l.row.amount)],
-        ),
-        columnStyles: {
-          0: { cellPadding: { top: 2.6, bottom: 2.6, left: 6, right: 1.5 } },
-          1: { halign: "right", fontStyle: "bold", cellWidth: 40 },
-        },
-        willDrawCell: (c) => {
-          if (c.section === "body") drawnUpTo = Math.max(drawnUpTo, c.row.index);
-        },
-        didDrawPage: () => {
-          // a primeira linha desta página vem logo depois da última da anterior
-          const first = lines[previousEnd + 1];
-          previousEnd = drawnUpTo;
-          if (!multi || !first || first.kind === "month") return;
-          doc.setFont("helvetica", "bold");
-          doc.setFontSize(11);
-          doc.setTextColor(...VIOLET);
-          doc.text(`${formatMonthTitle(first.row.month)} (continuação)`, MARGIN + 3, CONTINUE_TOP + 3);
-          doc.setTextColor(...TEXT);
-        },
-        didParseCell: (c) => {
-          if (c.section === "head" && c.column.index === 1) c.cell.styles.halign = "right";
-          const line = c.section === "body" ? lines[c.row.index] : undefined;
-          if (line?.kind === "row" && c.column.index === 1) c.cell.styles.textColor = line.row.type === "Receita" ? GREEN : RED;
-          // reserva à direita o espaço do selo, para o nome quebrar antes dele em vez de passar por cima
-          if (line?.kind === "row" && line.row.payment && c.column.index === 0) {
-            c.cell.styles.cellPadding = { top: 2.6, bottom: 2.6, left: 6, right: pillWidth(line.row.payment) + 4 };
-          }
-        },
-        didDrawCell: (c) => {
-          tableDefaults().didDrawCell(c);
-          const line = c.section === "body" ? lines[c.row.index] : undefined;
-          if (line?.kind === "month") {
-            // traço forte no topo da faixa do mês
-            doc.setDrawColor(...VIOLET);
-            doc.setLineWidth(0.7);
-            doc.line(c.cell.x, c.cell.y, c.cell.x + c.cell.width, c.cell.y);
-          } else if (line?.kind === "row" && c.column.index === 0) {
-            // quadradinho com a cor da categoria
-            doc.setFillColor(...hex(line.row.category));
-            doc.roundedRect(c.cell.x + 1.5, c.cell.y + c.cell.height / 2 - 1.5, 3, 3, 0.6, 0.6, "F");
-            if (line.row.payment) {
-              // o selo vem logo depois da última linha do nome, na altura dela
-              const lines = c.cell.text;
-              const fs = c.cell.styles.fontSize;
-              doc.setFont("helvetica", c.cell.styles.fontStyle === "bold" ? "bold" : "normal");
-              doc.setFontSize(fs);
-              const pos = c.cell.getTextPos();
-              const lineH = (fs * doc.getLineHeightFactor()) / doc.internal.scaleFactor;
-              const centerY = pos.y + (lines.length - 1) * lineH + (fs * 0.3528 * 0.8) / 2;
-              const x = pos.x + doc.getTextWidth(lines[lines.length - 1] ?? "") + 2.5;
-              const end = drawPill(line.row.payment, x, centerY);
-              // observação do pagamento, discreta, no espaço que sobrar na linha
-              const note = line.row.payment.notes;
-              const room = c.cell.x + c.cell.width - 1.5 - (end + 2);
-              if (note && room > 14) {
-                doc.setFont("helvetica", "normal");
-                doc.setFontSize(8);
-                let text = note;
-                while (text.length > 1 && doc.getTextWidth(text) > room) text = text.slice(0, -1);
-                doc.setTextColor(...GRAY);
-                doc.text(text === note ? text : `${text.trimEnd()}…`, end + 2, centerY, { baseline: "middle" });
-              }
-              doc.setFont("helvetica", "normal");
-              doc.setTextColor(...TEXT);
-            }
-          }
-        },
-      });
+        base.didDrawCell(c);
+        const row = c.section === "body" ? block.rows[c.row.index] : undefined;
+        if (!row || c.column.index !== 0) return;
+        // quadradinho com a cor da categoria
+        d.setFillColor(...hex(row.category));
+        d.roundedRect(c.cell.x + 1.5, c.cell.y + c.cell.height / 2 - 1.5, 3, 3, 0.6, 0.6, "F");
+        if (!row.payment) return;
+        // o selo vem logo depois da última linha do nome, na altura dela
+        const lines = c.cell.text;
+        const fs = c.cell.styles.fontSize;
+        d.setFont("helvetica", c.cell.styles.fontStyle === "bold" ? "bold" : "normal");
+        d.setFontSize(fs);
+        const pos = c.cell.getTextPos();
+        const lineH = (fs * d.getLineHeightFactor()) / d.internal.scaleFactor;
+        const centerY = pos.y + (lines.length - 1) * lineH + (fs * 0.3528 * 0.8) / 2;
+        const x = pos.x + d.getTextWidth(lines[lines.length - 1] ?? "") + 2.5;
+        const end = drawPill(d, row.payment, x, centerY, scale);
+        // observação do pagamento, discreta, no espaço que sobrar na linha
+        const note = row.payment.notes;
+        const room = c.cell.x + c.cell.width - 1.5 - (end + 2);
+        if (note && room > 14) {
+          d.setFont("helvetica", "normal");
+          d.setFontSize(8 * scale);
+          let text = note;
+          while (text.length > 1 && d.getTextWidth(text) > room) text = text.slice(0, -1);
+          d.setTextColor(...GRAY);
+          d.text(text === note ? text : `${text.trimEnd()}…`, end + 2, centerY, { baseline: "middle" });
+        }
+        d.setFont("helvetica", "normal");
+        d.setTextColor(...TEXT);
+      },
+    });
+    return finalY(d);
+  };
+
+  /** Seção em páginas próprias: um bloco por mês (vários meses) ou um bloco só, cada um inteiro numa página. */
+  const rowsSection = (title: string, subtitle: string, rows: ReportRow[]) => {
+    if (rows.length === 0) return;
+    startSection(title, subtitle);
+    const blocks: RowsBlock[] = multi
+      ? months.filter((m) => rows.some((r) => r.month === m)).map((m) => ({ title: formatMonthTitle(m), rows: rows.filter((r) => r.month === m) }))
+      : [{ rows }];
+    for (const block of blocks) place(drawRowsBlock(block), 8);
+  };
+
+  /* ====================== 3. Lançamentos  e  4. Parcelas do crédito ====================== */
+  if (options.entries) rowsSection("Lançamentos", "Receitas em verde, despesas em vermelho", getReportRows(data, months, { entries: true, credit: false }));
+  if (options.credit) rowsSection("Parcelas do crédito", "Parcelas e recorrências no cartão, por mês", getReportRows(data, months, { entries: false, credit: true }));
+
+  /* ====================== 5. Faturas dos cartões: cada fatura, com o título, o total e a descrição, inteira numa página ====================== */
+  const drawInvoice = (inv: ReportInvoice): Draw => (d, startY, scale) => {
+    const paid = inv.payment;
+    const sub = `${multi ? `${formatMonth(inv.month)} · ` : ""}Fecha ${dayMonth(inv.closingDate)} · Vence ${formatPaymentDate(inv.dueDate)}`;
+    const base = tableDefaults(d, scale);
+    const subPad = { top: 1.6 * scale, bottom: 1.6 * scale, left: 3, right: 1.5 };
+    autoTable(d, {
+      ...base,
+      startY,
+      head: [[invoiceTitle(inv), formatBRL(inv.total)]],
+      headStyles: { fontSize: 12 * scale, fontStyle: "bold", textColor: VIOLET, fillColor: MONTH_BAND, cellPadding: { top: 3.2 * scale, bottom: 3.2 * scale, left: 3, right: 3 } },
+      body: [
+        [{ content: sub, colSpan: 2, styles: { fontSize: 9 * scale, textColor: GRAY, cellPadding: subPad } }],
+        ...(paid ? [[{ content: describePaidRow(paid), colSpan: 2, styles: { fontSize: 9 * scale, fontStyle: "bold" as const, textColor: isScheduled(paid) ? SCHEDULED_TEXT : PAID_TEXT, cellPadding: subPad } }]] : []),
+        ...inv.items.map((it) => [it.description, formatBRL(it.amount)]),
+      ],
+      columnStyles: {
+        0: { cellPadding: { top: 2.4 * scale, bottom: 2.4 * scale, left: 6, right: 1.5 } },
+        1: { halign: "right", fontStyle: "bold", cellWidth: 40 },
+      },
+      didParseCell: (c) => {
+        if (c.section === "head" && c.column.index === 1) c.cell.styles.halign = "right";
+      },
+    });
+    return finalY(d);
+  };
+
+  if (options.invoices) {
+    const invoices = getReportInvoices(data, months);
+    if (invoices.length > 0) {
+      startSection("Faturas dos cartões", "Parcelas, recorrências e compras avulsas de cada cartão. Já estão nos totais: não são somadas de novo.");
+      for (const inv of invoices) place(drawInvoice(inv), 7);
     }
   }
 
-  drawFooter();
+  /* ---------- cabeçalho fino e rodapé em todas as páginas ---------- */
+  const pages = doc.getNumberOfPages();
+  for (let p = 1; p <= pages; p++) {
+    doc.setPage(p);
+    if (p > 1) drawRunningHeader();
+    drawFooter(p, pages);
+  }
   downloadBlob(`relatorio-${months[0]}${multi ? `_a_${months[months.length - 1]}` : ""}.pdf`, doc.output("blob"));
 }
