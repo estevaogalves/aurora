@@ -7,13 +7,15 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  Investment,
+  InvestmentMovement,
   Note,
   OnboardingState,
   Transaction,
 } from "../domain/types";
 
 /** Versão atual do formato salvo. Aumente ao mudar o formato e trate em `migrateStored`. */
-export const CURRENT_VERSION = 7;
+export const CURRENT_VERSION = 8;
 
 /** Onde os dados vivem hoje. */
 export const STORAGE_KEY = "aurora:finance";
@@ -32,6 +34,8 @@ export const emptyData = (): FinanceData => ({
   creditCards: [],
   notes: [],
   goals: [],
+  investments: [],
+  investmentMovements: [],
   extraExpenses: [],
   customCategories: [],
   distribution: null,
@@ -93,7 +97,7 @@ export function migrateStored(raw: unknown): FinanceData | null {
     return null;
   }
 
-  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`; v3 -> v4: `distribution`; v4 -> v5: `seenAlerts`; v5 -> v6: `onboarding`; v6 -> v7: `creditCards`.
+  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`; v3 -> v4: `distribution`; v4 -> v5: `seenAlerts`; v5 -> v6: `onboarding`; v6 -> v7: `creditCards`; v7 -> v8: `investments` e `investmentMovements`.
   // Quem não tem esses campos recebe listas vazias abaixo.
   if (raw.version > CURRENT_VERSION) return null;
 
@@ -103,6 +107,8 @@ export function migrateStored(raw: unknown): FinanceData | null {
     creditCards: asArray<CreditCard>(raw.data.creditCards),
     notes: asArray<Note>(raw.data.notes),
     goals: asArray<Goal>(raw.data.goals),
+    investments: asArray<Investment>(raw.data.investments),
+    investmentMovements: asArray<InvestmentMovement>(raw.data.investmentMovements),
     extraExpenses: asArray<ExtraExpense>(raw.data.extraExpenses),
     customCategories: asArray<CustomCategory>(raw.data.customCategories),
     distribution: Array.isArray(raw.data.distribution) ? (raw.data.distribution as DistributionItem[]) : null,

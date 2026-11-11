@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { uuid } from "@/lib/uuid";
 import {
   getCreditByMonth,
   resolveCredits,
@@ -19,6 +20,9 @@ import {
   patchClearMonthValue,
   type CreditInstallment,
   patchContribution,
+  replayInvestment,
+  type Investment,
+  type InvestmentMovement,
   type CreditCard,
   type CreditTransaction,
   type FinanceData,
@@ -37,7 +41,7 @@ import { repository } from "../repositories";
 import type { Category } from "../Types/Category";
 import { changeMonth, getCurrentMonth, monthsDifference } from "../Utils/Date";
 
-export type { CreditCard, CreditInstallment, CreditTransaction, CustomCategory, DistributionItem, ExtraExpense, Goal, Note, Transaction };
+export type { Investment, InvestmentMovement, CreditCard, CreditInstallment, CreditTransaction, CustomCategory, DistributionItem, ExtraExpense, Goal, Note, Transaction };
 
 /**
  * Estado do app. Os dados vêm do repositório (hoje o localStorage) e a store
@@ -61,6 +65,8 @@ interface FinanceState {
   creditCards: CreditCard[];
   notes: Note[];
   goals: Goal[];
+  investments: Investment[];
+  investmentMovements: InvestmentMovement[];
   extraExpenses: ExtraExpense[];
   customCategories: CustomCategory[];
   /** null = percentuais padrão */
@@ -117,6 +123,15 @@ interface FinanceState {
   contributeToGoal: (id: string, cents: number, yieldCents?: number) => void;
   removeGoal: (id: string) => void;
 
+  addInvestment: (investment: Investment, first?: Pick<InvestmentMovement, "amount" | "quantity" | "unitPrice">) => void;
+  updateInvestment: (id: string, patch: Partial<Investment>) => void;
+  /** Apaga o investimento e as movimentações dele. */
+  removeInvestment: (id: string) => void;
+  /** Registra aporte, resgate, rendimento ou ajuste (data "YYYY-MM-DD") e atualiza o valor atual. */
+  addInvestmentMovement: (movement: InvestmentMovement) => void;
+  updateInvestmentMovement: (id: string, patch: Partial<InvestmentMovement>) => void;
+  removeInvestmentMovement: (id: string) => void;
+
   addCategory: (category: CustomCategory) => void;
   removeCategory: (id: string) => void;
 
@@ -172,6 +187,17 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     return null;
   };
 
+  /** Muda a lista de movimentações e refaz valor atual, cotas e preço médio do investimento a partir dela. */
+  const applyMovements = (investmentId: string, change: (all: InvestmentMovement[]) => InvestmentMovement[], save: (r: typeof repository) => Promise<void>) => {
+    const inv = get().investments.find((i) => i.id === investmentId);
+    if (!inv) return;
+    const movements = change(get().investmentMovements);
+    const next = replayInvestment(inv, movements);
+    set((state) => ({ investmentMovements: movements, investments: state.investments.map((i) => (i.id === investmentId ? next : i)) }));
+    sync(save(repository));
+    sync(repository.updateInvestment(investmentId, { currentValue: next.currentValue, quantity: next.quantity, avgPrice: next.avgPrice }));
+  };
+
   return {
     hydrated: false,
 
@@ -193,6 +219,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         creditCards: [],
         notes: [],
         goals: [],
+        investments: [],
+        investmentMovements: [],
         extraExpenses: [],
         customCategories: [],
         distribution: null,
@@ -208,6 +236,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     creditCards: [],
     notes: [],
     goals: [],
+    investments: [],
+    investmentMovements: [],
     extraExpenses: [],
     customCategories: [],
     distribution: null,
@@ -389,6 +419,46 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       set((state) => ({ goals: state.goals.filter((g) => g.id !== id), seenAlerts }));
       sync(repository.removeGoal(id));
       sync(repository.setSeenAlerts(seenAlerts));
+    },
+
+    addInvestment: (investment, first) => {
+      // o valor investido na criação vira o primeiro aporte do histórico
+      set((state) => ({ investments: [...state.investments, investment] }));
+      sync(repository.addInvestment(investment));
+      if (first && first.amount > 0) {
+        const movement: InvestmentMovement = { id: uuid(), investmentId: investment.id, type: "contribution", date: investment.appliedAt, ...first };
+        set((state) => ({ investmentMovements: [...state.investmentMovements, movement] }));
+        sync(repository.addInvestmentMovement(movement));
+      }
+    },
+
+    updateInvestment: (id, patch) => {
+      set((state) => ({ investments: state.investments.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
+      sync(repository.updateInvestment(id, patch));
+    },
+
+    removeInvestment: (id) => {
+      set((state) => ({
+        investments: state.investments.filter((i) => i.id !== id),
+        investmentMovements: state.investmentMovements.filter((m) => m.investmentId !== id),
+      }));
+      sync(repository.removeInvestment(id));
+    },
+
+    addInvestmentMovement: (movement) => {
+      applyMovements(movement.investmentId, (all) => [...all, movement], (r) => r.addInvestmentMovement(movement));
+    },
+
+    updateInvestmentMovement: (id, patch) => {
+      const current = get().investmentMovements.find((m) => m.id === id);
+      if (!current) return;
+      applyMovements(current.investmentId, (all) => all.map((m) => (m.id === id ? { ...m, ...patch } : m)), (r) => r.updateInvestmentMovement(id, patch));
+    },
+
+    removeInvestmentMovement: (id) => {
+      const current = get().investmentMovements.find((m) => m.id === id);
+      if (!current) return;
+      applyMovements(current.investmentId, (all) => all.filter((m) => m.id !== id), (r) => r.removeInvestmentMovement(id));
     },
 
     addCategory: (category) => {

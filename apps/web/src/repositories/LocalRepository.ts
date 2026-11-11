@@ -6,6 +6,8 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  Investment,
+  InvestmentMovement,
   Note,
   OnboardingState,
   Payment,
@@ -181,6 +183,37 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async addInvestment(investment: Investment) {
+    this.data.investments = [...(this.data.investments ?? []), investment];
+    this.persist();
+  }
+
+  async updateInvestment(id: string, patch: Partial<Investment>) {
+    this.data.investments = (this.data.investments ?? []).map((i) => (i.id === id ? { ...i, ...patch } : i));
+    this.persist();
+  }
+
+  async removeInvestment(id: string) {
+    this.data.investments = (this.data.investments ?? []).filter((i) => i.id !== id);
+    this.data.investmentMovements = (this.data.investmentMovements ?? []).filter((m) => m.investmentId !== id);
+    this.persist();
+  }
+
+  async addInvestmentMovement(movement: InvestmentMovement) {
+    this.data.investmentMovements = [...(this.data.investmentMovements ?? []), movement];
+    this.persist();
+  }
+
+  async updateInvestmentMovement(id: string, patch: Partial<InvestmentMovement>) {
+    this.data.investmentMovements = (this.data.investmentMovements ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m));
+    this.persist();
+  }
+
+  async removeInvestmentMovement(id: string) {
+    this.data.investmentMovements = (this.data.investmentMovements ?? []).filter((m) => m.id !== id);
+    this.persist();
+  }
+
   async addExtraExpense(extra: ExtraExpense) {
     this.data.extraExpenses = [...this.data.extraExpenses, extra];
     this.persist();
@@ -230,6 +263,8 @@ export class LocalRepository implements FinanceRepository {
       creditCards: this.data.creditCards ?? [],
       notes: this.data.notes,
       goals: this.data.goals,
+      investments: this.data.investments ?? [],
+      investmentMovements: this.data.investmentMovements ?? [],
       extraExpenses: this.data.extraExpenses,
       customCategories: this.data.customCategories,
       distribution: this.data.distribution,

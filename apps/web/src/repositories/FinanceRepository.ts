@@ -6,6 +6,8 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  Investment,
+  InvestmentMovement,
   Note,
   OnboardingState,
   Payment,
@@ -54,6 +56,14 @@ export interface FinanceRepository {
   addGoal(goal: Goal): Promise<void>;
   updateGoal(id: string, patch: Partial<Goal>): Promise<void>;
   removeGoal(id: string): Promise<void>;
+
+  addInvestment(investment: Investment): Promise<void>;
+  updateInvestment(id: string, patch: Partial<Investment>): Promise<void>;
+  /** Apaga o investimento e as movimentações dele. */
+  removeInvestment(id: string): Promise<void>;
+  addInvestmentMovement(movement: InvestmentMovement): Promise<void>;
+  updateInvestmentMovement(id: string, patch: Partial<InvestmentMovement>): Promise<void>;
+  removeInvestmentMovement(id: string): Promise<void>;
 
   addExtraExpense(extra: ExtraExpense): Promise<void>;
   updateExtraExpense(id: string, patch: Partial<ExtraExpense>): Promise<void>;

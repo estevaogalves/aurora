@@ -47,6 +47,8 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
     creditTransactions: raw.creditTransactions ?? [],
     creditCards: raw.creditCards ?? [],
     notes: raw.notes ?? [],
+    investments: [],
+    investmentMovements: [],
     goals: (raw.goals ?? []).map((g) => ({ ...g, deadline: g.deadline ?? null, yieldTotal: g.yieldTotal ?? 0 })),
     extraExpenses: raw.extraExpenses ?? [],
     customCategories: raw.customCategories ?? [],
@@ -104,6 +106,15 @@ export class ApiRepository implements FinanceRepository {
   addNote = (n: Note) => this.enqueue(() => api.post("/notes", n));
   updateNote = (id: string, patch: Partial<Note>) => this.enqueue(() => api.patch(`/notes/${id}`, pick(patch, NOTE_PATCH)));
   removeNote = (id: string) => this.enqueue(() => api.delete(`/notes/${id}`));
+
+  // investimentos ainda não existem no backend (próxima etapa do plano)
+  addInvestment = () => this.unsupported();
+  updateInvestment = () => this.unsupported();
+  removeInvestment = () => this.unsupported();
+  addInvestmentMovement = () => this.unsupported();
+  updateInvestmentMovement = () => this.unsupported();
+  removeInvestmentMovement = () => this.unsupported();
+  private unsupported = () => Promise.reject(new Error("Investimentos ainda não estão disponíveis na API"));
 
   addGoal = (g: Goal) => this.enqueue(() => api.post("/goals", g));
   // `deadline: null` limpa o prazo na API; sem a chave ele não muda
