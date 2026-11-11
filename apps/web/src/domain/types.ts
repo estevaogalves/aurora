@@ -159,6 +159,66 @@ export interface Goal {
   piggy?: boolean;
 }
 
+/** Família de investimento: define quais campos o cadastro pede. */
+export type InvestmentFamily = "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other";
+
+/** Investimento registrado à mão. Valores em centavos; datas "YYYY-MM-DD". Não entra em receitas, despesas nem saldo. */
+export interface Investment {
+  id: string;
+  name: string;
+  family: InvestmentFamily;
+  /** produto dentro da família (ex.: "CDB", "FII"), texto livre */
+  product?: string;
+  /** banco, corretora ou plataforma */
+  institution: string;
+  /** data da primeira aplicação */
+  appliedAt: string;
+  /** centavos: quanto vale hoje, atualizado pelo usuário (e pelas movimentações) */
+  currentValue: number;
+  /** vencimento (renda fixa e Tesouro) */
+  maturityDate?: string;
+  /** indexador, ex.: "CDI", "IPCA", "Pré", "Selic" */
+  indexer?: string;
+  /** taxa contratada, ex.: "110% do CDI" ou "IPCA + 6%" */
+  rate?: string;
+  /** liquidez, ex.: "Diária", "No vencimento", "D+30" */
+  liquidity?: string;
+  /** carência até esta data */
+  graceUntil?: string;
+  /** aceita resgate antes do vencimento */
+  earlyRedeem?: boolean;
+  /** cotas ou ativos (fracionário) */
+  quantity?: number;
+  /** centavos: preço médio por cota */
+  avgPrice?: number;
+  /** prazo de resgate em dias (fundos) */
+  redeemDays?: number;
+  ticker?: string;
+  /** taxas e imposto estimados, texto livre */
+  fees?: string;
+  notes?: string;
+}
+
+/**
+ * aporte e resgate mexem no dinheiro que entra e sai do investimento;
+ * rendimento soma ao valor atual sem ser aporte;
+ * ajuste define o novo valor atual (`amount` é o valor, não a diferença).
+ */
+export type InvestmentMovementType = "contribution" | "redemption" | "yield" | "adjustment";
+
+export interface InvestmentMovement {
+  id: string;
+  investmentId: string;
+  type: InvestmentMovementType;
+  date: string;
+  /** centavos (valor total da movimentação) */
+  amount: number;
+  /** cotas ou ativos comprados (aporte) ou vendidos (resgate), quando o investimento controla quantidade */
+  quantity?: number;
+  /** centavos: preço por cota nesta movimentação */
+  unitPrice?: number;
+}
+
 /** Uma fatia da sugestão de distribuição do saldo. */
 export interface DistributionItem {
   id: string;
@@ -180,6 +240,9 @@ export interface FinanceData {
   creditCards?: CreditCard[];
   notes: Note[];
   goals: Goal[];
+  /** Investimentos e suas movimentações. Ausente = nenhum. */
+  investments?: Investment[];
+  investmentMovements?: InvestmentMovement[];
   extraExpenses: ExtraExpense[];
   customCategories: CustomCategory[];
   /** Percentuais escolhidos pelo usuário; null = padrão. */
