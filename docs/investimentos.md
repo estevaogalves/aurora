@@ -4,7 +4,7 @@ Acompanhamento do módulo de controle pessoal de investimentos do Aurora: regist
 
 **Como usar:** `[ ]` = pendente · `[ ok ]` = feito e verificado. Troque `[ ]` por `[ ok ]` a cada item concluído.
 
-**Status:** tela e regras prontas e validadas **no modo local** (localStorage). **Backend (API em Go) ainda não existe**: no modo API, criar investimento falha de propósito. Nada foi para a `main`.
+**Status:** tela, regras, backend em Go, aviso de vencimento no sino e tour prontos e validados nos **dois modos** (local e API). A migration `00012` **ainda não foi aplicada em nenhum banco real**: só rodou em Postgres descartável de teste. Nada foi para a `main`.
 
 Plano original de planejamento: [`investimentos-planejamento.md`](investimentos-planejamento.md).
 
@@ -90,7 +90,7 @@ Um investimento com produto que saiu da lista continua editável (o produto anti
 
 - [ ] **Backup versão 8:** backups com investimentos são recusados por versões antigas do app. Backups antigos continuam abrindo.
 - [ ] Investimentos cadastrados **antes** da versão com controle de cotas, sem movimentação de quantidade, mantêm as cotas como estavam até a primeira movimentação com quantidade.
-- [ ] `ApiRepository` rejeita as operações de investimento de propósito até o backend existir. Não usar `VITE_DATA_SOURCE=api` para testar investimentos ainda.
+- [ ok ] `ApiRepository` chama a API de verdade (antes rejeitava de propósito). Campo limpo no Editar (`undefined`) vira texto vazio, `false`, `0` ou `null` (cotas e preço médio), porque o JSON descarta `undefined` e a API entenderia "não mudou".
 
 ---
 
@@ -98,26 +98,27 @@ Um investimento com produto que saiu da lista continua editável (o produto anti
 
 ### 1. Backend em Go (pré-requisito para subir para a `main`)
 
-- [ ] Migration `00012_*` (goose, aditiva): tabelas `investments` e `investment_movements`, com `user_id ... ON DELETE CASCADE`, valores em `_cents`, datas `YYYY-MM-DD`, `quantity` como `numeric`, RLS ligado como nas outras tabelas.
-- [ ] Queries sqlc em `apps/api/internal/db/queries/finance.sql` e regenerar `sqlcgen`.
-- [ ] Tipos em `apps/api/internal/domain/types.go`, `Normalize`, `validateData` (`httpapi/validate.go`), limites (`httpapi/limits.go`) e `store.Import` (`httpapi/reports.go`), `LoadData`.
-- [ ] Rotas CRUD de investimentos e movimentações em `httpapi/server.go` e `httpapi/finance.go`. A movimentação precisa atualizar o investimento (valor atual, cotas, preço médio) na mesma operação, com a mesma regra de `replayInvestment`.
-- [ ] Espelhar `replayInvestment` em Go, com testes (a regra existe hoje só no front).
-- [ ] `docs/openapi.yaml` e `packages/api-types`.
-- [ ] Trocar os stubs do `ApiRepository` por chamadas reais (`GOAL_PATCH`/`pick` e `normalizeFinanceData` como referência).
-- [ ] `GET /me/export` e import (`POST /import`) incluindo investimentos.
-- [ ] **Não aplicar migration em banco nenhum sem o usuário decidir quando e onde.** Só arquivos e testes.
+- [ ok ] Migration `00012_investments.sql` (goose, aditiva): tabelas `investments` e `investment_movements`, com `user_id ... ON DELETE CASCADE`, valores em `_cents`, datas `AAAA-MM-DD`, `quantity` como `numeric(20,6)`, RLS ligado. Cotas e preço médio ficam nulos enquanto o investimento não controla quantidade.
+- [ ok ] Queries sqlc em `finance.sql` e `sqlcgen` regenerado (`sqlc.yaml` ganhou o override de `numeric` para `float64`).
+- [ ok ] Tipos em `domain/investment.go`, `FinanceData`/`Normalize`, validação (`httpapi/validate.go`: família, datas reais, limite de R$ 1 bilhão, textos, cotas), teto de importação (`ImportItems`), `store.Import` (ids novos, valores como vieram no pacote) e `LoadData`.
+- [ ok ] Rotas `POST/PATCH/DELETE /investments` e `/investment-movements` (`httpapi/investments.go`). Cada movimentação refaz o investimento na mesma transação, com o investimento travado (`FOR UPDATE`), e devolve `{movement, investment}`.
+- [ ok ] `domain.ReplayInvestment` em Go, com os mesmos casos do teste do front (inclui arredondamento do preço médio como o `Math.round` do JavaScript).
+- [ ok ] `docs/openapi.yaml` e `packages/api-types` (`generate` sem diferença).
+- [ ok ] Stubs do `ApiRepository` trocados por chamadas reais, e `normalizeFinanceData` lê `investments` e `investmentMovements`.
+- [ ok ] `GET /me/export` e `POST /import` incluem investimentos (testado: importar duas vezes com `replace` não duplica; movimentação de investimento fora do pacote é recusada).
+- [ ] **Não aplicar migration em banco nenhum sem o usuário decidir quando e onde.** Só arquivos e testes. Respeitado: a `00012` só rodou em Postgres descartável (testes e conferência no navegador). **Pendente:** decidir quando aplicar no banco real (o `docker compose up --build` aplica sozinho ao subir a API).
 
 ### 2. Tour da tela de Investimentos
 
-- [ ] Seguir o padrão de `docs/tuor.md`: arquivo de passos (como `Features/Goals/tour.ts`), atributos `data-tour` nos blocos de `InvestmentsView` (hoje não há nenhum) e dados de exemplo no modo `tourDemo` para quem ainda não cadastrou nada (ver `Features/Goals/demo.ts`).
-- [ ] Decidir se Metas e Investimentos têm tours separados (cada visão com o seu) ou um só. A regra do projeto é "cada tela tem o seu tour" e "o tour apresenta todos os cards".
-- [ ] Fazer depois de o layout estar fechado.
+- [ ok ] Seguiu o padrão de `docs/tuor.md`: `Features/Investments/tour.ts` (11 etapas), `data-tour` em `InvestmentsView` e exemplos no modo `tourDemo` (`Features/Investments/demo.ts`), que só existem enquanto o tour está aberto e nunca são gravados.
+- [ ok ] Decisão: **tours separados**. Cada visão tem o seu `PageHeader` com o botão ? (Metas segue com `METAS_TOUR`; Investimentos com `INVESTIMENTOS_TOUR`). O tour geral não inclui Investimentos, porque a aba abre em Metas e o seletor é estado local.
+- [ ok ] Feito com o layout fechado.
 
 ### 3. Aviso de vencimento no sino
 
-- [ ] Ligar `getUpcomingMaturities` ao sino (`Layout/GoalBell.tsx`, `Features/Goals/goalAlerts.ts`), no mesmo padrão dos avisos de prazo de metas (chave de aviso visto em `seenAlerts`, janela de antecedência).
-- [ ] Hoje só há a lista "Próximos vencimentos" dentro da tela.
+- [ ok ] O sino (`Layout/GoalBell.tsx`) mostra as duas seções: prazos das metas e vencimentos de investimentos. Regras em `domain/investments.ts` (`getMaturityAlerts`) e hook em `Features/Investments/maturityAlerts.ts`.
+- [ ok ] Janela de **30 dias**, com três níveis: em breve (8 a 30 dias), esta semana (0 a 7 dias, inclui hoje) e vencido. Só avisa quem tem valor e vencimento. A chave de aviso visto é `inv:<id>:<vencimento>:<nível>` em `seenAlerts`: o aviso volta quando o nível sobe ou o vencimento muda, e sai quando o investimento é excluído. Fica visível até registrar o resgate (valor zero). A lista "Próximos vencimentos" da tela continua com 90 dias.
+- [ ok ] O link "Ir para Investimentos" do sino abre `/metas?aba=investimentos`.
 
 ---
 
@@ -169,3 +170,12 @@ Funcionalidade **separada** dos investimentos, registrada aqui para continuarmos
   - Antes: despesas sem parcelas R$ 2.521,45 (com os R$ 300) + parcelas R$ 217,99 = R$ 2.739,44.
   - Depois, sem a linha de R$ 300: R$ 2.221,45 + R$ 217,99 = R$ 2.439,44.
   - Com um abastecimento de R$ 50 no cartão: total R$ 2.489,44 e fatura de R$ 267,99, com o teto mostrando R$ 267,99 de R$ 300.
+
+---
+
+## Verificação (backend, sino e tour)
+
+- Go: `go vet ./...` e `go test ./...` com Postgres descartável, todos os pacotes verdes. Novos: `domain/investment_test.go` (mesmos casos do front, cotas fracionárias, venda total, arredondamento) e `httpapi/investments_test.go` (validação, refazer o valor no servidor ao criar, corrigir e excluir movimentação, cotas e preço médio, PATCH com `null`, apagar em cascata, isolamento entre contas, resumo do mês inalterado, importar e exportar).
+- Front: 317 testes (`ApiRepository`, `FinanceStore` com repositório falso, avisos de vencimento, exemplos do tour), `eslint`, `tsc -b` e `vite build` sem erros. `pnpm --filter @aurora/api-types generate` sem diferença.
+- Navegador (Chromium, Playwright), **modo local e modo API contra o Go real**: tour com 11 etapas e exemplos que somem sem gravar nada; cadastrar, movimentar e ver o valor refeito; sino com o aviso, "Marcar como visto", "Já vistos", link para Investimentos; recarregar mantém tudo (no modo API, vindo do servidor); mudar o vencimento reabre o aviso; excluir persiste; sino e página sem rolagem horizontal a 390 px.
+- No modo API o console mostra um 401 em `POST /auth/refresh` ao abrir sem sessão: é a checagem de sessão antes do login, anterior a este trabalho.

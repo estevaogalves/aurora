@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   getFields,
   getInvestmentTotals,
+  getMaturityAlerts,
+  maturityAlertKey,
+  maturityAlertPrefix,
+  splitSeenMaturities,
   getMonthSummary,
   getPortfolioSummary,
   getUpcomingMaturities,
@@ -130,5 +134,47 @@ describe("investimentos: carteira", () => {
   it("não altera o resumo do mês", () => {
     const data = { transactions: [], creditTransactions: [], extraExpenses: [], investments: [{ ...cdb, currentValue: 100000 }] };
     expect(getMonthSummary(data, "2026-03")).toMatchObject({ totalIncome: 0, totalExpense: 0, balance: 0 });
+  });
+});
+
+describe("investimentos: avisos de vencimento", () => {
+  const due = (id: string, maturityDate: string | undefined, currentValue = 100000): Investment => ({ ...cdb, id, maturityDate, currentValue });
+
+  it("só avisa quem vence em até 30 dias ou já venceu, e só com valor", () => {
+    const list = [
+      due("longe", "2026-12-20"),
+      due("limite", "2026-12-10"),
+      due("passou", "2026-11-01"),
+      due("sem-venc", undefined),
+      due("resgatado", "2026-11-15", 0),
+    ];
+    expect(getMaturityAlerts(list, "2026-11-10").map((a) => a.investment.id)).toEqual(["passou", "limite"]);
+  });
+
+  it("nível: vencido, esta semana (até 7 dias, incluindo hoje) e em breve", () => {
+    const list = [due("a", "2026-11-09"), due("b", "2026-11-10"), due("c", "2026-11-17"), due("d", "2026-11-18")];
+    expect(getMaturityAlerts(list, "2026-11-10").map((a) => [a.investment.id, a.level, a.days])).toEqual([
+      ["a", "overdue", -1],
+      ["b", "now", 0],
+      ["c", "now", 7],
+      ["d", "soon", 8],
+    ]);
+  });
+
+  it("a chave muda com o nível e com o vencimento, e não se mistura com a das metas", () => {
+    const [soon] = getMaturityAlerts([due("x", "2026-11-25")], "2026-11-10");
+    const [now] = getMaturityAlerts([due("x", "2026-11-25")], "2026-11-20");
+    const [moved] = getMaturityAlerts([due("x", "2026-11-28")], "2026-11-10");
+    expect(maturityAlertKey(soon)).toBe("inv:x:2026-11-25:soon");
+    expect(new Set([maturityAlertKey(soon), maturityAlertKey(now), maturityAlertKey(moved)]).size).toBe(3);
+    expect(maturityAlertKey(soon).startsWith(maturityAlertPrefix("x"))).toBe(true);
+  });
+
+  it("marcar como visto esconde só aquele nível; ao escalar, avisa de novo", () => {
+    const early = getMaturityAlerts([due("x", "2026-11-25")], "2026-11-10");
+    const seen = early.map(maturityAlertKey);
+    expect(splitSeenMaturities(early, seen)).toMatchObject({ unseen: [], seen: [{ level: "soon" }] });
+    const later = getMaturityAlerts([due("x", "2026-11-25")], "2026-11-20");
+    expect(splitSeenMaturities(later, seen).unseen).toHaveLength(1);
   });
 });

@@ -16,6 +16,8 @@ import {
 } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore, type Investment, type InvestmentMovement } from "@/Store/FinanceStore";
+import { useUiStore } from "@/Store/UiStore";
+import { getDemoInvestments } from "./demo";
 import { HistoryDialog, InvestmentDialog, MovementDialog } from "./InvestmentDialogs";
 
 const color = (i: number) => `hsl(var(--chart-${(i % 5) + 1}))`;
@@ -28,8 +30,9 @@ function dueLabel(days: number) {
   return `vence em ${days} ${days === 1 ? "dia" : "dias"}`;
 }
 
-function InvestmentCard({ inv, onMove, onHistory, onEdit, onDelete }: { inv: Investment; onMove: () => void; onHistory: () => void; onEdit: () => void; onDelete: () => void }) {
-  const movements = useFinanceStore((s) => s.investmentMovements);
+const noop = () => {};
+
+function InvestmentCard({ inv, movements, first, onMove, onHistory, onEdit, onDelete }: { inv: Investment; movements: InvestmentMovement[]; first: boolean; onMove: () => void; onHistory: () => void; onEdit: () => void; onDelete: () => void }) {
   const t = getInvestmentTotals(inv, movements);
   const tone = t.profit > 0 ? "text-success" : t.profit < 0 ? "text-destructive" : "text-muted-foreground";
   const rows: [string, string][] = [
@@ -44,7 +47,7 @@ function InvestmentCard({ inv, onMove, onHistory, onEdit, onDelete }: { inv: Inv
   ];
 
   return (
-    <article className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-card)]">
+    <article data-tour={first ? "investimento" : undefined} className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-card)]">
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0">
           <h4 className="break-words font-display text-base font-semibold">{inv.name}</h4>
@@ -67,7 +70,7 @@ function InvestmentCard({ inv, onMove, onHistory, onEdit, onDelete }: { inv: Inv
         </div>
       ))}
       {inv.notes && <p className="border-t border-border pt-2.5 text-[12.5px] text-ink2">{inv.notes}</p>}
-      <div className="flex flex-wrap gap-2">
+      <div data-tour={first ? "investimento-acoes" : undefined} className="flex flex-wrap gap-2">
         <button type="button" onClick={onMove} className={`${btnClass.primary} ${btnClass.sm}`}>
           <Icon name="plus" size={14} />
           Movimentar
@@ -89,8 +92,15 @@ export default function InvestmentsView() {
   const movements = useFinanceStore((s) => s.investmentMovements);
   const removeInvestment = useFinanceStore((s) => s.removeInvestment);
 
+  // durante o tour, quem ainda não cadastrou nada vê investimentos de exemplo (nunca gravados nem somados nos totais)
+  const demo = useUiStore((s) => s.tourDemo) && investments.length === 0;
+  const demoData = useMemo(() => (demo ? getDemoInvestments() : null), [demo]);
+  const shown = demoData?.investments ?? investments;
+  const shownMovements = demoData?.movements ?? movements;
+
   const summary = useMemo(() => getPortfolioSummary(investments, movements), [investments, movements]);
-  const maturities = useMemo(() => getUpcomingMaturities(investments, todayISO()), [investments]);
+  const shownSummary = useMemo(() => (demoData ? getPortfolioSummary(demoData.investments, demoData.movements) : summary), [demoData, summary]);
+  const maturities = useMemo(() => getUpcomingMaturities(shown, todayISO()), [shown]);
 
   const [editing, setEditing] = useState<Investment | null>(null);
   const [creating, setCreating] = useState(false);
@@ -106,39 +116,47 @@ export default function InvestmentsView() {
   return (
     <>
       <div className="mb-3.5 flex justify-end">
-        <button type="button" onClick={() => setCreating(true)} className={btnClass.primary}>
+        <button type="button" data-tour="novo" onClick={() => setCreating(true)} className={btnClass.primary}>
           <Icon name="plus" size={14} />
           Novo investimento
         </button>
       </div>
 
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
-        <StatCard label="Patrimônio investido" value={formatBRLShort(summary.netWorth)} hint={`${investments.length} ${investments.length === 1 ? "investimento" : "investimentos"}`} highlight />
-        <StatCard label="Total aportado" value={formatBRLShort(summary.contributed)} hint={summary.redeemed > 0 ? `${formatBRLShort(summary.redeemed)} já resgatados` : "somando todos os aportes"} />
-        <StatCard label="Lucro / prejuízo" value={signed(summary.profit)} tone={profitTone} hint="valor atual + resgates − aportes" />
-        <StatCard label="Rentabilidade" value={percent(summary.returnRate)} tone={profitTone} hint="lucro sobre o total aportado" />
+        <StatCard tour="patrimonio" label="Patrimônio investido" value={formatBRLShort(summary.netWorth)} hint={`${investments.length} ${investments.length === 1 ? "investimento" : "investimentos"}`} highlight />
+        <StatCard tour="aportado" label="Total aportado" value={formatBRLShort(summary.contributed)} hint={summary.redeemed > 0 ? `${formatBRLShort(summary.redeemed)} já resgatados` : "somando todos os aportes"} />
+        <StatCard tour="lucro" label="Lucro / prejuízo" value={signed(summary.profit)} tone={profitTone} hint="valor atual + resgates − aportes" />
+        <StatCard tour="rentabilidade" label="Rentabilidade" value={percent(summary.returnRate)} tone={profitTone} hint="lucro sobre o total aportado" />
       </div>
 
-      {investments.length === 0 ? (
+      {investments.length === 0 && (
         <div className="mt-3.5">
-          <Panel title="Nenhum investimento ainda" subtitle="Registro manual, sem integração com bancos ou corretoras">
+          <Panel tour="vazio" title="Nenhum investimento ainda" subtitle="Registro manual, sem integração com bancos ou corretoras">
             <Empty>Use “Novo investimento” para registrar um CDB, um fundo, ações ou o que você tiver, e acompanhe o patrimônio aqui.</Empty>
           </Panel>
         </div>
-      ) : (
+      )}
+
+      {demo && (
+        <p role="note" className="mt-3.5 rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2.5 text-[13px] text-muted-foreground">
+          <b className="text-foreground">Exemplo ilustrativo.</b> Estes investimentos são fictícios, só para mostrar como a tela fica depois que você cadastrar os seus.
+        </p>
+      )}
+
+      {shown.length > 0 && (
         <>
           <div className="mt-3.5 grid gap-3.5 lg:grid-cols-2">
-            <Panel title="Por tipo" subtitle="Onde está o seu dinheiro">
-              <ChartDonut slices={summary.byFamily.map((x, i) => ({ label: FAMILY_LABEL[x.key], value: x.value, color: color(i) }))} />
+            <Panel tour="por-tipo" title="Por tipo" subtitle="Onde está o seu dinheiro">
+              <ChartDonut slices={shownSummary.byFamily.map((x, i) => ({ label: FAMILY_LABEL[x.key], value: x.value, color: color(i) }))} />
             </Panel>
-            <Panel title="Por instituição" subtitle="Em qual banco ou corretora">
-              <ChartDonut slices={summary.byInstitution.map((x, i) => ({ label: x.key, value: x.value, color: color(i) }))} />
+            <Panel tour="por-instituicao" title="Por instituição" subtitle="Em qual banco ou corretora">
+              <ChartDonut slices={shownSummary.byInstitution.map((x, i) => ({ label: x.key, value: x.value, color: color(i) }))} />
             </Panel>
           </div>
 
           {maturities.length > 0 && (
             <div className="mt-3.5">
-              <Panel title="Próximos vencimentos" subtitle="Nos próximos 90 dias">
+              <Panel tour="vencimentos" title="Próximos vencimentos" subtitle="Nos próximos 90 dias">
                 <ul className="flex flex-col divide-y divide-border">
                   {maturities.map(({ investment: i, days }) => (
                     <li key={i.id} className="flex flex-wrap items-baseline justify-between gap-2 py-2 text-[13px]">
@@ -154,9 +172,13 @@ export default function InvestmentsView() {
           )}
 
           <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
-            {investments.map((inv) => (
-              <InvestmentCard key={inv.id} inv={inv} onMove={() => setMoving(inv)} onHistory={() => setHistory(inv)} onEdit={() => setEditing(inv)} onDelete={() => setDeleting(inv)} />
-            ))}
+            {shown.map((inv, i) =>
+              demo ? (
+                <InvestmentCard key={inv.id} inv={inv} movements={shownMovements} first={i === 0} onMove={noop} onHistory={noop} onEdit={noop} onDelete={noop} />
+              ) : (
+                <InvestmentCard key={inv.id} inv={inv} movements={movements} first={i === 0} onMove={() => setMoving(inv)} onHistory={() => setHistory(inv)} onEdit={() => setEditing(inv)} onDelete={() => setDeleting(inv)} />
+              ),
+            )}
           </div>
         </>
       )}

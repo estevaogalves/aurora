@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import Icon from "@/components/Icon";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
@@ -10,6 +11,7 @@ import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { formatMonthShort, getCurrentMonth } from "@/Utils/Date";
 import InvestmentsView from "../Investments/InvestmentsView";
+import { INVESTIMENTOS_TOUR } from "../Investments/tour";
 import { getDemoGoals } from "./demo";
 import { ContributeDialog, GoalDialog } from "./GoalDialogs";
 import { deadlineStatus, useGoalAlerts } from "./goalAlerts";
@@ -234,7 +236,17 @@ type View = "metas" | "investimentos";
 
 /** Tela Metas e Investimentos: o seletor no topo alterna entre as duas visões, sem ocupar uma aba nova. */
 export default function GoalsPage() {
-  const [view, setView] = useState<View>("metas");
+  // o sino abre direto na visão certa com /metas?aba=metas ou /metas?aba=investimentos (a cada navegação,
+  // mesmo já estando na tela). Sem o parâmetro, a visão escolhida no seletor fica como está.
+  const { key, search } = useLocation();
+  const aba = new URLSearchParams(search).get("aba");
+  const requested: View | null = aba === "investimentos" ? "investimentos" : aba === "metas" ? "metas" : null;
+  const [view, setView] = useState<View>(requested ?? "metas");
+  const [lastNav, setLastNav] = useState(key);
+  if (key !== lastNav) {
+    setLastNav(key);
+    if (requested) setView(requested);
+  }
   const options: { id: View; label: string }[] = [
     { id: "metas", label: "Metas" },
     { id: "investimentos", label: "Investimentos" },
@@ -260,7 +272,7 @@ export default function GoalsPage() {
         <GoalsView />
       ) : (
         <>
-          <PageHeader title="Investimentos" subtitle="Registro manual do que você tem investido: valores e prazos ficam como você informar, sem ligação com bancos ou corretoras." />
+          <PageHeader tour={INVESTIMENTOS_TOUR} title="Investimentos" subtitle="Registro manual do que você tem investido: valores e prazos ficam como você informar, sem ligação com bancos ou corretoras." />
           <InvestmentsView />
         </>
       )}

@@ -128,6 +128,24 @@ Sem nenhuma meta, a tela mostra só o card "Nenhuma meta ainda"; o tour então e
 - [ ok ] 5. **Cartão de meta**: progresso, rendimentos, previsão de conclusão e selo de prazo
 - [ ok ] 6. Ações da meta: **aportar** (com rendimento), editar e excluir
 
+### Investimentos (`investimentos`, dentro de Metas)
+
+A tela Metas e Investimentos tem dois cabeçalhos, cada um com o seu botão ?: o de Metas refaz o tour de Metas e o de Investimentos refaz este. Sem nenhum investimento, as etapas dos gráficos, dos vencimentos e do cartão usam exemplos fictícios (`Features/Investments/demo.ts`) enquanto o tour está aberto; eles nunca são gravados.
+
+- [ ok ] 1. Botão **Novo investimento**
+- [ ok ] 2. Indicador **Patrimônio investido**
+- [ ok ] 3. Indicador **Total aportado**
+- [ ok ] 4. Indicador **Lucro ou prejuízo**
+- [ ok ] 5. Indicador **Rentabilidade**
+- [ ok ] 6. Card **Nenhum investimento ainda** (só sem investimentos)
+- [ ok ] 7. Card **Por tipo**
+- [ ok ] 8. Card **Por instituição**
+- [ ok ] 9. Card **Próximos vencimentos**
+- [ ok ] 10. **Cartão do investimento**
+- [ ok ] 11. Ações do cartão: **movimentar, histórico, editar e excluir**
+
+Fica fora do tour geral: a aba Metas abre em Metas e o seletor Metas | Investimentos é estado local da tela.
+
 ### Relatórios (`relatorios`)
 
 - [ ok ] 1. Indicador **Renda em 6 meses**

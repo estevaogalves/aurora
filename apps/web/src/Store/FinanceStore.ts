@@ -20,6 +20,7 @@ import {
   patchClearMonthValue,
   type CreditInstallment,
   patchContribution,
+  maturityAlertPrefix,
   replayInvestment,
   type Investment,
   type InvestmentMovement,
@@ -438,11 +439,16 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     removeInvestment: (id) => {
+      // os avisos de vencimento vistos deste investimento saem junto (como acontece com as metas)
+      const seenAlerts = get().seenAlerts.filter((k) => !k.startsWith(maturityAlertPrefix(id)));
+      const changed = seenAlerts.length !== get().seenAlerts.length;
       set((state) => ({
         investments: state.investments.filter((i) => i.id !== id),
         investmentMovements: state.investmentMovements.filter((m) => m.investmentId !== id),
+        seenAlerts,
       }));
       sync(repository.removeInvestment(id));
+      if (changed) sync(repository.setSeenAlerts(seenAlerts));
     },
 
     addInvestmentMovement: (movement) => {

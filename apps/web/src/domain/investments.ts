@@ -155,6 +155,52 @@ export function getUpcomingMaturities(investments: Investment[], today: string, 
     .sort((a, b) => a.days - b.days);
 }
 
+/* ---------- avisos de vencimento (sino) ---------- */
+
+/** Com quantos dias de antecedência o investimento começa a avisar no sino. */
+export const MATURITY_ALERT_WINDOW_DAYS = 30;
+/** Até quantos dias faltando o aviso passa de "em breve" para "esta semana". */
+export const MATURITY_NOW_DAYS = 7;
+
+export type MaturityAlertLevel = "overdue" | "now" | "soon";
+
+export interface MaturityAlert {
+  investment: Investment;
+  level: MaturityAlertLevel;
+  /** dias até o vencimento: 0 = hoje, negativo = já venceu */
+  days: number;
+}
+
+/** Prefixo das chaves de aviso de um investimento em `seenAlerts` (as das metas começam pelo id da meta). */
+export const maturityAlertPrefix = (investmentId: string) => `inv:${investmentId}:`;
+
+/**
+ * Identifica um aviso. Muda quando o investimento passa de "em breve" para "esta semana" ou "vencido", e
+ * quando o vencimento é alterado, então o aviso volta a aparecer nesses casos.
+ */
+export const maturityAlertKey = (a: MaturityAlert) => `${maturityAlertPrefix(a.investment.id)}${a.investment.maturityDate}:${a.level}`;
+
+/**
+ * Investimentos com valor que já venceram ou vencem nos próximos `MATURITY_ALERT_WINDOW_DAYS` dias, do mais
+ * urgente ao menos urgente. Quem não tem vencimento (liquidez diária, ações) ou já foi resgatado não avisa.
+ */
+export function getMaturityAlerts(investments: Investment[], today: string): MaturityAlert[] {
+  return getUpcomingMaturities(investments, today, MATURITY_ALERT_WINDOW_DAYS).map(({ investment, days }) => ({
+    investment,
+    days,
+    level: days < 0 ? "overdue" : days <= MATURITY_NOW_DAYS ? "now" : "soon",
+  }));
+}
+
+/** Separa os avisos em ainda não vistos e já vistos. */
+export function splitSeenMaturities(alerts: MaturityAlert[], seen: string[]) {
+  const set = new Set(seen);
+  return {
+    unseen: alerts.filter((a) => !set.has(maturityAlertKey(a))),
+    seen: alerts.filter((a) => set.has(maturityAlertKey(a))),
+  };
+}
+
 /** "2026-12-01" -> "01/12/2026". */
 export function formatDateBR(iso: string): string {
   const [y, m, d] = iso.split("-");
