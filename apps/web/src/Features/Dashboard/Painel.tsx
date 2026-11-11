@@ -29,7 +29,8 @@ function Hero() {
   return (
     <section data-tour="saldo" className="flex flex-col gap-1.5 rounded-lg border border-border-strong bg-[linear-gradient(155deg,color-mix(in_srgb,hsl(var(--primary))_38%,hsl(var(--card))),hsl(var(--card))_70%)] p-6 shadow-[var(--shadow-card)]">
       <span className="text-xs font-bold uppercase tracking-[0.1em] text-ink2">Saldo de {getMonthName(month)}</span>
-      <span className={`num text-[40px] font-semibold leading-[1.1] tracking-[-0.03em] max-[700px]:text-[34px] ${balance < 0 ? "text-destructive" : ""}`}>
+      {/* valor longo é cortado com "…" em vez de empurrar o card (min-w-0 deixa o item da coluna encolher) */}
+      <span className={`num block min-w-0 truncate text-[40px] font-semibold leading-[1.1] tracking-[-0.03em] max-[700px]:text-[34px] ${balance < 0 ? "text-destructive" : ""}`}>
         {formatBRL(balance)}
       </span>
       <span className="text-[13.5px] text-ink2">{pct}% da renda comprometida</span>
@@ -43,9 +44,9 @@ function Hero() {
           ["Renda", totalIncome],
           ["Despesas", totalExpense],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-md bg-background/40 px-3 py-2.5">
+          <div key={label} className="min-w-0 rounded-md bg-background/40 px-3 py-2.5">
             <small className="block text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">{label}</small>
-            <b className="num text-base">{formatBRLShort(value as number)}</b>
+            <b className="num block truncate text-base">{formatBRLShort(value as number)}</b>
           </div>
         ))}
       </div>

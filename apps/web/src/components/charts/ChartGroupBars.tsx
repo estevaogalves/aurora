@@ -1,6 +1,6 @@
 import { useCallback, useState, type ReactNode } from "react";
 import { formatBRL } from "@/lib/money";
-import { niceTicks, shortReais } from "./scale";
+import { axisPadding, niceTicks, shortReais } from "./scale";
 import PickPopover from "./PickPopover";
 import { TipBox } from "./ChartTooltip";
 import { useChartTip } from "./useChartTip";
@@ -13,7 +13,7 @@ export interface BarSeries {
   values: number[];
 }
 
-const PAD = { l: 44, r: 10, t: 10, b: 26 };
+const BASE_PAD = { l: 44, r: 10, t: 10, b: 26 };
 
 /**
  * Barras agrupadas com topo arredondado (protótipo B).
@@ -27,6 +27,8 @@ export default function ChartGroupBars({ labels, series, height = 250, renderDet
 
   const max = Math.max(...series.flatMap((s) => s.values.map((v) => Math.max(v, 0) / 100)), 1);
   const tk = niceTicks(max);
+  // a margem esquerda acompanha o maior rótulo do eixo: valores grandes não saem do card
+  const PAD = { ...BASE_PAD, l: axisPadding(Array.from({ length: tk.n + 1 }, (_, i) => shortReais(i * tk.step))) };
   const iw = width - PAD.l - PAD.r;
   const ih = height - PAD.t - PAD.b;
   const y = (v: number) => PAD.t + ih - (v / tk.top) * ih;
