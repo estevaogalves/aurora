@@ -215,6 +215,130 @@ func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, e
 	return i, err
 }
 
+const createInvestment = `-- name: CreateInvestment :one
+INSERT INTO investments (id, user_id, name, family, product, institution, applied_at, current_value_cents,
+    maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8,
+    $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+RETURNING id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at
+`
+
+type CreateInvestmentParams struct {
+	Column1           uuid.UUID
+	UserID            uuid.UUID
+	Name              string
+	Family            string
+	Product           string
+	Institution       string
+	AppliedAt         string
+	CurrentValueCents int64
+	MaturityDate      string
+	Indexer           string
+	Rate              string
+	Liquidity         string
+	GraceUntil        string
+	EarlyRedeem       bool
+	Quantity          *float64
+	AvgPriceCents     pgtype.Int8
+	RedeemDays        int32
+	Ticker            string
+	Fees              string
+	Notes             string
+}
+
+func (q *Queries) CreateInvestment(ctx context.Context, arg CreateInvestmentParams) (Investment, error) {
+	row := q.db.QueryRow(ctx, createInvestment,
+		arg.Column1,
+		arg.UserID,
+		arg.Name,
+		arg.Family,
+		arg.Product,
+		arg.Institution,
+		arg.AppliedAt,
+		arg.CurrentValueCents,
+		arg.MaturityDate,
+		arg.Indexer,
+		arg.Rate,
+		arg.Liquidity,
+		arg.GraceUntil,
+		arg.EarlyRedeem,
+		arg.Quantity,
+		arg.AvgPriceCents,
+		arg.RedeemDays,
+		arg.Ticker,
+		arg.Fees,
+		arg.Notes,
+	)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createInvestmentMovement = `-- name: CreateInvestmentMovement :one
+INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at
+`
+
+type CreateInvestmentMovementParams struct {
+	Column1        uuid.UUID
+	UserID         uuid.UUID
+	InvestmentID   uuid.UUID
+	Type           string
+	Date           string
+	AmountCents    int64
+	Quantity       *float64
+	UnitPriceCents pgtype.Int8
+}
+
+func (q *Queries) CreateInvestmentMovement(ctx context.Context, arg CreateInvestmentMovementParams) (InvestmentMovement, error) {
+	row := q.db.QueryRow(ctx, createInvestmentMovement,
+		arg.Column1,
+		arg.UserID,
+		arg.InvestmentID,
+		arg.Type,
+		arg.Date,
+		arg.AmountCents,
+		arg.Quantity,
+		arg.UnitPriceCents,
+	)
+	var i InvestmentMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.InvestmentID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Quantity,
+		&i.UnitPriceCents,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createNote = `-- name: CreateNote :one
 INSERT INTO notes (id, user_id, content, date, pinned, month)
 VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6)
@@ -388,6 +512,40 @@ func (q *Queries) DeleteGoal(ctx context.Context, arg DeleteGoalParams) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const deleteInvestment = `-- name: DeleteInvestment :execrows
+DELETE FROM investments WHERE id = $1 AND user_id = $2
+`
+
+type DeleteInvestmentParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteInvestment(ctx context.Context, arg DeleteInvestmentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteInvestment, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteInvestmentMovement = `-- name: DeleteInvestmentMovement :execrows
+DELETE FROM investment_movements WHERE id = $1 AND user_id = $2
+`
+
+type DeleteInvestmentMovementParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteInvestmentMovement(ctx context.Context, arg DeleteInvestmentMovementParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteInvestmentMovement, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteNote = `-- name: DeleteNote :execrows
 DELETE FROM notes WHERE id = $1 AND user_id = $2
 `
@@ -482,6 +640,70 @@ func (q *Queries) GetExtraExpenseForUpdate(ctx context.Context, arg GetExtraExpe
 		&i.Month,
 		&i.CreatedAt,
 		&i.Payment,
+	)
+	return i, err
+}
+
+const getInvestmentForUpdate = `-- name: GetInvestmentForUpdate :one
+SELECT id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at FROM investments WHERE id = $1 AND user_id = $2 FOR UPDATE
+`
+
+type GetInvestmentForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetInvestmentForUpdate(ctx context.Context, arg GetInvestmentForUpdateParams) (Investment, error) {
+	row := q.db.QueryRow(ctx, getInvestmentForUpdate, arg.ID, arg.UserID)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getInvestmentMovementForUpdate = `-- name: GetInvestmentMovementForUpdate :one
+SELECT id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at FROM investment_movements WHERE id = $1 AND user_id = $2 FOR UPDATE
+`
+
+type GetInvestmentMovementForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetInvestmentMovementForUpdate(ctx context.Context, arg GetInvestmentMovementForUpdateParams) (InvestmentMovement, error) {
+	row := q.db.QueryRow(ctx, getInvestmentMovementForUpdate, arg.ID, arg.UserID)
+	var i InvestmentMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.InvestmentID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Quantity,
+		&i.UnitPriceCents,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -734,6 +956,125 @@ func (q *Queries) ListGoals(ctx context.Context, userID uuid.UUID) ([]Goal, erro
 	return items, nil
 }
 
+const listInvestmentMovements = `-- name: ListInvestmentMovements :many
+SELECT id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at FROM investment_movements WHERE user_id = $1 ORDER BY created_at, id
+`
+
+func (q *Queries) ListInvestmentMovements(ctx context.Context, userID uuid.UUID) ([]InvestmentMovement, error) {
+	rows, err := q.db.Query(ctx, listInvestmentMovements, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvestmentMovement
+	for rows.Next() {
+		var i InvestmentMovement
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.InvestmentID,
+			&i.Type,
+			&i.Date,
+			&i.AmountCents,
+			&i.Quantity,
+			&i.UnitPriceCents,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvestments = `-- name: ListInvestments :many
+SELECT id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at FROM investments WHERE user_id = $1 ORDER BY created_at, id
+`
+
+func (q *Queries) ListInvestments(ctx context.Context, userID uuid.UUID) ([]Investment, error) {
+	rows, err := q.db.Query(ctx, listInvestments, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Investment
+	for rows.Next() {
+		var i Investment
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Family,
+			&i.Product,
+			&i.Institution,
+			&i.AppliedAt,
+			&i.CurrentValueCents,
+			&i.MaturityDate,
+			&i.Indexer,
+			&i.Rate,
+			&i.Liquidity,
+			&i.GraceUntil,
+			&i.EarlyRedeem,
+			&i.Quantity,
+			&i.AvgPriceCents,
+			&i.RedeemDays,
+			&i.Ticker,
+			&i.Fees,
+			&i.Notes,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMovementsOfInvestment = `-- name: ListMovementsOfInvestment :many
+SELECT id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at FROM investment_movements WHERE investment_id = $1 AND user_id = $2 ORDER BY created_at, id
+`
+
+type ListMovementsOfInvestmentParams struct {
+	InvestmentID uuid.UUID
+	UserID       uuid.UUID
+}
+
+func (q *Queries) ListMovementsOfInvestment(ctx context.Context, arg ListMovementsOfInvestmentParams) ([]InvestmentMovement, error) {
+	rows, err := q.db.Query(ctx, listMovementsOfInvestment, arg.InvestmentID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvestmentMovement
+	for rows.Next() {
+		var i InvestmentMovement
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.InvestmentID,
+			&i.Type,
+			&i.Date,
+			&i.AmountCents,
+			&i.Quantity,
+			&i.UnitPriceCents,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listNotes = `-- name: ListNotes :many
 SELECT id, user_id, content, date, pinned, month, created_at FROM notes WHERE user_id = $1 ORDER BY created_at, id
 `
@@ -922,6 +1263,58 @@ func (q *Queries) SetExtraExpensePayment(ctx context.Context, arg SetExtraExpens
 		&i.Month,
 		&i.CreatedAt,
 		&i.Payment,
+	)
+	return i, err
+}
+
+const setInvestmentDerived = `-- name: SetInvestmentDerived :one
+UPDATE investments SET
+    current_value_cents = $1,
+    quantity            = $2::numeric,
+    avg_price_cents     = $3::bigint
+WHERE id = $4 AND user_id = $5
+RETURNING id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at
+`
+
+type SetInvestmentDerivedParams struct {
+	CurrentValueCents int64
+	Quantity          *float64
+	AvgPriceCents     pgtype.Int8
+	ID                uuid.UUID
+	UserID            uuid.UUID
+}
+
+func (q *Queries) SetInvestmentDerived(ctx context.Context, arg SetInvestmentDerivedParams) (Investment, error) {
+	row := q.db.QueryRow(ctx, setInvestmentDerived,
+		arg.CurrentValueCents,
+		arg.Quantity,
+		arg.AvgPriceCents,
+		arg.ID,
+		arg.UserID,
+	)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
 	)
 	return i, err
 }
@@ -1185,6 +1578,158 @@ func (q *Queries) UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, e
 	return i, err
 }
 
+const updateInvestment = `-- name: UpdateInvestment :one
+UPDATE investments SET
+    name                = COALESCE($1, name),
+    family              = COALESCE($2, family),
+    product             = COALESCE($3, product),
+    institution         = COALESCE($4, institution),
+    applied_at          = COALESCE($5, applied_at),
+    current_value_cents = COALESCE($6, current_value_cents),
+    maturity_date       = COALESCE($7, maturity_date),
+    indexer             = COALESCE($8, indexer),
+    rate                = COALESCE($9, rate),
+    liquidity           = COALESCE($10, liquidity),
+    grace_until         = COALESCE($11, grace_until),
+    early_redeem        = COALESCE($12, early_redeem),
+    redeem_days         = COALESCE($13, redeem_days),
+    ticker              = COALESCE($14, ticker),
+    fees                = COALESCE($15, fees),
+    notes               = COALESCE($16, notes),
+    -- cotas e preço médio: só mudam quando o respectivo set_* é true; valor nulo limpa
+    quantity            = CASE WHEN $17::boolean THEN $18::numeric ELSE quantity END,
+    avg_price_cents     = CASE WHEN $19::boolean THEN $20::bigint ELSE avg_price_cents END
+WHERE id = $21 AND user_id = $22
+RETURNING id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at
+`
+
+type UpdateInvestmentParams struct {
+	Name              pgtype.Text
+	Family            pgtype.Text
+	Product           pgtype.Text
+	Institution       pgtype.Text
+	AppliedAt         pgtype.Text
+	CurrentValueCents pgtype.Int8
+	MaturityDate      pgtype.Text
+	Indexer           pgtype.Text
+	Rate              pgtype.Text
+	Liquidity         pgtype.Text
+	GraceUntil        pgtype.Text
+	EarlyRedeem       pgtype.Bool
+	RedeemDays        pgtype.Int4
+	Ticker            pgtype.Text
+	Fees              pgtype.Text
+	Notes             pgtype.Text
+	SetQuantity       bool
+	Quantity          *float64
+	SetAvgPrice       bool
+	AvgPriceCents     pgtype.Int8
+	ID                uuid.UUID
+	UserID            uuid.UUID
+}
+
+func (q *Queries) UpdateInvestment(ctx context.Context, arg UpdateInvestmentParams) (Investment, error) {
+	row := q.db.QueryRow(ctx, updateInvestment,
+		arg.Name,
+		arg.Family,
+		arg.Product,
+		arg.Institution,
+		arg.AppliedAt,
+		arg.CurrentValueCents,
+		arg.MaturityDate,
+		arg.Indexer,
+		arg.Rate,
+		arg.Liquidity,
+		arg.GraceUntil,
+		arg.EarlyRedeem,
+		arg.RedeemDays,
+		arg.Ticker,
+		arg.Fees,
+		arg.Notes,
+		arg.SetQuantity,
+		arg.Quantity,
+		arg.SetAvgPrice,
+		arg.AvgPriceCents,
+		arg.ID,
+		arg.UserID,
+	)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateInvestmentMovement = `-- name: UpdateInvestmentMovement :one
+UPDATE investment_movements SET
+    type         = COALESCE($1, type),
+    date         = COALESCE($2, date),
+    amount_cents = COALESCE($3, amount_cents),
+    quantity         = CASE WHEN $4::boolean THEN $5::numeric ELSE quantity END,
+    unit_price_cents = CASE WHEN $6::boolean THEN $7::bigint ELSE unit_price_cents END
+WHERE id = $8 AND user_id = $9
+RETURNING id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at
+`
+
+type UpdateInvestmentMovementParams struct {
+	Type           pgtype.Text
+	Date           pgtype.Text
+	AmountCents    pgtype.Int8
+	SetQuantity    bool
+	Quantity       *float64
+	SetUnitPrice   bool
+	UnitPriceCents pgtype.Int8
+	ID             uuid.UUID
+	UserID         uuid.UUID
+}
+
+func (q *Queries) UpdateInvestmentMovement(ctx context.Context, arg UpdateInvestmentMovementParams) (InvestmentMovement, error) {
+	row := q.db.QueryRow(ctx, updateInvestmentMovement,
+		arg.Type,
+		arg.Date,
+		arg.AmountCents,
+		arg.SetQuantity,
+		arg.Quantity,
+		arg.SetUnitPrice,
+		arg.UnitPriceCents,
+		arg.ID,
+		arg.UserID,
+	)
+	var i InvestmentMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.InvestmentID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Quantity,
+		&i.UnitPriceCents,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const updateNote = `-- name: UpdateNote :one
 UPDATE notes SET
     content = COALESCE($1, content),
@@ -1322,6 +1867,15 @@ DELETE FROM goals WHERE user_id = $1
 
 func (q *Queries) WipeGoals(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.Exec(ctx, wipeGoals, userID)
+	return err
+}
+
+const wipeInvestments = `-- name: WipeInvestments :exec
+DELETE FROM investments WHERE user_id = $1
+`
+
+func (q *Queries) WipeInvestments(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, wipeInvestments, userID)
 	return err
 }
 

@@ -731,6 +731,241 @@ export interface paths {
         };
         trace?: never;
     };
+    "/investments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cadastra um investimento
+         * @description Controle manual do que está investido, sem integração com banco ou corretora. Fica **separado do fluxo
+         *     de caixa**: não entra em receitas, despesas, saldo, projeção nem relatórios.
+         *     O valor atual (`currentValue`) é o informado aqui; depois, cada movimentação o refaz no servidor.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Investment"];
+                };
+            };
+            responses: {
+                /** @description Criado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Investment"];
+                    };
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/investments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove o investimento e as movimentações dele */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Removido */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Altera só os campos enviados
+         * @description Texto vazio limpa um campo opcional. `"quantity": null` e `"avgPrice": null` limpam cotas e preço médio;
+         *     sem a chave, não mudam. Para mexer no valor por movimentação, use `/investment-movements`.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvestmentPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Investment"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
+    "/investment-movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registra uma movimentação (aporte, resgate, rendimento ou atualização de valor)
+         * @description O servidor refaz valor atual, cotas e preço médio do investimento pelas movimentações, em ordem de data,
+         *     na mesma transação, e devolve o investimento atualizado. O valor atual nunca fica negativo.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvestmentMovement"];
+                };
+            };
+            responses: {
+                /** @description Criada */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvestmentMovementResult"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/investment-movements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Exclui a movimentação e refaz o investimento */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Excluída (devolve só o investimento refeito) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvestmentMovementResult"];
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Corrige a movimentação e refaz o investimento
+         * @description `"quantity": null` e `"unitPrice": null` limpam os campos; sem a chave, não mudam.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvestmentMovementPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvestmentMovementResult"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
     "/credits/{id}/installments/{n}/advance": {
         parameters: {
             query?: never;
@@ -1865,6 +2100,107 @@ export interface components {
             closingDay?: number;
             dueDay?: number;
         };
+        /**
+         * @description Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos e outros.
+         * @enum {string}
+         */
+        InvestmentFamily: "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other";
+        Investment: {
+            /** Format: uuid */
+            id?: string;
+            name: string;
+            family: components["schemas"]["InvestmentFamily"];
+            /** @description Produto dentro da família (CDB */
+            product?: string;
+            /** @description Banco */
+            institution: string;
+            /**
+             * Format: date
+             * @description Data da primeira aplicação
+             */
+            appliedAt: string;
+            /** @description Quanto vale hoje. Máximo R$ 1 bilhão. */
+            currentValue: components["schemas"]["Cents"];
+            /**
+             * Format: date
+             * @description Vencimento (vazio = não tem)
+             */
+            maturityDate?: string;
+            indexer?: string;
+            /** @description Taxa contratada, ex.: "110% do CDI" */
+            rate?: string;
+            liquidity?: string;
+            /**
+             * Format: date
+             * @description Carência até esta data
+             */
+            graceUntil?: string;
+            earlyRedeem?: boolean;
+            /** @description Cotas (fracionário */
+            quantity?: number;
+            /** @description Preço médio por cota */
+            avgPrice?: components["schemas"]["Cents"];
+            redeemDays?: number;
+            ticker?: string;
+            fees?: string;
+            notes?: string;
+        };
+        InvestmentPatch: {
+            name?: string;
+            family?: components["schemas"]["InvestmentFamily"];
+            product?: string;
+            institution?: string;
+            /** Format: date */
+            appliedAt?: string;
+            currentValue?: components["schemas"]["Cents"];
+            maturityDate?: string;
+            indexer?: string;
+            rate?: string;
+            liquidity?: string;
+            graceUntil?: string;
+            earlyRedeem?: boolean;
+            quantity?: number | null;
+            /** Format: int64 */
+            avgPrice?: number | null;
+            redeemDays?: number;
+            ticker?: string;
+            fees?: string;
+            notes?: string;
+        };
+        /**
+         * @description `contribution` (aporte) e `redemption` (resgate) mexem no dinheiro que entra e sai; `yield` (rendimento)
+         *     soma ao valor atual sem ser aporte; `adjustment` (atualização de valor) define o novo valor atual.
+         * @enum {string}
+         */
+        InvestmentMovementType: "contribution" | "redemption" | "yield" | "adjustment";
+        InvestmentMovement: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            investmentId: string;
+            type: components["schemas"]["InvestmentMovementType"];
+            /** Format: date */
+            date: string;
+            /** @description Valor total da movimentação (no ajuste */
+            amount: components["schemas"]["Cents"];
+            /** @description Cotas compradas (aporte) ou vendidas (resgate) */
+            quantity?: number;
+            /** @description Preço por cota nesta movimentação */
+            unitPrice?: components["schemas"]["Cents"];
+        };
+        InvestmentMovementPatch: {
+            type?: components["schemas"]["InvestmentMovementType"];
+            /** Format: date */
+            date?: string;
+            amount?: components["schemas"]["Cents"];
+            quantity?: number | null;
+            /** Format: int64 */
+            unitPrice?: number | null;
+        };
+        InvestmentMovementResult: {
+            movement?: components["schemas"]["InvestmentMovement"];
+            investment: components["schemas"]["Investment"];
+        };
         InstallmentAdjustment: {
             /** @description Valor só desta parcela */
             value?: components["schemas"]["Cents"];
@@ -1962,6 +2298,8 @@ export interface components {
             creditCards?: components["schemas"]["CreditCard"][];
             notes: components["schemas"]["Note"][];
             goals: components["schemas"]["Goal"][];
+            investments?: components["schemas"]["Investment"][];
+            investmentMovements?: components["schemas"]["InvestmentMovement"][];
             extraExpenses: components["schemas"]["ExtraExpense"][];
             customCategories: components["schemas"]["CustomCategory"][];
             /** @description Percentuais escolhidos; null = padrão */

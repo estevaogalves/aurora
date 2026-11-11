@@ -7,6 +7,8 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  Investment,
+  InvestmentMovement,
   Note,
   OnboardingState,
   Payment,
@@ -25,8 +27,33 @@ const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hidd
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
 const CARD_PATCH = ["name", "closingDay", "dueDay"] as const;
 const GOAL_PATCH = ["name", "target", "saved", "monthly", "yieldTotal", "deadline"] as const;
+const INVESTMENT_PATCH = [
+  "name", "family", "product", "institution", "appliedAt", "currentValue", "maturityDate", "indexer", "rate",
+  "liquidity", "graceUntil", "earlyRedeem", "quantity", "avgPrice", "redeemDays", "ticker", "fees", "notes",
+] as const;
+const MOVEMENT_PATCH = ["type", "date", "amount", "quantity", "unitPrice"] as const;
 const EXTRA_PATCH = ["name", "amount", "month"] as const;
 const NOTE_PATCH = ["content", "date", "pinned", "month"] as const;
+
+/**
+ * O front limpa um campo opcional deixando-o `undefined`, mas o JSON descarta `undefined` e a API entenderia
+ * "não mudou". Aqui cada campo limpo vira o que a API aceita: texto vazio, `false`, 0 ou `null` (cotas e preços).
+ */
+export function investmentPatchBody(patch: Partial<Investment>): Record<string, unknown> {
+  const body: Record<string, unknown> = pick(patch, INVESTMENT_PATCH);
+  const cleared: Record<string, unknown> = {
+    product: "", maturityDate: "", indexer: "", rate: "", liquidity: "", graceUntil: "", ticker: "", fees: "", notes: "",
+    earlyRedeem: false, redeemDays: 0, quantity: null, avgPrice: null,
+  };
+  for (const [key, empty] of Object.entries(cleared)) if (key in body && body[key] === undefined) body[key] = empty;
+  return body;
+}
+
+export function movementPatchBody(patch: Partial<InvestmentMovement>): Record<string, unknown> {
+  const body: Record<string, unknown> = pick(patch, MOVEMENT_PATCH);
+  for (const key of ["quantity", "unitPrice"]) if (key in body && body[key] === undefined) body[key] = null;
+  return body;
+}
 
 /**
  * A API devolve `fixed`, `hiddenMonths`, `monthlyValues`, `notes` e `yieldTotal` só quando têm valor
@@ -47,8 +74,8 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
     creditTransactions: raw.creditTransactions ?? [],
     creditCards: raw.creditCards ?? [],
     notes: raw.notes ?? [],
-    investments: [],
-    investmentMovements: [],
+    investments: raw.investments ?? [],
+    investmentMovements: raw.investmentMovements ?? [],
     goals: (raw.goals ?? []).map((g) => ({ ...g, deadline: g.deadline ?? null, yieldTotal: g.yieldTotal ?? 0 })),
     extraExpenses: raw.extraExpenses ?? [],
     customCategories: raw.customCategories ?? [],
@@ -107,14 +134,15 @@ export class ApiRepository implements FinanceRepository {
   updateNote = (id: string, patch: Partial<Note>) => this.enqueue(() => api.patch(`/notes/${id}`, pick(patch, NOTE_PATCH)));
   removeNote = (id: string) => this.enqueue(() => api.delete(`/notes/${id}`));
 
-  // investimentos ainda não existem no backend (próxima etapa do plano)
-  addInvestment = () => this.unsupported();
-  updateInvestment = () => this.unsupported();
-  removeInvestment = () => this.unsupported();
-  addInvestmentMovement = () => this.unsupported();
-  updateInvestmentMovement = () => this.unsupported();
-  removeInvestmentMovement = () => this.unsupported();
-  private unsupported = () => Promise.reject(new Error("Investimentos ainda não estão disponíveis na API"));
+  // Valor atual, cotas e preço médio: o servidor refaz a cada movimentação (mesma regra do replayInvestment),
+  // então o PATCH que a store manda em seguida só confirma o que já está lá.
+  addInvestment = (i: Investment) => this.enqueue(() => api.post("/investments", i));
+  updateInvestment = (id: string, patch: Partial<Investment>) => this.enqueue(() => api.patch(`/investments/${id}`, investmentPatchBody(patch)));
+  removeInvestment = (id: string) => this.enqueue(() => api.delete(`/investments/${id}`));
+  addInvestmentMovement = (m: InvestmentMovement) => this.enqueue(() => api.post("/investment-movements", m));
+  updateInvestmentMovement = (id: string, patch: Partial<InvestmentMovement>) =>
+    this.enqueue(() => api.patch(`/investment-movements/${id}`, movementPatchBody(patch)));
+  removeInvestmentMovement = (id: string) => this.enqueue(() => api.delete(`/investment-movements/${id}`));
 
   addGoal = (g: Goal) => this.enqueue(() => api.post("/goals", g));
   // `deadline: null` limpa o prazo na API; sem a chave ele não muda

@@ -212,6 +212,76 @@ paths:
         "204": { description: Removido }
         "404": { $ref: "#/components/responses/Error" }
 
+  /investments:
+    post:
+      tags: [investimentos]
+      summary: Cadastra um investimento
+      description: |
+        Controle manual do que está investido, sem integração com banco ou corretora. Fica **separado do fluxo
+        de caixa**: não entra em receitas, despesas, saldo, projeção nem relatórios.
+        O valor atual (`currentValue`) é o informado aqui; depois, cada movimentação o refaz no servidor.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Investment" } } }
+      responses:
+        "201": { description: Criado, content: { application/json: { schema: { $ref: "#/components/schemas/Investment" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+  /investments/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [investimentos]
+      summary: Altera só os campos enviados
+      description: |
+        Texto vazio limpa um campo opcional. `"quantity": null` e `"avgPrice": null` limpam cotas e preço médio;
+        sem a chave, não mudam. Para mexer no valor por movimentação, use `/investment-movements`.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentPatch" } } }
+      responses:
+        "200": { description: Atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/Investment" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [investimentos]
+      summary: Remove o investimento e as movimentações dele
+      responses:
+        "204": { description: Removido }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /investment-movements:
+    post:
+      tags: [investimentos]
+      summary: Registra uma movimentação (aporte, resgate, rendimento ou atualização de valor)
+      description: |
+        O servidor refaz valor atual, cotas e preço médio do investimento pelas movimentações, em ordem de data,
+        na mesma transação, e devolve o investimento atualizado. O valor atual nunca fica negativo.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovement" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /investment-movements/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [investimentos]
+      summary: Corrige a movimentação e refaz o investimento
+      description: '`"quantity": null` e `"unitPrice": null` limpam os campos; sem a chave, não mudam.'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [investimentos]
+      summary: Exclui a movimentação e refaz o investimento
+      responses:
+        "200": { description: Excluída (devolve só o investimento refeito), content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementResult" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+
   /credits/{id}/installments/{n}/advance:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -649,6 +719,85 @@ components:
         name: { type: string }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
+    InvestmentFamily:
+      type: string
+      enum: [fixed, treasury, liquid, equity, fund, other]
+      description: Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos e outros.
+    Investment:
+      type: object
+      required: [name, family, institution, appliedAt, currentValue]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        family: { $ref: "#/components/schemas/InvestmentFamily" }
+        product: { type: string, maxLength: 60, description: Produto dentro da família (CDB, FII, Tesouro Selic...) }
+        institution: { type: string, description: Banco, corretora ou plataforma }
+        appliedAt: { type: string, format: date, description: Data da primeira aplicação }
+        currentValue: { $ref: "#/components/schemas/Cents", description: Quanto vale hoje. Máximo R$ 1 bilhão. }
+        maturityDate: { type: string, format: date, description: Vencimento (vazio = não tem) }
+        indexer: { type: string, maxLength: 40 }
+        rate: { type: string, maxLength: 80, description: 'Taxa contratada, ex.: "110% do CDI"' }
+        liquidity: { type: string, maxLength: 80 }
+        graceUntil: { type: string, format: date, description: Carência até esta data }
+        earlyRedeem: { type: boolean }
+        quantity: { type: number, minimum: 0, description: Cotas (fracionário, até 6 casas). Ausente = não controla quantidade. }
+        avgPrice: { $ref: "#/components/schemas/Cents", description: Preço médio por cota }
+        redeemDays: { type: integer, minimum: 0, maximum: 3650 }
+        ticker: { type: string, maxLength: 40 }
+        fees: { type: string }
+        notes: { type: string }
+    InvestmentPatch:
+      type: object
+      properties:
+        name: { type: string }
+        family: { $ref: "#/components/schemas/InvestmentFamily" }
+        product: { type: string }
+        institution: { type: string }
+        appliedAt: { type: string, format: date }
+        currentValue: { $ref: "#/components/schemas/Cents" }
+        maturityDate: { type: string }
+        indexer: { type: string }
+        rate: { type: string }
+        liquidity: { type: string }
+        graceUntil: { type: string }
+        earlyRedeem: { type: boolean }
+        quantity: { type: number, nullable: true, minimum: 0 }
+        avgPrice: { type: integer, format: int64, nullable: true, minimum: 0 }
+        redeemDays: { type: integer, minimum: 0, maximum: 3650 }
+        ticker: { type: string }
+        fees: { type: string }
+        notes: { type: string }
+    InvestmentMovementType:
+      type: string
+      enum: [contribution, redemption, yield, adjustment]
+      description: |
+        `contribution` (aporte) e `redemption` (resgate) mexem no dinheiro que entra e sai; `yield` (rendimento)
+        soma ao valor atual sem ser aporte; `adjustment` (atualização de valor) define o novo valor atual.
+    InvestmentMovement:
+      type: object
+      required: [investmentId, type, date, amount]
+      properties:
+        id: { type: string, format: uuid }
+        investmentId: { type: string, format: uuid }
+        type: { $ref: "#/components/schemas/InvestmentMovementType" }
+        date: { type: string, format: date }
+        amount: { $ref: "#/components/schemas/Cents", description: Valor total da movimentação (no ajuste, o novo valor atual) }
+        quantity: { type: number, minimum: 0, description: Cotas compradas (aporte) ou vendidas (resgate) }
+        unitPrice: { $ref: "#/components/schemas/Cents", description: Preço por cota nesta movimentação }
+    InvestmentMovementPatch:
+      type: object
+      properties:
+        type: { $ref: "#/components/schemas/InvestmentMovementType" }
+        date: { type: string, format: date }
+        amount: { $ref: "#/components/schemas/Cents" }
+        quantity: { type: number, nullable: true, minimum: 0 }
+        unitPrice: { type: integer, format: int64, nullable: true, minimum: 0 }
+    InvestmentMovementResult:
+      type: object
+      required: [investment]
+      properties:
+        movement: { $ref: "#/components/schemas/InvestmentMovement" }
+        investment: { $ref: "#/components/schemas/Investment" }
     InstallmentAdjustment:
       type: object
       properties:
@@ -763,6 +912,8 @@ components:
         creditCards: { type: array, items: { $ref: "#/components/schemas/CreditCard" } }
         notes: { type: array, items: { $ref: "#/components/schemas/Note" } }
         goals: { type: array, items: { $ref: "#/components/schemas/Goal" } }
+        investments: { type: array, items: { $ref: "#/components/schemas/Investment" } }
+        investmentMovements: { type: array, items: { $ref: "#/components/schemas/InvestmentMovement" } }
         extraExpenses: { type: array, items: { $ref: "#/components/schemas/ExtraExpense" } }
         customCategories: { type: array, items: { $ref: "#/components/schemas/CustomCategory" } }
         distribution:

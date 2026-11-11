@@ -35,6 +35,60 @@ describe("normalizeFinanceData (omitempty da API)", () => {
   });
 });
 
+describe("ApiRepository: investimentos", () => {
+  it("load traz investimentos e movimentações; sem eles, listas vazias", async () => {
+    setAccessToken("t");
+    const inv = { id: "i1", name: "CDB", family: "fixed", institution: "Banco A", appliedAt: "2026-01-01", currentValue: 1000 };
+    const mov = { id: "m1", investmentId: "i1", type: "contribution", date: "2026-01-01", amount: 1000 };
+    mockFetch(() => new Response(JSON.stringify({ investments: [inv], investmentMovements: [mov] }), { status: 200 }));
+    const data = await new ApiRepository().load();
+    expect(data.investments).toEqual([inv]);
+    expect(data.investmentMovements).toEqual([mov]);
+    expect(normalizeFinanceData({}).investments).toEqual([]);
+    expect(normalizeFinanceData({}).investmentMovements).toEqual([]);
+  });
+
+  it("cadastra, movimenta e remove pelas rotas da API", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    const inv = { id: "i1", name: "CDB", family: "fixed" as const, institution: "Banco A", appliedAt: "2026-01-01", currentValue: 1000 };
+    const mov = { id: "m1", investmentId: "i1", type: "contribution" as const, date: "2026-01-01", amount: 1000 };
+    await repo.addInvestment(inv);
+    await repo.addInvestmentMovement(mov);
+    await repo.updateInvestmentMovement("m1", { amount: 900 });
+    await repo.removeInvestmentMovement("m1");
+    await repo.removeInvestment("i1");
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      "POST /api/v1/investments",
+      "POST /api/v1/investment-movements",
+      "PATCH /api/v1/investment-movements/m1",
+      "DELETE /api/v1/investment-movements/m1",
+      "DELETE /api/v1/investments/i1",
+    ]);
+    expect(calls[0].body).toEqual(inv);
+    expect(calls[2].body).toEqual({ amount: 900 });
+  });
+
+  it("campo limpo no Editar (undefined) vira o valor que a API entende como limpar", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    await new ApiRepository().updateInvestment("i1", {
+      name: "CDB", maturityDate: undefined, rate: undefined, earlyRedeem: undefined, redeemDays: undefined, quantity: undefined, avgPrice: undefined, notes: undefined,
+    });
+    expect(calls[0].body).toEqual({ name: "CDB", maturityDate: "", rate: "", earlyRedeem: false, redeemDays: 0, quantity: null, avgPrice: null, notes: "" });
+  });
+
+  it("só manda os campos que vieram e ignora o que a API não aceita", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    await new ApiRepository().updateInvestment("i1", { id: "i1", currentValue: 5000 });
+    expect(calls[0].body).toEqual({ currentValue: 5000 });
+    await new ApiRepository().updateInvestmentMovement("m1", { id: "m1", investmentId: "x", quantity: undefined, unitPrice: undefined });
+    expect(calls[1].body).toEqual({ quantity: null, unitPrice: null });
+  });
+});
+
 describe("ApiRepository", () => {
   it("load lê /data e normaliza", async () => {
     setAccessToken("t");

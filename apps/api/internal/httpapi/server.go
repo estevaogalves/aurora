@@ -163,6 +163,16 @@ func (s *Server) Router() http.Handler {
 				r.Patch("/{id}", s.updateGoal)
 				r.Delete("/{id}", s.deleteGoal)
 			})
+			r.Route("/investments", func(r chi.Router) {
+				r.Post("/", s.createInvestment)
+				r.Patch("/{id}", s.updateInvestment)
+				r.Delete("/{id}", s.deleteInvestment)
+			})
+			r.Route("/investment-movements", func(r chi.Router) {
+				r.Post("/", s.createInvestmentMovement)
+				r.Patch("/{id}", s.updateInvestmentMovement)
+				r.Delete("/{id}", s.deleteInvestmentMovement)
+			})
 			r.Route("/extra-expenses", func(r chi.Router) {
 				r.Post("/", s.createExtra)
 				r.Patch("/{id}", s.updateExtra)

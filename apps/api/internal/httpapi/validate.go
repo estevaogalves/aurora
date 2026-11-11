@@ -212,6 +212,97 @@ func checkPayments(t domain.Transaction) string {
 	return ""
 }
 
+/* ---------- investimentos ---------- */
+
+// maxQuantity: teto de cotas (numeric(20,6) guarda até 10^14).
+const maxQuantity = 1e12
+
+func checkText(label, v string, max int) string {
+	if len([]rune(v)) > max {
+		return label + " grande demais."
+	}
+	return ""
+}
+
+// checkDate confere uma data real "AAAA-MM-DD". Com optional, vazio é aceito.
+func checkDate(label, v string, optional bool) string {
+	if v == "" && optional {
+		return ""
+	}
+	if !domain.IsValidDate(v) {
+		return label + " inválida. Use o formato AAAA-MM-DD."
+	}
+	return ""
+}
+
+func checkInvestmentCents(label string, v int64) string {
+	if v < 0 {
+		return label + " não pode ser negativo."
+	}
+	if v > domain.MaxInvestmentCents {
+		return label + " acima do limite de R$ 1 bilhão."
+	}
+	return ""
+}
+
+func checkQuantity(q *float64) string {
+	if q != nil && (*q < 0 || *q > maxQuantity) {
+		return "A quantidade de cotas é inválida."
+	}
+	return ""
+}
+
+func checkOptionalCents(label string, v *int64) string {
+	if v == nil {
+		return ""
+	}
+	return checkInvestmentCents(label, *v)
+}
+
+func checkFamily(f string) string {
+	if !domain.IsInvestmentFamily(f) {
+		return "Tipo de investimento inválido."
+	}
+	return ""
+}
+
+func checkRedeemDays(d int) string {
+	if d < 0 || d > 3650 {
+		return "O prazo de resgate deve ficar entre 0 e 3650 dias."
+	}
+	return ""
+}
+
+func validateInvestment(i domain.Investment) string {
+	return first(
+		checkName(i.Name), checkFamily(i.Family),
+		checkText("Produto", i.Product, 60),
+		checkName(i.Institution),
+		checkDate("Data da aplicação", i.AppliedAt, false),
+		checkInvestmentCents("O valor atual", i.CurrentValue),
+		checkDate("Vencimento", i.MaturityDate, true),
+		checkDate("Carência", i.GraceUntil, true),
+		checkText("Indexador", i.Indexer, 40), checkText("Taxa", i.Rate, 80), checkText("Liquidez", i.Liquidity, 80),
+		checkText("Código do ativo", i.Ticker, 40),
+		checkText("A observação", i.Fees, maxNotes), checkNotes(i.Notes),
+		checkQuantity(i.Quantity), checkOptionalCents("O preço médio", i.AvgPrice), checkRedeemDays(i.RedeemDays),
+	)
+}
+
+func checkMovementType(t string) string {
+	if !domain.IsMovementType(t) {
+		return "Tipo de movimentação inválido."
+	}
+	return ""
+}
+
+func validateMovement(m domain.InvestmentMovement) string {
+	return first(
+		checkMovementType(m.Type), checkDate("Data", m.Date, false),
+		checkInvestmentCents("O valor", m.Amount), checkQuantity(m.Quantity), checkOptionalCents("O preço por cota", m.UnitPrice),
+	)
+}
+
 func validateNote(n domain.Note) string {
 	if strings.TrimSpace(n.Content) == "" {
 		return "A anotação não pode ficar vazia."
@@ -241,6 +332,8 @@ func (l Limits) validateData(d domain.FinanceData) string {
 		{"cartões", len(d.CreditCards), l.CustomCategories},
 		{"anotações", len(d.Notes), l.ImportItems},
 		{"metas", len(d.Goals), l.ImportItems},
+		{"investimentos", len(d.Investments), l.ImportItems},
+		{"movimentações de investimentos", len(d.InvestmentMovements), l.ImportItems},
 		{"despesas extras", len(d.ExtraExpenses), l.ImportItems},
 		{"categorias próprias", len(d.CustomCategories), l.CustomCategories},
 		{"itens da distribuição", len(d.Distribution), l.DistributionItems},
@@ -274,6 +367,21 @@ func (l Limits) validateData(d domain.FinanceData) string {
 	for _, g := range d.Goals {
 		if m := validateGoal(g); m != "" {
 			return "Meta " + quote(g.Name) + ": " + m
+		}
+	}
+	owned := map[string]bool{}
+	for _, i := range d.Investments {
+		if m := validateInvestment(i); m != "" {
+			return "Investimento " + quote(i.Name) + ": " + m
+		}
+		owned[i.ID] = true
+	}
+	for _, m := range d.InvestmentMovements {
+		if msg := validateMovement(m); msg != "" {
+			return "Movimentação de investimento: " + msg
+		}
+		if !owned[m.InvestmentID] {
+			return "Movimentação de investimento: o investimento não está no pacote."
 		}
 	}
 	for _, e := range d.ExtraExpenses {

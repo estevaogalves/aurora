@@ -562,7 +562,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		} else {
 			for _, wipe := range []func(context.Context, uuid.UUID) error{
-				q.WipeTransactions, q.WipeCredits, q.WipeCreditCards, q.WipeGoals, q.WipeExtraExpenses, q.WipeNotes, q.WipeCategories,
+				q.WipeTransactions, q.WipeCredits, q.WipeCreditCards, q.WipeGoals, q.WipeInvestments, q.WipeExtraExpenses, q.WipeNotes, q.WipeCategories,
 			} {
 				if err := wipe(ctx, userID); err != nil {
 					return err
@@ -624,6 +624,28 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 		}
 		for _, g := range d.Goals {
 			if _, err := q.CreateGoal(ctx, goalParams(userID, g)); err != nil {
+				return err
+			}
+		}
+		// investimentos ganham ids novos (como os cartões) e as movimentações passam a apontar para eles.
+		// Valor atual, cotas e preço médio vêm como estão no pacote: a importação não refaz a conta.
+		newInvestment := map[string]uuid.UUID{}
+		for _, inv := range d.Investments {
+			created, err := q.CreateInvestment(ctx, investmentParams(userID, uuid.Nil, inv))
+			if err != nil {
+				return err
+			}
+			newInvestment[inv.ID] = created.ID
+		}
+		for _, m := range d.InvestmentMovements {
+			iid, ok := newInvestment[m.InvestmentID]
+			if !ok {
+				return &ValidationError{"Movimentação de um investimento que não está no pacote."}
+			}
+			if _, err := q.CreateInvestmentMovement(ctx, sqlcgen.CreateInvestmentMovementParams{
+				UserID: userID, InvestmentID: iid, Type: m.Type, Date: m.Date, AmountCents: m.Amount,
+				Quantity: m.Quantity, UnitPriceCents: nullInt8(m.UnitPrice),
+			}); err != nil {
 				return err
 			}
 		}
@@ -695,6 +717,9 @@ func emptyIn(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID) (bool, e
 		return false, err
 	}
 	if r, err := q.ListGoals(ctx, userID); err != nil || len(r) > 0 {
+		return false, err
+	}
+	if r, err := q.ListInvestments(ctx, userID); err != nil || len(r) > 0 {
 		return false, err
 	}
 	if r, err := q.ListExtraExpenses(ctx, userID); err != nil || len(r) > 0 {

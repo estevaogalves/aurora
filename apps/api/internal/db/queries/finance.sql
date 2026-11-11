@@ -206,3 +206,81 @@ SELECT * FROM extra_expenses WHERE id = $1 AND user_id = $2 FOR UPDATE;
 UPDATE extra_expenses SET payment = $3::jsonb
 WHERE id = $1 AND user_id = $2
 RETURNING *;
+
+-- name: ListInvestments :many
+SELECT * FROM investments WHERE user_id = $1 ORDER BY created_at, id;
+
+-- name: GetInvestmentForUpdate :one
+SELECT * FROM investments WHERE id = $1 AND user_id = $2 FOR UPDATE;
+
+-- name: CreateInvestment :one
+INSERT INTO investments (id, user_id, name, family, product, institution, applied_at, current_value_cents,
+    maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8,
+    $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+RETURNING *;
+
+-- name: UpdateInvestment :one
+UPDATE investments SET
+    name                = COALESCE(sqlc.narg('name'), name),
+    family              = COALESCE(sqlc.narg('family'), family),
+    product             = COALESCE(sqlc.narg('product'), product),
+    institution         = COALESCE(sqlc.narg('institution'), institution),
+    applied_at          = COALESCE(sqlc.narg('applied_at'), applied_at),
+    current_value_cents = COALESCE(sqlc.narg('current_value_cents'), current_value_cents),
+    maturity_date       = COALESCE(sqlc.narg('maturity_date'), maturity_date),
+    indexer             = COALESCE(sqlc.narg('indexer'), indexer),
+    rate                = COALESCE(sqlc.narg('rate'), rate),
+    liquidity           = COALESCE(sqlc.narg('liquidity'), liquidity),
+    grace_until         = COALESCE(sqlc.narg('grace_until'), grace_until),
+    early_redeem        = COALESCE(sqlc.narg('early_redeem'), early_redeem),
+    redeem_days         = COALESCE(sqlc.narg('redeem_days'), redeem_days),
+    ticker              = COALESCE(sqlc.narg('ticker'), ticker),
+    fees                = COALESCE(sqlc.narg('fees'), fees),
+    notes               = COALESCE(sqlc.narg('notes'), notes),
+    -- cotas e preço médio: só mudam quando o respectivo set_* é true; valor nulo limpa
+    quantity            = CASE WHEN sqlc.arg('set_quantity')::boolean THEN sqlc.narg('quantity')::numeric ELSE quantity END,
+    avg_price_cents     = CASE WHEN sqlc.arg('set_avg_price')::boolean THEN sqlc.narg('avg_price_cents')::bigint ELSE avg_price_cents END
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: SetInvestmentDerived :one
+UPDATE investments SET
+    current_value_cents = sqlc.arg('current_value_cents'),
+    quantity            = sqlc.narg('quantity')::numeric,
+    avg_price_cents     = sqlc.narg('avg_price_cents')::bigint
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: DeleteInvestment :execrows
+DELETE FROM investments WHERE id = $1 AND user_id = $2;
+
+-- name: WipeInvestments :exec
+DELETE FROM investments WHERE user_id = $1;
+
+-- name: ListInvestmentMovements :many
+SELECT * FROM investment_movements WHERE user_id = $1 ORDER BY created_at, id;
+
+-- name: ListMovementsOfInvestment :many
+SELECT * FROM investment_movements WHERE investment_id = $1 AND user_id = $2 ORDER BY created_at, id;
+
+-- name: GetInvestmentMovementForUpdate :one
+SELECT * FROM investment_movements WHERE id = $1 AND user_id = $2 FOR UPDATE;
+
+-- name: CreateInvestmentMovement :one
+INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8)
+RETURNING *;
+
+-- name: UpdateInvestmentMovement :one
+UPDATE investment_movements SET
+    type         = COALESCE(sqlc.narg('type'), type),
+    date         = COALESCE(sqlc.narg('date'), date),
+    amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
+    quantity         = CASE WHEN sqlc.arg('set_quantity')::boolean THEN sqlc.narg('quantity')::numeric ELSE quantity END,
+    unit_price_cents = CASE WHEN sqlc.arg('set_unit_price')::boolean THEN sqlc.narg('unit_price_cents')::bigint ELSE unit_price_cents END
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: DeleteInvestmentMovement :execrows
+DELETE FROM investment_movements WHERE id = $1 AND user_id = $2;

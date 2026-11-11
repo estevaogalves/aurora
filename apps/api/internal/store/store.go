@@ -170,6 +170,22 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 		d.Goals = append(d.Goals, goalFrom(r))
 	}
 
+	investments, err := s.q.ListInvestments(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	for _, r := range investments {
+		d.Investments = append(d.Investments, investmentFrom(r))
+	}
+
+	movements, err := s.q.ListInvestmentMovements(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	for _, r := range movements {
+		d.InvestmentMovements = append(d.InvestmentMovements, movementFrom(r))
+	}
+
 	extras, err := s.q.ListExtraExpenses(ctx, userID)
 	if err != nil {
 		return d, err
@@ -215,7 +231,7 @@ func (s *Store) IsEmpty(ctx context.Context, userID uuid.UUID) (bool, error) {
 		return false, err
 	}
 	return len(d.Transactions)+len(d.CreditTransactions)+len(d.Notes)+len(d.Goals)+
-		len(d.ExtraExpenses)+len(d.CustomCategories) == 0, nil
+		len(d.ExtraExpenses)+len(d.CustomCategories)+len(d.Investments) == 0, nil
 }
 
 /* ---------- linhas -> domínio ---------- */

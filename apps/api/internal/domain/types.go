@@ -109,6 +109,9 @@ type FinanceData struct {
 	CreditCards        []CreditCard        `json:"creditCards"`
 	Notes              []Note              `json:"notes"`
 	Goals              []Goal              `json:"goals"`
+	// Investimentos ficam à parte do fluxo de caixa: nenhum cálculo de saldo, projeção ou relatório os usa.
+	Investments         []Investment         `json:"investments"`
+	InvestmentMovements []InvestmentMovement `json:"investmentMovements"`
 	ExtraExpenses      []ExtraExpense      `json:"extraExpenses"`
 	CustomCategories   []CustomCategory    `json:"customCategories"`
 	Distribution       []DistributionItem  `json:"distribution"`
@@ -133,6 +136,12 @@ func (d *FinanceData) Normalize() {
 	}
 	if d.Goals == nil {
 		d.Goals = []Goal{}
+	}
+	if d.Investments == nil {
+		d.Investments = []Investment{}
+	}
+	if d.InvestmentMovements == nil {
+		d.InvestmentMovements = []InvestmentMovement{}
 	}
 	if d.ExtraExpenses == nil {
 		d.ExtraExpenses = []ExtraExpense{}
