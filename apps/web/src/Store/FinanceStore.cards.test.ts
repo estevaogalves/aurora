@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const repo = vi.hoisted(() => ({ removeCreditCard: vi.fn(() => Promise.resolve()) }));
+const repo = vi.hoisted(() => ({
+  removeCreditCard: vi.fn(() => Promise.resolve()),
+  setCardPayment: vi.fn(() => Promise.resolve()),
+  setTransactionPayment: vi.fn(() => Promise.resolve()),
+  setExtraPayment: vi.fn(() => Promise.resolve()),
+  updateTransaction: vi.fn(() => Promise.resolve()),
+}));
 vi.mock("../repositories", () => ({ repository: repo }));
 
 import { useFinanceStore } from "./FinanceStore";
@@ -37,5 +43,79 @@ describe("remover um cartão", () => {
     expect(store().extraExpenses[0].cardId).toBeUndefined();
     expect(store().creditTransactions[0].cardId).toBeUndefined();
     expect(repo.removeCreditCard).toHaveBeenCalledWith("nu");
+  });
+});
+
+describe("pagamento da fatura na store", () => {
+  const pix = { method: "pix" as const, date: "2026-12-09" };
+
+  it("marca e desmarca o pagamento do mês no cartão certo e avisa o repositório", () => {
+    store().setCardPayment("nu", "2026-12", pix);
+    expect(store().creditCards.find((k) => k.id === "nu")?.payments).toEqual({ "2026-12": pix });
+    expect(store().creditCards.find((k) => k.id === "in")?.payments).toBeUndefined();
+    expect(repo.setCardPayment).toHaveBeenCalledWith("nu", "2026-12", pix);
+
+    store().setCardPayment("nu", "2026-12", null);
+    expect(store().creditCards.find((k) => k.id === "nu")?.payments).toBeUndefined();
+    expect(repo.setCardPayment).toHaveBeenLastCalledWith("nu", "2026-12", null);
+  });
+
+  it("cartão que não existe é ignorado", () => {
+    store().setCardPayment("fantasma", "2026-12", pix);
+    expect(repo.setCardPayment).not.toHaveBeenCalled();
+  });
+
+  it("o pagamento não muda nenhuma despesa", () => {
+    const before = store().transactions;
+    store().setCardPayment("nu", "2026-12", pix);
+    expect(store().transactions).toBe(before);
+  });
+});
+
+describe("ligar e soltar o cartão de uma despesa", () => {
+  it("liga com o dia da compra e solta mantendo o dia no histórico", () => {
+    store().setTransactionCard("t3", "nu", "2026-11-15");
+    expect(store().transactions.find((t) => t.id === "t3")).toMatchObject({ cardId: "nu", purchaseDate: "2026-11-15" });
+    expect(repo.updateTransaction).toHaveBeenLastCalledWith("t3", { cardId: "nu", purchaseDate: "2026-11-15" });
+
+    store().setTransactionCard("t3", "");
+    expect(store().transactions.find((t) => t.id === "t3")).toMatchObject({ cardId: undefined, purchaseDate: "2026-11-15" });
+    // cardId undefined no patch: o ApiRepository o transforma em "" (soltar)
+    expect(repo.updateTransaction).toHaveBeenLastCalledWith("t3", { cardId: undefined });
+  });
+});
+
+describe("despesa no cartão só edita e exclui", () => {
+  const pix = { method: "pix" as const, date: "2026-11-01" };
+
+  it("não vira fixa (fixa no cartão é recorrência), mas a despesa comum continua podendo", () => {
+    store().toggleTransactionFixed("t1"); // t1 está no cartão
+    expect(store().transactions.find((t) => t.id === "t1")?.fixed).toBeFalsy();
+    expect(repo.updateTransaction).not.toHaveBeenCalled();
+
+    store().toggleTransactionFixed("t3"); // t3 não tem cartão
+    expect(store().transactions.find((t) => t.id === "t3")?.fixed).toBe(true);
+  });
+
+  it("não é paga sozinha: o pagamento é da fatura", () => {
+    store().setTransactionPayment("t1", "2026-11", pix);
+    expect(store().transactions.find((t) => t.id === "t1")?.payments).toBeUndefined();
+    expect(repo.setTransactionPayment).not.toHaveBeenCalled();
+    store().setExtraPayment("e1", pix); // extra no cartão
+    expect(store().extraExpenses[0].payment).toBeUndefined();
+    expect(repo.setExtraPayment).not.toHaveBeenCalled();
+
+    // sem cartão, continua pagando normalmente
+    store().setTransactionPayment("t3", "2026-11", pix);
+    expect(store().transactions.find((t) => t.id === "t3")?.payments?.["2026-11"]).toEqual(pix);
+  });
+
+  it("desmarcar um pagamento antigo continua permitido", () => {
+    useFinanceStore.setState({
+      transactions: store().transactions.map((t) => (t.id === "t1" ? { ...t, payments: { "2026-11": pix } } : t)),
+    });
+    store().setTransactionPayment("t1", "2026-11", null);
+    expect(store().transactions.find((t) => t.id === "t1")?.payments).toBeUndefined();
+    expect(repo.setTransactionPayment).toHaveBeenCalledWith("t1", "2026-11", null);
   });
 });

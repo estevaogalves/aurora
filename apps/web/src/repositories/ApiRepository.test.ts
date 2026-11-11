@@ -70,6 +70,25 @@ describe("ApiRepository: despesas no cartão", () => {
   });
 });
 
+describe("ApiRepository: pagamento da fatura", () => {
+  it("marca com PUT e desmarca com DELETE na rota do cartão e do mês", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.setCardPayment("k1", "2026-12", { method: "pix", date: "2026-12-09", notes: "app" });
+    await repo.setCardPayment("k1", "2026-12", null);
+    expect(calls[0]).toMatchObject({ url: "/api/v1/credit-cards/k1/payments/2026-12", method: "PUT", body: { method: "pix", date: "2026-12-09", notes: "app" } });
+    expect(calls[1]).toMatchObject({ url: "/api/v1/credit-cards/k1/payments/2026-12", method: "DELETE" });
+  });
+
+  it("editar o cartão nunca manda os pagamentos (só o endpoint próprio grava)", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    await new ApiRepository().updateCreditCard("k1", { name: "Novo", payments: { "2026-12": { method: "pix", date: "2026-12-09" } } });
+    expect(calls[0].body).toEqual({ name: "Novo" });
+  });
+});
+
 describe("ApiRepository: investimentos", () => {
   it("load traz investimentos e movimentações; sem eles, listas vazias", async () => {
     setAccessToken("t");

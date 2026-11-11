@@ -21,6 +21,7 @@ import {
   type CreditInstallment,
   patchContribution,
   maturityAlertPrefix,
+  patchCardPayment,
   replayInvestment,
   type Investment,
   type InvestmentMovement,
@@ -144,6 +145,10 @@ interface FinanceState {
   removeExtraExpense: (id: string) => void;
   /** Marca (ou troca) o pagamento de uma despesa em um mês; null desmarca. Só registro: não muda nenhum valor. */
   setTransactionPayment: (id: string, month: string, payment: Payment | null) => void;
+  /** Liga a despesa avulsa a um cartão (com o dia da compra) ou a solta (`cardId` vazio). O dia da compra fica no histórico. */
+  setTransactionCard: (id: string, cardId: string, purchaseDate?: string) => void;
+  /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro. */
+  setCardPayment: (cardId: string, month: string, payment: Payment | null) => void;
   /** Marca (ou troca) o pagamento de uma despesa extra; null desmarca. */
   setExtraPayment: (id: string, payment: Payment | null) => void;
 
@@ -283,7 +288,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     toggleTransactionFixed: (id) => {
       const t = findTransaction(id);
-      if (t) patchTransaction(id, patchToggleFixed(t));
+      // despesa no cartão não fixa: uma despesa fixa no cartão é uma recorrência (Lançar → Crédito parcelado)
+      if (t && !t.cardId) patchTransaction(id, patchToggleFixed(t));
     },
 
     setTransactionVariable: (id, variable) => {
@@ -511,13 +517,25 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     setTransactionPayment: (id, month, payment) => {
       const t = findTransaction(id);
-      if (!t) return;
+      // despesa no cartão não é paga sozinha: o pagamento é da fatura (desmarcar um registro antigo continua permitido)
+      if (!t || (t.cardId && payment)) return;
       const patch = payment ? patchSetPayment(t, month, payment) : patchClearPayment(t, month);
       set((state) => ({ transactions: state.transactions.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
       sync(repository.setTransactionPayment(id, month, payment));
     },
 
+    setTransactionCard: (id, cardId, purchaseDate) => {
+      patchTransaction(id, { cardId: cardId || undefined, ...(cardId && purchaseDate && { purchaseDate }) });
+    },
+
+    setCardPayment: (cardId, month, payment) => {
+      if (!get().creditCards.some((k) => k.id === cardId)) return;
+      set((state) => ({ creditCards: state.creditCards.map((k) => (k.id === cardId ? { ...k, ...patchCardPayment(k, month, payment) } : k)) }));
+      sync(repository.setCardPayment(cardId, month, payment));
+    },
+
     setExtraPayment: (id, payment) => {
+      if (payment && get().extraExpenses.find((e) => e.id === id)?.cardId) return;
       set((state) => ({ extraExpenses: state.extraExpenses.map((e) => (e.id === id ? { ...e, payment: payment ?? undefined } : e)) }));
       sync(repository.setExtraPayment(id, payment));
     },

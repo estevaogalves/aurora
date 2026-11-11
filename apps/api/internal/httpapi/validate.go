@@ -140,7 +140,20 @@ func checkCardLimit(limit int64) string {
 }
 
 func validateCard(k domain.CreditCard) string {
-	return first(checkName(k.Name), checkCardDay("fechamento", k.ClosingDay), checkCardDay("vencimento", k.DueDay), checkCardLimit(k.Limit))
+	return first(checkName(k.Name), checkCardDay("fechamento", k.ClosingDay), checkCardDay("vencimento", k.DueDay), checkCardLimit(k.Limit), checkCardPayments(k.Payments))
+}
+
+// checkCardPayments confere os pagamentos das faturas (importação).
+func checkCardPayments(payments map[string]domain.Payment) string {
+	if len(payments) > 600 {
+		return "Pagamentos de fatura demais em um cartão."
+	}
+	for m, p := range payments {
+		if msg := first(checkMonth(m), checkPayment(p)); msg != "" {
+			return msg
+		}
+	}
+	return ""
 }
 
 // checkCardFields confere cartão e dia da compra de uma despesa. Com cartão, a despesa tem que ser avulsa e ter o

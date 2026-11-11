@@ -12,6 +12,8 @@ import { useFinanceStore, type CreditTransaction, type Transaction } from "@/Sto
 import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 import CardField from "./CardField";
+import CardPurchaseField from "./CardPurchaseField";
+import { isISODate } from "./isoDate";
 
 function Shell({ open, title, description, onClose, children }: { open: boolean; title: string; description: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -39,7 +41,7 @@ export function EditTransactionDialog({ transaction, onClose }: { transaction: T
 
 function TransactionFields({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
   const month = useFinanceStore((s) => s.currentMonth);
-  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, clearTransactionActualValue } = useFinanceStore();
+  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, clearTransactionActualValue, setTransactionCard } = useFinanceStore();
   const income = transaction.type === "income";
 
   const [name, setName] = useState(transaction.name);
@@ -49,6 +51,10 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
   // fixa: o valor vale só para o mês visto ou também para os seguintes
   const [scope, setScope] = useState<"month" | "following">("month");
   const [variable, setVariable] = useState(!!transaction.variableAmount);
+  // despesa avulsa (não fixa): cartão e dia da compra
+  const canHaveCard = !income && !transaction.fixed;
+  const [cardId, setCardId] = useState(transaction.cardId ?? "");
+  const [purchaseDate, setPurchaseDate] = useState(transaction.purchaseDate ?? `${transaction.month}-01`);
   // fixa variável com valor real neste mês (o `estimated` vem de getTransactionsByMonth)
   const hasActual = !!transaction.variableAmount && !transaction.estimated;
 
@@ -58,8 +64,10 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
     const cents = parseBRL(amount);
     if (!trimmed) return showToast({ type: "error", text: "Preencha o nome" });
     if (cents === null) return showToast({ type: "error", text: "Informe um valor válido" });
+    if (canHaveCard && cardId && !isISODate(purchaseDate)) return showToast({ type: "error", text: "Informe a data da compra" });
 
     if (trimmed !== transaction.name) updateTransactionName(transaction.id, trimmed);
+    if (canHaveCard && (cardId !== (transaction.cardId ?? "") || (cardId && purchaseDate !== transaction.purchaseDate))) setTransactionCard(transaction.id, cardId, purchaseDate);
     if (transaction.fixed && variable !== !!transaction.variableAmount) setTransactionVariable(transaction.id, variable);
     if (cents !== transaction.amount) {
       if (transaction.fixed && scope === "following") updateTransactionAmountFromMonth(transaction.id, month, cents);
@@ -108,6 +116,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
           <CategorySelect id="edit-category" value={category} onChange={setCategory} />
         </Field>
       )}
+      {canHaveCard && <CardPurchaseField idPrefix="edit-expense" cardId={cardId} onCardChange={setCardId} date={purchaseDate} onDateChange={setPurchaseDate} onNavigate={onClose} />}
       <Field label="Observação" hint="(opcional)" htmlFor="edit-notes">
         <p className="-mt-1 text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
         <Textarea id="edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[64px] rounded-md border-border-strong bg-secondary" />

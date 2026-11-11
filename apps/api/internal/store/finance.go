@@ -199,6 +199,9 @@ func (s *Store) SetTransactionPayment(ctx context.Context, userID uuid.UUID, id,
 		if cur.Type != "expense" {
 			return &ValidationError{"Só despesas podem ser marcadas como pagas."}
 		}
+		if cur.CardID.Valid && p != nil {
+			return &ValidationError{"Despesa no cartão é paga pela fatura do cartão."}
+		}
 		if (!cur.Fixed && month != cur.Month) || (cur.Fixed && domain.CompareMonths(month, cur.Month) < 0) {
 			return &ValidationError{"Esta despesa não existe neste mês."}
 		}
@@ -243,8 +246,23 @@ func (s *Store) SetExtraPayment(ctx context.Context, userID uuid.UUID, id string
 			return domain.ExtraExpense{}, err
 		}
 	}
-	row, err := s.q.SetExtraExpensePayment(ctx, sqlcgen.SetExtraExpensePaymentParams{ID: eid, UserID: userID, Column3: raw})
-	return extraFrom(row), mapErr(err)
+	var out domain.ExtraExpense
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetExtraExpenseForUpdate(ctx, sqlcgen.GetExtraExpenseForUpdateParams{ID: eid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		if cur.CardID.Valid && p != nil {
+			return &ValidationError{"Despesa no cartão é paga pela fatura do cartão."}
+		}
+		row, err := q.SetExtraExpensePayment(ctx, sqlcgen.SetExtraExpensePaymentParams{ID: eid, UserID: userID, Column3: raw})
+		if err != nil {
+			return mapErr(err)
+		}
+		out = extraFrom(row)
+		return nil
+	})
+	return out, err
 }
 
 /* ---------- crédito ---------- */
@@ -406,8 +424,49 @@ func nullID(id string) uuid.NullUUID {
 }
 
 func (s *Store) CreateCreditCard(ctx context.Context, userID uuid.UUID, c domain.CreditCard) (domain.CreditCard, error) {
-	row, err := s.q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, ClosingDay: int32(c.ClosingDay), DueDay: int32(c.DueDay), LimitCents: c.Limit})
+	row, err := s.q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{Column1: clientID(c.ID), UserID: userID, Name: c.Name, ClosingDay: int32(c.ClosingDay), DueDay: int32(c.DueDay), LimitCents: c.Limit, Column7: cardPayments(c.Payments)})
 	return cardFrom(row), mapErr(err)
+}
+
+// cardPayments serializa os pagamentos das faturas ("{}" quando não há nenhum).
+func cardPayments(p map[string]domain.Payment) []byte {
+	raw, err := json.Marshal(p)
+	if err != nil || len(p) == 0 {
+		return []byte("{}")
+	}
+	return raw
+}
+
+// SetCardPayment marca (p != nil) ou desmarca (p == nil) o pagamento da fatura do cartão que vence em `month`.
+// Só registro: nada aqui mexe em valores.
+func (s *Store) SetCardPayment(ctx context.Context, userID uuid.UUID, id, month string, p *domain.Payment) (domain.CreditCard, error) {
+	cid, err := parseID(id)
+	if err != nil {
+		return domain.CreditCard{}, err
+	}
+	var out domain.CreditCard
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetCreditCardForUpdate(ctx, sqlcgen.GetCreditCardForUpdateParams{ID: cid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		payments := map[string]domain.Payment{}
+		if len(cur.Payments) > 0 {
+			_ = json.Unmarshal(cur.Payments, &payments)
+		}
+		if p == nil {
+			delete(payments, month)
+		} else {
+			payments[month] = *p
+		}
+		row, err := q.SetCreditCardPayments(ctx, sqlcgen.SetCreditCardPaymentsParams{ID: cid, UserID: userID, Column3: cardPayments(payments)})
+		if err != nil {
+			return mapErr(err)
+		}
+		out = cardFrom(row)
+		return nil
+	})
+	return out, err
 }
 
 func (s *Store) UpdateCreditCard(ctx context.Context, userID uuid.UUID, id string, p CardPatch) (domain.CreditCard, error) {
@@ -619,7 +678,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 		// os ids de origem são ignorados: os cartões ganham ids novos e as compras e despesas passam a apontar para eles
 		newCard := map[string]string{}
 		for _, k := range d.CreditCards {
-			created, err := q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{UserID: userID, Name: k.Name, ClosingDay: int32(k.ClosingDay), DueDay: int32(k.DueDay), LimitCents: k.Limit})
+			created, err := q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{UserID: userID, Name: k.Name, ClosingDay: int32(k.ClosingDay), DueDay: int32(k.DueDay), LimitCents: k.Limit, Column7: cardPayments(k.Payments)})
 			if err != nil {
 				return err
 			}

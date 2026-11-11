@@ -15,6 +15,8 @@ type CreditCard struct {
 	DueDay     int    `json:"dueDay"`
 	// Limit: teto mensal da fatura, em centavos. 0 = sem teto. Só acompanhamento: não bloqueia nada.
 	Limit int64 `json:"limit,omitempty"`
+	// Payments: pagamento da fatura por mês de vencimento ("2026-12"). Só registro, não entra em conta nenhuma.
+	Payments map[string]Payment `json:"payments,omitempty"`
 }
 
 // Invoice é a fatura em que uma cobrança cai. Datas "YYYY-MM-DD". Month é o mês do vencimento,

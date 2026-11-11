@@ -1,17 +1,18 @@
 import { useState } from "react";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import Icon from "@/components/Icon";
-import { Field, inputClass } from "@/components/shared/FormFields";
+import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Empty, Pill } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { isValidCard } from "@/domain";
+import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useUiStore } from "@/Store/UiStore";
 import { useFinanceStore, type CreditCard } from "@/Store/FinanceStore";
 import { showToast } from "../Warnings/toast";
 
-type Draft = { id: string; name: string; closingDay: string; dueDay: string };
+type Draft = { id: string; name: string; closingDay: string; dueDay: string; limit: string };
 
 /** Um card por cartão, na mesma grade da tela de Metas. */
 function CardItem({ card, purchases, onEdit, onDelete }: { card: CreditCard; purchases: number; onEdit: () => void; onDelete: () => void }) {
@@ -26,6 +27,11 @@ function CardItem({ card, purchases, onEdit, onDelete }: { card: CreditCard; pur
         <span className="mx-2.5 text-border-strong">·</span>
         Vencimento <b className="num text-foreground">dia {card.dueDay}</b>
       </p>
+      {card.limit ? (
+        <p className="text-[13px] text-muted-foreground">
+          Teto mensal <b className="num text-foreground">{formatBRL(card.limit)}</b>
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <button type="button" onClick={onEdit} className={`${btnClass.base} ${btnClass.sm}`}>Editar</button>
         <button type="button" onClick={onDelete} className={`${btnClass.base} ${btnClass.sm} hover:!border-destructive hover:!text-destructive`}>
@@ -44,13 +50,16 @@ function CardItem({ card, purchases, onEdit, onDelete }: { card: CreditCard; pur
 export default function CreditCardsPanel() {
   const cards = useFinanceStore((s) => s.creditCards);
   const credits = useFinanceStore((s) => s.creditTransactions);
+  const expenses = useFinanceStore((s) => s.transactions);
+  const extras = useFinanceStore((s) => s.extraExpenses);
   const updateCard = useFinanceStore((s) => s.updateCreditCard);
   const removeCard = useFinanceStore((s) => s.removeCreditCard);
   const openLaunch = useUiStore((s) => s.openLaunch);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [toDelete, setToDelete] = useState<CreditCard | null>(null);
 
-  const linked = (id: string) => credits.filter((c) => c.cardId === id).length;
+  // compras no crédito, despesas avulsas e despesas extras ligadas ao cartão
+  const linked = (id: string) => [...credits, ...expenses, ...extras].filter((c) => c.cardId === id).length;
   const set = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
 
   function save(e: React.FormEvent) {
@@ -58,7 +67,10 @@ export default function CreditCardsPanel() {
     if (!draft) return;
     const card = { name: draft.name.trim(), closingDay: Number(draft.closingDay), dueDay: Number(draft.dueDay) };
     if (!isValidCard(card)) return showToast({ type: "error", text: "Informe o nome e os dias de fechamento e vencimento (1 a 31)" });
-    updateCard(draft.id, card);
+    const cap = draft.limit.trim() ? parseBRL(draft.limit) : 0;
+    if (cap === null) return showToast({ type: "error", text: "Informe um teto válido ou deixe em branco" });
+    // teto vazio tira o teto
+    updateCard(draft.id, { ...card, limit: cap > 0 ? cap : undefined });
     showToast({ type: "success", text: "Cartão atualizado" });
     setDraft(null);
   }
@@ -77,7 +89,7 @@ export default function CreditCardsPanel() {
               key={k.id}
               card={k}
               purchases={linked(k.id)}
-              onEdit={() => setDraft({ id: k.id, name: k.name, closingDay: String(k.closingDay), dueDay: String(k.dueDay) })}
+              onEdit={() => setDraft({ id: k.id, name: k.name, closingDay: String(k.closingDay), dueDay: String(k.dueDay), limit: k.limit ? centsToInput(k.limit) : "" })}
               onDelete={() => setToDelete(k)}
             />
           ))}
@@ -103,6 +115,9 @@ export default function CreditCardsPanel() {
                   <input id="card-due" type="number" inputMode="numeric" min={1} max={31} value={draft.dueDay} onChange={(e) => set({ dueDay: e.target.value })} className={inputClass} />
                 </Field>
               </div>
+              <Field label="Teto mensal da fatura" hint="(opcional)" htmlFor="card-limit">
+                <MoneyInput id="card-limit" value={draft.limit} onChange={(v) => set({ limit: v })} placeholder="300,00" />
+              </Field>
               <div className="flex justify-end gap-2">
                 <Button type="button" variant="secondary" onClick={() => setDraft(null)}>Cancelar</Button>
                 <Button type="submit">Salvar</Button>
@@ -114,7 +129,7 @@ export default function CreditCardsPanel() {
 
       <ConfirmDeletion
         open={!!toDelete}
-        itemLabel={`cartão${toDelete && linked(toDelete.id) ? ` (as ${linked(toDelete.id)} compras ligadas a ele ficam sem cartão e voltam a valer no mês da cobrança)` : ""}`}
+        itemLabel={`cartão${toDelete && linked(toDelete.id) ? ` (as ${linked(toDelete.id)} compras e despesas ligadas a ele ficam sem cartão e voltam a valer no mês em que foram lançadas; nada é apagado)` : ""}`}
         onCancel={() => setToDelete(null)}
         onConfirm={() => {
           if (toDelete) removeCard(toDelete.id);

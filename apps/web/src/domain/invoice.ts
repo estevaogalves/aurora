@@ -1,6 +1,6 @@
 import { changeMonth, monthsDifference } from "../Utils/Date";
 import { chargeDate, getCreditByMonth } from "./credit";
-import type { CreditCard, CreditInstallment, CreditTransaction, FinanceData, Month } from "./types";
+import type { CreditCard, CreditInstallment, CreditTransaction, FinanceData, Month, Payment } from "./types";
 
 /** Fatura em que uma cobrança cai. Datas "AAAA-MM-DD". */
 export interface Invoice {
@@ -169,3 +169,17 @@ export function getCardInvoice(data: InvoiceSource, card: CreditCard, month: Mon
     overLimit: limit !== null && total > limit,
   };
 }
+
+/**
+ * Marca ou desmarca o pagamento da fatura que vence em `month`. Devolve o patch do cartão: só registro, não mexe
+ * em nenhum valor. Sem nenhum pagamento restante, `payments` some.
+ */
+export function patchCardPayment(card: Pick<CreditCard, "payments">, month: Month, payment: Payment | null): Pick<CreditCard, "payments"> {
+  const payments = { ...card.payments };
+  if (payment) payments[month] = payment;
+  else delete payments[month];
+  return { payments: Object.keys(payments).length > 0 ? payments : undefined };
+}
+
+/** Pagamento da fatura do cartão que vence em `month`, se houver. */
+export const cardPaymentOf = (card: Pick<CreditCard, "payments">, month: Month): Payment | undefined => card.payments?.[month];

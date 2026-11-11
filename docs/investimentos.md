@@ -124,7 +124,7 @@ Um investimento com produto que saiu da lista continua editável (o produto anti
 
 ## Despesas com cartão e fatura
 
-**Status (branch `feature/despesas-cartao-fatura`):** Fases 0 a 3 feitas no domínio, na API e nos testes; **ainda não há tela** (Fase 4) e a linha manual "Cartão" continua como está (Fase 5). Sem cartão cadastrado, nada muda no cálculo.
+**Status (branch `feature/despesas-cartao-fatura`):** Fases 0 a 4 feitas (domínio, API, telas e testes). A linha manual "Cartão" continua como está (Fase 5, migração dos seus dados, ainda não feita). Sem cartão cadastrado, nada muda no cálculo.
 
 Funcionalidade **separada** dos investimentos. Substitui a linha manual "Cartão" por uma fatura calculada a partir de despesas ligadas ao cartão.
 
@@ -156,10 +156,11 @@ Funcionalidade **separada** dos investimentos. Substitui a linha manual "Cartão
 
 ### Fase 4: telas
 
-- [ ] Os formulários de Despesa e Despesa extra ganham "Cartão (opcional)" e, com cartão escolhido, o campo de data da compra. As telas de edição ganham o mesmo seletor.
-- [ ] O cadastro do cartão ganha "Teto mensal (opcional)".
-- [ ] Em "Despesas do mês", cada cartão com movimentação aparece como uma linha agrupada, sem entrar no total: "Cartão X, fatura R$ 267,99, vence dia N". Ela mostra as três subtotais, o teto como barra de progresso (passando ou não) e o marcador "Paga/Agendada".
-- [ ] O pagamento da fatura é o único dado novo que precisa de um local próprio, associado ao cartão e ao mês, já que o "Paga" hoje fica na linha manual que vai sair.
+- [ ok ] Lançar → Despesa e Lançar → Despesa extra ganham "Cartão (opcional)" e, com cartão escolhido, "Data da compra" e o aviso de em qual fatura entra (`CardPurchaseField`). Com cartão, o campo de mês some (o valor vale no mês da fatura). Despesa fixa não mostra cartão. Editar despesa e editar despesa extra têm o mesmo seletor; soltar o cartão mantém a despesa e o dia da compra.
+- [ ok ] O cadastro do cartão (Lançar → Cartão) e a edição (perfil) ganham "Teto mensal (opcional)"; o card do cartão mostra o teto, e teto vazio tira o teto. A confirmação de excluir o cartão conta também as despesas ligadas e avisa que nada é apagado.
+- [ ok ] **Mudança de desenho, pedida por você:** a fatura fica em **Compras parceladas**, abaixo das parcelas, e não em Despesas do mês. Cada cartão com movimento no mês tem um item "Fatura <cartão>" com o valor completo (parcelas + recorrências + compras avulsas), fechamento e vencimento, os três subtotais, o teto (barra, % usado e aviso de quanto passou) e "Ver compras avulsas". As linhas de parcela e de recorrente **não mudaram**. As compras avulsas continuam listadas em Despesas do mês, com o selo do cartão e a data da compra, e sem "Marcar como paga" (o pagamento é da fatura). A fatura nunca é somada por cima dos totais.
+- [ ok ] **Despesa no cartão só edita e exclui** (decisão sua): o menu dela não tem "Fixar" (fixa no cartão é recorrência) nem "Marcar como paga" (o pagamento é da fatura). Vale na tela, na store e na API (marcar pagamento individual responde 422; desmarcar um registro antigo continua liberado). Soltar a despesa do cartão devolve as duas opções.
+- [ ok ] Pagamento da fatura: `CreditCard.payments` por mês de vencimento (`"2026-12"`), mesmo formato dos pagamentos de despesas (forma, data, observação; só boleto pode ter data futura = agendada). Menu da fatura: Marcar como paga, Editar pagamento, Desmarcar. Só registro: não muda nenhum valor. Backend: migration `00014_card_invoice_payments.sql`, `PUT/DELETE /credit-cards/{id}/payments/{month}`, import e export. **A migration não foi aplicada em nenhum banco real.** Fora desta etapa: o pagamento da fatura ainda não aparece nos relatórios.
 
 ### Fase 5: migração da linha manual "Cartão"
 
@@ -189,3 +190,9 @@ Funcionalidade **separada** dos investimentos. Substitui a linha manual "Cartão
 
 - Go (`go vet` e `go test ./...` com Postgres descartável): `domain/card_expenses_test.go` (mesmos casos do front) e `httpapi/card_expenses_test.go` (validação, ligar e soltar, virar fixa recusado, teto, mês da fatura em `/summary` e `/projection`, apagar o cartão solta e nada some, importar e exportar). Todos os pacotes verdes.
 - Front: 336 testes (`cardInvoice.test.ts`, remover cartão na store, `ApiRepository` com os campos novos), `eslint` e `tsc -b` limpos; `pnpm --filter @aurora/api-types generate` regenerado.
+
+### Verificação da Fase 4
+
+- Go: `go vet` e `go test ./...` verdes, incluindo `TestCardInvoicePayment` (validação, só boleto futuro, mês por fatura, isolamento entre contas, desmarcar idempotente, criar ignora pagamentos, importar e exportar, o pagamento não muda o total do mês).
+- Front: 346 testes (pagamento da fatura no domínio, na store e no `ApiRepository`; ligar e soltar o cartão de uma despesa), `eslint`, `tsc -b` e `vite build` limpos.
+- Navegador (Chromium, Playwright), **modo local (36/36) e modo API contra o Go real (37/37)**: cadastrar cartão com teto; TV parcelada e Streaming recorrente no cartão; compras avulsas; a fatura soma 100 + 20 + 42 = R$ 162,00 com subtotais, datas e 54% do teto; as linhas de parcela e recorrente iguais; a compra que vence no mês seguinte só aparece lá (parcela 2 + recorrente + compra = R$ 150,00); marcar como paga, recarregar, editar e desmarcar; **pagar a fatura não muda nenhum número do Painel**; passar do teto avisa R$ 62,00 acima; soltar a despesa do cartão tira da fatura; remover o cartão não apaga nada; tour com a etapa da fatura; sem rolagem horizontal a 390 px; nenhuma chamada da API falhou.

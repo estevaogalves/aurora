@@ -17,6 +17,7 @@ type CreditCard struct {
 	DueDay     int32
 	CreatedAt  pgtype.Timestamptz
 	LimitCents int64
+	Payments   []byte
 }
 
 type CreditPurchase struct {

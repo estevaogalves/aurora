@@ -368,6 +368,29 @@ paths:
         "204": { description: Removida }
         "404": { $ref: "#/components/responses/Error" }
 
+  /credit-cards/{id}/payments/{month}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/PaymentMonth" }
+    put:
+      tags: [crédito]
+      summary: Marca a fatura do cartão como paga (ou edita o pagamento)
+      description: O mês é o do vencimento da fatura. Só registro para consulta; não muda nenhum valor, resumo, projeção ou comparação. Forma, data e observação como no pagamento de despesas (só boleto pode ter data futura).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Payment" } } }
+      responses:
+        "200": { description: Cartão atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [crédito]
+      summary: Desmarca o pagamento da fatura deste mês
+      responses:
+        "200": { description: Cartão atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /transactions/{id}/payments/{month}:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -718,6 +741,10 @@ components:
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
         limit: { $ref: "#/components/schemas/Cents", description: "Teto mensal da fatura. Ausente ou 0 = sem teto. Só acompanhamento, não bloqueia nada." }
+        payments:
+          type: object
+          description: Pagamento da fatura por mês de vencimento (AAAA-MM). Só registro, não entra em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação.
+          additionalProperties: { $ref: "#/components/schemas/Payment" }
     CreditCardPatch:
       type: object
       properties:

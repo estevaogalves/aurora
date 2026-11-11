@@ -48,6 +48,8 @@ export interface FinanceRepository {
   setTransactionPayment(id: string, month: string, payment: Payment | null): Promise<void>;
   /** Marca (ou troca) o pagamento de uma despesa extra; null desmarca. */
   setExtraPayment(id: string, payment: Payment | null): Promise<void>;
+  /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro, não muda valores. */
+  setCardPayment(id: string, month: string, payment: Payment | null): Promise<void>;
 
   addNote(note: Note): Promise<void>;
   updateNote(id: string, patch: Partial<Note>): Promise<void>;

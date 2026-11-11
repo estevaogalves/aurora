@@ -251,3 +251,122 @@ func TestCardExpensesImportAndExport(t *testing.T) {
 		t.Fatalf("exportação sem o teto: %+v", exp.Data.CreditCards)
 	}
 }
+
+func TestCardInvoicePayment(t *testing.T) {
+	e := setup(t)
+	tk := e.register(t, "").AccessToken
+	other := e.register(t, "").AccessToken
+	card := newCard(t, e, tk, map[string]any{"name": "Nubank", "closingDay": 2, "dueDay": 9})
+	url := "/api/v1/credit-cards/" + card.ID + "/payments/2026-12"
+
+	// forma, data e mês são conferidos
+	want(t, e.do(t, "PUT", url, tk, map[string]any{"method": "cheque", "date": "2026-11-01"}), 400)
+	want(t, e.do(t, "PUT", url, tk, map[string]any{"method": "pix", "date": "09/12/2026"}), 400)
+	want(t, e.do(t, "PUT", "/api/v1/credit-cards/"+card.ID+"/payments/dezembro", tk, map[string]any{"method": "pix", "date": "2026-11-01"}), 400)
+	// só boleto pode ter data futura (agendado)
+	want(t, e.do(t, "PUT", url, tk, map[string]any{"method": "pix", "date": "2099-01-01"}), 400)
+	want(t, e.do(t, "PUT", url, tk, map[string]any{"method": "boleto", "date": "2099-01-01", "notes": "agendado"}), 200)
+
+	// marcar como paga devolve o cartão com o pagamento daquele mês, e os outros meses seguem sem pagamento
+	r := e.do(t, "PUT", url, tk, map[string]any{"method": "pix", "date": "2026-11-01", "notes": "pago no app"})
+	want(t, r, 200)
+	var paid domain.CreditCard
+	r.json(t, &paid)
+	if p := paid.Payments["2026-12"]; p.Method != "pix" || p.Date != "2026-11-01" || p.Notes != "pago no app" || len(paid.Payments) != 1 {
+		t.Fatalf("depois de pagar: %+v", paid.Payments)
+	}
+	want(t, e.do(t, "PUT", "/api/v1/credit-cards/"+card.ID+"/payments/2027-01", tk, map[string]any{"method": "debit", "date": "2026-11-02"}), 200)
+	if d := loadData(t, e, tk); len(d.CreditCards[0].Payments) != 2 {
+		t.Fatalf("o GET /data deveria trazer os dois pagamentos: %+v", d.CreditCards[0].Payments)
+	}
+
+	// o pagamento é só registro: o valor do mês não muda
+	want(t, e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{"name": "Mercado", "amount": 5000, "type": "expense", "category": "Alimentação", "month": "2026-11", "cardId": card.ID, "purchaseDate": "2026-11-07"}), 201)
+	r = e.do(t, "GET", "/api/v1/summary/2026-12", tk, nil)
+	want(t, r, 200)
+	var sum domain.MonthSummary
+	r.json(t, &sum)
+	if sum.TotalExpense != 5000 {
+		t.Fatalf("o pagamento da fatura mexeu no total: %d", sum.TotalExpense)
+	}
+
+	// outra conta não enxerga nem altera
+	want(t, e.do(t, "PUT", url, other, map[string]any{"method": "pix", "date": "2026-11-01"}), 404)
+	want(t, e.do(t, "DELETE", url, other, nil), 404)
+
+	// desmarcar
+	r = e.do(t, "DELETE", url, tk, nil)
+	want(t, r, 200)
+	var cleared domain.CreditCard
+	r.json(t, &cleared)
+	if _, still := cleared.Payments["2026-12"]; still || len(cleared.Payments) != 1 {
+		t.Fatalf("depois de desmarcar: %+v", cleared.Payments)
+	}
+	// desmarcar o que não está pago não dá erro (idempotente), e cartão inexistente é 404
+	want(t, e.do(t, "DELETE", url, tk, nil), 200)
+	want(t, e.do(t, "PUT", "/api/v1/credit-cards/nao-e-uuid/payments/2026-12", tk, map[string]any{"method": "pix", "date": "2026-11-01"}), 404)
+
+	// criar o cartão ignora pagamentos no corpo (só o endpoint próprio e a importação gravam)
+	made := newCard(t, e, tk, map[string]any{"name": "Outro", "closingDay": 5, "dueDay": 12, "payments": map[string]any{"2026-12": map[string]any{"method": "pix", "date": "2026-11-03"}}})
+	if len(made.Payments) != 0 {
+		t.Fatalf("a criação deveria ignorar os pagamentos: %+v", made.Payments)
+	}
+
+	// importar e exportar levam os pagamentos
+	pack := map[string]any{"creditCards": []map[string]any{{"id": "c1", "name": "Inter", "closingDay": 25, "dueDay": 5, "payments": map[string]any{"2026-12": map[string]any{"method": "boleto", "date": "2026-12-05"}}}}}
+	r = e.do(t, "POST", "/api/v1/import?replace=true", tk, pack)
+	want(t, r, http.StatusCreated)
+	var out domain.FinanceData
+	r.json(t, &out)
+	if len(out.CreditCards) != 1 || out.CreditCards[0].Payments["2026-12"].Method != "boleto" {
+		t.Fatalf("importação perdeu o pagamento: %+v", out.CreditCards)
+	}
+	bad := map[string]any{"creditCards": []map[string]any{{"id": "c1", "name": "Inter", "closingDay": 25, "dueDay": 5, "payments": map[string]any{"2026-12": map[string]any{"method": "cheque", "date": "2026-12-05"}}}}}
+	want(t, e.do(t, "POST", "/api/v1/import?replace=true", tk, bad), 400)
+}
+
+func TestCardExpenseIsPaidByTheInvoice(t *testing.T) {
+	e := setup(t)
+	tk := e.register(t, "").AccessToken
+	card := newCard(t, e, tk, map[string]any{"name": "Nubank", "closingDay": 2, "dueDay": 9})
+	pix := map[string]any{"method": "pix", "date": "2026-11-01"}
+
+	r := e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{"name": "Padaria", "amount": 4200, "type": "expense", "category": "Alimentação", "month": "2026-11", "cardId": card.ID, "purchaseDate": "2026-11-01"})
+	want(t, r, 201)
+	var tx domain.Transaction
+	r.json(t, &tx)
+	r = e.do(t, "POST", "/api/v1/extra-expenses", tk, map[string]any{"name": "Presente", "amount": 9000, "month": "2026-12", "cardId": card.ID, "purchaseDate": "2026-12-01"})
+	want(t, r, 201)
+	var ex domain.ExtraExpense
+	r.json(t, &ex)
+	plain := e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{"name": "Mercado", "amount": 100, "type": "expense", "category": "Alimentação", "month": "2026-11"})
+	want(t, plain, 201)
+	var free domain.Transaction
+	plain.json(t, &free)
+
+	// despesa e extra no cartão não são pagas sozinhas
+	want(t, e.do(t, "PUT", "/api/v1/transactions/"+tx.ID+"/payments/2026-11", tk, pix), 422)
+	want(t, e.do(t, "PUT", "/api/v1/extra-expenses/"+ex.ID+"/payment", tk, pix), 422)
+	// e nada ficou gravado
+	d := loadData(t, e, tk)
+	for _, x := range d.Transactions {
+		if x.ID == tx.ID && len(x.Payments) != 0 {
+			t.Fatalf("a despesa no cartão ficou com pagamento: %+v", x.Payments)
+		}
+	}
+	if d.ExtraExpenses[0].Payment != nil {
+		t.Fatalf("a extra no cartão ficou com pagamento: %+v", d.ExtraExpenses[0].Payment)
+	}
+
+	// despesa sem cartão paga normalmente; desmarcar continua liberado em qualquer caso
+	want(t, e.do(t, "PUT", "/api/v1/transactions/"+free.ID+"/payments/2026-11", tk, pix), 200)
+	want(t, e.do(t, "DELETE", "/api/v1/transactions/"+tx.ID+"/payments/2026-11", tk, nil), 200)
+	want(t, e.do(t, "DELETE", "/api/v1/extra-expenses/"+ex.ID+"/payment", tk, nil), 200)
+
+	// soltar do cartão devolve o pagamento individual
+	want(t, e.do(t, "PATCH", "/api/v1/transactions/"+tx.ID, tk, map[string]any{"cardId": ""}), 200)
+	want(t, e.do(t, "PUT", "/api/v1/transactions/"+tx.ID+"/payments/2026-11", tk, pix), 200)
+
+	// e a fatura paga normalmente
+	want(t, e.do(t, "PUT", "/api/v1/credit-cards/"+card.ID+"/payments/2026-12", tk, pix), 200)
+}

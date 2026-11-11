@@ -1258,6 +1258,85 @@ export interface paths {
         };
         trace?: never;
     };
+    "/credit-cards/{id}/payments/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                /** @description Mês do pagamento (AAAA-MM) */
+                month: components["parameters"]["PaymentMonth"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Marca a fatura do cartão como paga (ou edita o pagamento)
+         * @description O mês é o do vencimento da fatura. Só registro para consulta; não muda nenhum valor, resumo, projeção ou comparação. Forma, data e observação como no pagamento de despesas (só boleto pode ter data futura).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            responses: {
+                /** @description Cartão atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /** Desmarca o pagamento da fatura deste mês */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cartão atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/transactions/{id}/payments/{month}": {
         parameters: {
             query?: never;
@@ -2110,6 +2189,10 @@ export interface components {
             dueDay: number;
             /** @description Teto mensal da fatura. Ausente ou 0 = sem teto. Só acompanhamento, não bloqueia nada. */
             limit?: components["schemas"]["Cents"];
+            /** @description Pagamento da fatura por mês de vencimento (AAAA-MM). Só registro, não entra em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação. */
+            payments?: {
+                [key: string]: components["schemas"]["Payment"];
+            };
         };
         CreditCardPatch: {
             name?: string;

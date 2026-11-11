@@ -102,6 +102,8 @@ export interface CreditCard {
   dueDay: number;
   /** Teto mensal da fatura, em centavos. Ausente = sem teto. Só acompanhamento: não bloqueia nada. */
   limit?: number;
+  /** Pagamento da fatura por mês de vencimento ("2026-12"). Só registro, não entra em nenhuma conta. */
+  payments?: Record<Month, Payment>;
 }
 
 export interface Note {

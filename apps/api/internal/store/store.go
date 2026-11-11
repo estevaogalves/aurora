@@ -314,7 +314,14 @@ type ValidationError struct{ Msg string }
 func (e *ValidationError) Error() string { return e.Msg }
 
 func cardFrom(r sqlcgen.CreditCard) domain.CreditCard {
-	return domain.CreditCard{ID: r.ID.String(), Name: r.Name, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay), Limit: r.LimitCents}
+	k := domain.CreditCard{ID: r.ID.String(), Name: r.Name, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay), Limit: r.LimitCents}
+	if len(r.Payments) > 0 {
+		_ = json.Unmarshal(r.Payments, &k.Payments)
+	}
+	if len(k.Payments) == 0 {
+		k.Payments = nil
+	}
+	return k
 }
 
 func noteFrom(r sqlcgen.Note) domain.Note {

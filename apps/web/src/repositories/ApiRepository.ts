@@ -144,6 +144,8 @@ export class ApiRepository implements FinanceRepository {
 
   setTransactionPayment = (id: string, month: string, payment: Payment | null) =>
     this.enqueue(() => (payment ? api.put(`/transactions/${id}/payments/${month}`, payment) : api.delete(`/transactions/${id}/payments/${month}`)));
+  setCardPayment = (id: string, month: string, payment: Payment | null) =>
+    this.enqueue(() => (payment ? api.put(`/credit-cards/${id}/payments/${month}`, payment) : api.delete(`/credit-cards/${id}/payments/${month}`)));
   setExtraPayment = (id: string, payment: Payment | null) =>
     this.enqueue(() => (payment ? api.put(`/extra-expenses/${id}/payment`, payment) : api.delete(`/extra-expenses/${id}/payment`)));
 

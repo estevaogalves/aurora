@@ -6,7 +6,7 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
-import { canAdvanceInstallment, chargeDay, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
+import { canAdvanceInstallment, chargeDay, dayMonth, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
 import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits, useResolvedExtras } from "@/Store/selectors";
@@ -15,6 +15,7 @@ import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date
 import EditExtraDialog from "../Projection/EditExtraDialog";
 import { showToast } from "../Warnings/toast";
 import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
+import InvoicesSection from "./Invoices";
 import { AdvanceDialog, CancelRecurrenceDialog, EditInstallmentDialog, ScopeDialog } from "./InstallmentDialogs";
 import PaymentDialog, { type PaymentTarget } from "./PaymentDialog";
 import { ProgressMini, Row } from "./rows";
@@ -61,6 +62,7 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
   const toggleFixed = useFinanceStore((s) => s.toggleTransactionFixed);
   const month = useFinanceStore((s) => s.currentMonth);
   const colorOf = useCategoryColor();
+  const cardName = useFinanceStore((s) => s.creditCards.find((k) => k.id === t.cardId)?.name);
   const income = t.type === "income";
   const payment = pay ? paymentOf(t, month) : undefined;
   const note = useNotes(t.notes, payment?.notes);
@@ -73,7 +75,8 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
       unpinLabel="Desafixar"
       deleteLabel={t.fixed ? "Ocultar neste mês" : "Excluir"}
       onEdit={() => onEdit(t)}
-      onPin={() => toggleFixed(t.id)}
+      // despesa no cartão só edita e exclui: não fixa (fixa no cartão é recorrência) e não paga sozinha (entra na fatura)
+      onPin={t.cardId ? undefined : () => toggleFixed(t.id)}
       onDelete={() => onDelete(t.id)}
       onPay={pay?.onPay}
       paid={!!payment}
@@ -110,6 +113,7 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
         <>
           {!income && t.category}
           {t.fixed ? <Pill tone="fix">Fixa</Pill> : income ? <Pill>Variável</Pill> : null}
+          {cardName && <Pill>{cardName}{t.purchaseDate ? ` · compra ${dayMonth(t.purchaseDate)}` : ""}</Pill>}
           {payment && <PaidBadge payment={payment} />}
         </>
       }
@@ -121,8 +125,9 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
   );
 }
 
-function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraExpense; color: string; onEdit: () => void; onDelete: () => void; onPay: () => void; onClearPay?: () => void }) {
+function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraExpense; color: string; onEdit: () => void; onDelete: () => void; onPay?: () => void; onClearPay?: () => void }) {
   const note = useNotes(e.payment?.notes);
+  const cardName = useFinanceStore((s) => s.creditCards.find((k) => k.id === e.cardId)?.name);
   return (
     <Row
       color={color}
@@ -130,6 +135,7 @@ function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraE
       meta={
         <>
           <Pill>Despesa extra</Pill>
+          {cardName && <Pill>{cardName}{e.purchaseDate ? ` · compra ${dayMonth(e.purchaseDate)}` : ""}</Pill>}
           {e.payment && <PaidBadge payment={e.payment} />}
         </>
       }
@@ -251,7 +257,7 @@ function ExpensesPanel() {
     <Panel tour="despesas" title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
       {count > 0 && variable.length === 0 && extras.length === 0 && <Empty>Nenhuma despesa variável neste mês.</Empty>}
-      {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}
+      {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={t.cardId ? undefined : payTx(t)} />)}
       {extras.map((e) => (
         <ExtraRow
           key={e.id}
@@ -259,8 +265,9 @@ function ExpensesPanel() {
           color={colorOf("Outros")}
           onEdit={() => setEditingExtra(e)}
           onDelete={() => setExtraToDelete(e.id)}
-          onPay={() => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
-          onClearPay={e.payment ? () => setExtraPayment(e.id, null) : undefined}
+          // no cartão, o pagamento é marcado na fatura (Compras parceladas)
+          onPay={e.cardId ? undefined : () => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
+          onClearPay={e.payment && !e.cardId ? () => setExtraPayment(e.id, null) : undefined}
         />
       ))}
       {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}</FixedSection>}
@@ -404,6 +411,7 @@ function InstallmentsPanel() {
           <TotalFooter label="Total das parcelas do mês" value={total} />
         </>
       )}
+      <InvoicesSection />
 
       <ScopeDialog
         open={step === "edit-scope"}

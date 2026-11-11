@@ -7,7 +7,9 @@ import {
   getMonthSummary,
   getProjection,
   getReportRows,
+  cardPaymentOf,
   invoiceDates,
+  patchCardPayment,
   resolveCardExpenses,
   type CreditCard,
   type CreditTransaction,
@@ -179,5 +181,41 @@ describe("fatura do cartão no mês", () => {
     const allBefore = ["2026-11", "2026-12", "2027-01", "2027-02"].reduce((s, m) => s + getMonthSummary(data, m).totalExpense, 0);
     expect(all).toBe(allBefore);
     expect(before).toBeGreaterThan(0);
+  });
+});
+
+describe("pagamento da fatura (só registro)", () => {
+  const pix = { method: "pix" as const, date: "2026-12-09" };
+  const boleto = { method: "boleto" as const, date: "2026-12-10", notes: "agendado" };
+
+  it("marca por mês de vencimento, troca e desmarca, sem tocar nos outros meses", () => {
+    const paid = patchCardPayment({}, "2026-12", pix);
+    expect(paid.payments).toEqual({ "2026-12": pix });
+    const both = patchCardPayment(paid, "2027-01", boleto);
+    expect(both.payments).toEqual({ "2026-12": pix, "2027-01": boleto });
+    expect(patchCardPayment(both, "2026-12", { ...pix, method: "debit" }).payments?.["2026-12"].method).toBe("debit");
+    expect(patchCardPayment(both, "2026-12", null).payments).toEqual({ "2027-01": boleto });
+  });
+
+  it("sem nenhum pagamento sobrando, `payments` some", () => {
+    expect(patchCardPayment({ payments: { "2026-12": pix } }, "2026-12", null).payments).toBeUndefined();
+    expect(patchCardPayment({}, "2026-12", null).payments).toBeUndefined();
+  });
+
+  it("não altera o objeto recebido e não muda nenhum valor do mês", () => {
+    const card = { ...nubank, payments: { "2026-12": pix } };
+    patchCardPayment(card, "2026-12", null);
+    expect(card.payments).toEqual({ "2026-12": pix });
+    const data = { transactions: [onCard("a", 5000, "nu", "2026-11-07")], creditTransactions: [] as CreditTransaction[], creditCards: [nubank] };
+    const paidData = { ...data, creditCards: [{ ...nubank, ...patchCardPayment(nubank, "2026-12", pix) }] };
+    expect(getMonthSummary(paidData, "2026-12")).toEqual(getMonthSummary(data, "2026-12"));
+    expect(getCardInvoice(paidData, paidData.creditCards[0], "2026-12").total).toBe(5000);
+  });
+
+  it("cardPaymentOf lê o pagamento do mês", () => {
+    const card = { ...nubank, payments: { "2026-12": pix } };
+    expect(cardPaymentOf(card, "2026-12")).toEqual(pix);
+    expect(cardPaymentOf(card, "2026-11")).toBeUndefined();
+    expect(cardPaymentOf(nubank, "2026-12")).toBeUndefined();
   });
 });

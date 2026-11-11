@@ -661,6 +661,8 @@ func (s *Server) createCreditCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
+	// o pagamento da fatura só entra pelo endpoint próprio (ou pela importação)
+	in.Payments = nil
 	if bad(w, validateCard(in)) {
 		return
 	}
@@ -724,4 +726,36 @@ func (s *Server) removeInstallment(w http.ResponseWriter, r *http.Request) {
 	s.adjustInstallment(w, r, func(c domain.CreditTransaction, n int) (map[string]domain.InstallmentAdjustment, string) {
 		return domain.RemoveInstallment(c, n)
 	})
+}
+
+/* ---------- pagamento da fatura do cartão (só registro; não muda nenhum valor) ---------- */
+
+func (s *Server) setCardPayment(w http.ResponseWriter, r *http.Request) {
+	var in domain.Payment
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	month := chi.URLParam(r, "month")
+	if bad(w, first(checkMonth(month), checkPayment(in))) {
+		return
+	}
+	s.respondCardPayment(w, r, month, &in)
+}
+
+func (s *Server) clearCardPayment(w http.ResponseWriter, r *http.Request) {
+	month := chi.URLParam(r, "month")
+	if bad(w, checkMonth(month)) {
+		return
+	}
+	s.respondCardPayment(w, r, month, nil)
+}
+
+func (s *Server) respondCardPayment(w http.ResponseWriter, r *http.Request, month string, p *domain.Payment) {
+	out, err := s.store.SetCardPayment(r.Context(), userID(r), chi.URLParam(r, "id"), month, p)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
 }
