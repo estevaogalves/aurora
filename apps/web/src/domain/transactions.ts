@@ -1,10 +1,14 @@
-import { compareMonths, getMonthsBetween } from "../Utils/Date";
+import { changeMonth, compareMonths, getMonthsBetween } from "../Utils/Date";
 import type { Month, Transaction } from "./types";
 
-/** Uma transação fixa vale do mês em que foi criada em diante, menos nos meses ocultados. */
+/**
+ * Uma transação fixa vale do mês em que foi criada em diante, menos nos meses ocultados e depois do mês em que
+ * foi encerrada (`endMonth`, o último mês em que vale).
+ */
 export function isFixedActiveIn(t: Transaction, month: Month): boolean {
   if (!t.fixed) return false;
   if (compareMonths(month, t.month) < 0) return false;
+  if (t.endMonth && compareMonths(month, t.endMonth) > 0) return false;
   return !t.hiddenMonths?.includes(month);
 }
 
@@ -45,6 +49,37 @@ export function getHiddenTransactionsByMonth(
   return transactions.filter(
     (t) => t.fixed && compareMonths(month, t.month) >= 0 && t.hiddenMonths?.includes(month),
   );
+}
+
+/** Fixas encerradas que já não valem neste mês (para poder reativar). */
+export function getEndedTransactionsByMonth(transactions: Transaction[], month: Month): Transaction[] {
+  return transactions.filter((t) => t.fixed && !!t.endMonth && compareMonths(month, t.month) >= 0 && compareMonths(month, t.endMonth) > 0);
+}
+
+export type EndResult = { ok: true; patch: Partial<Transaction> } | { ok: false; error: string };
+
+/**
+ * Encerra uma fixa a partir de `month` (inclusive): o último mês em que vale passa a ser o anterior. Os meses
+ * anteriores, os valores e os pagamentos já registrados não mudam. Não encerra no mês em que a fixa começa
+ * (nesse caso ela sumiria inteira: para isso existe Excluir).
+ */
+export function patchEndFromMonth(t: Transaction, month: Month): EndResult {
+  if (!t.fixed) return { ok: false, error: "Só despesas e rendas fixas podem ser encerradas." };
+  if (compareMonths(month, t.month) <= 0) return { ok: false, error: "A fixa começa neste mês: para tirá-la por inteiro, use Excluir." };
+  return { ok: true, patch: { endMonth: changeMonth(month, -1) } };
+}
+
+/**
+ * Reativa uma fixa encerrada a partir de `month` (inclusive). Os meses que ficaram desativados entre o fim e este
+ * mês continuam desativados: eles passam a constar como ocultos (dá para restaurar cada um, se quiser). Reativar
+ * no mês logo depois do fim só tira o fim.
+ */
+export function patchResumeFixed(t: Transaction, month: Month): Partial<Transaction> {
+  if (!t.endMonth) return {};
+  const gap = getMonthsBetween(changeMonth(t.endMonth, 1), changeMonth(month, -1));
+  if (gap.length === 0) return { endMonth: undefined };
+  const hidden = [...new Set([...(t.hiddenMonths ?? []), ...gap])].sort(compareMonths);
+  return { endMonth: undefined, hiddenMonths: hidden };
 }
 
 /* ---------- alterações: devolvem o patch a aplicar na transação ---------- */
@@ -107,7 +142,7 @@ export function patchToggleFixed(t: Transaction): Partial<Transaction> {
   if (!t.fixed) {
     return { fixed: true, hiddenMonths: [] };
   }
-  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, variableAmount: undefined };
+  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, variableAmount: undefined, endMonth: undefined };
 }
 
 /** Fixa de valor variável: tira o valor real deste mês e ele volta ao estimado. null se o mês já está estimado. */

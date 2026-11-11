@@ -682,6 +682,7 @@ components:
           additionalProperties: { $ref: "#/components/schemas/Payment" }
         cardId: { type: string, format: uuid, description: "Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`." }
         purchaseDate: { type: string, format: date, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
+        endMonth: { $ref: "#/components/schemas/Month", description: "Só fixas. Fixa encerrada: o último mês em que vale (\"2026-11\" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam." }
     Payment:
       type: object
       required: [method, date]
@@ -703,6 +704,7 @@ components:
         variableAmount: { type: boolean, description: "Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado." }
         cardId: { type: string, description: 'Despesa avulsa no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, a despesa tem que ter `purchaseDate` (no mesmo pedido ou já guardado) e não pode ser fixa.' }
         purchaseDate: { type: string, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
+        endMonth: { type: string, description: 'Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa.' }
 
     CreditTransaction:
       type: object

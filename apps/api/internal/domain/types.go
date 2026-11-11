@@ -25,6 +25,8 @@ type Transaction struct {
 	// fatura (ResolveCardTransactions); Month e PurchaseDate ficam como foram lançados. Fixa não tem cartão.
 	CardID       string `json:"cardId,omitempty"`
 	PurchaseDate string `json:"purchaseDate,omitempty"`
+	// EndMonth: fixa encerrada, o último mês em que vale ("2026-11" = vale até novembro). Vazio = segue valendo.
+	EndMonth string `json:"endMonth,omitempty"`
 }
 
 type CreditTransaction struct {

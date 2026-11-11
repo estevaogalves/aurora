@@ -109,7 +109,7 @@ func (l Limits) validateTransaction(t domain.Transaction) string {
 		return "Pagamentos demais em um lançamento."
 	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
+		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
 }
 
 func checkCategory(c string) string {
@@ -152,6 +152,23 @@ func checkCardPayments(payments map[string]domain.Payment) string {
 		if msg := first(checkMonth(m), checkPayment(p)); msg != "" {
 			return msg
 		}
+	}
+	return ""
+}
+
+// checkEndMonth confere o fim de uma fixa: só fixa, mês válido e não antes do mês em que ela começa.
+func checkEndMonth(fixed bool, month, endMonth string) string {
+	if endMonth == "" {
+		return ""
+	}
+	if msg := checkMonth(endMonth); msg != "" {
+		return msg
+	}
+	if !fixed {
+		return "Só despesas e rendas fixas podem ser encerradas."
+	}
+	if domain.CompareMonths(endMonth, month) < 0 {
+		return "O mês final não pode ser antes do mês em que a fixa começa."
 	}
 	return ""
 }

@@ -27,6 +27,8 @@ type TransactionPatch struct {
 	// CardID: nil não muda; ponteiro para "" solta a despesa do cartão. PurchaseDate: dia da compra no cartão.
 	CardID       *string
 	PurchaseDate *string
+	// EndMonth: último mês em que a fixa vale. nil não muda; ponteiro para "" tira o fim.
+	EndMonth *string
 }
 
 func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
@@ -46,7 +48,7 @@ func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.Fixed && t.VariableAmount,
-		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate,
+		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth,
 	})
 	if err != nil {
 		return domain.Transaction{}, err
@@ -101,7 +103,7 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		arg := sqlcgen.UpdateTransactionParams{
 			Name: text(p.Name), AmountCents: int8v(p.Amount), Category: text(p.Category),
 			Notes: text(p.Notes), Fixed: boolv(p.Fixed), VariableAmount: boolv(p.VariableAmount),
-			PurchaseDate: text(p.PurchaseDate), ID: tid, UserID: userID,
+			PurchaseDate: text(p.PurchaseDate), EndMonth: text(p.EndMonth), ID: tid, UserID: userID,
 		}
 		if p.CardID != nil {
 			if err := ownsCard(ctx, q, userID, *p.CardID); err != nil {
@@ -115,6 +117,9 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		}
 		// o resultado tem que ser uma despesa avulsa válida: virar fixa com cartão, por exemplo, é recusado
 		if err := checkCardState(row.Fixed, row.Type, row.CardID, row.PurchaseDate); err != nil {
+			return err
+		}
+		if err := checkEndState(row.Fixed, row.Month, row.EndMonth); err != nil {
 			return err
 		}
 
@@ -202,7 +207,7 @@ func (s *Store) SetTransactionPayment(ctx context.Context, userID uuid.UUID, id,
 		if cur.CardID.Valid && p != nil {
 			return &ValidationError{"Despesa no cartão é paga pela fatura do cartão."}
 		}
-		if (!cur.Fixed && month != cur.Month) || (cur.Fixed && domain.CompareMonths(month, cur.Month) < 0) {
+		if (!cur.Fixed && month != cur.Month) || (cur.Fixed && (domain.CompareMonths(month, cur.Month) < 0 || (cur.EndMonth != "" && domain.CompareMonths(month, cur.EndMonth) > 0))) {
 			return &ValidationError{"Esta despesa não existe neste mês."}
 		}
 		payments := map[string]domain.Payment{}

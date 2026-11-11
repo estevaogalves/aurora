@@ -15,6 +15,8 @@ interface RowMenuProps {
   onAdvance?: () => void;
   /** só em compras recorrentes ainda ativas: "Cancelar recorrência" */
   onCancelRecurrence?: () => void;
+  /** só em fixas: "Encerrar a partir daqui" */
+  onEnd?: () => void;
   /** só em despesas: "Marcar como paga" (ou "Editar pagamento", se `paid`) */
   onPay?: () => void;
   paid?: boolean;
@@ -24,7 +26,7 @@ interface RowMenuProps {
 }
 
 /** Botão ⋮ que abre Editar, Excluir e Fixar como atalho. */
-export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLabel = "Fixar como atalho", unpinLabel = "Desafixar", deleteLabel = "Excluir", onAdvance, onCancelRecurrence, onPay, paid, onClearPay }: RowMenuProps) {
+export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLabel = "Fixar como atalho", unpinLabel = "Desafixar", deleteLabel = "Excluir", onAdvance, onCancelRecurrence, onEnd, onPay, paid, onClearPay }: RowMenuProps) {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -63,6 +65,12 @@ export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLab
           <DropdownMenuItem onSelect={onAdvance}>
             <Icon name="calendar" size={15} />
             Adiantar parcela
+          </DropdownMenuItem>
+        )}
+        {onEnd && (
+          <DropdownMenuItem onSelect={onEnd}>
+            <Icon name="calendar" size={15} />
+            Encerrar a partir daqui
           </DropdownMenuItem>
         )}
         {onCancelRecurrence && (

@@ -15,6 +15,7 @@ import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date
 import EditExtraDialog from "../Projection/EditExtraDialog";
 import { showToast } from "../Warnings/toast";
 import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
+import { EndedList, EndFixedDialog } from "./EndedFixed";
 import InvoicesSection from "./Invoices";
 import { AdvanceDialog, CancelRecurrenceDialog, EditInstallmentDialog, ScopeDialog } from "./InstallmentDialogs";
 import PaymentDialog, { type PaymentTarget } from "./PaymentDialog";
@@ -58,7 +59,7 @@ interface PayActions {
   onClearPay: () => void;
 }
 
-function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void; pay?: PayActions }) {
+function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void; onEnd?: (t: Transaction) => void; pay?: PayActions }) {
   const toggleFixed = useFinanceStore((s) => s.toggleTransactionFixed);
   const month = useFinanceStore((s) => s.currentMonth);
   const colorOf = useCategoryColor();
@@ -78,6 +79,7 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
       // despesa no cartão só edita e exclui: não fixa (fixa no cartão é recorrência) e não paga sozinha (entra na fatura)
       onPin={t.cardId ? undefined : () => toggleFixed(t.id)}
       onDelete={() => onDelete(t.id)}
+      onEnd={t.fixed && onEnd ? () => onEnd(t) : undefined}
       onPay={pay?.onPay}
       paid={!!payment}
       onClearPay={payment ? pay?.onClearPay : undefined}
@@ -200,6 +202,7 @@ function IncomesPanel() {
   const month = useFinanceStore((s) => s.currentMonth);
   const removeByMonth = useFinanceStore((s) => s.removeTransactionByMonth);
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [ending, setEnding] = useState<Transaction | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
   const target = incomes.find((i) => i.id === toDelete);
 
@@ -207,10 +210,12 @@ function IncomesPanel() {
     <Panel tour="rendas" title="Rendas" subtitle="Fontes do mês">
       {incomes.length === 0 ? <Empty>Nenhuma renda cadastrada. Use o botão Lançar.</Empty> : variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}
       {incomes.length > 0 && variable.length === 0 && <Empty>Nenhuma renda variável neste mês.</Empty>}
-      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}</FixedSection>}
+      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} />)}</FixedSection>}
       <HiddenList kind="income" />
+      <EndedList kind="income" />
       {incomes.length > 0 && <TotalFooter label="Total das rendas do mês" value={incomes.reduce((sum, t) => sum + t.amount, 0)} className="text-success" />}
       <EditTransactionDialog transaction={editing} onClose={() => setEditing(null)} />
+      <EndFixedDialog transaction={ending} month={month} onClose={() => setEnding(null)} />
       <ConfirmDeletion
         open={!!target}
         itemLabel={target?.fixed ? "renda fixa" : "renda"}
@@ -235,6 +240,7 @@ function ExpensesPanel() {
   const [editingExtra, setEditingExtra] = useState<ExtraExpense | null>(null);
   const [extraToDelete, setExtraToDelete] = useState<string | null>(null);
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [ending, setEnding] = useState<Transaction | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
   const target = expenses.find((e) => e.id === toDelete);
   const fixed = expenses.filter((t) => t.fixed).sort((a, b) => b.amount - a.amount);
@@ -270,10 +276,12 @@ function ExpensesPanel() {
           onClearPay={e.payment && !e.cardId ? () => setExtraPayment(e.id, null) : undefined}
         />
       ))}
-      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}</FixedSection>}
+      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} pay={payTx(t)} />)}</FixedSection>}
       <HiddenList kind="expense" />
+      <EndedList kind="expense" />
       {count > 0 && <TotalFooter label="Total das despesas do mês (sem parcelas)" value={expenses.reduce((sum, t) => sum + t.amount, 0) + extras.reduce((sum, e) => sum + e.amount, 0)} />}
       <EditTransactionDialog transaction={editing} onClose={() => setEditing(null)} />
+      <EndFixedDialog transaction={ending} month={month} onClose={() => setEnding(null)} />
       <EditExtraDialog extra={editingExtra} onClose={() => setEditingExtra(null)} />
       <PaymentDialog target={paying} onConfirm={confirmPayment} onClose={() => setPaying(null)} />
       <ConfirmDeletion

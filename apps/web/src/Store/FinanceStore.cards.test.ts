@@ -119,3 +119,43 @@ describe("despesa no cartão só edita e exclui", () => {
     expect(repo.setTransactionPayment).toHaveBeenCalledWith("t1", "2026-11", null);
   });
 });
+
+describe("encerrar uma despesa fixa", () => {
+  beforeEach(() => {
+    useFinanceStore.setState({
+      transactions: [
+        { id: "f", name: "Cartão", amount: 30000, type: "expense", category: "Outros", fixed: true, month: "2026-06" },
+        { id: "n", name: "Mercado", amount: 5000, type: "expense", category: "Alimentação", month: "2026-11" },
+      ],
+    });
+  });
+
+  it("encerra a partir do mês, grava o último mês em que vale e avisa o repositório", () => {
+    expect(store().endTransactionFromMonth("f", "2026-12")).toBeNull();
+    expect(store().transactions.find((t) => t.id === "f")?.endMonth).toBe("2026-11");
+    expect(repo.updateTransaction).toHaveBeenLastCalledWith("f", { endMonth: "2026-11" });
+  });
+
+  it("recusa no mês em que a fixa começa, em despesa comum e em lançamento que não existe", () => {
+    expect(store().endTransactionFromMonth("f", "2026-06")).toMatch(/Excluir/);
+    expect(store().endTransactionFromMonth("n", "2026-12")).toMatch(/fixas/);
+    expect(store().endTransactionFromMonth("nada", "2026-12")).toMatch(/não encontrado/);
+    expect(repo.updateTransaction).not.toHaveBeenCalled();
+  });
+
+  it("reativar no mês seguinte ao fim só tira o fim", () => {
+    store().endTransactionFromMonth("f", "2026-12");
+    store().resumeTransaction("f", "2026-12");
+    expect(store().transactions.find((t) => t.id === "f")?.endMonth).toBeUndefined();
+    expect(repo.updateTransaction).toHaveBeenLastCalledWith("f", { endMonth: undefined });
+  });
+
+  it("reativar depois do fim deixa os meses do intervalo desativados e avisa o repositório", () => {
+    store().endTransactionFromMonth("f", "2026-12");
+    store().resumeTransaction("f", "2027-02");
+    const f = store().transactions.find((t) => t.id === "f");
+    expect(f?.endMonth).toBeUndefined();
+    expect(f?.hiddenMonths).toEqual(["2026-12", "2027-01"]);
+    expect(repo.updateTransaction).toHaveBeenLastCalledWith("f", { endMonth: undefined, hiddenMonths: ["2026-12", "2027-01"] });
+  });
+});

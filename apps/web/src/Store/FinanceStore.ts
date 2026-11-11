@@ -22,6 +22,8 @@ import {
   patchContribution,
   maturityAlertPrefix,
   patchCardPayment,
+  patchEndFromMonth,
+  patchResumeFixed,
   replayInvestment,
   type Investment,
   type InvestmentMovement,
@@ -93,6 +95,10 @@ interface FinanceState {
   setTransactionVariable: (id: string, variable: boolean) => void;
   /** Fixa variável: tira o valor real do mês e volta ao estimado. */
   clearTransactionActualValue: (id: string, month: string) => void;
+  /** Encerra a fixa a partir de `month` (inclusive). Devolve a mensagem de erro, ou null se deu certo. */
+  endTransactionFromMonth: (id: string, month: string) => string | null;
+  /** Reativa uma fixa encerrada a partir de `month`; os meses desativados antes dele continuam desativados. */
+  resumeTransaction: (id: string, month: string) => void;
   /** Fixa: oculta no mês. Comum: remove de vez. */
   removeTransactionByMonth: (id: string, month: string) => void;
   restoreTransactionByMonth: (id: string, month: string) => void;
@@ -301,6 +307,20 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       const t = findTransaction(id);
       const patch = t && patchClearMonthValue(t, month);
       if (patch) patchTransaction(id, patch);
+    },
+
+    endTransactionFromMonth: (id, month) => {
+      const t = findTransaction(id);
+      if (!t) return "Lançamento não encontrado.";
+      const result = patchEndFromMonth(t, month);
+      if (!result.ok) return result.error;
+      patchTransaction(id, result.patch);
+      return null;
+    },
+
+    resumeTransaction: (id, month) => {
+      const t = findTransaction(id);
+      if (t?.fixed && t.endMonth) patchTransaction(id, patchResumeFixed(t, month));
     },
 
     removeTransactionByMonth: (id, month) => {

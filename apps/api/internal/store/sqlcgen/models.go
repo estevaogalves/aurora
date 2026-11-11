@@ -147,6 +147,7 @@ type Transaction struct {
 	VariableAmount bool
 	CardID         uuid.NullUUID
 	PurchaseDate   string
+	EndMonth       string
 }
 
 type User struct {

@@ -23,7 +23,7 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
   return out;
 }
 
-const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate"] as const;
+const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth"] as const;
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
 const CARD_PATCH = ["name", "closingDay", "dueDay", "limit"] as const;
 const GOAL_PATCH = ["name", "target", "saved", "monthly", "yieldTotal", "deadline"] as const;
@@ -56,6 +56,8 @@ export function investmentPatchBody(patch: Partial<Investment>): Record<string, 
 export function cardExpensePatchBody<T extends { cardId?: string }>(patch: Partial<T>, keys: readonly (keyof T)[]): Record<string, unknown> {
   const body: Record<string, unknown> = pick(patch as T, keys);
   if ("cardId" in body && body.cardId === undefined) body.cardId = "";
+  // fixa reativada: `endMonth` limpo (undefined) vira "", que tira o fim
+  if ("endMonth" in body && body.endMonth === undefined) body.endMonth = "";
   return body;
 }
 

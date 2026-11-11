@@ -4,6 +4,7 @@ import {
   DEFAULT_DISTRIBUTION,
   distributeBalance,
   getExpensesByCategory,
+  getEndedTransactionsByMonth,
   getHiddenTransactionsByMonth,
   getMonthSummary,
   resolveCardExpenses,
@@ -60,6 +61,13 @@ export function useResolvedExtras() {
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
   const creditCards = useFinanceStore((s) => s.creditCards);
   return useMemo(() => resolveCardExpenses(extraExpenses, creditCards), [extraExpenses, creditCards]);
+}
+
+export function useEndedTransactions(month?: string) {
+  const m = useMonth(month);
+  const transactions = useFinanceStore((s) => s.transactions);
+
+  return useMemo(() => getEndedTransactionsByMonth(transactions, m), [transactions, m]);
 }
 
 export function useMonthCredit(month?: string) {

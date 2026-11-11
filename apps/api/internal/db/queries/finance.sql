@@ -5,8 +5,8 @@ SELECT * FROM transactions WHERE user_id = $1 ORDER BY created_at, id;
 SELECT * FROM transactions WHERE id = $1 AND user_id = $2;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -20,7 +20,9 @@ UPDATE transactions SET
     variable_amount = COALESCE(sqlc.narg('fixed'), fixed) AND COALESCE(sqlc.narg('variable_amount'), variable_amount),
     -- card_id: só muda quando set_card é true; card_id nulo solta a despesa do cartão
     card_id       = CASE WHEN sqlc.arg('set_card')::boolean THEN sqlc.narg('card_id')::uuid ELSE card_id END,
-    purchase_date = COALESCE(sqlc.narg('purchase_date'), purchase_date)
+    purchase_date = COALESCE(sqlc.narg('purchase_date'), purchase_date),
+    -- fixa encerrada: último mês em que vale; texto vazio tira o fim
+    end_month     = COALESCE(sqlc.narg('end_month'), end_month)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 

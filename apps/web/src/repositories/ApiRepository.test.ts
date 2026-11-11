@@ -70,6 +70,25 @@ describe("ApiRepository: despesas no cartão", () => {
   });
 });
 
+describe("ApiRepository: encerrar despesa fixa", () => {
+  it("manda o último mês em que vale e, ao reativar, \"\" para tirar o fim", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.updateTransaction("f", { endMonth: "2026-11" });
+    await repo.updateTransaction("f", { endMonth: undefined });
+    await repo.updateTransaction("f", { name: "Novo" });
+    expect(calls.map((c) => c.body)).toEqual([{ endMonth: "2026-11" }, { endMonth: "" }, { name: "Novo" }]);
+  });
+
+  it("deixar de ser fixa também limpa o fim", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    await new ApiRepository().updateTransaction("f", { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, variableAmount: undefined, endMonth: undefined });
+    expect(calls[0].body).toMatchObject({ fixed: false, endMonth: "" });
+  });
+});
+
 describe("ApiRepository: pagamento da fatura", () => {
   it("marca com PUT e desmarca com DELETE na rota do cartão e do mês", async () => {
     setAccessToken("t");

@@ -2123,6 +2123,8 @@ export interface components {
              * @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido.
              */
             purchaseDate?: string;
+            /** @description Só fixas. Fixa encerrada: o último mês em que vale ("2026-11" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam. */
+            endMonth?: components["schemas"]["Month"];
         };
         Payment: {
             /** @enum {string} */
@@ -2154,6 +2156,8 @@ export interface components {
             cardId?: string;
             /** @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido. */
             purchaseDate?: string;
+            /** @description Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa. */
+            endMonth?: string;
         };
         CreditTransaction: {
             /** Format: uuid */

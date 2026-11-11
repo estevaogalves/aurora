@@ -38,6 +38,10 @@ func IsFixedActiveIn(t Transaction, month string) bool {
 	if !t.Fixed || CompareMonths(month, t.Month) < 0 {
 		return false
 	}
+	// encerrada: não vale depois do último mês
+	if t.EndMonth != "" && CompareMonths(month, t.EndMonth) > 0 {
+		return false
+	}
 	return !contains(t.HiddenMonths, month)
 }
 
