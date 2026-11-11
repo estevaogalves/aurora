@@ -6,7 +6,7 @@ Acompanhamento do módulo de controle pessoal de investimentos do Aurora: regist
 
 **Status:** tela e regras prontas e validadas **no modo local** (localStorage). **Backend (API em Go) ainda não existe**: no modo API, criar investimento falha de propósito. Nada foi para a `main`.
 
-Plano original de planejamento: `~/.claude/plans/pasted-content-id-8d68-planejamento-bright-sky.md` (arquivo local da sessão de planejamento).
+Plano original de planejamento: [`investimentos-planejamento.md`](investimentos-planejamento.md).
 
 ---
 
