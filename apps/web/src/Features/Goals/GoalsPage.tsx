@@ -9,6 +9,7 @@ import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { formatMonthShort, getCurrentMonth } from "@/Utils/Date";
+import InvestmentsView from "../Investments/InvestmentsView";
 import { getDemoGoals } from "./demo";
 import { ContributeDialog, GoalDialog } from "./GoalDialogs";
 import { deadlineStatus, useGoalAlerts } from "./goalAlerts";
@@ -142,7 +143,7 @@ function PiggyCard({ goal, onContribute, onEdit, onDelete }: { goal: Goal; onCon
   );
 }
 
-export default function GoalsPage() {
+function GoalsView() {
   const goals = useFinanceStore((s) => s.goals);
   const mainGoals = goals.filter((g) => !g.piggy);
   const piggies = goals.filter((g) => g.piggy);
@@ -225,6 +226,44 @@ export default function GoalsPage() {
           setDeleting(null);
         }}
       />
+    </>
+  );
+}
+
+type View = "metas" | "investimentos";
+
+/** Tela Metas e Investimentos: o seletor no topo alterna entre as duas visões, sem ocupar uma aba nova. */
+export default function GoalsPage() {
+  const [view, setView] = useState<View>("metas");
+  const options: { id: View; label: string }[] = [
+    { id: "metas", label: "Metas" },
+    { id: "investimentos", label: "Investimentos" },
+  ];
+
+  return (
+    <>
+      <div role="tablist" aria-label="Metas ou investimentos" className="mb-4 inline-flex rounded-full border border-border bg-card p-1">
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="tab"
+            aria-selected={view === o.id}
+            onClick={() => setView(o.id)}
+            className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors max-sm:min-h-10 ${view === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {view === "metas" ? (
+        <GoalsView />
+      ) : (
+        <>
+          <PageHeader title="Investimentos" subtitle="Registro manual do que você tem investido: valores e prazos ficam como você informar, sem ligação com bancos ou corretoras." />
+          <InvestmentsView />
+        </>
+      )}
     </>
   );
 }

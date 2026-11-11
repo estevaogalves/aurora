@@ -16,7 +16,7 @@ export function Field({ label, htmlFor, hint, children }: { label: string; htmlF
   );
 }
 
-export function MoneyInput({ id, value, onChange, disabled, placeholder = "0,00" }: { id: string; value: string; onChange?: (v: string) => void; disabled?: boolean; placeholder?: string }) {
+export function MoneyInput({ id, value, onChange, disabled, placeholder = "0,00", keepSign }: { id: string; value: string; onChange?: (v: string) => void; disabled?: boolean; placeholder?: string; /** mantém um "-" digitado no início, para quem usa o campo poder recusar o valor em vez de aceitá-lo sem o sinal */ keepSign?: boolean }) {
   return (
     <div className="relative">
       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-muted-foreground">R$</span>
@@ -27,7 +27,7 @@ export function MoneyInput({ id, value, onChange, disabled, placeholder = "0,00"
         placeholder={placeholder}
         disabled={disabled}
         value={value}
-        onChange={(e) => onChange?.(sanitizeAmountInput(e.target.value))}
+        onChange={(e) => onChange?.((keepSign && e.target.value.trimStart().startsWith("-") ? "-" : "") + sanitizeAmountInput(e.target.value))}
         className={`${inputClass} pl-9 font-semibold`}
       />
     </div>
