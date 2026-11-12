@@ -37,12 +37,15 @@ export function breathingDays(reserve: number, monthExpense: number, daysInMonth
 const RESERVE_WORDS = ["reserva", "emergencia"];
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
+/** O nome indica uma reserva ("Reserva de emergência", "Reserva pra moto", "Emergência")? */
+export const isReserveName = (name: string) => RESERVE_WORDS.some((w) => plain(name).includes(w));
+
 /**
  * Reserva atual: o guardado nas metas e porquinhos com "reserva" ou "emergência" no nome, mais os investimentos
  * de liquidez diária (negócios próprios ficam de fora). Só usa o que o usuário cadastrou.
  */
 export function reserveTotal(goals: Goal[], investments: Investment[]): number {
-  const fromGoals = goals.filter((g) => RESERVE_WORDS.some((w) => plain(g.name).includes(w))).reduce((sum, g) => sum + g.saved, 0);
+  const fromGoals = goals.filter((g) => isReserveName(g.name)).reduce((sum, g) => sum + g.saved, 0);
   const fromInvestments = investments.filter((i) => i.family === "liquid" && !isBusiness(i)).reduce((sum, i) => sum + i.currentValue, 0);
   return fromGoals + fromInvestments;
 }

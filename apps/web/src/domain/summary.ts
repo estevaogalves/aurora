@@ -196,6 +196,11 @@ export function getAvailableMonths(
 
 /* ---------- por categoria ---------- */
 
+/** Soma das despesas fixas que valem em um mês (centavos). Base da sugestão de reserva e do "dia da liberdade de gastos". */
+export function getFixedExpense(transactions: Transaction[], month: Month): number {
+  return fixedTotal(transactions, month, "expense");
+}
+
 /** Despesas do mês agrupadas por categoria, da maior para a menor, só as que têm valor. */
 export function getExpensesByCategory(
   summary: MonthSummary,

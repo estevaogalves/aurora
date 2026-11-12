@@ -6,6 +6,7 @@ import { MAX_CENTS, formatDateBR, makeDistributionOrigin, todayISO, type Distrib
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { uuid } from "@/lib/uuid";
 import { useFinanceStore, type Investment } from "@/Store/FinanceStore";
+import { GoalDialog } from "../Goals/GoalDialogs";
 import { formatMonth } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 
@@ -70,6 +71,10 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
   const [error, setError] = useState("");
 
   const list = options[destination];
+  // a linha da sugestão (ex.: "Reserva pra moto") deveria ter uma meta ou porquinho com o mesmo nome; se não tem, oferece criar
+  const plain = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  const hasMatchingGoal = goals.some((g) => plain(g.name) === plain(request.slice.label));
+  const [creatingGoal, setCreatingGoal] = useState(false);
   const cotas = investments.filter(byQuantity).length;
 
   function pickDestination(next: Destination) {
@@ -104,6 +109,7 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
   const noDestination = (["piggy", "goal", "investment"] as Destination[]).every((d) => options[d].length === 0);
 
   return (
+    <>
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       {noDestination ? (
         <p className="rounded-md bg-secondary px-3 py-2 text-[13px] text-ink2">
@@ -119,6 +125,12 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
               </label>
             ))}
           </div>
+          {!hasMatchingGoal && destination !== "investment" && (
+            <p className="-mb-1 rounded-md bg-secondary px-3 py-2 text-[13px] text-ink2">
+              Não há meta nem porquinho chamado “{request.slice.label}”.{" "}
+              <button type="button" onClick={() => setCreatingGoal(true)} className="font-bold text-primary hover:underline">Criar meta</button>
+            </p>
+          )}
           <Field label={DESTINATION_LABEL[destination]} htmlFor="send-target">
             <select id="send-target" value={targetId} onChange={(e) => setTargetId(e.target.value)} className={inputClass}>
               {list.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
@@ -144,5 +156,14 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
         <Button type="submit" disabled={noDestination}>Enviar</Button>
       </div>
     </form>
+    {/* fora do <form>: o submit de um diálogo em portal sobe pela árvore do React e enviaria este formulário */}
+    <GoalDialog
+      open={creatingGoal}
+      goal={null}
+      initialName={request.slice.label}
+      onClose={() => setCreatingGoal(false)}
+      onCreated={(id) => { setDestination("goal"); setTargetId(id); setError(""); }}
+    />
+    </>
   );
 }
