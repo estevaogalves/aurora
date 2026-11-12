@@ -8,6 +8,7 @@ import { useAuthStore } from "@/Store/AuthStore";
 import { useUiStore } from "@/Store/UiStore";
 import { BACKUP_FILENAME, buildBackup } from "@/Services/backup";
 import { useFinanceStore } from "@/Store/FinanceStore";
+import { usePrivacyStore } from "@/lib/privacy";
 import DeleteAccountDialog from "./AccountDialogs";
 import BackupDialog from "./BackupDialog";
 
@@ -19,6 +20,8 @@ export default function UserMenu() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const openCards = useUiStore((s) => s.openCards);
+  const privacyHidden = usePrivacyStore((s) => s.hidden);
+  const togglePrivacy = usePrivacyStore((s) => s.toggle);
   const [deleting, setDeleting] = useState(false);
   const [importing, setImporting] = useState(false);
   const api = DATA_SOURCE === "api";
@@ -34,7 +37,7 @@ export default function UserMenu() {
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <button type="button" aria-label={api ? `Conta de ${user?.email}` : "Backup dos dados"} className={`${btnClass.base} ${btnClass.icon}`}>
+          <button type="button" aria-label={api ? `Conta de ${user?.email}` : "Menu: privacidade e backup dos dados"} className={`${btnClass.base} ${btnClass.icon}`}>
             <Icon name="user" size={16} />
           </button>
         </DropdownMenuTrigger>
@@ -48,6 +51,11 @@ export default function UserMenu() {
               </DropdownMenuItem>
             </>
           )}
+          <DropdownMenuItem onSelect={togglePrivacy}>
+            <Icon name={privacyHidden ? "eye" : "eyeOff"} size={15} />
+            {privacyHidden ? "Mostrar valores" : "Esconder valores"}
+            <span className="ml-auto pl-3 text-[11px] text-muted-foreground">Alt+P</span>
+          </DropdownMenuItem>
           <DropdownMenuItem onSelect={exportBackup}>
             <Icon name="down" size={15} />
             Exportar backup

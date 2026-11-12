@@ -471,7 +471,20 @@ function Insights() {
     () => visibleInsights(getInsights({ transactions, creditTransactions, creditCards, extraExpenses, goals }, month, getCurrentMonth()), dismissed),
     [transactions, creditTransactions, creditCards, extraExpenses, goals, month, dismissed],
   );
-  if (insights.length === 0) return null;
+  if (insights.length === 0) {
+    // sem nada a mostrar, explica por quê (senão parece que o recurso não existe)
+    return (
+      <section data-tour="insights" aria-label="Insights do mês" className="mb-3.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-dashed border-border px-5 py-3 text-[13px] text-muted-foreground">
+        <span>
+          <b className="text-ink2">Em destaque neste mês:</b>{" "}
+          {dismissed.length > 0 ? "você dispensou os destaques de agora." : "nada a destacar por enquanto. Os destaques aparecem quando há 2 meses ou mais de movimento e algo relevante mudou (categoria, saldo, despesa nova, metas ou um mês futuro apertado)."}
+        </span>
+        {dismissed.length > 0 && (
+          <button type="button" onClick={() => usePrefsStore.getState().setPrefs({ dismissedInsights: [] })} className="font-bold text-primary hover:underline">Mostrar de novo</button>
+        )}
+      </section>
+    );
+  }
 
   return (
     <section data-tour="insights" aria-label="Insights do mês" className="mb-3.5 rounded-lg border border-border bg-card px-5 py-4 shadow-[var(--shadow-card)]">
@@ -512,6 +525,7 @@ function Breathing() {
   const free = freedomDay(totalIncome, fixed, days);
 
   return (
+    <div className="col-span-12 lg:col-span-4">
     <Panel title="Dias de fôlego" subtitle="Quanto tempo a sua reserva sustenta">
       <p className="font-display text-[28px] font-semibold leading-tight">{result} {result === 1 ? "dia" : "dias"}</p>
       <p className="mt-1 text-[13px] text-muted-foreground">
@@ -519,6 +533,7 @@ function Breathing() {
       </p>
       {free !== null && <p className="mt-2 text-[13px] text-ink2">Dia da liberdade de gastos: a partir do dia <b>{free}</b> a renda do mês cobre as despesas fixas.</p>}
     </Panel>
+    </div>
   );
 }
 

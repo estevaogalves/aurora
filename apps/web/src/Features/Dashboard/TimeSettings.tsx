@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { usePrefsStore } from "@/lib/preferences";
+import { reserveTotal } from "@/domain";
+import { useFinanceStore } from "@/Store/FinanceStore";
 
 /** Ajustes de "tempo": equivalência das despesas em horas de trabalho e o card Dias de fôlego. Ficam só neste navegador. */
 export default function TimeSettings({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -24,6 +26,7 @@ export default function TimeSettings({ open, onClose }: { open: boolean; onClose
 function Fields({ onClose }: { onClose: () => void }) {
   const prefs = usePrefsStore();
   const rateNow = useHourRate();
+  const reserve = reserveTotal(useFinanceStore((s) => s.goals), useFinanceStore((s) => s.investments));
   const [showHours, setShowHours] = useState(prefs.showHours);
   const [showBreathing, setShowBreathing] = useState(prefs.showBreathing);
   const [hours, setHours] = useState(String(prefs.hoursPerMonth));
@@ -62,6 +65,11 @@ function Fields({ onClose }: { onClose: () => void }) {
         <input type="checkbox" checked={showBreathing} onChange={(e) => setShowBreathing(e.target.checked)} />
         Mostrar o card “Dias de fôlego” no Painel
       </label>
+      <p className="-mt-2 text-[12.5px] text-muted-foreground">
+        {reserve > 0
+          ? <>Reserva encontrada: <b className="num text-foreground">{formatBRL(reserve)}</b> (metas com “reserva” ou “emergência” no nome e investimentos de liquidez diária). O card aparece no fim do Painel.</>
+          : "Nenhuma reserva encontrada: crie uma meta com “reserva” ou “emergência” no nome (ou um investimento de liquidez diária) e o card aparece no fim do Painel."}
+      </p>
       {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] font-semibold text-destructive">{error}</p>}
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
