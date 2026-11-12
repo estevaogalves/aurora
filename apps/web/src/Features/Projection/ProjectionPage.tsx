@@ -224,7 +224,7 @@ export default function ProjectionPage() {
                   <Pill>{shortLabel(e.month)}</Pill>
                   <span className="min-w-0 break-words font-semibold">{e.name}</span>
                   <span className="num font-bold">{formatBRL(e.amount)}</span>
-                  <RowMenu label={e.name} onEdit={() => setEditing(e)} onDelete={() => setDeleting(e)} />
+                  <RowMenu label={e.name} month={e.month} onEdit={() => setEditing(e)} onDelete={() => setDeleting(e)} />
                 </div>
               ))
             )}

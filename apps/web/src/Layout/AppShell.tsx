@@ -9,6 +9,9 @@ import { useUiStore } from "../Store/UiStore";
 import Logo from "../theme/Logo";
 import { APP_NAME } from "../theme/theme";
 import PrivacyBanner from "../theme/PrivacyBanner";
+import ClosedMonthBanner from "../components/shared/ClosedMonthBanner";
+import ReopenMonthDialog from "../components/shared/ReopenMonthDialog";
+import { useClosedGuard } from "../Store/closedGuard";
 import { usePrivacyShortcut } from "../lib/usePrivacyShortcut";
 import ThemeToggle from "../theme/ThemeToggle";
 import { usePrivacyStore } from "../lib/privacy";
@@ -33,6 +36,8 @@ export default function AppShell() {
   // os valores são formatados fora do React; ao ligar/desligar a privacidade, a tela é redesenhada
   const privacyHidden = usePrivacyStore((s) => s.hidden);
   usePrivacyShortcut();
+  // "Lançar" num mês fechado pede para reabrir o mês antes
+  const closedGuard = useClosedGuard();
 
   // no topo o cabeçalho é transparente (sem caixa atrás dos botões); ao rolar ganha fundo
   useEffect(() => {
@@ -71,7 +76,7 @@ export default function AppShell() {
               </button>
               <ThemeToggle />
               <UserMenu />
-              <button type="button" data-tour="lancar" onClick={() => openLaunch()} className={btnClass.primary}>
+              <button type="button" data-tour="lancar" onClick={() => closedGuard.run(() => openLaunch())} className={btnClass.primary}>
                 <Icon name="plus" size={16} />
                 Lançar
               </button>
@@ -93,6 +98,8 @@ export default function AppShell() {
 
       <main className={`${CONTAINER} pb-[70px] pt-[26px] max-[700px]:pb-[104px] max-[700px]:pt-3.5`}>
         <PrivacyBanner />
+        <ClosedMonthBanner />
+        <ReopenMonthDialog open={closedGuard.open} month={closedGuard.month} onConfirm={closedGuard.confirm} onCancel={closedGuard.cancel} />
         <Outlet key={String(privacyHidden)} />
       </main>
     </div>

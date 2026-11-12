@@ -3,8 +3,8 @@ import Icon from "@/components/Icon";
 import Panel, { PageHeader } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { buildCsv, buildTxt, formatPeriodLabel, getPeriodTotals, periodFileName, sortMonths } from "@/domain";
-import { formatBRLShort } from "@/lib/money";
+import { buildCsv, buildTxt, formatPaymentDate, formatPeriodLabel, getPeriodTotals, periodFileName, sortMonths } from "@/domain";
+import { formatBRL, formatBRLShort } from "@/lib/money";
 import { downloadText } from "@/Services/download";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { changeMonth, formatMonth, formatMonthAbbr, formatMonthShort, getCurrentMonth, getMonthsBetween, monthsDifference } from "@/Utils/Date";
@@ -27,6 +27,8 @@ export default function ReportsPage() {
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
+  const closings = useFinanceStore((s) => s.closings);
+  const closedMonths = Object.keys(closings).sort().reverse();
 
   // null = só o mês do seletor do cabeçalho (o padrão); a lista aparece quando o usuário escolhe meses
   const [picked, setPicked] = useState<string[] | null>(null);
@@ -209,6 +211,27 @@ export default function ReportsPage() {
             </p>
           </Panel>
         </div>
+
+        {closedMonths.length > 0 && (
+          <div className="col-span-12">
+            <Panel title="Meses fechados" subtitle="O retrato guardado em cada fechamento (não muda se os lançamentos mudarem depois)">
+              <ul className="flex flex-col divide-y divide-border">
+                {closedMonths.map((m) => {
+                  const c = closings[m];
+                  return (
+                    <li key={m} className="flex flex-col gap-1 py-2.5 text-[13.5px] first:pt-0 last:pb-0">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                        <b>{formatMonthShort(m)}</b>
+                        <span className="num text-ink2">renda {formatBRL(c.income)} · despesas {formatBRL(c.expense)} · saldo <b className={c.balance < 0 ? "text-destructive" : "text-foreground"}>{formatBRL(c.balance)}</b></span>
+                      </div>
+                      <span className="text-[12px] text-muted-foreground">Fechado em {formatPaymentDate(c.closedAt)}{c.note ? ` · “${c.note}”` : ""}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Panel>
+          </div>
+        )}
       </div>
     </>
   );

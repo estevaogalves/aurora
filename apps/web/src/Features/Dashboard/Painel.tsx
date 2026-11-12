@@ -28,6 +28,7 @@ import { PAINEL_TOUR } from "./tour";
 import TimeSettings from "./TimeSettings";
 import DuesCard from "./DuesCard";
 import BudgetBars from "./BudgetBars";
+import CloseMonthDialog from "./CloseMonthDialog";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
 const sliceColor = (items: { id: string }[], id: string) => `hsl(var(--k${(items.findIndex((i) => i.id === id) % 9) + 1}))`;
@@ -571,18 +572,29 @@ function HoursNote({ onAdjust }: { onAdjust: () => void }) {
 export default function Painel() {
   const month = useFinanceStore((s) => s.currentMonth);
   const [timeOpen, setTimeOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const closed = useFinanceStore((s) => !!s.closings[month]);
   const showHours = usePrefsStore((s) => s.showHours);
 
   return (
     <>
       <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui é só leitura (exceto enviar o saldo para as metas); cadastre pelo botão “Lançar”.`}
         action={
-          <button type="button" data-tour="tempo" onClick={() => setTimeOpen(true)} aria-pressed={showHours} className={`${btnClass.base} ${btnClass.sm} ${showHours ? "!border-primary !text-primary" : ""}`}>
-            <Icon name="clock" size={14} />
-            Tempo e fôlego
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!closed && (
+              <button type="button" data-tour="fechar-mes" onClick={() => setClosing(true)} className={`${btnClass.base} ${btnClass.sm}`}>
+                <Icon name="check" size={14} />
+                Fechar mês
+              </button>
+            )}
+            <button type="button" data-tour="tempo" onClick={() => setTimeOpen(true)} aria-pressed={showHours} className={`${btnClass.base} ${btnClass.sm} ${showHours ? "!border-primary !text-primary" : ""}`}>
+              <Icon name="clock" size={14} />
+              Tempo e fôlego
+            </button>
+          </div>
         }
       />
+      <CloseMonthDialog open={closing} onClose={() => setClosing(false)} />
       <TimeSettings open={timeOpen} onClose={() => setTimeOpen(false)} />
       <HoursNote onAdjust={() => setTimeOpen(true)} />
       <GoalDeadlines />
