@@ -192,7 +192,7 @@ export interface ColumnMapping {
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 const DATE_NAMES = ["data", "date", "dt", "vencimento"];
-const DESC_NAMES = ["descricao", "descri", "historico", "lancamento", "estabelecimento", "titulo", "memo", "detalhe", "description", "nome"];
+const DESC_NAMES = ["descricao", "descri", "historico", "lancamento", "estabelecimento", "titulo", "title", "merchant", "memo", "detalhe", "description", "nome"];
 const AMOUNT_NAMES = ["valor", "amount", "quantia", "montante", "value"];
 
 /** Sugere o mapeamento pelo cabeçalho (ou pelo conteúdo, sem cabeçalho). null se não achar data e valor. */
@@ -276,6 +276,8 @@ export function buildImportRows(rows: string[][], mapping: ColumnMapping, rules:
     if (!date) { skipped.push({ line, reason: "data inválida" }); continue; }
     if (signed === null) { skipped.push({ line, reason: "valor inválido" }); continue; }
     if (signed === 0) { skipped.push({ line, reason: "valor zero" }); continue; }
+    // fatura (tudo é despesa): valor negativo é pagamento da fatura ou estorno, não é compra
+    if (mapping.signMode === "expense" && signed < 0) { skipped.push({ line, reason: "crédito ou pagamento, não é compra" }); continue; }
     if (!description) { skipped.push({ line, reason: "sem descrição" }); continue; }
 
     const type: ImportRow["type"] = mapping.signMode === "expense" ? "expense" : mapping.signMode === "income" ? "income" : signed < 0 ? "expense" : "income";

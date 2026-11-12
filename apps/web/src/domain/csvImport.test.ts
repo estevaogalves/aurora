@@ -76,6 +76,9 @@ describe("mapeamento e linhas", () => {
     expect(guessMapping(csv)).toEqual({ date: 0, description: 1, amount: 2, hasHeader: true, signMode: "auto" });
     expect(guessMapping(csv.slice(1, 3))).toMatchObject({ date: 0, description: 1, amount: 2, hasHeader: false });
     expect(guessMapping([["a", "b"], ["c", "d"]])).toBeNull();
+    // fatura no formato date,category,title,amount (Nubank): a descrição é o "title", não a "category"
+    const nu = [["date", "category", "title", "amount"], ["2026-10-05", "restaurante", "Outback", "189.90"], ["2026-10-08", "transporte", "Uber", "23.90"]];
+    expect(guessMapping(nu)).toMatchObject({ date: 0, description: 2, amount: 3, hasHeader: true });
   });
 
   it("monta as linhas: sinal define despesa ou renda, categoria vem das regras, linhas ruins são puladas", () => {
@@ -93,6 +96,13 @@ describe("mapeamento e linhas", () => {
     const fatura = [["Data", "Descrição", "Valor"], ["05/11/2026", "MERCADO", "150,00"]];
     const { rows } = buildImportRows(fatura, { ...guessMapping(fatura)!, signMode: "expense" }, []);
     expect(rows[0]).toMatchObject({ type: "expense", amount: 15000, category: "Outros" });
+  });
+
+  it("fatura: pagamento e estorno (valor negativo) não viram despesa", () => {
+    const fatura = [["Data", "Descrição", "Valor"], ["05/11/2026", "MERCADO", "150,00"], ["06/11/2026", "Pagamento recebido", "-500,00"]];
+    const { rows, skipped } = buildImportRows(fatura, { ...guessMapping(fatura)!, signMode: "expense" }, []);
+    expect(rows).toHaveLength(1);
+    expect(skipped).toEqual([{ line: 3, reason: "crédito ou pagamento, não é compra" }]);
   });
 
   it("regras de categoria ignoram acento e maiúscula", () => {
