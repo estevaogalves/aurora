@@ -106,6 +106,16 @@ export interface CreditCard {
   limit?: number;
   /** Pagamento da fatura por mês de vencimento ("2026-12"). Só registro, não entra em nenhuma conta. */
   payments?: Record<Month, Payment>;
+  /** Ajustes da fatura (descontos e acréscimos) por mês de vencimento, vários por fatura. Só registro: não entram em nenhuma despesa. */
+  adjustments?: Record<Month, InvoiceAdjustment[]>;
+}
+
+/** Um ajuste de uma fatura para ela bater com a do banco. `amount` em centavos: negativo = desconto, positivo = acréscimo. */
+export interface InvoiceAdjustment {
+  /** identifica o ajuste dentro da fatura */
+  id: string;
+  amount: number;
+  note?: string;
 }
 
 export interface Note {
@@ -280,6 +290,8 @@ export interface MonthSummary {
   creditExpense: number;
   /** centavos: despesas extras planejadas para o mês, já somadas em totalExpense */
   extraExpense: number;
+  /** centavos: ajustes (descontos negativos, acréscimos positivos) das faturas que vencem no mês, já somados em totalExpense */
+  invoiceAdjustment: number;
   balance: number;
   /** 0 a 100+ (despesas / renda). 0 se não há renda. */
   expensePercentage: number;

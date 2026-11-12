@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const repo = vi.hoisted(() => ({
   removeCreditCard: vi.fn(() => Promise.resolve()),
   setCardPayment: vi.fn(() => Promise.resolve()),
+  setCardAdjustments: vi.fn(() => Promise.resolve()),
   setTransactionPayment: vi.fn(() => Promise.resolve()),
   setExtraPayment: vi.fn(() => Promise.resolve()),
   updateTransaction: vi.fn(() => Promise.resolve()),
@@ -157,5 +158,31 @@ describe("encerrar uma despesa fixa", () => {
     expect(f?.endMonth).toBeUndefined();
     expect(f?.hiddenMonths).toEqual(["2026-12", "2027-01"]);
     expect(repo.updateTransaction).toHaveBeenLastCalledWith("f", { endMonth: undefined, hiddenMonths: ["2026-12", "2027-01"] });
+  });
+});
+
+describe("ajustes da fatura na store", () => {
+  const desconto = { id: "d1", amount: -37, note: "desconto" };
+  const juros = { id: "j1", amount: 120, note: "juros" };
+
+  it("troca a lista do mês no cartão certo e avisa o repositório", () => {
+    store().setCardAdjustments("nu", "2026-12", [desconto, juros]);
+    expect(store().creditCards.find((k) => k.id === "nu")?.adjustments).toEqual({ "2026-12": [desconto, juros] });
+    expect(store().creditCards.find((k) => k.id === "in")?.adjustments).toBeUndefined();
+    expect(repo.setCardAdjustments).toHaveBeenCalledWith("nu", "2026-12", [desconto, juros]);
+
+    store().setCardAdjustments("nu", "2026-12", [juros]);
+    expect(store().creditCards.find((k) => k.id === "nu")?.adjustments).toEqual({ "2026-12": [juros] });
+
+    store().setCardAdjustments("nu", "2026-12", []);
+    expect(store().creditCards.find((k) => k.id === "nu")?.adjustments).toBeUndefined();
+  });
+
+  it("cartão que não existe é ignorado e nenhuma despesa muda", () => {
+    const before = store().transactions;
+    store().setCardAdjustments("fantasma", "2026-12", [desconto]);
+    expect(repo.setCardAdjustments).not.toHaveBeenCalled();
+    store().setCardAdjustments("nu", "2026-12", [desconto]);
+    expect(store().transactions).toBe(before);
   });
 });

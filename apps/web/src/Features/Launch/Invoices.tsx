@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
 import { Pill } from "@/components/shared/Panel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import RowMenu from "@/components/shared/RowMenu";
+import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import {
   cardPaymentOf,
   dayMonth,
@@ -11,12 +13,16 @@ import {
   paymentMethodLabel,
   paymentStatusLabel,
   type CardInvoice,
+  type InvoicePurchase,
   type Payment,
 } from "@/domain";
 import { formatBRL } from "@/lib/money";
-import { useFinanceStore } from "@/Store/FinanceStore";
+import { useFinanceStore, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
 import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
+import EditExtraDialog from "../Projection/EditExtraDialog";
+import AdjustmentDialog, { type AdjustmentTarget } from "./AdjustmentDialog";
+import { EditTransactionDialog } from "./EditDialogs";
 import PaymentDialog, { type PaymentTarget } from "./PaymentDialog";
 
 /** "Paga · Pix · 08/12" (verde) ou "Agendada · Boleto · 15/12" (laranja). */
@@ -24,7 +30,7 @@ function PaidBadge({ payment }: { payment: Payment }) {
   return <Pill tone={isScheduled(payment) ? "scheduled" : "good"}>{paymentStatusLabel(payment)} · {paymentMethodLabel(payment.method)} · {formatPaymentDay(payment.date)}</Pill>;
 }
 
-function InvoiceMenu({ label, paid, onPay, onClearPay }: { label: string; paid: boolean; onPay: () => void; onClearPay: () => void }) {
+function InvoiceMenu({ label, paid, adjusted, onPay, onClearPay, onAdjust }: { label: string; paid: boolean; adjusted: boolean; onPay: () => void; onClearPay: () => void; onAdjust: () => void }) {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -40,6 +46,10 @@ function InvoiceMenu({ label, paid, onPay, onClearPay }: { label: string; paid: 
         <DropdownMenuItem onSelect={onPay}>
           <Icon name="check" size={15} />
           {paid ? "Editar pagamento" : "Marcar como paga"}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onAdjust}>
+          <Icon name="edit" size={15} />
+          {adjusted ? "Editar ajustes / descontos" : "Ajustes / descontos"}
         </DropdownMenuItem>
         {paid && (
           <DropdownMenuItem onSelect={onClearPay}>
@@ -62,11 +72,11 @@ function Line({ label, value }: { label: string; value: string }) {
 }
 
 /** Uma fatura: o valor completo do cartão no mês (parcelas, recorrências e compras avulsas) e onde marcar como paga. */
-function InvoiceBlock({ invoice, first, onPay, onClearPay }: { invoice: CardInvoice; first: boolean; onPay: () => void; onClearPay: () => void }) {
+function InvoiceBlock({ invoice, first, onPay, onClearPay, onAdjust, onEditPurchase, onDeletePurchase }: { invoice: CardInvoice; first: boolean; onPay: () => void; onClearPay: () => void; onAdjust: () => void; onEditPurchase: (p: InvoicePurchase) => void; onDeletePurchase: (p: InvoicePurchase) => void }) {
   const [open, setOpen] = useState(false);
   const { card, month } = invoice;
   const payment = cardPaymentOf(card, month);
-  const hasBreakdown = invoice.installments.length + invoice.recurring.length + invoice.purchases.length > 0;
+  const hasBreakdown = invoice.installments.length + invoice.recurring.length + invoice.purchases.length > 0 || invoice.adjustments.length > 0;
 
   return (
     <div data-tour={first ? "fatura" : undefined} className="rounded-md border border-border bg-secondary p-3.5">
@@ -80,8 +90,8 @@ function InvoiceBlock({ invoice, first, onPay, onClearPay }: { invoice: CardInvo
           </div>
         </div>
         <div className="flex flex-none items-center gap-1">
-          <span className="num text-right font-bold">{formatBRL(invoice.total)}</span>
-          <InvoiceMenu label={`fatura ${card.name}`} paid={!!payment} onPay={onPay} onClearPay={onClearPay} />
+          <span className="num text-right font-bold">{formatBRL(invoice.payable)}</span>
+          <InvoiceMenu label={`fatura ${card.name}`} paid={!!payment} adjusted={invoice.adjustments.length > 0} onPay={onPay} onClearPay={onClearPay} onAdjust={onAdjust} />
         </div>
       </div>
 
@@ -90,6 +100,9 @@ function InvoiceBlock({ invoice, first, onPay, onClearPay }: { invoice: CardInvo
           {invoice.installments.length > 0 && <Line label={`Parcelas (${invoice.installments.length})`} value={formatBRL(invoice.installmentsTotal)} />}
           {invoice.recurring.length > 0 && <Line label={`Recorrentes (${invoice.recurring.length})`} value={formatBRL(invoice.recurringTotal)} />}
           {invoice.purchases.length > 0 && <Line label={`Compras avulsas (${invoice.purchases.length})`} value={formatBRL(invoice.purchasesTotal)} />}
+          {invoice.adjustments.map((a) => (
+            <Line key={a.id} label={`${a.amount < 0 ? "Desconto" : "Acréscimo"}${a.note ? ` · ${a.note}` : ""}`} value={`${a.amount < 0 ? "−" : "+"}${formatBRL(Math.abs(a.amount))}`} />
+          ))}
         </div>
       )}
 
@@ -118,7 +131,10 @@ function InvoiceBlock({ invoice, first, onPay, onClearPay }: { invoice: CardInvo
                     <span className="num text-muted-foreground">{dayMonth(p.purchaseDate)}</span> · {p.name}
                     {p.source === "extra" && <span className="text-muted-foreground"> (despesa extra)</span>}
                   </span>
-                  <span className="num font-semibold">{formatBRL(p.amount)}</span>
+                  <span className="flex flex-none items-center gap-1">
+                    <span className="num font-semibold">{formatBRL(p.amount)}</span>
+                    <RowMenu label={p.name} onEdit={() => onEditPurchase(p)} onDelete={() => onDeletePurchase(p)} />
+                  </span>
                 </li>
               ))}
             </ul>
@@ -141,19 +157,31 @@ export default function InvoicesSection() {
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
   const setCardPayment = useFinanceStore((s) => s.setCardPayment);
+  const removeTransaction = useFinanceStore((s) => s.removeTransaction);
+  const removeExtra = useFinanceStore((s) => s.removeExtraExpense);
+  const setCardAdjustments = useFinanceStore((s) => s.setCardAdjustments);
+  const [adjusting, setAdjusting] = useState<(AdjustmentTarget & { cardId: string }) | null>(null);
+  const [editingTx, setEditingTx] = useState<Transaction | null>(null);
+  const [editingExtra, setEditingExtra] = useState<ExtraExpense | null>(null);
+  const [toDelete, setToDelete] = useState<InvoicePurchase | null>(null);
   const [paying, setPaying] = useState<(PaymentTarget & { cardId: string }) | null>(null);
 
   const invoices = useMemo(
     () =>
       cards
         .map((k) => getCardInvoice({ transactions, creditTransactions, extraExpenses, creditCards: cards }, k, month))
-        .filter((i) => i.total > 0 || !!cardPaymentOf(i.card, month)),
+        .filter((i) => i.total > 0 || i.adjustments.length > 0 || !!cardPaymentOf(i.card, month)),
     [cards, transactions, creditTransactions, extraExpenses, month],
   );
 
   if (invoices.length === 0) return null;
 
-  const pay = (i: CardInvoice) => setPaying({ cardId: i.card.id, name: `Fatura ${i.card.name}`, amount: i.total, current: cardPaymentOf(i.card, month) });
+  const pay = (i: CardInvoice) => setPaying({ cardId: i.card.id, name: `Fatura ${i.card.name}`, amount: i.payable, current: cardPaymentOf(i.card, month) });
+  const adjust = (i: CardInvoice) => setAdjusting({ cardId: i.card.id, name: `Fatura ${i.card.name}`, total: i.total, current: i.adjustments });
+  const editPurchase = (p: InvoicePurchase) => {
+    if (p.source === "extra") setEditingExtra(extraExpenses.find((e) => e.id === p.id) ?? null);
+    else setEditingTx(transactions.find((t) => t.id === p.id) ?? null);
+  };
   const confirm = (payment: Payment) => {
     if (!paying) return;
     setCardPayment(paying.cardId, month, payment);
@@ -166,10 +194,31 @@ export default function InvoicesSection() {
       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Faturas dos cartões · {formatMonthTitle(month)}</p>
       <div className="flex flex-col gap-3">
         {invoices.map((i, idx) => (
-          <InvoiceBlock key={i.card.id} invoice={i} first={idx === 0} onPay={() => pay(i)} onClearPay={() => setCardPayment(i.card.id, month, null)} />
+          <InvoiceBlock key={i.card.id} invoice={i} first={idx === 0} onPay={() => pay(i)} onClearPay={() => setCardPayment(i.card.id, month, null)} onAdjust={() => adjust(i)} onEditPurchase={editPurchase} onDeletePurchase={setToDelete} />
         ))}
       </div>
       <PaymentDialog target={paying} onConfirm={confirm} onClose={() => setPaying(null)} />
+      <AdjustmentDialog
+        target={adjusting}
+        onClose={() => setAdjusting(null)}
+        onSave={(list) => {
+          if (!adjusting) return;
+          setCardAdjustments(adjusting.cardId, month, list);
+          showToast({ type: "success", text: list.length === 0 ? "Ajustes removidos" : `Ajustes salvos na ${adjusting.name}` });
+          setAdjusting(null);
+        }}
+      />
+      <EditTransactionDialog transaction={editingTx} onClose={() => setEditingTx(null)} />
+      <EditExtraDialog extra={editingExtra} onClose={() => setEditingExtra(null)} />
+      <ConfirmDeletion
+        open={!!toDelete}
+        itemLabel="compra no cartão"
+        onCancel={() => setToDelete(null)}
+        onConfirm={() => {
+          if (toDelete) (toDelete.source === "extra" ? removeExtra : removeTransaction)(toDelete.id);
+          setToDelete(null);
+        }}
+      />
     </div>
   );
 }

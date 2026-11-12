@@ -21,6 +21,7 @@ import {
   type CreditInstallment,
   patchContribution,
   maturityAlertPrefix,
+  patchCardAdjustments,
   patchCardPayment,
   patchEndFromMonth,
   patchResumeFixed,
@@ -36,6 +37,7 @@ import {
   type Goal,
   type Note,
   type OnboardingState,
+  type InvoiceAdjustment,
   type Payment,
   type Transaction,
   patchClearPayment,
@@ -155,6 +157,8 @@ interface FinanceState {
   setTransactionCard: (id: string, cardId: string, purchaseDate?: string) => void;
   /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro. */
   setCardPayment: (cardId: string, month: string, payment: Payment | null) => void;
+  /** Troca a lista de ajustes (descontos e acréscimos) da fatura que vence em `month`; lista vazia remove. */
+  setCardAdjustments: (cardId: string, month: string, adjustments: InvoiceAdjustment[]) => void;
   /** Marca (ou troca) o pagamento de uma despesa extra; null desmarca. */
   setExtraPayment: (id: string, payment: Payment | null) => void;
 
@@ -552,6 +556,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       if (!get().creditCards.some((k) => k.id === cardId)) return;
       set((state) => ({ creditCards: state.creditCards.map((k) => (k.id === cardId ? { ...k, ...patchCardPayment(k, month, payment) } : k)) }));
       sync(repository.setCardPayment(cardId, month, payment));
+    },
+
+    setCardAdjustments: (cardId, month, adjustments) => {
+      if (!get().creditCards.some((k) => k.id === cardId)) return;
+      set((state) => ({ creditCards: state.creditCards.map((k) => (k.id === cardId ? { ...k, ...patchCardAdjustments(k, month, adjustments) } : k)) }));
+      sync(repository.setCardAdjustments(cardId, month, adjustments));
     },
 
     setExtraPayment: (id, payment) => {

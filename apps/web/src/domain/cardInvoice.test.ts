@@ -9,6 +9,7 @@ import {
   getReportRows,
   cardPaymentOf,
   invoiceDates,
+  patchCardAdjustments,
   patchCardPayment,
   resolveCardExpenses,
   type CreditCard,
@@ -217,5 +218,87 @@ describe("pagamento da fatura (só registro)", () => {
     expect(cardPaymentOf(card, "2026-12")).toEqual(pix);
     expect(cardPaymentOf(card, "2026-11")).toBeUndefined();
     expect(cardPaymentOf(nubank, "2026-12")).toBeUndefined();
+  });
+});
+
+const adj = (id: string, amount: number, note?: string) => ({ id, amount, ...(note && { note }) });
+const withAdj = (card: CreditCard, month: string, list: ReturnType<typeof adj>[]): CreditCard => ({ ...card, ...patchCardAdjustments(card, month, list) });
+
+describe("ajustes (descontos e acréscimos) da fatura", () => {
+  const data = { transactions: [onCard("a", 10000, "nu", "2026-11-01")], creditTransactions: [], extraExpenses: [] };
+
+  it("sem ajuste, o total a pagar é o total das compras", () => {
+    const inv = getCardInvoice(data, nubank, "2026-11");
+    expect(inv.adjustments).toEqual([]);
+    expect(inv.payable).toBe(inv.total);
+  });
+
+  it("vários ajustes somam: desconto de 1 e acréscimo de 1 se anulam", () => {
+    const card = withAdj(nubank, "2026-11", [adj("d", -100, "desconto"), adj("j", 100, "juros")]);
+    const inv = getCardInvoice(data, card, "2026-11");
+    expect(inv.total).toBe(10000);
+    expect(inv.payable).toBe(10000);
+    const two = getCardInvoice(data, withAdj(nubank, "2026-11", [adj("d", -37), adj("e", -63), adj("j", 250)]), "2026-11");
+    expect(two.adjustments).toHaveLength(3);
+    expect(two.payable).toBe(10000 - 37 - 63 + 250);
+    expect(two.purchases.map((p) => p.amount)).toEqual([10000]);
+  });
+
+  it("o ajuste de um mês não vale em outro", () => {
+    const card = withAdj(nubank, "2026-11", [adj("j", 150)]);
+    expect(getCardInvoice(data, card, "2026-11").payable).toBe(10150);
+    expect(getCardInvoice(data, card, "2026-12").adjustments).toEqual([]);
+  });
+
+  it("lê o formato antigo (um ajuste só por mês) como uma lista de um item", () => {
+    const legacy = { ...nubank, adjustments: { "2026-11": { amount: -37, note: "antigo" } } } as unknown as CreditCard;
+    const inv = getCardInvoice(data, legacy, "2026-11");
+    expect(inv.adjustments).toHaveLength(1);
+    expect(inv.payable).toBe(9963);
+  });
+
+  it("os descontos somados nunca passam do total das compras", () => {
+    const card = withAdj(nubank, "2026-11", [adj("a", -9000), adj("b", -9000)]);
+    const inv = getCardInvoice(data, card, "2026-11");
+    expect(inv.adjustmentApplied).toBe(-10000);
+    expect(inv.payable).toBe(0);
+    expect(getMonthSummary({ ...data, creditCards: [card] }, "2026-11").totalExpense).toBe(0);
+  });
+
+  it("entram no resumo do mês: despesas e saldo batem com a fatura", () => {
+    const card = withAdj(nubank, "2026-11", [adj("d", -37), adj("j", 10)]);
+    const sum = (cards: CreditCard[]) => getMonthSummary({ ...data, creditCards: cards }, "2026-11");
+    expect(sum([nubank]).totalExpense).toBe(10000);
+    expect(sum([card]).totalExpense).toBe(9973);
+    expect(sum([card]).invoiceAdjustment).toBe(-27);
+    expect(sum([card]).balance).toBe(sum([nubank]).balance + 27);
+  });
+
+  it("as categorias (gráficos) somam o mesmo total das despesas, e o detalhe da categoria também", () => {
+    const mixed = {
+      transactions: [onCard("pão", 3000, "nu", "2026-11-01", { category: "Alimentação" }), onCard("cinema", 7001, "nu", "2026-11-01", { category: "Lazer" }), expense("aluguel", 50000, { category: "Moradia" })],
+      creditTransactions: [],
+      extraExpenses: [],
+      creditCards: [withAdj(nubank, "2026-11", [adj("d", -30), adj("e", -7)])],
+    };
+    const sum = getMonthSummary(mixed, "2026-11");
+    expect(sum.totalExpense).toBe(50000 + 10001 - 37);
+    expect(Object.values(sum.byCategory).reduce<number>((a, b) => a + (b ?? 0), 0)).toBe(sum.totalExpense);
+    expect(sum.byCategory["Moradia"]).toBe(50000);
+    expect(Object.values(sum.byCategory).every((v) => (v ?? 0) > 0)).toBe(true);
+    for (const c of ["Alimentação", "Lazer", "Moradia"] as const) {
+      expect(getCategoryDetail(mixed, "2026-11", c).reduce((a, l) => a + l.amount, 0)).toBe(sum.byCategory[c]);
+    }
+  });
+
+  it("acréscimo numa fatura sem compras vai para o crédito", () => {
+    const empty = { transactions: [], creditTransactions: [], extraExpenses: [] };
+    expect(getMonthSummary({ ...empty, creditCards: [withAdj(nubank, "2026-11", [adj("j", 500)])] }, "2026-11").byCategory["Crédito/Parcelado"]).toBe(500);
+  });
+
+  it("trocar por lista vazia tira o campo, e os outros meses ficam", () => {
+    const two = withAdj(withAdj(nubank, "2026-11", [adj("a", -37)]), "2026-12", [adj("b", 5)]);
+    expect(patchCardAdjustments(two, "2026-11", []).adjustments).toEqual({ "2026-12": [adj("b", 5)] });
+    expect(patchCardAdjustments(withAdj(nubank, "2026-11", [adj("a", -37)]), "2026-11", []).adjustments).toBeUndefined();
   });
 });

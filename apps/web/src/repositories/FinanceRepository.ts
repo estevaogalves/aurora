@@ -10,6 +10,7 @@ import type {
   InvestmentMovement,
   Note,
   OnboardingState,
+  InvoiceAdjustment,
   Payment,
   Transaction,
 } from "../domain/types";
@@ -50,6 +51,8 @@ export interface FinanceRepository {
   setExtraPayment(id: string, payment: Payment | null): Promise<void>;
   /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro, não muda valores. */
   setCardPayment(id: string, month: string, payment: Payment | null): Promise<void>;
+  /** Troca a lista de ajustes da fatura do cartão que vence em `month`; lista vazia remove. Só registro, não muda despesas. */
+  setCardAdjustments(id: string, month: string, adjustments: InvoiceAdjustment[]): Promise<void>;
 
   addNote(note: Note): Promise<void>;
   updateNote(id: string, patch: Partial<Note>): Promise<void>;

@@ -10,10 +10,11 @@ import type {
   InvestmentMovement,
   Note,
   OnboardingState,
+  InvoiceAdjustment,
   Payment,
   Transaction,
 } from "../domain/types";
-import { patchCardPayment } from "../domain/invoice";
+import { patchCardAdjustments, patchCardPayment } from "../domain/invoice";
 import { patchClearPayment, patchSetPayment } from "../domain/payment";
 import { patchAdvanceInstallment, patchClearActualValue,
   patchEditInstallment, patchRemoveInstallment, type PatchResult } from "../domain/credit";
@@ -149,6 +150,11 @@ export class LocalRepository implements FinanceRepository {
 
   async setCardPayment(id: string, month: string, payment: Payment | null) {
     this.data.creditCards = (this.data.creditCards ?? []).map((k) => (k.id === id ? { ...k, ...patchCardPayment(k, month, payment) } : k));
+    this.persist();
+  }
+
+  async setCardAdjustments(id: string, month: string, adjustments: InvoiceAdjustment[]) {
+    this.data.creditCards = (this.data.creditCards ?? []).map((k) => (k.id === id ? { ...k, ...patchCardAdjustments(k, month, adjustments) } : k));
     this.persist();
   }
 

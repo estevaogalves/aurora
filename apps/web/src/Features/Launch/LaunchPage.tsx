@@ -6,7 +6,7 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
-import { canAdvanceInstallment, chargeDay, dayMonth, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
+import { canAdvanceInstallment, chargeDay, dayMonth, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
 import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits, useResolvedExtras } from "@/Store/selectors";
@@ -227,10 +227,14 @@ function IncomesPanel() {
   );
 }
 function ExpensesPanel() {
-  const expenses = useMonthTransactions().filter((t) => t.type === "expense");
+  // compras avulsas no cartão não aparecem aqui: ficam só na fatura (Compras parceladas)
+  const allExpenses = useMonthTransactions().filter((t) => t.type === "expense");
+  const expenses = allExpenses.filter((t) => !isCardPurchase(t));
   const month = useFinanceStore((s) => s.currentMonth);
   const removeByMonth = useFinanceStore((s) => s.removeTransactionByMonth);
-  const extras = useResolvedExtras().filter((e) => e.month === month);
+  const allExtras = useResolvedExtras().filter((e) => e.month === month);
+  const extras = allExtras.filter((e) => !isCardPurchase(e));
+  const onCard = allExpenses.length - expenses.length + allExtras.length - extras.length;
   const removeExtra = useFinanceStore((s) => s.removeExtraExpense);
   const setTransactionPayment = useFinanceStore((s) => s.setTransactionPayment);
   const setExtraPayment = useFinanceStore((s) => s.setExtraPayment);
@@ -262,6 +266,7 @@ function ExpensesPanel() {
   return (
     <Panel tour="despesas" title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
+      {onCard > 0 && <p className="mb-1 text-[12.5px] text-muted-foreground">{onCard === 1 ? "1 compra no cartão está" : `${onCard} compras no cartão estão`} na fatura, em Compras parceladas.</p>}
       {count > 0 && variable.length === 0 && extras.length === 0 && <Empty>Nenhuma despesa variável neste mês.</Empty>}
       {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={t.cardId ? undefined : payTx(t)} />)}
       {extras.map((e) => (

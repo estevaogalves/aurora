@@ -5,7 +5,7 @@ import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { distributeBalance, getCategoryDetail, getMonthSummary, goalPercent } from "@/domain";
+import { distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
@@ -234,10 +234,11 @@ function GoalsMini() {
 }
 
 function RecentExpenses() {
-  const expenses = useMonthTransactions().filter((t) => t.type === "expense");
+  // compras avulsas no cartão ficam só na fatura, não nesta lista
+  const expenses = useMonthTransactions().filter((t) => t.type === "expense" && !isCardPurchase(t));
   const credit = useMonthCredit();
   const month = useFinanceStore((s) => s.currentMonth);
-  const extras = useResolvedExtras().filter((e) => e.month === month);
+  const extras = useResolvedExtras().filter((e) => e.month === month && !isCardPurchase(e));
 
   const lines: ExpenseLine[] = [
     ...[...expenses].reverse().map((e) => ({ id: e.id, name: e.name, category: e.category, amount: e.amount, fixed: e.fixed })),

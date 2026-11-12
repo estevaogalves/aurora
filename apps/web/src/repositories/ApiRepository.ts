@@ -11,6 +11,7 @@ import type {
   InvestmentMovement,
   Note,
   OnboardingState,
+  InvoiceAdjustment,
   Payment,
   Transaction,
 } from "../domain/types";
@@ -148,6 +149,8 @@ export class ApiRepository implements FinanceRepository {
     this.enqueue(() => (payment ? api.put(`/transactions/${id}/payments/${month}`, payment) : api.delete(`/transactions/${id}/payments/${month}`)));
   setCardPayment = (id: string, month: string, payment: Payment | null) =>
     this.enqueue(() => (payment ? api.put(`/credit-cards/${id}/payments/${month}`, payment) : api.delete(`/credit-cards/${id}/payments/${month}`)));
+  setCardAdjustments = (id: string, month: string, adjustments: InvoiceAdjustment[]) =>
+    this.enqueue(() => (adjustments.length > 0 ? api.put(`/credit-cards/${id}/adjustments/${month}`, adjustments) : api.delete(`/credit-cards/${id}/adjustments/${month}`)));
   setExtraPayment = (id: string, payment: Payment | null) =>
     this.enqueue(() => (payment ? api.put(`/extra-expenses/${id}/payment`, payment) : api.delete(`/extra-expenses/${id}/payment`)));
 
