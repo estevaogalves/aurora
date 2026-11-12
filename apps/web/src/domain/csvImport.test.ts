@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildImportRows, decodeCsvBytes, detectDelimiter, guessMapping, looksSensitive, markDuplicates, maskSensitive, parseAmount, parseCsv, parseDate, sensitiveColumns, suggestCategory, type Transaction } from "./index";
+import { IMPORT_TEMPLATES, buildImportRows, decodeCsvBytes, detectDelimiter, guessMapping, looksSensitive, markDuplicates, maskSensitive, parseAmount, parseCsv, parseDate, sensitiveColumns, suggestCategory, type Transaction } from "./index";
 
 describe("leitura do CSV", () => {
   it("detecta ; e , e lê aspas, vírgula dentro de campo e CRLF", () => {
@@ -139,5 +139,25 @@ describe("duplicados e reimportação", () => {
     const first = built();
     const keys = new Set(first.map((x) => x.key));
     expect(markDuplicates(built(), [], keys).every((x) => x.duplicate)).toBe(true);
+  });
+});
+
+describe("planilhas modelo", () => {
+  for (const t of IMPORT_TEMPLATES) {
+    it(`${t.id}: o modelo é lido sem nenhuma linha pulada e com as colunas reconhecidas`, () => {
+      const rows = parseCsv(t.content);
+      const mapping = guessMapping(rows);
+      expect(mapping).toMatchObject({ date: 0, description: 1, amount: 2, hasHeader: true });
+      const { rows: built, skipped } = buildImportRows(rows, { ...mapping!, signMode: t.id === "fatura" ? "expense" : "auto" }, []);
+      expect(skipped).toEqual([]);
+      expect(built).toHaveLength(5);
+      expect(t.filename).toMatch(/\.csv$/);
+    });
+  }
+  it("o extrato modelo tem despesas e rendas; a fatura modelo, só compras", () => {
+    const extrato = IMPORT_TEMPLATES.find((t) => t.id === "extrato")!;
+    const types = buildImportRows(parseCsv(extrato.content), guessMapping(parseCsv(extrato.content))!, []).rows.map((r) => r.type);
+    expect(types).toContain("income");
+    expect(types).toContain("expense");
   });
 });

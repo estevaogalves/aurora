@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
+import Icon from "@/components/Icon";
 import { Field, inputClass } from "@/components/shared/FormFields";
+import { btnClass } from "@/components/shared/styles";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   IMPORT_MAX_BYTES,
+  IMPORT_TEMPLATES,
   IMPORT_MAX_ROWS,
   buildImportRows,
   decodeCsvBytes,
@@ -20,6 +23,7 @@ import {
 import { formatBRL } from "@/lib/money";
 import { useImportPrefs } from "@/lib/importPrefs";
 import { uuid } from "@/lib/uuid";
+import { downloadText } from "@/Services/download";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { EXPENSE_CATEGORIES, type Category } from "@/Types/Category";
@@ -202,6 +206,23 @@ function Wizard({ onClose }: { onClose: () => void }) {
           <p className="rounded-md bg-secondary px-3 py-2 text-[12.5px] text-muted-foreground">
             Baixe o extrato ou a fatura no app do seu banco, em CSV. Números de cartão, CPF e documentos são ignorados e mascarados, e nada do arquivo é guardado.
           </p>
+          <section aria-label="Planilhas modelo" className="flex flex-col gap-3 rounded-md border border-border p-3.5">
+            <div>
+              <h3 className="font-display text-[14px] font-semibold">Baixe uma planilha modelo</h3>
+              <p className="mt-0.5 text-[12.5px] text-muted-foreground">Já vem com as colunas prontas (Data, Descrição e Valor) e algumas linhas de exemplo. Troque pelas suas e depois escolha o arquivo acima. Abre no Excel e no Google Planilhas.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {IMPORT_TEMPLATES.map((t) => (
+                <div key={t.id} className="flex flex-col items-start gap-1.5">
+                  <button type="button" onClick={() => downloadText(t.filename, t.content, "text/csv", true)} className={`${btnClass.base} ${btnClass.sm}`}>
+                    <Icon name="down" size={14} />
+                    {t.label}
+                  </button>
+                  <span className="text-[12px] text-muted-foreground">{t.hint}</span>
+                </div>
+              ))}
+            </div>
+          </section>
         </>
       )}
 

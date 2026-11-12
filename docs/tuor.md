@@ -92,7 +92,7 @@ Os textos estão em `Features/*/tour.ts`. Quando um card depende de dados (por e
 
 ### Lançamentos (`lancamentos`)
 
-- [ ok ] 0. Botão **Importar arquivo**: CSV de extrato ou fatura (colunas, pré-visualização com categoria por regras e duplicados desmarcados; nada é gravado antes de confirmar; também em Lançar > Importar extrato ou fatura)
+- [ ok ] 0. Botão **Importar arquivo**: CSV de extrato ou fatura (a janela traz duas planilhas modelo para baixar, de extrato e de fatura) (colunas, pré-visualização com categoria por regras e duplicados desmarcados; nada é gravado antes de confirmar; também em Lançar > Importar extrato ou fatura)
 - [ ok ] 1. Card **Rendas**: fontes do mês; fixas se repetem todo mês; menu de ações da linha
 - [ ok ] 2. Card **Despesas do mês**: despesas comuns, fixas e parcelas do crédito; fixa pode ser ocultada só num mês e restaurada
 - [ ok ] 3. Card **Anotações**: lembretes do mês, que podem ser fixados e editados
