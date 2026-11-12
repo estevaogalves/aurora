@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MAX_CENTS, formatDateBR, makeDistributionOrigin, todayISO, type DistributionItem } from "@/domain";
+import { MAX_CENTS, findGoalsByName, formatDateBR, makeDistributionOrigin, todayISO, type DistributionItem } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { uuid } from "@/lib/uuid";
 import { useFinanceStore, type Investment } from "@/Store/FinanceStore";
@@ -62,18 +62,20 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
     }),
     [goals, investments],
   );
-  const firstWithOptions = (["piggy", "goal", "investment"] as Destination[]).find((d) => options[d].length > 0) ?? "piggy";
+  // a linha da sugestão (ex.: "Reserva") já aponta para a meta/porquinho de nome parecido ("Reserva de emergência"), sem ligar para acento ou maiúscula
+  const matches = useMemo(() => findGoalsByName(goals, request.slice.label), [goals, request.slice.label]);
+  const matched = matches[0];
+  const firstWithOptions = matched ? (matched.piggy ? "piggy" : "goal") : (["piggy", "goal", "investment"] as Destination[]).find((d) => options[d].length > 0) ?? "piggy";
   const [destination, setDestination] = useState<Destination>(firstWithOptions);
-  const [targetId, setTargetId] = useState(options[firstWithOptions][0]?.id ?? "");
+  const [targetId, setTargetId] = useState(matched?.id ?? options[firstWithOptions][0]?.id ?? "");
   const [amount, setAmount] = useState(centsToInput(request.remaining));
   const [date, setDate] = useState(todayISO());
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
 
   const list = options[destination];
-  // a linha da sugestão (ex.: "Reserva pra moto") deveria ter uma meta ou porquinho com o mesmo nome; se não tem, oferece criar
-  const plain = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-  const hasMatchingGoal = goals.some((g) => plain(g.name) === plain(request.slice.label));
+  // só oferece criar meta se não existe nenhuma com nome parecido (evita duplicar)
+  const hasMatchingGoal = matches.length > 0;
   const [creatingGoal, setCreatingGoal] = useState(false);
   const cotas = investments.filter(byQuantity).length;
 

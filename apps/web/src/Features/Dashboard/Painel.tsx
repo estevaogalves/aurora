@@ -6,10 +6,12 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { breathingDays, freedomDay, getInsights, reserveTotal, visibleInsights, DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
+import { breathingDays, comparisonAvailable, freedomDay, getInsights, reserveTotal, visibleInsights, DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
 import HoursHint from "@/components/shared/HoursHint";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { dismissInsight, usePrefsStore } from "@/lib/preferences";
+import { formatWorkHours, workHours } from "@/domain";
+import { useHourInfo } from "@/Store/hours";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { useCategoryTotals, useDistributionItemsFor, useMonthCredit, useMonthDistributions, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution } from "@/Store/selectors";
@@ -466,11 +468,14 @@ function Insights() {
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
   const goals = useFinanceStore((s) => s.goals);
+  const notes = useFinanceStore((s) => s.notes);
   const dismissed = usePrefsStore((s) => s.dismissedInsights);
-  const insights = useMemo(
-    () => visibleInsights(getInsights({ transactions, creditTransactions, creditCards, extraExpenses, goals }, month, getCurrentMonth()), dismissed),
-    [transactions, creditTransactions, creditCards, extraExpenses, goals, month, dismissed],
-  );
+  const insights = useMemo(() => {
+    const today = getCurrentMonth();
+    // a tela Comparação só existe com 2 meses ou mais de movimento: sem ela, o "Ver" leva para Lançamentos
+    const toComparison = comparisonAvailable({ transactions, creditTransactions, creditCards, extraExpenses, notes }, today);
+    return visibleInsights(getInsights({ transactions, creditTransactions, creditCards, extraExpenses, goals }, month, today), dismissed).map((i) => (i.to === "/comparacao" && !toComparison ? { ...i, to: "/lancamentos" as const } : i));
+  }, [transactions, creditTransactions, creditCards, extraExpenses, goals, notes, month, dismissed]);
   if (insights.length === 0) {
     // sem nada a mostrar, explica por quê (senão parece que o recurso não existe)
     return (
@@ -537,6 +542,28 @@ function Breathing() {
   );
 }
 
+/** Explica a conta das horas de trabalho enquanto o recurso está ligado (valor da hora = renda líquida ÷ horas do mês). */
+function HoursNote({ onAdjust }: { onAdjust: () => void }) {
+  const show = usePrefsStore((s) => s.showHours);
+  const { rate, income, hoursPerMonth, informed } = useHourInfo();
+  if (!show) return null;
+  const example = workHours(10000, rate);
+
+  return (
+    <p role="note" className="mb-3.5 rounded-md border border-border bg-secondary px-3.5 py-2.5 text-[13px] text-ink2">
+      <b className="text-foreground">Horas de trabalho ligadas.</b>{" "}
+      {rate > 0 ? (
+        <>
+          O valor da sua hora é <b className="num text-foreground">{formatBRL(Math.round(rate))}</b> ({informed ? "renda líquida base" : "renda do mês"} de {formatBRL(income)} ÷ {hoursPerMonth.toLocaleString("pt-BR")} h por mês). Cada despesa mostra quantas horas você precisa trabalhar para pagá-la: por exemplo, {formatBRL(10000)} = {example !== null ? formatWorkHours(example) : ""} de trabalho.
+        </>
+      ) : (
+        "Sem renda neste mês e sem renda líquida base, não há como calcular o valor da hora."
+      )}{" "}
+      <button type="button" onClick={onAdjust} className="font-bold text-primary hover:underline">Ajustar</button>
+    </p>
+  );
+}
+
 /** Painel: só leitura, com um atalho de escrita (enviar uma fatia da sugestão do saldo para metas, porquinhos e investimentos). Tudo o que se edita fica em Lançamentos. */
 export default function Painel() {
   const month = useFinanceStore((s) => s.currentMonth);
@@ -554,6 +581,7 @@ export default function Painel() {
         }
       />
       <TimeSettings open={timeOpen} onClose={() => setTimeOpen(false)} />
+      <HoursNote onAdjust={() => setTimeOpen(true)} />
       <GoalDeadlines />
       <Insights />
       <div className="grid grid-cols-12 items-stretch gap-3.5 [&>div>*]:h-full">

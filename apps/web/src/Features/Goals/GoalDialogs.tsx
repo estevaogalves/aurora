@@ -42,7 +42,8 @@ function GoalFields({ goal, onClose, initialName, onCreated }: { goal: Goal | nu
 
   // reserva de emergência: sugere 6 meses da despesa fixa mensal (só com despesa fixa cadastrada)
   const fixedMonthly = getFixedExpense(transactions, month);
-  const reserve = !piggy && isReserveName(name) ? reserveSuggestion(fixedMonthly, parseBRL(target) ?? 0) : null;
+  const [reserveMonths, setReserveMonths] = useState(6);
+  const reserve = !piggy && isReserveName(name) ? reserveSuggestion(fixedMonthly, parseBRL(target) ?? 0, reserveMonths) : null;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -87,11 +88,22 @@ function GoalFields({ goal, onClose, initialName, onCreated }: { goal: Goal | nu
         </Field>
       </div>
       {reserve && (
-        <div className="-mt-1 flex flex-col gap-1.5 rounded-md bg-secondary px-3 py-2.5 text-[13px] text-ink2">
+        <div className="-mt-1 flex flex-col gap-2 rounded-md bg-secondary px-3 py-2.5 text-[13px] text-ink2">
           <span>
-            Sugestão: 6 meses da sua despesa fixa ({formatBRL(fixedMonthly)} por mês) = <b className="num text-foreground">{formatBRL(reserve.suggested)}</b>.
+            <b className="text-foreground">Para que serve:</b> a reserva de emergência é um dinheiro separado para imprevistos (perder a renda, um problema de saúde, um conserto). A regra mais usada é guardar de 3 a 12 meses das suas despesas fixas, para continuar pagando as contas até se reorganizar.
           </span>
+          <span>
+            <b className="text-foreground">No seu caso:</b> suas despesas fixas somam <b className="num text-foreground">{formatBRL(fixedMonthly)}</b> por mês.
+          </span>
+          <label className="flex flex-wrap items-center gap-2">
+            Cobrir
+            <select value={reserveMonths} onChange={(e) => setReserveMonths(Number(e.target.value))} aria-label="Meses de despesa fixa que a reserva cobre" className={`${inputClass} !w-auto !py-1`}>
+              {[3, 6, 12].map((m) => <option key={m} value={m}>{m} meses</option>)}
+            </select>
+            = <b className="num text-foreground">{formatBRL(reserve.suggested)}</b>
+          </label>
           {reserve.belowOneMonth && <span className="font-semibold text-destructive">A meta está abaixo de 1 mês de despesa fixa ({formatBRL(fixedMonthly)}).</span>}
+          <span className="text-muted-foreground">É só uma referência: o valor da meta é você quem decide.</span>
           <button type="button" onClick={() => setTarget(centsToInput(reserve.suggested))} className="self-start text-[13px] font-bold text-primary hover:underline">Usar valor sugerido</button>
         </div>
       )}

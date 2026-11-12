@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getInsights, visibleInsights, type Goal, type Transaction } from "./index";
+import { comparisonAvailable, getInsights, visibleInsights, type Goal, type Transaction } from "./index";
 
 let n = 0;
 const tx = (type: Transaction["type"], amount: number, month: string, category = "Outros", extra: Partial<Transaction> = {}): Transaction =>
@@ -77,5 +77,17 @@ describe("insights automáticos", () => {
     const all = Array.from({ length: 5 }, (_, i) => ({ id: `x${i}`, text: `t${i}`, to: "/metas" as const }));
     expect(visibleInsights(all, []).map((i) => i.id)).toEqual(["x0", "x1", "x2"]);
     expect(visibleInsights(all, ["x0", "x1"]).map((i) => i.id)).toEqual(["x2", "x3", "x4"]);
+  });
+});
+
+describe("comparisonAvailable (a tela Comparação só existe com 2+ meses até hoje)", () => {
+  const base = (t: Transaction[]) => ({ transactions: t, creditTransactions: [], notes: [] });
+  it("só um mês com movimento, mesmo com gastos futuros: não", () => {
+    const t = [salary("2026-11"), tx("expense", 50000, "2026-11"), tx("expense", 70000, "2026-12", "Moradia", { fixed: true })];
+    expect(comparisonAvailable(base(t), TODAY)).toBe(false);
+  });
+  it("dois meses até hoje: sim", () => {
+    const t = [salary("2026-10"), tx("expense", 50000, "2026-10"), salary("2026-11"), tx("expense", 50000, "2026-11")];
+    expect(comparisonAvailable(base(t), TODAY)).toBe(true);
   });
 });

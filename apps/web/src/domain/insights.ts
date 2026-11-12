@@ -1,9 +1,9 @@
 import { formatBRL } from "../lib/money";
-import { changeMonth, getMonthName } from "../Utils/Date";
+import { changeMonth, compareMonths, getMonthName } from "../Utils/Date";
 import { getGoalAlerts } from "./goals";
 import { resolveCardExpenses, resolveCredits } from "./invoice";
 import { getCreditByMonth } from "./credit";
-import { getMonthSummary, getProjection } from "./summary";
+import { getAvailableMonths, getMonthSummary, getProjection } from "./summary";
 import { getTransactionsByMonth } from "./transactions";
 import type { FinanceData, Month } from "./types";
 
@@ -111,6 +111,15 @@ export function getInsights(data: InsightData, month: Month, today: Month): Insi
   }
 
   return out;
+}
+
+/**
+ * A tela Comparação só existe com 2 ou mais meses (até o mês atual) que tiveram renda ou despesa. Os insights só
+ * mandam para lá quando isso é verdade; senão, mandam para Lançamentos.
+ */
+export function comparisonAvailable(data: Pick<FinanceData, "transactions" | "creditTransactions" | "notes"> & Partial<Pick<FinanceData, "creditCards" | "extraExpenses">>, today: Month): boolean {
+  const base = { transactions: data.transactions, creditTransactions: data.creditTransactions, creditCards: data.creditCards, extraExpenses: data.extraExpenses };
+  return getAvailableMonths(data, today).filter((m) => compareMonths(m, today) <= 0).map((m) => getMonthSummary(base, m)).filter((s) => s.totalIncome > 0 || s.totalExpense > 0).length >= 2;
 }
 
 /** Tira os dispensados e limita a `MAX_INSIGHTS`, na ordem de prioridade. */

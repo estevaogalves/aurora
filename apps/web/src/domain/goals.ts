@@ -71,8 +71,24 @@ export function piggyAtDeadline(goal: Goal, today: Month): number | null {
   return monthsLeft > 0 ? goal.saved + goal.monthly * monthsLeft : null;
 }
 
-/** Meses de despesa fixa que a reserva sugerida cobre. */
+/** Meses de despesa fixa que a reserva sugerida cobre por padrão (o usuário pode escolher outro). */
 export const RESERVE_SUGGESTED_MONTHS = 6;
+
+const plainName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * Metas e porquinhos que já "são" o nome de uma linha da sugestão do saldo, sem ligar para acento, maiúscula ou
+ * espaço: nome igual, ou um contido no outro ("Reserva" casa com "Reserva de emergência"). Serve para não pedir
+ * para criar uma meta que já existe.
+ */
+export function findGoalsByName(goals: Goal[], label: string): Goal[] {
+  const wanted = plainName(label);
+  if (!wanted) return [];
+  return goals.filter((g) => {
+    const name = plainName(g.name);
+    return name === wanted || name.includes(wanted) || wanted.includes(name);
+  });
+}
 
 export interface ReserveSuggestion {
   /** centavos: 6 meses da despesa fixa mensal */
@@ -85,9 +101,9 @@ export interface ReserveSuggestion {
  * Tamanho sugerido para a reserva de emergência: 6 meses da despesa fixa mensal. null se não há despesa fixa
  * cadastrada (sem dado, não sugere). `target` é o valor que o usuário digitou (0 ou vazio = ainda sem valor).
  */
-export function reserveSuggestion(fixedMonthly: number, target = 0): ReserveSuggestion | null {
-  if (!(fixedMonthly > 0)) return null;
-  return { suggested: fixedMonthly * RESERVE_SUGGESTED_MONTHS, belowOneMonth: target > 0 && target < fixedMonthly };
+export function reserveSuggestion(fixedMonthly: number, target = 0, months = RESERVE_SUGGESTED_MONTHS): ReserveSuggestion | null {
+  if (!(fixedMonthly > 0) || !(months > 0)) return null;
+  return { suggested: fixedMonthly * months, belowOneMonth: target > 0 && target < fixedMonthly };
 }
 
 export interface GoalForecast {

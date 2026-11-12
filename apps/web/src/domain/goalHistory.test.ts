@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { goalForecast, goalOpeningMovements, makeDistributionOrigin, parseDistributionOrigin, replayGoal, reserveSuggestion, type Goal, type GoalMovement } from "./index";
+import { findGoalsByName, goalForecast, goalOpeningMovements, makeDistributionOrigin, parseDistributionOrigin, replayGoal, reserveSuggestion, type Goal, type GoalMovement } from "./index";
 
 const goal: Goal = { id: "g", name: "Viagem", target: 500000, saved: 0, monthly: 0, deadline: null };
 const gm = (type: GoalMovement["type"], date: string, amount: number): GoalMovement => ({ id: `${type}${date}`, goalId: "g", type, date, amount });
@@ -99,5 +99,25 @@ describe("reserveSuggestion e goalForecast", () => {
   it("meta concluída, porquinho e meta sem valor não têm previsão", () => {
     expect(goalForecast({ ...g, saved: 600000 }, [], "2026-11")).toBeNull();
     expect(goalForecast({ ...g, piggy: true, target: 0 }, [], "2026-11")).toBeNull();
+  });
+});
+
+describe("findGoalsByName e reserva com N meses", () => {
+  const goals: Goal[] = [
+    { id: "1", name: "Reserva de Emergência", target: 1, saved: 0, monthly: 0, deadline: null },
+    { id: "2", name: "  viagem  ", target: 1, saved: 0, monthly: 0, deadline: null },
+    { id: "3", name: "Porquinho", target: 0, saved: 0, monthly: 0, deadline: null, piggy: true },
+  ];
+  it("ignora acento, maiúscula e espaço, e aceita nome contido", () => {
+    expect(findGoalsByName(goals, "reserva").map((g) => g.id)).toEqual(["1"]);
+    expect(findGoalsByName(goals, "RESERVA DE EMERGENCIA").map((g) => g.id)).toEqual(["1"]);
+    expect(findGoalsByName(goals, "Viagem").map((g) => g.id)).toEqual(["2"]);
+    expect(findGoalsByName(goals, "Lazer")).toEqual([]);
+    expect(findGoalsByName(goals, "  ")).toEqual([]);
+  });
+  it("a reserva pode ser de 3, 6 ou 12 meses", () => {
+    expect(reserveSuggestion(100000, 0, 3)?.suggested).toBe(300000);
+    expect(reserveSuggestion(100000, 0, 12)?.suggested).toBe(1200000);
+    expect(reserveSuggestion(100000)?.suggested).toBe(600000);
   });
 });
