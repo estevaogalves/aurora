@@ -13,3 +13,12 @@ export const INVESTIMENTOS_TOUR: TourStep[] = [
   { target: "investimento", title: "Cartão do investimento", text: "Mostra o valor atual, o lucro, quanto foi aportado e resgatado, a taxa, o vencimento, a liquidez e as cotas com o preço médio, quando o investimento controla quantidade.", placement: ["right", "bottom"] },
   { target: "investimento-acoes", title: "Movimentar, histórico, editar e excluir", text: "Movimentar registra um aporte, um resgate, um rendimento ou uma atualização de valor, e o valor atual é refeito pela ordem das datas. O Histórico permite corrigir ou excluir cada movimentação.", placement: ["top", "bottom"] },
 ];
+
+export const SIMULADOR_TOUR: TourStep[] = [
+  { target: "sim-aviso", title: "Uma simulação, não uma promessa", text: "O simulador só faz a conta com os números que você digitar. Ele não consulta bancos, não sugere taxas e não é recomendação de investimento.", placement: ["bottom"] },
+  { target: "sim-campos", title: "Seus números", text: "Aporte mensal (já vem com a média dos seus aportes registrados, se houver), valor inicial, prazo em anos e a rentabilidade anual que você quiser testar. Nada é calculado enquanto faltar o aporte (ou o valor inicial) e a rentabilidade.", placement: ["bottom"] },
+  { target: "sim-exemplos", title: "Exemplos de taxa", text: "Os botões só preenchem o campo com uma taxa de exemplo para você ver o simulador funcionando. Troque por qualquer valor: eles não são promessa nem previsão.", placement: ["bottom", "top"] },
+  { target: "sim-resultado", title: "O resultado", text: "Total investido (seus aportes), rendimento estimado (juros compostos, com o aporte no fim de cada mês) e o valor final.", placement: ["bottom"] },
+  { target: "sim-grafico", title: "Evolução ano a ano", text: "A linha do valor estimado se afasta da linha do que você investiu: essa distância é o rendimento. Passe o mouse (ou toque) para ver os valores de cada ano.", placement: ["top", "right"] },
+  { target: "sim-dividendos", title: "Renda passiva por dividendos", text: "Informe o yield anual que você espera e veja quanto o valor final renderia por mês. Se você também informar os proventos mensais que recebe, o simulador calcula o yield on cost.", placement: ["top", "right"] },
+];

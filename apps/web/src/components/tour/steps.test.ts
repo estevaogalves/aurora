@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { COMPARACAO_TOUR } from "@/Features/Comparison/tour";
 import { METAS_TOUR } from "@/Features/Goals/tour";
-import { INVESTIMENTOS_TOUR } from "@/Features/Investments/tour";
+import { INVESTIMENTOS_TOUR, SIMULADOR_TOUR } from "@/Features/Investments/tour";
 import { LANCAMENTOS_TOUR } from "@/Features/Launch/tour";
 import { PAINEL_TOUR } from "@/Features/Dashboard/tour";
 import { PROJECAO_TOUR } from "@/Features/Projection/tour";
@@ -10,7 +10,7 @@ import { RELATORIOS_TOUR } from "@/Features/Reports/tour";
 import { GLOBAL_TOUR } from "./globalTour";
 import { stepKey } from "./types";
 
-const TOURS = { painel: PAINEL_TOUR, lancamentos: LANCAMENTOS_TOUR, projecao: PROJECAO_TOUR, comparacao: COMPARACAO_TOUR, metas: METAS_TOUR, investimentos: INVESTIMENTOS_TOUR, relatorios: RELATORIOS_TOUR };
+const TOURS = { painel: PAINEL_TOUR, lancamentos: LANCAMENTOS_TOUR, projecao: PROJECAO_TOUR, comparacao: COMPARACAO_TOUR, metas: METAS_TOUR, investimentos: INVESTIMENTOS_TOUR, simulador: SIMULADOR_TOUR, relatorios: RELATORIOS_TOUR };
 
 describe("etapas dos tours", () => {
   for (const [screen, steps] of Object.entries(TOURS)) {

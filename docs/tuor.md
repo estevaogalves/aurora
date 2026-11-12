@@ -144,7 +144,18 @@ A tela Metas e Investimentos tem dois cabeçalhos, cada um com o seu botão ?: o
 - [ ok ] 10. **Cartão do investimento**
 - [ ok ] 11. Ações do cartão: **movimentar, histórico, editar e excluir**
 
-Fica fora do tour geral: a aba Metas abre em Metas e o seletor Metas | Investimentos é estado local da tela.
+Fica fora do tour geral: a aba Metas abre em Metas e o seletor Metas | Investimentos | Simulador é estado local da tela.
+
+### Simulador (`simulador`, dentro de Metas)
+
+Aba **Simulador** do seletor da tela Metas, com o seu próprio botão ?. Com os campos vazios, o tour usa números de exemplo (R$ 500 por mês, 10 anos, 10% ao ano, 6% de yield) enquanto está aberto, com a faixa "Exemplo ilustrativo"; eles nunca são gravados.
+
+- [ ok ] 1. Aviso **simulação, não promessa**
+- [ ok ] 2. **Seus números**: aporte, valor inicial, prazo e rentabilidade
+- [ ok ] 3. **Exemplos de taxa** (só preenchem o campo)
+- [ ok ] 4. **O resultado**: investido, rendimento e valor final
+- [ ok ] 5. **Evolução** ano a ano
+- [ ok ] 6. **Renda passiva por dividendos** e yield on cost
 
 ### Relatórios (`relatorios`)
 

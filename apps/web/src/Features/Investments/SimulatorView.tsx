@@ -6,6 +6,7 @@ import StatCard from "@/components/shared/StatCard";
 import { averageMonthlyContribution, investedForIncome, parsePercent, passiveIncome, simulateGrowth, SIM_MAX_RATE, SIM_MAX_YEARS, yieldOnCost } from "@/domain";
 import { centsToInput, formatBRL, formatBRLShort, parseBRL } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
+import { useUiStore } from "@/Store/UiStore";
 import { getCurrentMonth } from "@/Utils/Date";
 
 /** Exemplos de taxa só para preencher o campo: não são promessa nem previsão, e podem ser trocados por qualquer valor. */
@@ -31,11 +32,13 @@ export default function SimulatorView() {
   const [yieldText, setYieldText] = useState("");
   const [dividends, setDividends] = useState("");
 
-  const monthlyCents = parseBRL(monthly) ?? 0;
+  // durante o tour, com os campos vazios, a tela usa números de exemplo (nunca gravados) para mostrar o resultado
+  const demo = useUiStore((s) => s.tourDemo) && !monthly.trim() && !initial.trim() && !rate.trim();
+  const monthlyCents = demo ? 50000 : (parseBRL(monthly) ?? 0);
   const initialCents = parseBRL(initial) ?? 0;
   const yearsN = Number(years);
-  const rateN = parsePercent(rate);
-  const yieldN = parsePercent(yieldText);
+  const rateN = demo ? 10 : parsePercent(rate);
+  const yieldN = demo ? 6 : parsePercent(yieldText);
 
   const result = useMemo(
     () => (rateN === null ? null : simulateGrowth({ initial: initialCents, monthly: monthlyCents, years: yearsN, annualRate: rateN })),
@@ -55,12 +58,12 @@ export default function SimulatorView() {
 
   return (
     <div className="flex flex-col gap-3.5">
-      <p role="note" className="rounded-md border border-border bg-secondary px-3.5 py-2.5 text-[13px] text-ink2">
+      <p role="note" data-tour="sim-aviso" className="rounded-md border border-border bg-secondary px-3.5 py-2.5 text-[13px] text-ink2">
         <b className="text-foreground">Simulação ilustrativa, não é recomendação de investimento.</b> O resultado depende só dos números que você digitar: nenhuma rentabilidade é garantida, e o Aurora não sugere taxas.
       </p>
 
       <Panel title="Simular o crescimento" subtitle="Juros compostos com aporte no fim de cada mês">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div data-tour="sim-campos" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <Field label="Aporte mensal" hint={average > 0 ? "(média dos seus aportes)" : undefined} htmlFor="sim-monthly">
             <MoneyInput id="sim-monthly" value={monthly} onChange={setMonthly} placeholder="500,00" />
           </Field>
@@ -74,7 +77,7 @@ export default function SimulatorView() {
             <input id="sim-rate" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value.replace(/[^0-9,.]/g, ""))} placeholder="Digite a sua estimativa" className={inputClass} />
           </Field>
         </div>
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px] text-muted-foreground">
+        <div data-tour="sim-exemplos" className="mt-3 flex flex-wrap items-center gap-2 text-[12.5px] text-muted-foreground">
           <span>Exemplos, só para preencher (não são promessa):</span>
           {RATE_EXAMPLES.map((ex) => (
             <button key={ex.rate} type="button" onClick={() => setRate(ex.rate)} className="rounded-full border border-border bg-card px-2.5 py-1 font-semibold text-ink2 hover:border-primary hover:text-primary">
@@ -93,13 +96,18 @@ export default function SimulatorView() {
 
       {result && !empty && !problem && (
         <>
-          <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
+          {demo && (
+            <p role="note" className="rounded-md border border-primary/40 bg-primary/10 px-3.5 py-2.5 text-[13px] text-muted-foreground">
+              <b className="text-foreground">Exemplo ilustrativo.</b> R$ 500 por mês, 10 anos, 10% ao ano e 6% de yield: números fictícios, só para mostrar o resultado.
+            </p>
+          )}
+          <div data-tour="sim-resultado" className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
             <StatCard label="Total investido" value={formatBRLShort(result.invested)} hint={`em ${yearsN} ${yearsN === 1 ? "ano" : "anos"}`} />
             <StatCard label="Rendimento estimado" value={formatBRLShort(result.interest)} hint={`a ${rateN!.toLocaleString("pt-BR")}% ao ano`} tone={result.interest > 0 ? "good" : "default"} />
             <StatCard label="Valor final" value={formatBRLShort(result.final)} hint="investido + rendimento" highlight />
           </div>
 
-          <Panel title="Evolução" subtitle="Ano a ano, com os números acima">
+          <Panel tour="sim-grafico" title="Evolução" subtitle="Ano a ano, com os números acima">
             <ChartLine
               tapDetail
               labels={result.points.map((p) => (p.year === 0 ? "Hoje" : `${p.year}a`))}
@@ -114,7 +122,7 @@ export default function SimulatorView() {
             </div>
           </Panel>
 
-          <Panel title="Renda passiva por dividendos" subtitle="Quanto o valor final poderia render por mês, com o yield que você informar">
+          <Panel tour="sim-dividendos" title="Renda passiva por dividendos" subtitle="Quanto o valor final poderia render por mês, com o yield que você informar">
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Yield anual estimado (%)" htmlFor="sim-yield">
                 <input id="sim-yield" inputMode="decimal" value={yieldText} onChange={(e) => setYieldText(e.target.value.replace(/[^0-9,.]/g, ""))} placeholder="Digite a sua estimativa" className={inputClass} />

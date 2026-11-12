@@ -12,7 +12,7 @@ import { useUiStore } from "@/Store/UiStore";
 import { formatMonthShort, getCurrentMonth } from "@/Utils/Date";
 import InvestmentsView from "../Investments/InvestmentsView";
 import SimulatorView from "../Investments/SimulatorView";
-import { INVESTIMENTOS_TOUR } from "../Investments/tour";
+import { INVESTIMENTOS_TOUR, SIMULADOR_TOUR } from "../Investments/tour";
 import { getDemoGoals } from "./demo";
 import { GoalDialog, GoalHistoryDialog, GoalMovementDialog } from "./GoalDialogs";
 import { deadlineStatus, useGoalAlerts } from "./goalAlerts";
@@ -296,7 +296,7 @@ export default function GoalsPage() {
         <GoalsView />
       ) : view === "simulador" ? (
         <>
-          <PageHeader title="Simulador" subtitle="Veja como um aporte mensal cresce com juros compostos e quanto poderia render em dividendos, com a taxa que você escolher." />
+          <PageHeader tour={SIMULADOR_TOUR} title="Simulador" subtitle="Veja como um aporte mensal cresce com juros compostos e quanto poderia render em dividendos, com a taxa que você escolher." />
           <SimulatorView />
         </>
       ) : (
