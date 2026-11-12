@@ -185,5 +185,19 @@
       "paidInstallments": 9,
       "nextMonth": "2026-11"
     }
+  ],
+  "dividendAssets": [
+    {
+      "id": "a1",
+      "name": "HGLG11",
+      "invested": 1000000,
+      "monthlyDividends": 8000
+    },
+    {
+      "id": "a2",
+      "name": "ITSA4",
+      "invested": 500000,
+      "monthlyDividends": 2500
+    }
   ]
 }

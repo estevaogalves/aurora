@@ -6,6 +6,7 @@ import StatCard from "@/components/shared/StatCard";
 import { averageMonthlyContribution, investedForIncome, parsePercent, passiveIncome, simulateGrowth, SIM_MAX_RATE, SIM_MAX_YEARS, yieldOnCost } from "@/domain";
 import { centsToInput, formatBRL, formatBRLShort, parseBRL } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
+import DividendPortfolio from "./DividendPortfolio";
 import { useUiStore } from "@/Store/UiStore";
 import { getCurrentMonth } from "@/Utils/Date";
 
@@ -141,6 +142,7 @@ export default function SimulatorView() {
           </Panel>
         </>
       )}
+      <DividendPortfolio />
     </div>
   );
 }

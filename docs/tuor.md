@@ -147,6 +147,7 @@ A tela Metas e Investimentos tem dois cabeçalhos, cada um com o seu botão ?: o
 - [ ok ] 9. Card **Próximos vencimentos**
 - [ ok ] 10. **Cartão do investimento**
 - [ ok ] 11. Ações do cartão: **movimentar, histórico, editar e excluir**
+- [ ok ] 12. Seção **Meus negócios** (negócio próprio: investido, recebido, sacado e lucro; usa um negócio de exemplo durante o tour)
 
 Fica fora do tour geral: a aba Metas abre em Metas e o seletor Metas | Investimentos | Simulador é estado local da tela.
 
@@ -160,6 +161,16 @@ Aba **Simulador** do seletor da tela Metas, com o seu próprio botão ?. Com os 
 - [ ok ] 4. **O resultado**: investido, rendimento e valor final
 - [ ok ] 5. **Evolução** ano a ano
 - [ ok ] 6. **Renda passiva por dividendos** e yield on cost
+- [ ok ] 7. **Carteira de dividendos** (manual, com yield on cost por ativo)
+
+### Dívidas (`dividas`, dentro de Metas)
+
+Sem nenhuma dívida, o tour usa dívidas de exemplo (fictícias, nunca gravadas).
+
+- [ ok ] 1. Botão **Nova dívida**
+- [ ok ] 2. **Resumo**: parcelas por mês, saldo a pagar e última parcela
+- [ ok ] 3. **Cartão da dívida**: parcelas, saldo, quitação, vínculo com a despesa fixa e **Registrar parcela paga**
+- [ ok ] 4. **Simular quitação antecipada** (com o desconto informado)
 
 ### Relatórios (`relatorios`)
 

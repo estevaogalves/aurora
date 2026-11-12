@@ -219,7 +219,7 @@ export default function InvestmentsView() {
       )}
 
       {businessShown.length > 0 && (
-        <section aria-label="Meus negócios" className="mt-10 border-t border-border pt-6">
+        <section aria-label="Meus negócios" data-tour="negocios" className="mt-10 border-t border-border pt-6">
           <SectionHeader title="Meus negócios" subtitle="O que você investiu, recebeu das vendas e já sacou" />
           <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-3.5">
             <StatCard label="Investido" value={formatBRLShort(business.invested)} hint="soma dos investimentos" />
