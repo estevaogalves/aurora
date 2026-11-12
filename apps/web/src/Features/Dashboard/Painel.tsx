@@ -6,15 +6,15 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { breathingDays, freedomDay, reserveTotal, DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
+import { breathingDays, freedomDay, getInsights, reserveTotal, visibleInsights, DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
 import HoursHint from "@/components/shared/HoursHint";
 import { formatBRL, formatBRLShort } from "@/lib/money";
-import { usePrefsStore } from "@/lib/preferences";
+import { dismissInsight, usePrefsStore } from "@/lib/preferences";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { useCategoryTotals, useDistributionItemsFor, useMonthCredit, useMonthDistributions, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
-import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
+import { changeMonth, formatMonthShort, formatMonthTitle, getCurrentMonth, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
 import { deadlineStatus, paceHint, useGoalAlerts } from "../Goals/goalAlerts";
 import { getDemoGoals } from "../Goals/demo";
@@ -458,6 +458,41 @@ function GoalDeadlines() {
   );
 }
 
+/** Faixa de 1 a 3 frases geradas por regras (sem IA e sem enviar dados para fora). Cada uma pode ser dispensada. */
+function Insights() {
+  const month = useFinanceStore((s) => s.currentMonth);
+  const transactions = useFinanceStore((s) => s.transactions);
+  const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
+  const goals = useFinanceStore((s) => s.goals);
+  const dismissed = usePrefsStore((s) => s.dismissedInsights);
+  const insights = useMemo(
+    () => visibleInsights(getInsights({ transactions, creditTransactions, creditCards, extraExpenses, goals }, month, getCurrentMonth()), dismissed),
+    [transactions, creditTransactions, creditCards, extraExpenses, goals, month, dismissed],
+  );
+  if (insights.length === 0) return null;
+
+  return (
+    <section data-tour="insights" aria-label="Insights do mês" className="mb-3.5 rounded-lg border border-border bg-card px-5 py-4 shadow-[var(--shadow-card)]">
+      <h2 className="mb-2 font-display text-[15px] font-semibold">Em destaque neste mês</h2>
+      <ul className="flex flex-col divide-y divide-border">
+        {insights.map((i) => (
+          <li key={i.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-[13.5px] first:pt-0 last:pb-0">
+            <span className="min-w-0 break-words text-ink2">{i.text}</span>
+            <span className="flex flex-none items-center gap-3">
+              <Link to={i.to} className="text-[13px] font-bold text-primary">Ver →</Link>
+              <button type="button" onClick={() => dismissInsight(i.id)} aria-label="Dispensar este insight" title="Dispensar" className="text-muted-foreground hover:text-foreground">
+                <Icon name="close" size={14} />
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /** Dias de fôlego: quanto tempo a reserva sustenta a despesa média diária do mês. Só aparece se o usuário ligar e tiver reserva. */
 function Breathing() {
   const show = usePrefsStore((s) => s.showBreathing);
@@ -505,6 +540,7 @@ export default function Painel() {
       />
       <TimeSettings open={timeOpen} onClose={() => setTimeOpen(false)} />
       <GoalDeadlines />
+      <Insights />
       <div className="grid grid-cols-12 items-stretch gap-3.5 [&>div>*]:h-full">
         <div className="col-span-12 lg:col-span-4"><Hero /></div>
         <div className="col-span-12 lg:col-span-8"><Trend /></div>

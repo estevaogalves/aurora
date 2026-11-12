@@ -16,9 +16,14 @@ export interface Preferences {
   netIncome: number | null;
   /** card "Dias de fôlego" no Painel (desligado por padrão) */
   showBreathing: boolean;
+  /** ids dos insights do Painel que o usuário dispensou */
+  dismissedInsights: string[];
 }
 
-export const DEFAULT_PREFS: Preferences = { showHours: false, hoursPerMonth: DEFAULT_HOURS_PER_MONTH, netIncome: null, showBreathing: false };
+/** Quantos insights dispensados ficam guardados (os mais antigos saem primeiro). */
+export const MAX_DISMISSED = 200;
+
+export const DEFAULT_PREFS: Preferences = { showHours: false, hoursPerMonth: DEFAULT_HOURS_PER_MONTH, netIncome: null, showBreathing: false, dismissedInsights: [] };
 
 /** Lê o que foi salvo, aceitando só campos do tipo certo (o resto volta ao padrão). */
 export function parsePrefs(raw: string | null): Preferences {
@@ -30,6 +35,7 @@ export function parsePrefs(raw: string | null): Preferences {
       hoursPerMonth: typeof d.hoursPerMonth === "number" && d.hoursPerMonth > 0 && d.hoursPerMonth <= 744 ? d.hoursPerMonth : DEFAULT_PREFS.hoursPerMonth,
       netIncome: typeof d.netIncome === "number" && d.netIncome > 0 ? d.netIncome : null,
       showBreathing: d.showBreathing === true,
+      dismissedInsights: Array.isArray(d.dismissedInsights) ? d.dismissedInsights.filter((x): x is string => typeof x === "string").slice(-MAX_DISMISSED) : [],
     };
   } catch {
     return DEFAULT_PREFS;
@@ -52,11 +58,18 @@ export const usePrefsStore = create<PrefsState>((set, get) => ({
   ...read(),
   setPrefs: (patch) => {
     set(patch);
-    const { showHours, hoursPerMonth, netIncome, showBreathing } = get();
+    const { showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights } = get();
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ showHours, hoursPerMonth, netIncome, showBreathing }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights }));
     } catch {
       // sem persistência, vale só para a sessão
     }
   },
 }));
+
+/** Dispensa um insight (some do Painel; volta só se a situação mudar e gerar outro id). */
+export function dismissInsight(id: string) {
+  const { dismissedInsights, setPrefs } = usePrefsStore.getState();
+  if (dismissedInsights.includes(id)) return;
+  setPrefs({ dismissedInsights: [...dismissedInsights, id].slice(-MAX_DISMISSED) });
+}

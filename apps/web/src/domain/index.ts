@@ -2,6 +2,7 @@ export * from "./categories";
 export * from "./credit";
 export * from "./distribution";
 export * from "./goals";
+export * from "./insights";
 export * from "./investments";
 export * from "./origin";
 export * from "./invoice";
