@@ -7,6 +7,7 @@ export * from "./investments";
 export * from "./origin";
 export * from "./invoice";
 export * from "./payment";
+export * from "./simulator";
 export * from "./report";
 export * from "./summary";
 export * from "./transactions";
