@@ -16,8 +16,8 @@ UPDATE transactions SET
     category     = COALESCE(sqlc.narg('category'), category),
     notes        = COALESCE(sqlc.narg('notes'), notes),
     fixed        = COALESCE(sqlc.narg('fixed'), fixed),
-    -- só fixa tem valor variável: deixar de ser fixa desliga
-    variable_amount = COALESCE(sqlc.narg('fixed'), fixed) AND COALESCE(sqlc.narg('variable_amount'), variable_amount),
+    -- valor variável (estimado): vale para fixa e para avulsa; só muda quando vem na requisição
+    variable_amount = COALESCE(sqlc.narg('variable_amount'), variable_amount),
     -- card_id: só muda quando set_card é true; card_id nulo solta a despesa do cartão
     card_id       = CASE WHEN sqlc.arg('set_card')::boolean THEN sqlc.narg('card_id')::uuid ELSE card_id END,
     purchase_date = COALESCE(sqlc.narg('purchase_date'), purchase_date),

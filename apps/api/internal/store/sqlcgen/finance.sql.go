@@ -2310,8 +2310,8 @@ UPDATE transactions SET
     category     = COALESCE($3, category),
     notes        = COALESCE($4, notes),
     fixed        = COALESCE($5, fixed),
-    -- só fixa tem valor variável: deixar de ser fixa desliga
-    variable_amount = COALESCE($5, fixed) AND COALESCE($6, variable_amount),
+    -- valor variável (estimado): vale para fixa e para avulsa; só muda quando vem na requisição
+    variable_amount = COALESCE($6, variable_amount),
     -- card_id: só muda quando set_card é true; card_id nulo solta a despesa do cartão
     card_id       = CASE WHEN $7::boolean THEN $8::uuid ELSE card_id END,
     purchase_date = COALESCE($9, purchase_date),

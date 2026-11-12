@@ -2388,7 +2388,7 @@ export interface components {
             monthlyNotes?: {
                 [key: string]: string;
             };
-            /** @description Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado. */
+            /** @description Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu `monthlyValues`; na avulsa, o valor real vem de enviar um novo `amount` e `variableAmount: false`. Só muda quando vem na requisição. */
             variableAmount?: boolean;
             /** @description Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação. */
             payments?: {
@@ -2433,7 +2433,7 @@ export interface components {
             monthlyNotes?: {
                 [key: string]: string;
             };
-            /** @description Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado. */
+            /** @description Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu `monthlyValues`; na avulsa, o valor real vem de enviar um novo `amount` e `variableAmount: false`. Só muda quando vem na requisição. */
             variableAmount?: boolean;
             /** @description Despesa avulsa no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, a despesa tem que ter `purchaseDate` (no mesmo pedido ou já guardado) e não pode ser fixa. */
             cardId?: string;

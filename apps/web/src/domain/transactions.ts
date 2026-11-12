@@ -20,7 +20,8 @@ export function getTransactionsByMonth(
   return transactions
     .filter((t) => (t.fixed ? isFixedActiveIn(t, month) : t.month === month))
     .map((t) => {
-      if (!t.fixed) return t;
+      // avulsa de valor variável: o próprio valor é a estimativa, até ser confirmado
+      if (!t.fixed) return t.variableAmount ? { ...t, estimated: true } : t;
       const override = t.monthlyValues?.[month];
       // a observação de uma fixa é só do mês: a própria `notes` vale no mês de criação, os outros têm a sua (ou nenhuma)
       const notes = noteOfMonth(t, month);
@@ -136,14 +137,15 @@ export function patchRestoreInMonth(
 
 /**
  * Alterna fixa/não fixa. Ao fixar, a transação passa a valer a partir do mês em
- * que foi criada. Ao desfixar, os valores e ocultações por mês deixam de existir.
+ * que foi criada. Ao desfixar, os valores e ocultações por mês deixam de existir (o valor estimado, se houver, segue).
  */
 export function patchToggleFixed(t: Transaction): Partial<Transaction> {
   if (!t.fixed) {
     // renda fixa não entra numa distribuição própria (só renda variável: 13º, bônus)
     return { fixed: true, hiddenMonths: [], distGroup: undefined };
   }
-  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, variableAmount: undefined, endMonth: undefined };
+  // o valor variável (estimado) continua: o valor da fixa vira o valor estimado da avulsa
+  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, endMonth: undefined };
 }
 
 /** Fixa de valor variável: tira o valor real deste mês e ele volta ao estimado. null se o mês já está estimado. */

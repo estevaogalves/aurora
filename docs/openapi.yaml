@@ -767,7 +767,7 @@ components:
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
         monthlyNotes: { type: object, description: "Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação).", additionalProperties: { type: string } }
-        variableAmount: { type: boolean, description: "Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado." }
+        variableAmount: { type: boolean, description: "Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu `monthlyValues`; na avulsa, o valor real vem de enviar um novo `amount` e `variableAmount: false`. Só muda quando vem na requisição." }
         payments:
           type: object
           description: Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação.
@@ -794,7 +794,7 @@ components:
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
         monthlyNotes: { type: object, description: "Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação).", additionalProperties: { type: string } }
-        variableAmount: { type: boolean, description: "Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado." }
+        variableAmount: { type: boolean, description: "Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu `monthlyValues`; na avulsa, o valor real vem de enviar um novo `amount` e `variableAmount: false`. Só muda quando vem na requisição." }
         cardId: { type: string, description: 'Despesa avulsa no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, a despesa tem que ter `purchaseDate` (no mesmo pedido ou já guardado) e não pode ser fixa.' }
         purchaseDate: { type: string, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
         endMonth: { type: string, description: 'Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa.' }

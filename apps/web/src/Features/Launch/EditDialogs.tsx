@@ -72,7 +72,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
 
     if (trimmed !== transaction.name) updateTransactionName(transaction.id, trimmed);
     if (canHaveCard && (cardId !== (transaction.cardId ?? "") || (cardId && purchaseDate !== transaction.purchaseDate))) setTransactionCard(transaction.id, cardId, purchaseDate);
-    if (transaction.fixed && variable !== !!transaction.variableAmount) setTransactionVariable(transaction.id, variable);
+    if (variable !== !!transaction.variableAmount) setTransactionVariable(transaction.id, variable);
     if (income && !transaction.fixed && distGroup !== distGroupOf(transaction)) setTransactionDistGroup(transaction.id, distGroup);
     if (cents !== transaction.amount) {
       if (transaction.fixed && scope === "following") updateTransactionAmountFromMonth(transaction.id, month, cents);
@@ -107,12 +107,15 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
           ))}
         </fieldset>
       )}
-      {transaction.fixed && (
+      {/* compra no cartão tem a sua própria regra (fatura); o resto, fixa ou avulsa, pode ter valor estimado */}
+      {!cardId && (
         <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
           <Checkbox checked={variable} onCheckedChange={(c) => setVariable(Boolean(c))} className="mt-0.5" />
           <span>
             <span className="block text-sm font-medium text-foreground">Valor variável (estimado)</span>
-            <span className="block text-xs text-muted-foreground">O valor é uma estimativa; cada mês pode ter o valor real.</span>
+            <span className="block text-xs text-muted-foreground">
+              {transaction.fixed ? "O valor é uma estimativa; cada mês pode ter o valor real." : "O valor é uma estimativa. Ao saber o valor real, informe-o acima e desmarque esta opção."}
+            </span>
           </span>
         </label>
       )}

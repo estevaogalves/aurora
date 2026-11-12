@@ -104,7 +104,7 @@ interface FinanceState {
   /** Fixa: o novo valor vale deste mês em diante (os anteriores não mudam). */
   updateTransactionAmountFromMonth: (id: string, month: string, cents: number) => void;
   toggleTransactionFixed: (id: string) => void;
-  /** Fixa: liga ou desliga o valor variável (estimado). */
+  /** Liga ou desliga o valor variável (estimado), em fixa ou avulsa. */
   setTransactionVariable: (id: string, variable: boolean) => void;
   /** Fixa variável: tira o valor real do mês e volta ao estimado. */
   clearTransactionActualValue: (id: string, month: string) => void;
@@ -345,8 +345,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     setTransactionVariable: (id, variable) => {
-      const t = findTransaction(id);
-      if (t?.fixed) patchTransaction(id, { variableAmount: variable });
+      // vale para fixa e para avulsa (renda ou despesa de um mês só)
+      if (findTransaction(id)) patchTransaction(id, { variableAmount: variable });
     },
 
     clearTransactionActualValue: (id, month) => {

@@ -84,8 +84,18 @@ describe("ApiRepository: encerrar despesa fixa", () => {
   it("deixar de ser fixa também limpa o fim", async () => {
     setAccessToken("t");
     const calls = mockFetch(() => new Response(null, { status: 200 }));
-    await new ApiRepository().updateTransaction("f", { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, variableAmount: undefined, endMonth: undefined });
+    await new ApiRepository().updateTransaction("f", { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, endMonth: undefined });
     expect(calls[0].body).toMatchObject({ fixed: false, endMonth: "" });
+    // o valor estimado não é tocado ao deixar de ser fixa
+    expect(calls[0].body).not.toHaveProperty("variableAmount");
+  });
+
+  it("valor variável (estimado) de uma avulsa vai e volta como true e false", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    await new ApiRepository().updateTransaction("a", { variableAmount: true });
+    await new ApiRepository().updateTransaction("a", { variableAmount: false, amount: 5230 });
+    expect(calls.map((c) => c.body)).toEqual([{ variableAmount: true }, { variableAmount: false, amount: 5230 }]);
   });
 });
 

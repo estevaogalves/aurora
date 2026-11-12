@@ -40,7 +40,6 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) {
 	in.Name = strings.TrimSpace(in.Name)
 	if !in.Fixed {
 		in.HiddenMonths, in.MonthlyValues, in.MonthlyNotes = nil, nil, nil
-		in.VariableAmount = false
 	}
 	if bad(w, s.lim.validateTransaction(in)) {
 		return

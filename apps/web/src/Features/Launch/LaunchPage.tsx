@@ -115,6 +115,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
         <>
           {!income && t.category}
           {t.fixed ? <Pill tone="fix">Fixa</Pill> : income ? <Pill>Variável</Pill> : null}
+          {t.estimated && <Pill>Estimado</Pill>}
           {income && distGroupOf(t) >= 2 && <Pill tone="good">{distLabel(distGroupOf(t))}</Pill>}
           {cardName && <Pill>{cardName}{t.purchaseDate ? ` · compra ${dayMonth(t.purchaseDate)}` : ""}</Pill>}
           {payment && <PaidBadge payment={payment} />}

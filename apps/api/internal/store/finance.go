@@ -49,7 +49,7 @@ func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domai
 func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
-		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.Fixed && t.VariableAmount,
+		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.VariableAmount,
 		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int32(t.DistGroup),
 	})
 	if err != nil {

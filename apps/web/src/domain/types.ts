@@ -38,9 +38,12 @@ export interface Transaction {
   monthlyValues?: Record<Month, number>;
   /** Fixas: observação de um mês. A observação é só do mês: `notes` vale apenas no mês de criação e não se repete nos seguintes. */
   monthlyNotes?: Record<Month, string>;
-  /** Fixas de valor variável: `amount` é uma estimativa e o valor real de um mês é o seu `monthlyValues`. */
+  /**
+   * Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu
+   * `monthlyValues`; na avulsa (renda ou despesa de um mês só), o valor real vem de editar `amount` e desmarcar a estimativa.
+   */
   variableAmount?: boolean;
-  /** Só em `getTransactionsByMonth` (não é salvo): fixa variável deste mês ainda sem o valor real. */
+  /** Só em `getTransactionsByMonth` (não é salvo): valor variável deste mês ainda sem o valor real (fixa sem `monthlyValues`, ou avulsa estimada). */
   estimated?: boolean;
   /** Despesas: pagamento por mês (fixa pode estar paga em um mês e não em outro). Só registro. */
   payments?: Record<Month, Payment>;

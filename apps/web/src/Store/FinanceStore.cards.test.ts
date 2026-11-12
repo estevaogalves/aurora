@@ -186,3 +186,19 @@ describe("ajustes da fatura na store", () => {
     expect(store().transactions).toBe(before);
   });
 });
+
+describe("valor variável (estimado) na store", () => {
+  it("liga e desliga em uma despesa avulsa (não só em fixa) e avisa o repositório", () => {
+    store().setTransactionVariable("t3", true);
+    expect(store().transactions.find((t) => t.id === "t3")?.variableAmount).toBe(true);
+    expect(repo.updateTransaction).toHaveBeenCalledWith("t3", { variableAmount: true });
+    store().setTransactionVariable("t3", false);
+    expect(store().transactions.find((t) => t.id === "t3")?.variableAmount).toBe(false);
+    expect(repo.updateTransaction).toHaveBeenLastCalledWith("t3", { variableAmount: false });
+  });
+
+  it("lançamento que não existe é ignorado", () => {
+    store().setTransactionVariable("fantasma", true);
+    expect(repo.updateTransaction).not.toHaveBeenCalled();
+  });
+});
