@@ -3,7 +3,7 @@ import { getCreditByMonth } from "./credit";
 import { cardPaymentOf, dayMonth, getCardInvoice, isCardPurchase, resolveCardExpenses, resolveCredits } from "./invoice";
 import { getTransactionsByMonth } from "./transactions";
 import { formatPaymentDate, formatPaymentDay, paymentMethodLabel, paymentOf, paymentStatusLabel } from "./payment";
-import { getMonthsBetween, changeMonth, formatMonth } from "../Utils/Date";
+import { getMonthsBetween, changeMonth, compareMonths, formatMonth, formatMonthAbbr } from "../Utils/Date";
 import { formatBRL } from "../lib/money";
 import type { Category } from "../Types/Category";
 import type { FinanceData, Month, MonthSummary, Payment } from "./types";
@@ -13,6 +13,34 @@ type Source = Pick<FinanceData, "transactions" | "creditTransactions"> & Partial
 /** Os `count` meses terminando em `end` (inclusive), do mais antigo ao mais novo. */
 export function lastMonths(end: Month, count: number): Month[] {
   return getMonthsBetween(changeMonth(end, -(count - 1)), end);
+}
+
+/** Meses sem repetição, do mais antigo ao mais novo. */
+export const sortMonths = (months: Month[]): Month[] => [...new Set(months)].sort(compareMonths);
+
+/** Os meses são seguidos, sem pular nenhum? */
+const isContiguous = (months: Month[]) => months.every((m, i) => i === 0 || m === changeMonth(months[i - 1], 1));
+
+/**
+ * Texto do período para títulos: "novembro de 2026" (um mês), "setembro de 2026 a novembro de 2026" (meses
+ * seguidos) ou "Set/26, Nov/26 e Dez/26" (meses soltos; com mais de 6, só o primeiro, o último e a contagem).
+ */
+export function formatPeriodLabel(months: Month[]): string {
+  const m = sortMonths(months);
+  if (m.length === 0) return "";
+  if (m.length === 1) return formatMonth(m[0]);
+  if (isContiguous(m)) return `${formatMonth(m[0])} a ${formatMonth(m[m.length - 1])}`;
+  const short = (x: Month) => `${formatMonthAbbr(x)}/${x.slice(2, 4)}`;
+  if (m.length > 6) return `${short(m[0])} a ${short(m[m.length - 1])} (${m.length} meses escolhidos)`;
+  return `${m.slice(0, -1).map(short).join(", ")} e ${short(m[m.length - 1])}`;
+}
+
+/** Nome do arquivo (sem extensão): "relatorio-2026-11", "relatorio-2026-09_a_2026-11" ou, com meses soltos, os meses. */
+export function periodFileName(months: Month[]): string {
+  const m = sortMonths(months);
+  if (m.length <= 1) return `relatorio-${m[0] ?? ""}`;
+  if (isContiguous(m)) return `relatorio-${m[0]}_a_${m[m.length - 1]}`;
+  return m.length <= 4 ? `relatorio-${m.join("_")}` : `relatorio-${m[0]}_a_${m[m.length - 1]}_${m.length}-meses`;
 }
 
 export interface PeriodTotals {
@@ -271,7 +299,7 @@ export function buildCsv(data: Source, months: Month[], options: ReportOptions):
 
 /** Texto simples, bom para colar em mensagem ou nota. */
 export function buildTxt(data: Source, months: Month[], options: ReportOptions): string {
-  const lines: string[] = ["AURORA · Relatório financeiro", `Período: ${formatMonth(months[0])} a ${formatMonth(months[months.length - 1])}`, ""];
+  const lines: string[] = ["AURORA · Relatório financeiro", `Período: ${formatPeriodLabel(months)}`, ""];
 
   if (options.summary) {
     const t = getPeriodTotals(data, months);

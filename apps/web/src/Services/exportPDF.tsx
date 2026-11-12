@@ -9,7 +9,9 @@ import {
   distributeBalance,
   formatPaymentDate,
   getPeriodTotals,
+  formatPeriodLabel,
   getReportInvoices,
+  periodFileName,
   getReportRows,
   invoiceTitle,
   isScheduled,
@@ -102,7 +104,7 @@ export function exportPDF(months: string[], options: PdfOptions) {
   const data = { transactions: store.transactions, creditTransactions: store.creditTransactions, creditCards: store.creditCards, extraExpenses: store.extraExpenses };
   const totals = getPeriodTotals(data, months);
   const multi = months.length > 1;
-  const periodLabel = multi ? `${formatMonth(months[0])} a ${formatMonth(months[months.length - 1])}` : formatMonth(months[0]);
+  const periodLabel = formatPeriodLabel(months);
   const hex = (category: string) => hexToRgb(categoryHex(category, store.customCategories));
 
   /* ---------- cabeçalhos e rodapé ---------- */
@@ -535,5 +537,5 @@ export function exportPDF(months: string[], options: PdfOptions) {
     if (p > 1) drawRunningHeader();
     drawFooter(p, pages);
   }
-  downloadBlob(`relatorio-${months[0]}${multi ? `_a_${months[months.length - 1]}` : ""}.pdf`, doc.output("blob"));
+  downloadBlob(`${periodFileName(months)}.pdf`, doc.output("blob"));
 }
