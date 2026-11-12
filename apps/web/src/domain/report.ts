@@ -4,7 +4,7 @@ import { cardPaymentOf, dayMonth, getCardInvoice, isCardPurchase, resolveCardExp
 import { getTransactionsByMonth } from "./transactions";
 import { formatPaymentDate, formatPaymentDay, paymentMethodLabel, paymentOf, paymentStatusLabel } from "./payment";
 import { getMonthsBetween, changeMonth, compareMonths, formatMonth, formatMonthAbbr } from "../Utils/Date";
-import { formatBRL } from "../lib/money";
+import { formatBRLExact as formatBRL } from "../lib/money";
 import type { Category } from "../Types/Category";
 import type { FinanceData, Month, MonthSummary, Payment } from "./types";
 

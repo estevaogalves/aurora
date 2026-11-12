@@ -3,6 +3,8 @@
  * Esta é a única porta de entrada e saída de texto <-> centavos do app.
  */
 
+import { isPrivate, MASK } from "./privacy";
+
 const brl = new Intl.NumberFormat("pt-BR", {
   style: "currency",
   currency: "BRL",
@@ -53,14 +55,22 @@ export function ellipsizeMoney(text: string, cents?: number): string {
   return cut;
 }
 
-/** 123456 -> "R$ 1.234,56" (valores gigantes saem cortados com "…", veja `MAX_MONEY_CHARS`) */
-export function formatBRL(cents: number): string {
+/**
+ * 123456 -> "R$ 1.234,56" (valores gigantes saem cortados com "…", veja `MAX_MONEY_CHARS`).
+ * Sem mascarar: é o que vai para relatórios exportados (PDF, TXT, CSV).
+ */
+export function formatBRLExact(cents: number): string {
   return ellipsizeMoney(brl.format((cents ?? 0) / 100), cents ?? 0);
+}
+
+/** Como `formatBRLExact`, mas "R$ ••••" com o modo privacidade ligado. É o que as telas usam. */
+export function formatBRL(cents: number): string {
+  return isPrivate() ? MASK : formatBRLExact(cents);
 }
 
 /** 123456 -> "R$ 1.235" (para rótulos compactos; valores gigantes saem cortados com "…") */
 export function formatBRLShort(cents: number): string {
-  return ellipsizeMoney(brlNoDecimals.format((cents ?? 0) / 100), cents ?? 0);
+  return isPrivate() ? MASK : ellipsizeMoney(brlNoDecimals.format((cents ?? 0) / 100), cents ?? 0);
 }
 
 /** 123456 -> "1234,56" (valor para preencher um input, sem símbolo nem milhar) */

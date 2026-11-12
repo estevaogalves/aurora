@@ -8,7 +8,9 @@ import { ToastContainer } from "../Features/Warnings/ToastContainer";
 import { useUiStore } from "../Store/UiStore";
 import Logo from "../theme/Logo";
 import { APP_NAME } from "../theme/theme";
+import PrivacyToggle from "../theme/PrivacyToggle";
 import ThemeToggle from "../theme/ThemeToggle";
+import { usePrivacyStore } from "../lib/privacy";
 import { FloatingCalculator } from "../Features/Calculator/Calculator";
 import GoalBell from "./GoalBell";
 import ImportBanner from "./ImportBanner";
@@ -26,6 +28,8 @@ export default function AppShell() {
   const calcOpen = useUiStore((s) => s.calcOpen);
   const toggleCalc = useUiStore((s) => s.toggleCalc);
   const [scrolled, setScrolled] = useState(false);
+  // os valores são formatados fora do React; ao ligar/desligar a privacidade, a tela é redesenhada
+  const privacyHidden = usePrivacyStore((s) => s.hidden);
 
   // no topo o cabeçalho é transparente (sem caixa atrás dos botões); ao rolar ganha fundo
   useEffect(() => {
@@ -61,6 +65,7 @@ export default function AppShell() {
               >
                 <Icon name="calc" size={16} />
               </button>
+              <PrivacyToggle />
               <ThemeToggle />
               <UserMenu />
               <button type="button" data-tour="lancar" onClick={() => openLaunch()} className={btnClass.primary}>
@@ -83,7 +88,7 @@ export default function AppShell() {
       <MoneyTooltip />
 
       <main className={`${CONTAINER} pb-[70px] pt-[26px] max-[700px]:pb-[104px] max-[700px]:pt-3.5`}>
-        <Outlet />
+        <Outlet key={String(privacyHidden)} />
       </main>
     </div>
   );
