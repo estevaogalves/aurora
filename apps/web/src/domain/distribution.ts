@@ -1,5 +1,8 @@
-import { DISTRIBUTION } from "./summary";
-import type { DistributionItem } from "./types";
+import { BALANCE_SOURCE, parseDistributionOrigin } from "./origin";
+import { resolveCardExpenses } from "./invoice";
+import { DISTRIBUTION, getMonthSummary } from "./summary";
+import { getTransactionsByMonth } from "./transactions";
+import type { DistributionItem, FinanceData, Goal, GoalMovement, Investment, InvestmentMovement, Month } from "./types";
 
 /** Percentuais padrão da sugestão (as cinco fatias obrigatórias). */
 export const DEFAULT_DISTRIBUTION: DistributionItem[] = DISTRIBUTION.map((d) => ({
@@ -59,4 +62,81 @@ export function distributeBalance(balance: number, items: DistributionItem[]): D
   const first = parts.find((p) => p.item.percent > 0) ?? parts[0];
   if (first) first.value += rest;
   return parts;
+}
+
+/* ---------- fontes da sugestão: o saldo do mês e as rendas "distribuir separado" ---------- */
+
+/** De onde sai uma sugestão: o saldo do mês ou uma renda marcada para distribuir à parte (13º, bônus). */
+export interface DistributionSource {
+  /** "balance" (saldo do mês) ou o id da renda separada */
+  id: string;
+  label: string;
+  /** centavos a distribuir (o saldo pode ser zero ou negativo) */
+  amount: number;
+  /** é uma renda separada (valor cheio), não o saldo do mês */
+  separate: boolean;
+}
+
+type SourcesData = Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses" | "creditCards">>;
+
+/**
+ * Fontes da sugestão do saldo em `month`. O saldo do mês não soma meses anteriores e fica só com o que não é de
+ * uma renda separada; cada renda variável marcada "distribuir separado" ganha a sua fonte, com o valor cheio.
+ * Sem nenhuma renda separada, há uma fonte só (o saldo do mês), como sempre foi.
+ */
+export function getDistributionSources(data: SourcesData, month: Month): DistributionSource[] {
+  const separate = getTransactionsByMonth(resolveCardExpenses(data.transactions, data.creditCards), month).filter((t) => t.type === "income" && t.separate && !t.fixed);
+  const separateTotal = separate.reduce((s, t) => s + t.amount, 0);
+  return [
+    { id: BALANCE_SOURCE, label: "Saldo do mês", amount: getMonthSummary(data, month).balance - separateTotal, separate: false },
+    ...separate.map((t): DistributionSource => ({ id: t.id, label: t.name, amount: t.amount, separate: true })),
+  ];
+}
+
+/** Para onde foi (ou vai) uma parte da sugestão. */
+export interface SentTarget {
+  kind: "goal" | "piggy" | "investment";
+  name: string;
+  /** centavos */
+  amount: number;
+}
+
+export interface SentSummary {
+  /** centavos já enviados */
+  total: number;
+  targets: SentTarget[];
+}
+
+/** Chave de uma fatia dentro de uma fonte: "balance|emergency". */
+export const sentKey = (source: string, slice: string) => `${source}|${slice}`;
+
+/**
+ * O que já foi enviado de cada fatia das sugestões de `month`, somando os aportes de metas, porquinhos e
+ * investimentos que nasceram do atalho "Enviar" (a origem guarda mês, fonte e fatia). Só aporte conta.
+ */
+export function getSentByDistribution(
+  data: { goals: Goal[]; goalMovements: GoalMovement[]; investments: Investment[]; investmentMovements: InvestmentMovement[] },
+  month: Month,
+): Record<string, SentSummary> {
+  const out: Record<string, SentSummary> = {};
+  const add = (origin: string | undefined, target: SentTarget) => {
+    const o = parseDistributionOrigin(origin);
+    if (!o || o.month !== month) return;
+    const entry = (out[sentKey(o.source, o.slice)] ??= { total: 0, targets: [] });
+    entry.total += target.amount;
+    const same = entry.targets.find((t) => t.kind === target.kind && t.name === target.name);
+    if (same) same.amount += target.amount;
+    else entry.targets.push({ ...target });
+  };
+  for (const m of data.goalMovements) {
+    if (m.type !== "contribution") continue;
+    const goal = data.goals.find((g) => g.id === m.goalId);
+    if (goal) add(m.origin, { kind: goal.piggy ? "piggy" : "goal", name: goal.name, amount: m.amount });
+  }
+  for (const m of data.investmentMovements) {
+    if (m.type !== "contribution") continue;
+    const inv = data.investments.find((i) => i.id === m.investmentId);
+    if (inv) add(m.origin, { kind: "investment", name: inv.name, amount: m.amount });
+  }
+  return out;
 }

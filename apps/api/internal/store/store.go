@@ -248,7 +248,7 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 	t := domain.Transaction{
 		ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Type: r.Type,
 		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month, VariableAmount: r.VariableAmount,
-		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth,
+		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, Separate: r.Separate,
 	}
 	if r.CardID.Valid {
 		t.CardID = r.CardID.UUID.String()
@@ -312,6 +312,19 @@ func checkCardState(fixed bool, typ string, cardID uuid.NullUUID, purchaseDate s
 		return &ValidationError{"Despesa fixa não pode ser paga no cartão."}
 	case !domain.IsValidDate(purchaseDate):
 		return &ValidationError{"Informe o dia da compra no cartão."}
+	}
+	return nil
+}
+
+// checkSeparateState confere o resultado de uma alteração: só renda não fixa pode ser "distribuir separado".
+func checkSeparateState(fixed bool, typ string, separate bool) error {
+	switch {
+	case !separate:
+		return nil
+	case typ != "income":
+		return &ValidationError{"Só rendas podem ser distribuídas separado."}
+	case fixed:
+		return &ValidationError{"Renda fixa não pode ser distribuída separado: use uma renda variável (13º, bônus)."}
 	}
 	return nil
 }

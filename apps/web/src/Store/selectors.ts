@@ -3,6 +3,8 @@ import {
   getCreditByMonth,
   DEFAULT_DISTRIBUTION,
   distributeBalance,
+  getDistributionSources,
+  getSentByDistribution,
   getExpensesByCategory,
   getEndedTransactionsByMonth,
   getHiddenTransactionsByMonth,
@@ -100,4 +102,24 @@ export function useDistribution(month?: string) {
   const { balance } = useMonthSummary(month);
   const items = useDistributionItems();
   return useMemo(() => distributeBalance(balance, items), [balance, items]);
+}
+
+/** Fontes da sugestão do mês visto: o saldo do mês e as rendas "distribuir separado" (13º, bônus). */
+export function useDistributionSources(month?: string) {
+  const m = useMonth(month);
+  const transactions = useFinanceStore((s) => s.transactions);
+  const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
+  return useMemo(() => getDistributionSources({ transactions, creditTransactions, creditCards, extraExpenses }, m), [transactions, creditTransactions, creditCards, extraExpenses, m]);
+}
+
+/** O que já foi enviado de cada fatia das sugestões do mês visto (para metas, porquinhos e investimentos). */
+export function useSentByDistribution(month?: string) {
+  const m = useMonth(month);
+  const goals = useFinanceStore((s) => s.goals);
+  const goalMovements = useFinanceStore((s) => s.goalMovements);
+  const investments = useFinanceStore((s) => s.investments);
+  const investmentMovements = useFinanceStore((s) => s.investmentMovements);
+  return useMemo(() => getSentByDistribution({ goals, goalMovements, investments, investmentMovements }, m), [goals, goalMovements, investments, investmentMovements, m]);
 }

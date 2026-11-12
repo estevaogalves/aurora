@@ -41,7 +41,7 @@ export function EditTransactionDialog({ transaction, onClose }: { transaction: T
 
 function TransactionFields({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
   const month = useFinanceStore((s) => s.currentMonth);
-  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, clearTransactionActualValue, setTransactionCard } = useFinanceStore();
+  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, setTransactionSeparate, clearTransactionActualValue, setTransactionCard } = useFinanceStore();
   const income = transaction.type === "income";
 
   const [name, setName] = useState(transaction.name);
@@ -51,6 +51,8 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
   // fixa: o valor vale só para o mês visto ou também para os seguintes
   const [scope, setScope] = useState<"month" | "following">("month");
   const [variable, setVariable] = useState(!!transaction.variableAmount);
+  // renda variável: distribuir à parte na sugestão do saldo (13º, bônus)
+  const [separate, setSeparate] = useState(!!transaction.separate);
   // despesa avulsa (não fixa): cartão e dia da compra
   const canHaveCard = !income && !transaction.fixed;
   const [cardId, setCardId] = useState(transaction.cardId ?? "");
@@ -69,6 +71,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
     if (trimmed !== transaction.name) updateTransactionName(transaction.id, trimmed);
     if (canHaveCard && (cardId !== (transaction.cardId ?? "") || (cardId && purchaseDate !== transaction.purchaseDate))) setTransactionCard(transaction.id, cardId, purchaseDate);
     if (transaction.fixed && variable !== !!transaction.variableAmount) setTransactionVariable(transaction.id, variable);
+    if (income && !transaction.fixed && separate !== !!transaction.separate) setTransactionSeparate(transaction.id, separate);
     if (cents !== transaction.amount) {
       if (transaction.fixed && scope === "following") updateTransactionAmountFromMonth(transaction.id, month, cents);
       else updateTransactionAmountForMonth(transaction.id, month, cents);
@@ -108,6 +111,15 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
           <span>
             <span className="block text-sm font-medium text-foreground">Valor variável (estimado)</span>
             <span className="block text-xs text-muted-foreground">O valor é uma estimativa; cada mês pode ter o valor real.</span>
+          </span>
+        </label>
+      )}
+      {income && !transaction.fixed && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
+          <Checkbox checked={separate} onCheckedChange={(c) => setSeparate(Boolean(c))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Distribuir separado (13º, bônus)</span>
+            <span className="block text-xs text-muted-foreground">A sugestão do saldo, no Painel, mostra esta renda à parte, com o valor cheio.</span>
           </span>
         </label>
       )}

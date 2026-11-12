@@ -52,6 +52,11 @@ export interface Transaction {
   cardId?: string;
   /** Dia da compra no cartão, "YYYY-MM-DD". Vem junto com `cardId`. */
   purchaseDate?: string;
+  /**
+   * Renda variável "distribuir separado" (13º salário, bônus): a sugestão do saldo ganha uma fonte própria para ela,
+   * com o valor cheio, em vez de somar tudo num saldo só. Só marca: não muda nenhum valor. Só renda não fixa.
+   */
+  separate?: boolean;
 }
 
 /** Parcela adiantada: o valor com desconto é cobrado em `month` (o mês de hoje no momento do adiantamento). */

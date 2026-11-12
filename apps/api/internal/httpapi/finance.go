@@ -67,6 +67,8 @@ type transactionPatchReq struct {
 	// CardID: "" solta a despesa do cartão; ausente não muda.
 	CardID       *string `json:"cardId"`
 	PurchaseDate *string `json:"purchaseDate"`
+	// Separate: renda "distribuir separado" (13º, bônus); ausente não muda.
+	Separate *bool `json:"separate"`
 	// EndMonth: último mês em que a fixa vale; "" tira o fim; ausente não muda.
 	EndMonth *string `json:"endMonth"`
 }
@@ -113,7 +115,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	out, err := s.store.UpdateTransaction(r.Context(), userID(r), chi.URLParam(r, "id"), store.TransactionPatch{
 		Name: trimmed(in.Name), Amount: in.Amount, Category: in.Category, Notes: in.Notes, Fixed: in.Fixed,
 		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes, VariableAmount: in.VariableAmount,
-		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth,
+		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth, Separate: in.Separate,
 	})
 	if err != nil {
 		s.fail(w, r, err)

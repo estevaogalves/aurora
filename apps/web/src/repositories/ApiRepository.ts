@@ -26,7 +26,7 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
   return out;
 }
 
-const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth"] as const;
+const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "separate"] as const;
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
 const CARD_PATCH = ["name", "closingDay", "dueDay", "limit"] as const;
 // guardado e rendimentos não vão aqui: são refeitos pelo histórico (`/goal-movements`)
@@ -63,6 +63,8 @@ export function cardExpensePatchBody<T extends { cardId?: string }>(patch: Parti
   if ("cardId" in body && body.cardId === undefined) body.cardId = "";
   // fixa reativada: `endMonth` limpo (undefined) vira "", que tira o fim
   if ("endMonth" in body && body.endMonth === undefined) body.endMonth = "";
+  // "distribuir separado" desmarcado (undefined) vira false, que tira a marca
+  if ("separate" in body && body.separate === undefined) body.separate = false;
   return body;
 }
 

@@ -163,6 +163,7 @@ type Transaction struct {
 	CardID         uuid.NullUUID
 	PurchaseDate   string
 	EndMonth       string
+	Separate       bool
 }
 
 type User struct {

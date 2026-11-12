@@ -2352,6 +2352,8 @@ export interface components {
             purchaseDate?: string;
             /** @description Só fixas. Fixa encerrada: o último mês em que vale ("2026-11" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam. */
             endMonth?: components["schemas"]["Month"];
+            /** @description Só renda não fixa (13º, bônus): a sugestão do saldo ganha uma fonte própria para ela. Só marca: não muda nenhum valor, saldo, projeção ou relatório. */
+            separate?: boolean;
         };
         Payment: {
             /** @enum {string} */
@@ -2385,6 +2387,8 @@ export interface components {
             purchaseDate?: string;
             /** @description Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa. */
             endMonth?: string;
+            /** @description Só renda não fixa: marca ou desmarca "distribuir separado" (13º, bônus). Despesa ou renda fixa marcada é recusada (422). */
+            separate?: boolean;
         };
         CreditTransaction: {
             /** Format: uuid */

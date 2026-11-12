@@ -140,7 +140,8 @@ export function patchRestoreInMonth(
  */
 export function patchToggleFixed(t: Transaction): Partial<Transaction> {
   if (!t.fixed) {
-    return { fixed: true, hiddenMonths: [] };
+    // renda fixa não pode ser "distribuir separado" (só renda variável: 13º, bônus)
+    return { fixed: true, hiddenMonths: [], separate: undefined };
   }
   return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, variableAmount: undefined, endMonth: undefined };
 }

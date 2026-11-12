@@ -220,6 +220,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [installments, setInstallments] = useState(2);
   const [recurring, setRecurring] = useState(false);
   const [variable, setVariable] = useState(false);
+  // renda variável que vira uma sugestão do saldo à parte (13º, bônus)
+  const [separate, setSeparate] = useState(false);
   const [cardId, setCardId] = useState("");
   // dia da compra (despesa avulsa ou extra no cartão) e teto mensal (cadastro do cartão)
   const [purchaseDate, setPurchaseDate] = useState(() => defaultStartDate(currentMonth));
@@ -255,6 +257,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setInstallments(2);
     setRecurring(false);
     setVariable(false);
+    setSeparate(false);
     setStartDate(defaultStartDate(currentMonth));
     setClosingDay("");
     setDueDay("");
@@ -318,7 +321,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       });
       showToast({ type: "success", text: recurring ? `Compra recorrente "${trimmed}" adicionada` : `Compra parcelada "${trimmed}" adicionada` });
     } else if (kind === "income") {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: launchMonth, ...(fixed && variable && { variableAmount: true }) });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: launchMonth, ...(fixed && variable && { variableAmount: true }), ...(!fixed && separate && { separate: true }) });
       showToast({ type: "success", text: `Renda "${trimmed}" adicionada${inFuture ? ` a partir de ${formatMonthTitle(launchMonth)}` : ""}` });
     } else if (kind === "extra") {
       if (cardId) {
@@ -500,7 +503,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       {(kind === "income" || (kind === "expense" && !cardId)) && (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
-            <Checkbox checked={fixed} onCheckedChange={(c) => { setFixed(Boolean(c)); if (!c) setVariable(false); else setCardId(""); }} className="mt-0.5" />
+            <Checkbox checked={fixed} onCheckedChange={(c) => { setFixed(Boolean(c)); if (!c) setVariable(false); else { setCardId(""); setSeparate(false); } }} className="mt-0.5" />
             <span>
               <span className="block text-sm font-medium text-foreground">{kind === "income" ? "Renda fixa" : "Despesa fixa"}</span>
               <span className="block text-xs text-muted-foreground">Repete todo mês a partir deste. Dá para ajustar o valor de cada mês depois.</span>
@@ -514,6 +517,16 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
             </span>
           </label>
         </div>
+      )}
+
+      {kind === "income" && !fixed && (
+        <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
+          <Checkbox checked={separate} onCheckedChange={(c) => setSeparate(Boolean(c))} className="mt-0.5" />
+          <span>
+            <span className="block text-sm font-medium text-foreground">Distribuir separado (13º, bônus)</span>
+            <span className="block text-xs text-muted-foreground">No Painel, a sugestão do saldo mostra esta renda à parte, com o valor cheio, em vez de somar com o saldo do mês.</span>
+          </span>
+        </label>
       )}
 
       <div className="flex justify-end gap-2 pt-1">

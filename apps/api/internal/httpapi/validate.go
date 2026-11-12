@@ -109,7 +109,7 @@ func (l Limits) validateTransaction(t domain.Transaction) string {
 		return "Pagamentos demais em um lançamento."
 	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
+		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkSeparate(t.Fixed, t.Type, t.Separate), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
 }
 
 func checkCategory(c string) string {
@@ -192,6 +192,19 @@ func checkCardAdjustments(adjustments map[string][]domain.InvoiceAdjustment) str
 		if msg := first(checkMonth(m), checkInvoiceAdjustments(list)); msg != "" {
 			return msg
 		}
+	}
+	return ""
+}
+
+// checkSeparate: só renda não fixa pode ser "distribuir separado" (13º, bônus).
+func checkSeparate(fixed bool, typ string, separate bool) string {
+	switch {
+	case !separate:
+		return ""
+	case typ != "income":
+		return "Só rendas podem ser distribuídas separado."
+	case fixed:
+		return "Renda fixa não pode ser distribuída separado: use uma renda variável (13º, bônus)."
 	}
 	return ""
 }

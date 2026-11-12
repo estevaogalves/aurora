@@ -170,6 +170,8 @@ interface FinanceState {
   setTransactionPayment: (id: string, month: string, payment: Payment | null) => void;
   /** Liga a despesa avulsa a um cartão (com o dia da compra) ou a solta (`cardId` vazio). O dia da compra fica no histórico. */
   setTransactionCard: (id: string, cardId: string, purchaseDate?: string) => void;
+  /** Renda variável: marca ou desmarca "distribuir separado" (13º, bônus). Só marca: não muda nenhum valor. */
+  setTransactionSeparate: (id: string, separate: boolean) => void;
   /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro. */
   setCardPayment: (cardId: string, month: string, payment: Payment | null) => void;
   /** Troca a lista de ajustes (descontos e acréscimos) da fatura que vence em `month`; lista vazia remove. */
@@ -622,6 +624,13 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       const patch = payment ? patchSetPayment(t, month, payment) : patchClearPayment(t, month);
       set((state) => ({ transactions: state.transactions.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
       sync(repository.setTransactionPayment(id, month, payment));
+    },
+
+    setTransactionSeparate: (id, separate) => {
+      const t = findTransaction(id);
+      // só renda não fixa pode ser distribuída separado (o servidor também recusa o resto)
+      if (!t || t.type !== "income" || t.fixed) return;
+      patchTransaction(id, { separate: separate || undefined });
     },
 
     setTransactionCard: (id, cardId, purchaseDate) => {

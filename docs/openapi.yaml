@@ -752,6 +752,7 @@ components:
         cardId: { type: string, format: uuid, description: "Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`." }
         purchaseDate: { type: string, format: date, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
         endMonth: { $ref: "#/components/schemas/Month", description: "Só fixas. Fixa encerrada: o último mês em que vale (\"2026-11\" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam." }
+        separate: { type: boolean, description: "Só renda não fixa (13º, bônus): a sugestão do saldo ganha uma fonte própria para ela. Só marca: não muda nenhum valor, saldo, projeção ou relatório." }
     Payment:
       type: object
       required: [method, date]
@@ -774,6 +775,7 @@ components:
         cardId: { type: string, description: 'Despesa avulsa no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, a despesa tem que ter `purchaseDate` (no mesmo pedido ou já guardado) e não pode ser fixa.' }
         purchaseDate: { type: string, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
         endMonth: { type: string, description: 'Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa.' }
+        separate: { type: boolean, description: "Só renda não fixa: marca ou desmarca \"distribuir separado\" (13º, bônus). Despesa ou renda fixa marcada é recusada (422)." }
 
     CreditTransaction:
       type: object
