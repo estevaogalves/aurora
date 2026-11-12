@@ -211,6 +211,8 @@ interface FinanceState {
   setTransactionDistGroup: (id: string, group: number) => void;
   /** dia do vencimento de uma despesa (1 a 31); 0 ou vazio tira o dia */
   setTransactionDueDay: (id: string, day: number) => void;
+  /** etiquetas do lançamento (a lista inteira; vazia tira todas) */
+  setTransactionTags: (id: string, tags: string[]) => void;
   /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro. */
   setCardPayment: (cardId: string, month: string, payment: Payment | null) => void;
   /** Troca a lista de ajustes (descontos e acréscimos) da fatura que vence em `month`; lista vazia remove. */
@@ -765,6 +767,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       // só renda não fixa pode ter distribuição própria (o servidor também recusa o resto)
       if (!t || t.type !== "income" || t.fixed) return;
       patchTransaction(id, { distGroup: group >= 2 ? group : undefined });
+    },
+
+    setTransactionTags: (id, tags) => {
+      if (!get().transactions.some((t) => t.id === id)) return;
+      patchTransaction(id, { tags: tags.length > 0 ? tags : undefined });
     },
 
     setTransactionDueDay: (id, day) => {

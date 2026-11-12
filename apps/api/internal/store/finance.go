@@ -33,6 +33,8 @@ type TransactionPatch struct {
 	DistGroup *int
 	// DueDay: dia do vencimento (1 a 31; 0 tira o dia). nil não muda.
 	DueDay *int
+	// Tags: lista inteira de etiquetas (vazia tira todas). nil não muda.
+	Tags *[]string
 }
 
 func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
@@ -52,7 +54,7 @@ func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.VariableAmount,
-		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int32(t.DistGroup), DueDay: int32(t.DueDay),
+		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int32(t.DistGroup), DueDay: int32(t.DueDay), Column16: tagsJSON(t.Tags),
 	})
 	if err != nil {
 		return domain.Transaction{}, err
@@ -114,6 +116,13 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		}
 		if p.DueDay != nil {
 			arg.DueDay.Int32, arg.DueDay.Valid = int32(*p.DueDay), true
+		}
+		if p.Tags != nil {
+			raw, err := jsonMarshal(*p.Tags)
+			if err != nil {
+				return err
+			}
+			arg.Tags = raw
 		}
 		if p.CardID != nil {
 			if err := ownsCard(ctx, q, userID, *p.CardID); err != nil {

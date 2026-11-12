@@ -98,6 +98,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
             <span className="break-words">{t.name}</span>
             {t.estimated && <Pill>Estimado</Pill>}
             {t.type === "expense" && t.dueDay ? <Pill>Vence dia {t.dueDay}</Pill> : null}
+            {t.tags?.map((tag) => <Pill key={tag}>#{tag}</Pill>)}
             {payment && <PaidBadge payment={payment} />}
           </span>
           {note.text}
@@ -121,6 +122,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
           {t.fixed ? <Pill tone="fix">Fixa</Pill> : income ? <Pill>Variável</Pill> : null}
           {t.estimated && <Pill>Estimado</Pill>}
           {!income && t.dueDay ? <Pill>Vence dia {t.dueDay}</Pill> : null}
+          {t.tags?.map((tag) => <Pill key={tag}>#{tag}</Pill>)}
           {income && distGroupOf(t) >= 2 && <Pill tone="good">{distLabel(distGroupOf(t))}</Pill>}
           {cardName && <Pill>{cardName}{t.purchaseDate ? ` · compra ${dayMonth(t.purchaseDate)}` : ""}</Pill>}
           {payment && <PaidBadge payment={payment} />}

@@ -2452,6 +2452,8 @@ export interface components {
             distGroup?: number;
             /** @description Só despesas: dia do vencimento (1 a 31). Ausente ou 0 = sem dia, e a despesa não aparece no card Próximos vencimentos. Em despesa fixa vale para todos os meses; em meses curtos, o dia vira o último dia do mês. Só marca: não muda nenhum valor. */
             dueDay?: number;
+            /** @description Etiquetas livres (ex.: viagem) para buscar e filtrar em Lançamentos. Sem repetir (maiúscula e minúscula contam igual). Só marcas: não mudam nenhum valor. */
+            tags?: string[];
         };
         Payment: {
             /** @enum {string} */
@@ -2489,6 +2491,8 @@ export interface components {
             distGroup?: number;
             /** @description Só despesas: dia do vencimento (1 a 31); 0 tira o dia. Sem a chave, não muda. */
             dueDay?: number;
+            /** @description A lista inteira de etiquetas; vazia tira todas. Sem a chave, não muda. */
+            tags?: string[];
         };
         CreditTransaction: {
             /** Format: uuid */

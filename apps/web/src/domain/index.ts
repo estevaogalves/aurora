@@ -17,6 +17,7 @@ export * from "./simulator";
 export * from "./report";
 export * from "./scenarios";
 export * from "./summary";
+export * from "./tags";
 export * from "./transactions";
 export * from "./types";
 export * from "./workTime";

@@ -250,3 +250,14 @@ describe("ApiRepository: planejamento", () => {
     expect(calls[0]).toMatchObject({ url: "/api/v1/settings/planning", method: "PUT", body: planning });
   });
 });
+
+describe("ApiRepository: etiquetas", () => {
+  it("manda a lista e, ao tirar todas, [] (sem isso a API entenderia \"não mudou\")", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.updateTransaction("e", { tags: ["viagem"] });
+    await repo.updateTransaction("e", { tags: undefined });
+    expect(calls.map((c) => c.body)).toEqual([{ tags: ["viagem"] }, { tags: [] }]);
+  });
+});

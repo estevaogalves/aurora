@@ -56,3 +56,16 @@ describe("dia do vencimento na store", () => {
     vi.useRealTimers();
   });
 });
+
+describe("etiquetas na store", () => {
+  it("define, troca e tira as etiquetas, avisando o repositório (a lista inteira)", () => {
+    store().setTransactionTags("e1", ["viagem", "Heitor"]);
+    expect(store().transactions[0].tags).toEqual(["viagem", "Heitor"]);
+    expect(repo.updateTransaction).toHaveBeenLastCalledWith("e1", { tags: ["viagem", "Heitor"] });
+    store().setTransactionTags("e1", []);
+    expect(store().transactions[0].tags).toBeUndefined();
+    expect(store().transactions[0].amount).toBe(12000);
+    store().setTransactionTags("nao-existe", ["x"]);
+    expect(repo.updateTransaction).toHaveBeenCalledTimes(2);
+  });
+});

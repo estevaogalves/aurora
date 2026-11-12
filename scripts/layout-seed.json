@@ -41,7 +41,11 @@
       "amount": 80000,
       "type": "expense",
       "category": "Alimentação",
-      "month": "2026-11"
+      "month": "2026-11",
+      "tags": [
+        "casa",
+        "mercado"
+      ]
     },
     {
       "id": "d11",
@@ -49,7 +53,10 @@
       "amount": 70000,
       "type": "expense",
       "category": "Saúde",
-      "month": "2026-11"
+      "month": "2026-11",
+      "tags": [
+        "Heitor"
+      ]
     },
     {
       "id": "net",

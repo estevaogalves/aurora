@@ -165,6 +165,7 @@ type Transaction struct {
 	EndMonth       string
 	DistGroup      int32
 	DueDay         int32
+	Tags           []byte
 }
 
 type User struct {

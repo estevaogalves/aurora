@@ -262,6 +262,9 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month, VariableAmount: r.VariableAmount,
 		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, DistGroup: int(r.DistGroup), DueDay: int(r.DueDay),
 	}
+	if len(r.Tags) > 0 {
+		_ = json.Unmarshal(r.Tags, &t.Tags)
+	}
 	if r.CardID.Valid {
 		t.CardID = r.CardID.UUID.String()
 	}
@@ -403,4 +406,16 @@ func extraFrom(r sqlcgen.ExtraExpense) domain.ExtraExpense {
 		}
 	}
 	return e
+}
+
+// tagsJSON serializa as etiquetas ("[]" quando não há nenhuma), para a coluna jsonb.
+func tagsJSON(tags []string) []byte {
+	if len(tags) == 0 {
+		return []byte("[]")
+	}
+	raw, err := json.Marshal(tags)
+	if err != nil {
+		return []byte("[]")
+	}
+	return raw
 }

@@ -27,7 +27,7 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
   return out;
 }
 
-const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "distGroup", "dueDay"] as const;
+const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "distGroup", "dueDay", "tags"] as const;
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
 const CARD_PATCH = ["name", "closingDay", "dueDay", "limit"] as const;
 // guardado e rendimentos não vão aqui: são refeitos pelo histórico (`/goal-movements`)
@@ -68,6 +68,8 @@ export function cardExpensePatchBody<T extends { cardId?: string }>(patch: Parti
   if ("distGroup" in body && body.distGroup === undefined) body.distGroup = 0;
   // sem dia de vencimento (undefined) vira 0, que tira o dia
   if ("dueDay" in body && body.dueDay === undefined) body.dueDay = 0;
+  // sem etiquetas (undefined) vira a lista vazia, que tira todas
+  if ("tags" in body && body.tags === undefined) body.tags = [];
   return body;
 }
 

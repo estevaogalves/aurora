@@ -5,6 +5,7 @@ import MonthPicker from "@/components/shared/MonthPicker";
 import { useEffect, useState } from "react";
 import { CardSelect, InvoiceInfo } from "./CardField";
 import DistGroupField from "./DistGroupField";
+import TagsField from "@/components/shared/TagsField";
 import CardPurchaseField from "./CardPurchaseField";
 import { isISODate } from "./isoDate";
 import TourHelpButton from "@/components/tour/TourHelpButton";
@@ -230,6 +231,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [distGroup, setDistGroup] = useState(1);
   // dia do vencimento da despesa (1 a 31), opcional: alimenta o card "Próximos vencimentos" do Painel
   const [txDueDay, setTxDueDay] = useState("");
+  // etiquetas livres (opcional), para buscar e filtrar em Lançamentos
+  const [txTags, setTxTags] = useState<string[]>([]);
   const [cardId, setCardId] = useState("");
   // dia da compra (despesa avulsa ou extra no cartão) e teto mensal (cadastro do cartão)
   const [purchaseDate, setPurchaseDate] = useState(() => defaultStartDate(currentMonth));
@@ -267,6 +270,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setVariable(false);
     setDistGroup(1);
     setTxDueDay("");
+    setTxTags([]);
     setStartDate(defaultStartDate(currentMonth));
     setClosingDay("");
     setDueDay("");
@@ -353,7 +357,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed: false, month: purchaseDate.slice(0, 7), cardId, purchaseDate });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada no cartão` });
     } else {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(variable && { variableAmount: true }), ...(dueDayValue && { dueDay: dueDayValue }) });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(variable && { variableAmount: true }), ...(dueDayValue && { dueDay: dueDayValue }), ...(txTags.length > 0 && { tags: txTags }) });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada${inFuture ? ` a partir de ${formatMonthTitle(launchMonth)}` : ""}` });
     }
 
@@ -540,6 +544,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
           <p className="mt-1 text-xs text-muted-foreground">Com o dia, a despesa aparece em “Próximos vencimentos” no Painel. Sem o dia, ela não aparece lá.</p>
         </Field>
       )}
+
+      {(kind === "expense" || kind === "income") && !(kind === "expense" && !fixed && cardId) && <TagsField id="launch-tags" value={txTags} onChange={setTxTags} />}
 
       {kind === "income" && !fixed && (
         <DistGroupField id="launch-dist-group" month={launchMonth} transactions={transactions} value={distGroup} onChange={setDistGroup} />

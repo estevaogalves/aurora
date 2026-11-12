@@ -109,7 +109,7 @@ func (l Limits) validateTransaction(t domain.Transaction) string {
 		return "Pagamentos demais em um lançamento."
 	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkDistGroup(t.Fixed, t.Type, t.DistGroup), checkDueDayOf(t.Type, t.DueDay), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
+		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkDistGroup(t.Fixed, t.Type, t.DistGroup), checkDueDayOf(t.Type, t.DueDay), checkTags(t.Tags), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
 }
 
 func checkCategory(c string) string {
@@ -207,6 +207,32 @@ func checkDistGroup(fixed bool, typ string, group int) string {
 		return "Só rendas entram numa distribuição do saldo."
 	case fixed:
 		return "Renda fixa não pode ter distribuição própria: use uma renda variável (13º, bônus)."
+	}
+	return ""
+}
+
+// MaxTags e MaxTagLength: no máximo 10 etiquetas por lançamento, de até 30 letras cada.
+const (
+	MaxTags      = 10
+	MaxTagLength = 30
+)
+
+// checkTags confere as etiquetas: até 10, cada uma com 1 a 30 letras (sem espaços nas pontas) e sem repetir.
+func checkTags(tags []string) string {
+	if len(tags) > MaxTags {
+		return "No máximo 10 etiquetas por lançamento."
+	}
+	seen := map[string]bool{}
+	for _, t := range tags {
+		n := len([]rune(t))
+		if n == 0 || n > MaxTagLength || strings.TrimSpace(t) != t {
+			return "Cada etiqueta deve ter de 1 a 30 letras, sem espaços nas pontas."
+		}
+		key := strings.ToLower(t)
+		if seen[key] {
+			return "Etiqueta repetida: " + quote(t) + "."
+		}
+		seen[key] = true
 	}
 	return ""
 }

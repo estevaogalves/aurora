@@ -439,9 +439,9 @@ func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, e
 }
 
 const createTransaction = `-- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group, due_day)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags
 `
 
 type CreateTransactionParams struct {
@@ -460,6 +460,7 @@ type CreateTransactionParams struct {
 	EndMonth       string
 	DistGroup      int32
 	DueDay         int32
+	Column16       []byte
 }
 
 func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error) {
@@ -479,6 +480,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.EndMonth,
 		arg.DistGroup,
 		arg.DueDay,
+		arg.Column16,
 	)
 	var i Transaction
 	err := row.Scan(
@@ -500,6 +502,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.EndMonth,
 		&i.DistGroup,
 		&i.DueDay,
+		&i.Tags,
 	)
 	return i, err
 }
@@ -907,7 +910,7 @@ func (q *Queries) GetInvestmentMovementForUpdate(ctx context.Context, arg GetInv
 }
 
 const getTransaction = `-- name: GetTransaction :one
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day FROM transactions WHERE id = $1 AND user_id = $2
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags FROM transactions WHERE id = $1 AND user_id = $2
 `
 
 type GetTransactionParams struct {
@@ -937,12 +940,13 @@ func (q *Queries) GetTransaction(ctx context.Context, arg GetTransactionParams) 
 		&i.EndMonth,
 		&i.DistGroup,
 		&i.DueDay,
+		&i.Tags,
 	)
 	return i, err
 }
 
 const getTransactionForUpdate = `-- name: GetTransactionForUpdate :one
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags FROM transactions WHERE id = $1 AND user_id = $2 FOR UPDATE
 `
 
 type GetTransactionForUpdateParams struct {
@@ -972,6 +976,7 @@ func (q *Queries) GetTransactionForUpdate(ctx context.Context, arg GetTransactio
 		&i.EndMonth,
 		&i.DistGroup,
 		&i.DueDay,
+		&i.Tags,
 	)
 	return i, err
 }
@@ -1459,7 +1464,7 @@ func (q *Queries) ListTransactionOverrides(ctx context.Context, transactionID uu
 }
 
 const listTransactions = `-- name: ListTransactions :many
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day FROM transactions WHERE user_id = $1 ORDER BY created_at, id
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags FROM transactions WHERE user_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Transaction, error) {
@@ -1490,6 +1495,7 @@ func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Tra
 			&i.EndMonth,
 			&i.DistGroup,
 			&i.DueDay,
+			&i.Tags,
 		); err != nil {
 			return nil, err
 		}
@@ -1750,7 +1756,7 @@ func (q *Queries) SetInvestmentDerived(ctx context.Context, arg SetInvestmentDer
 const setTransactionMonthlyNotes = `-- name: SetTransactionMonthlyNotes :one
 UPDATE transactions SET monthly_notes = $3::jsonb
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags
 `
 
 type SetTransactionMonthlyNotesParams struct {
@@ -1781,6 +1787,7 @@ func (q *Queries) SetTransactionMonthlyNotes(ctx context.Context, arg SetTransac
 		&i.EndMonth,
 		&i.DistGroup,
 		&i.DueDay,
+		&i.Tags,
 	)
 	return i, err
 }
@@ -1788,7 +1795,7 @@ func (q *Queries) SetTransactionMonthlyNotes(ctx context.Context, arg SetTransac
 const setTransactionPayments = `-- name: SetTransactionPayments :one
 UPDATE transactions SET payments = $3::jsonb
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags
 `
 
 type SetTransactionPaymentsParams struct {
@@ -1819,6 +1826,7 @@ func (q *Queries) SetTransactionPayments(ctx context.Context, arg SetTransaction
 		&i.EndMonth,
 		&i.DistGroup,
 		&i.DueDay,
+		&i.Tags,
 	)
 	return i, err
 }
@@ -2328,9 +2336,11 @@ UPDATE transactions SET
     -- renda variável: em qual distribuição do saldo entra (0 = Dist 1, 2 a 20 = distribuição própria); só marca
     dist_group    = COALESCE($11, dist_group),
     -- dia do vencimento (1 a 31); 0 tira o dia
-    due_day       = COALESCE($12, due_day)
-WHERE id = $13 AND user_id = $14
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day
+    due_day       = COALESCE($12, due_day),
+    -- etiquetas: lista inteira em jsonb; só muda quando vem na requisição
+    tags          = COALESCE($13::jsonb, tags)
+WHERE id = $14 AND user_id = $15
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, created_at, payments, monthly_notes, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags
 `
 
 type UpdateTransactionParams struct {
@@ -2346,6 +2356,7 @@ type UpdateTransactionParams struct {
 	EndMonth       pgtype.Text
 	DistGroup      pgtype.Int4
 	DueDay         pgtype.Int4
+	Tags           []byte
 	ID             uuid.UUID
 	UserID         uuid.UUID
 }
@@ -2364,6 +2375,7 @@ func (q *Queries) UpdateTransaction(ctx context.Context, arg UpdateTransactionPa
 		arg.EndMonth,
 		arg.DistGroup,
 		arg.DueDay,
+		arg.Tags,
 		arg.ID,
 		arg.UserID,
 	)
@@ -2387,6 +2399,7 @@ func (q *Queries) UpdateTransaction(ctx context.Context, arg UpdateTransactionPa
 		&i.EndMonth,
 		&i.DistGroup,
 		&i.DueDay,
+		&i.Tags,
 	)
 	return i, err
 }

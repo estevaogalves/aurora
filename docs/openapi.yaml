@@ -791,6 +791,7 @@ components:
         endMonth: { $ref: "#/components/schemas/Month", description: "Só fixas. Fixa encerrada: o último mês em que vale (\"2026-11\" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam." }
         distGroup: { type: integer, minimum: 0, maximum: 20, description: "Só renda não fixa (13º, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente ou 0 = soma ao saldo do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não muda nenhum valor, saldo, projeção ou relatório." }
         dueDay: { type: integer, minimum: 0, maximum: 31, description: "Só despesas: dia do vencimento (1 a 31). Ausente ou 0 = sem dia, e a despesa não aparece no card Próximos vencimentos. Em despesa fixa vale para todos os meses; em meses curtos, o dia vira o último dia do mês. Só marca: não muda nenhum valor." }
+        tags: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 30 }, description: "Etiquetas livres (ex.: viagem) para buscar e filtrar em Lançamentos. Sem repetir (maiúscula e minúscula contam igual). Só marcas: não mudam nenhum valor." }
     Payment:
       type: object
       required: [method, date]
@@ -815,6 +816,7 @@ components:
         endMonth: { type: string, description: 'Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa.' }
         distGroup: { type: integer, minimum: 0, maximum: 20, description: "Só renda não fixa: a distribuição da sugestão do saldo (0 = Dist 1; 2 a 20 = Dist 2 em diante). Número fora disso é recusado (400); despesa ou renda fixa em distribuição própria é recusada (422)." }
         dueDay: { type: integer, minimum: 0, maximum: 31, description: "Só despesas: dia do vencimento (1 a 31); 0 tira o dia. Sem a chave, não muda." }
+        tags: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 30 }, description: "A lista inteira de etiquetas; vazia tira todas. Sem a chave, não muda." }
 
     CreditTransaction:
       type: object

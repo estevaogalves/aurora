@@ -34,6 +34,8 @@ type Transaction struct {
 	DistGroup int `json:"distGroup,omitempty"`
 	// DueDay: dia do vencimento da despesa (1 a 31); 0 (ausente) = sem dia. Só aparece no card "Próximos vencimentos".
 	DueDay int `json:"dueDay,omitempty"`
+	// Tags: etiquetas livres (ex.: "viagem"), para buscar e filtrar. Só marcas: não mudam nenhum valor.
+	Tags []string `json:"tags,omitempty"`
 }
 
 type CreditTransaction struct {

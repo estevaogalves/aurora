@@ -5,8 +5,8 @@ SELECT * FROM transactions WHERE user_id = $1 ORDER BY created_at, id;
 SELECT * FROM transactions WHERE id = $1 AND user_id = $2;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group, due_day)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16::jsonb)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -26,7 +26,9 @@ UPDATE transactions SET
     -- renda variável: em qual distribuição do saldo entra (0 = Dist 1, 2 a 20 = distribuição própria); só marca
     dist_group    = COALESCE(sqlc.narg('dist_group'), dist_group),
     -- dia do vencimento (1 a 31); 0 tira o dia
-    due_day       = COALESCE(sqlc.narg('due_day'), due_day)
+    due_day       = COALESCE(sqlc.narg('due_day'), due_day),
+    -- etiquetas: lista inteira em jsonb; só muda quando vem na requisição
+    tags          = COALESCE(sqlc.narg('tags')::jsonb, tags)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
