@@ -1337,6 +1337,85 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/credit-cards/{id}/adjustments/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                /** @description Mês do pagamento (AAAA-MM) */
+                month: components["parameters"]["PaymentMonth"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Troca a lista de ajustes (descontos e acréscimos) da fatura do cartão
+         * @description O mês é o do vencimento da fatura. O corpo é a lista inteira de ajustes do mês (até 50; lista vazia remove todos). Cada ajuste tem id único, valor em centavos diferente de zero (negativo é desconto, positivo é acréscimo) e observação opcional. Só registro para a fatura bater com a do banco; não muda nenhuma despesa, projeção ou comparação.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvoiceAdjustment"][];
+                };
+            };
+            responses: {
+                /** @description Cartão atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /** Remove todos os ajustes da fatura deste mês */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cartão atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/transactions/{id}/payments/{month}": {
         parameters: {
             query?: never;
@@ -2197,6 +2276,20 @@ export interface components {
             payments?: {
                 [key: string]: components["schemas"]["Payment"];
             };
+            /** @description Ajustes (descontos e acréscimos) da fatura por mês de vencimento (AAAA-MM), vários por fatura. Só registro, não entram em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação. */
+            adjustments?: {
+                [key: string]: components["schemas"]["InvoiceAdjustment"][];
+            };
+        };
+        InvoiceAdjustment: {
+            /** @description Identifica o ajuste dentro da fatura; único no mês. */
+            id: string;
+            /**
+             * Format: int64
+             * @description Centavos, diferente de zero. Negativo = desconto; positivo = acréscimo.
+             */
+            amount: number;
+            note?: string;
         };
         CreditCardPatch: {
             name?: string;

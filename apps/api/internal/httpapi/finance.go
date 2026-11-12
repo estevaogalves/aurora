@@ -666,8 +666,9 @@ func (s *Server) createCreditCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
-	// o pagamento da fatura só entra pelo endpoint próprio (ou pela importação)
+	// o pagamento e o ajuste da fatura só entram pelo endpoint próprio (ou pela importação)
 	in.Payments = nil
+	in.Adjustments = nil
 	if bad(w, validateCard(in)) {
 		return
 	}
@@ -753,6 +754,39 @@ func (s *Server) clearCardPayment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.respondCardPayment(w, r, month, nil)
+}
+
+/* ---------- ajustes da fatura do cartão (descontos e acréscimos; só registro) ---------- */
+
+// setCardAdjustments troca a lista de ajustes do mês (um array JSON; vazio remove).
+func (s *Server) setCardAdjustments(w http.ResponseWriter, r *http.Request) {
+	var in []domain.InvoiceAdjustment
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	month := chi.URLParam(r, "month")
+	if bad(w, first(checkMonth(month), checkInvoiceAdjustments(in))) {
+		return
+	}
+	s.respondCardAdjustments(w, r, month, in)
+}
+
+func (s *Server) clearCardAdjustments(w http.ResponseWriter, r *http.Request) {
+	month := chi.URLParam(r, "month")
+	if bad(w, checkMonth(month)) {
+		return
+	}
+	s.respondCardAdjustments(w, r, month, nil)
+}
+
+func (s *Server) respondCardAdjustments(w http.ResponseWriter, r *http.Request, month string, list []domain.InvoiceAdjustment) {
+	out, err := s.store.SetCardAdjustments(r.Context(), userID(r), chi.URLParam(r, "id"), month, list)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) respondCardPayment(w http.ResponseWriter, r *http.Request, month string, p *domain.Payment) {

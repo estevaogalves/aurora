@@ -442,6 +442,72 @@ func cardPayments(p map[string]domain.Payment) []byte {
 	return raw
 }
 
+// cardAdjustments serializa os ajustes das faturas ("{}" quando não há nenhum).
+func cardAdjustments(a map[string][]domain.InvoiceAdjustment) []byte {
+	raw, err := json.Marshal(a)
+	if err != nil || len(a) == 0 {
+		return []byte("{}")
+	}
+	return raw
+}
+
+// parseCardAdjustments lê os ajustes gravados. Aceita também o formato antigo, de um ajuste só por mês
+// ({"2026-12": {"amount": -37}}), que vira uma lista de um item.
+func parseCardAdjustments(raw []byte) map[string][]domain.InvoiceAdjustment {
+	out := map[string][]domain.InvoiceAdjustment{}
+	if len(raw) == 0 {
+		return out
+	}
+	var byMonth map[string]json.RawMessage
+	if json.Unmarshal(raw, &byMonth) != nil {
+		return out
+	}
+	for month, v := range byMonth {
+		var list []domain.InvoiceAdjustment
+		if json.Unmarshal(v, &list) == nil {
+			if len(list) > 0 {
+				out[month] = list
+			}
+			continue
+		}
+		var one domain.InvoiceAdjustment
+		if json.Unmarshal(v, &one) == nil && one.Amount != 0 {
+			one.ID = "antigo-" + month
+			out[month] = []domain.InvoiceAdjustment{one}
+		}
+	}
+	return out
+}
+
+// SetCardAdjustments troca a lista de ajustes da fatura do cartão que vence em `month` (lista vazia remove).
+// Só registro: nada aqui mexe em despesas.
+func (s *Store) SetCardAdjustments(ctx context.Context, userID uuid.UUID, id, month string, list []domain.InvoiceAdjustment) (domain.CreditCard, error) {
+	cid, err := parseID(id)
+	if err != nil {
+		return domain.CreditCard{}, err
+	}
+	var out domain.CreditCard
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetCreditCardForUpdate(ctx, sqlcgen.GetCreditCardForUpdateParams{ID: cid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		adjustments := parseCardAdjustments(cur.Adjustments)
+		if len(list) == 0 {
+			delete(adjustments, month)
+		} else {
+			adjustments[month] = list
+		}
+		row, err := q.SetCreditCardAdjustments(ctx, sqlcgen.SetCreditCardAdjustmentsParams{ID: cid, UserID: userID, Column3: cardAdjustments(adjustments)})
+		if err != nil {
+			return mapErr(err)
+		}
+		out = cardFrom(row)
+		return nil
+	})
+	return out, err
+}
+
 // SetCardPayment marca (p != nil) ou desmarca (p == nil) o pagamento da fatura do cartão que vence em `month`.
 // Só registro: nada aqui mexe em valores.
 func (s *Store) SetCardPayment(ctx context.Context, userID uuid.UUID, id, month string, p *domain.Payment) (domain.CreditCard, error) {
@@ -686,6 +752,11 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			created, err := q.CreateCreditCard(ctx, sqlcgen.CreateCreditCardParams{UserID: userID, Name: k.Name, ClosingDay: int32(k.ClosingDay), DueDay: int32(k.DueDay), LimitCents: k.Limit, Column7: cardPayments(k.Payments)})
 			if err != nil {
 				return err
+			}
+			if len(k.Adjustments) > 0 {
+				if _, err := q.SetCreditCardAdjustments(ctx, sqlcgen.SetCreditCardAdjustmentsParams{ID: created.ID, UserID: userID, Column3: cardAdjustments(k.Adjustments)}); err != nil {
+					return err
+				}
 			}
 			newCard[k.ID] = created.ID.String()
 		}

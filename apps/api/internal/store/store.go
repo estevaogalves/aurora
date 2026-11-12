@@ -335,6 +335,9 @@ func cardFrom(r sqlcgen.CreditCard) domain.CreditCard {
 	if len(k.Payments) == 0 {
 		k.Payments = nil
 	}
+	if adj := parseCardAdjustments(r.Adjustments); len(adj) > 0 {
+		k.Adjustments = adj
+	}
 	return k
 }
 

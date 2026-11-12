@@ -140,7 +140,7 @@ func checkCardLimit(limit int64) string {
 }
 
 func validateCard(k domain.CreditCard) string {
-	return first(checkName(k.Name), checkCardDay("fechamento", k.ClosingDay), checkCardDay("vencimento", k.DueDay), checkCardLimit(k.Limit), checkCardPayments(k.Payments))
+	return first(checkName(k.Name), checkCardDay("fechamento", k.ClosingDay), checkCardDay("vencimento", k.DueDay), checkCardLimit(k.Limit), checkCardPayments(k.Payments), checkCardAdjustments(k.Adjustments))
 }
 
 // checkCardPayments confere os pagamentos das faturas (importação).
@@ -150,6 +150,46 @@ func checkCardPayments(payments map[string]domain.Payment) string {
 	}
 	for m, p := range payments {
 		if msg := first(checkMonth(m), checkPayment(p)); msg != "" {
+			return msg
+		}
+	}
+	return ""
+}
+
+const maxInvoiceAdjustments = 50
+
+// checkInvoiceAdjustments confere a lista de ajustes de uma fatura: até 50, cada um com id único, valor diferente
+// de zero dentro do limite e observação curta.
+func checkInvoiceAdjustments(list []domain.InvoiceAdjustment) string {
+	if len(list) > maxInvoiceAdjustments {
+		return "Ajustes demais em uma fatura."
+	}
+	seen := map[string]bool{}
+	for _, a := range list {
+		switch {
+		case a.ID == "" || len(a.ID) > 64:
+			return "Ajuste sem identificação válida."
+		case seen[a.ID]:
+			return "Ajuste repetido."
+		case a.Amount == 0:
+			return "Informe o valor do ajuste."
+		case a.Amount > domain.MaxInvestmentCents || a.Amount < -domain.MaxInvestmentCents:
+			return "O valor do ajuste está acima do limite de R$ 1 bilhão."
+		case len([]rune(a.Note)) > 200:
+			return "A observação do ajuste é grande demais."
+		}
+		seen[a.ID] = true
+	}
+	return ""
+}
+
+// checkCardAdjustments confere os ajustes das faturas (importação).
+func checkCardAdjustments(adjustments map[string][]domain.InvoiceAdjustment) string {
+	if len(adjustments) > 600 {
+		return "Ajustes de fatura demais em um cartão."
+	}
+	for m, list := range adjustments {
+		if msg := first(checkMonth(m), checkInvoiceAdjustments(list)); msg != "" {
 			return msg
 		}
 	}

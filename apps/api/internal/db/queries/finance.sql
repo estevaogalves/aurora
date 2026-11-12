@@ -300,3 +300,8 @@ SELECT * FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE;
 UPDATE credit_cards SET payments = $3::jsonb
 WHERE id = $1 AND user_id = $2
 RETURNING *;
+
+-- name: SetCreditCardAdjustments :one
+UPDATE credit_cards SET adjustments = $3::jsonb
+WHERE id = $1 AND user_id = $2
+RETURNING *;

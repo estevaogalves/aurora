@@ -391,6 +391,29 @@ paths:
         "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
+  /credit-cards/{id}/adjustments/{month}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/PaymentMonth" }
+    put:
+      tags: [crédito]
+      summary: Troca a lista de ajustes (descontos e acréscimos) da fatura do cartão
+      description: O mês é o do vencimento da fatura. O corpo é a lista inteira de ajustes do mês (até 50; lista vazia remove todos). Cada ajuste tem id único, valor em centavos diferente de zero (negativo é desconto, positivo é acréscimo) e observação opcional. Só registro para a fatura bater com a do banco; não muda nenhuma despesa, projeção ou comparação.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: array, maxItems: 50, items: { $ref: "#/components/schemas/InvoiceAdjustment" } } } }
+      responses:
+        "200": { description: Cartão atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [crédito]
+      summary: Remove todos os ajustes da fatura deste mês
+      responses:
+        "200": { description: Cartão atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
   /transactions/{id}/payments/{month}:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -747,6 +770,17 @@ components:
           type: object
           description: Pagamento da fatura por mês de vencimento (AAAA-MM). Só registro, não entra em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação.
           additionalProperties: { $ref: "#/components/schemas/Payment" }
+        adjustments:
+          type: object
+          description: Ajustes (descontos e acréscimos) da fatura por mês de vencimento (AAAA-MM), vários por fatura. Só registro, não entram em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação.
+          additionalProperties: { type: array, items: { $ref: "#/components/schemas/InvoiceAdjustment" } }
+    InvoiceAdjustment:
+      type: object
+      required: [id, amount]
+      properties:
+        id: { type: string, maxLength: 64, description: "Identifica o ajuste dentro da fatura; único no mês." }
+        amount: { type: integer, format: int64, description: "Centavos, diferente de zero. Negativo = desconto; positivo = acréscimo." }
+        note: { type: string, maxLength: 200 }
     CreditCardPatch:
       type: object
       properties:

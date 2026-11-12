@@ -17,6 +17,17 @@ type CreditCard struct {
 	Limit int64 `json:"limit,omitempty"`
 	// Payments: pagamento da fatura por mês de vencimento ("2026-12"). Só registro, não entra em conta nenhuma.
 	Payments map[string]Payment `json:"payments,omitempty"`
+	// Adjustments: ajustes da fatura (descontos e acréscimos) por mês de vencimento, vários por fatura. Só registro:
+	// não entram em despesa nenhuma.
+	Adjustments map[string][]InvoiceAdjustment `json:"adjustments,omitempty"`
+}
+
+// InvoiceAdjustment é um ajuste de uma fatura, para ela bater com a do banco. ID identifica o ajuste dentro da fatura.
+// Amount em centavos: negativo = desconto, positivo = acréscimo. Note é uma observação opcional.
+type InvoiceAdjustment struct {
+	ID     string `json:"id"`
+	Amount int64  `json:"amount"`
+	Note   string `json:"note,omitempty"`
 }
 
 // Invoice é a fatura em que uma cobrança cai. Datas "YYYY-MM-DD". Month é o mês do vencimento,

@@ -10,14 +10,15 @@ import (
 )
 
 type CreditCard struct {
-	ID         uuid.UUID
-	UserID     uuid.UUID
-	Name       string
-	ClosingDay int32
-	DueDay     int32
-	CreatedAt  pgtype.Timestamptz
-	LimitCents int64
-	Payments   []byte
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Name        string
+	ClosingDay  int32
+	DueDay      int32
+	CreatedAt   pgtype.Timestamptz
+	LimitCents  int64
+	Payments    []byte
+	Adjustments []byte
 }
 
 type CreditPurchase struct {

@@ -103,7 +103,7 @@ func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (Cre
 const createCreditCard = `-- name: CreateCreditCard :one
 INSERT INTO credit_cards (id, user_id, name, closing_day, due_day, limit_cents, payments)
 VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7::jsonb)
-RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments
+RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
 `
 
 type CreateCreditCardParams struct {
@@ -136,6 +136,7 @@ func (q *Queries) CreateCreditCard(ctx context.Context, arg CreateCreditCardPara
 		&i.CreatedAt,
 		&i.LimitCents,
 		&i.Payments,
+		&i.Adjustments,
 	)
 	return i, err
 }
@@ -611,7 +612,7 @@ func (q *Queries) DeleteTransactionOverrides(ctx context.Context, transactionID 
 }
 
 const getCreditCardForUpdate = `-- name: GetCreditCardForUpdate :one
-SELECT id, user_id, name, closing_day, due_day, created_at, limit_cents, payments FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE
+SELECT id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE
 `
 
 type GetCreditCardForUpdateParams struct {
@@ -631,6 +632,7 @@ func (q *Queries) GetCreditCardForUpdate(ctx context.Context, arg GetCreditCardF
 		&i.CreatedAt,
 		&i.LimitCents,
 		&i.Payments,
+		&i.Adjustments,
 	)
 	return i, err
 }
@@ -874,7 +876,7 @@ func (q *Queries) ListCategories(ctx context.Context, userID uuid.UUID) ([]Custo
 }
 
 const listCreditCards = `-- name: ListCreditCards :many
-SELECT id, user_id, name, closing_day, due_day, created_at, limit_cents, payments FROM credit_cards WHERE user_id = $1 ORDER BY created_at, id
+SELECT id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments FROM credit_cards WHERE user_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListCreditCards(ctx context.Context, userID uuid.UUID) ([]CreditCard, error) {
@@ -895,6 +897,7 @@ func (q *Queries) ListCreditCards(ctx context.Context, userID uuid.UUID) ([]Cred
 			&i.CreatedAt,
 			&i.LimitCents,
 			&i.Payments,
+			&i.Adjustments,
 		); err != nil {
 			return nil, err
 		}
@@ -1304,7 +1307,7 @@ func (q *Queries) SetCreditAdjustments(ctx context.Context, arg SetCreditAdjustm
 const setCreditCardPayments = `-- name: SetCreditCardPayments :one
 UPDATE credit_cards SET payments = $3::jsonb
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments
+RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
 `
 
 type SetCreditCardPaymentsParams struct {
@@ -1325,6 +1328,36 @@ func (q *Queries) SetCreditCardPayments(ctx context.Context, arg SetCreditCardPa
 		&i.CreatedAt,
 		&i.LimitCents,
 		&i.Payments,
+		&i.Adjustments,
+	)
+	return i, err
+}
+
+const setCreditCardAdjustments = `-- name: SetCreditCardAdjustments :one
+UPDATE credit_cards SET adjustments = $3::jsonb
+WHERE id = $1 AND user_id = $2
+RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
+`
+
+type SetCreditCardAdjustmentsParams struct {
+	ID      uuid.UUID
+	UserID  uuid.UUID
+	Column3 []byte
+}
+
+func (q *Queries) SetCreditCardAdjustments(ctx context.Context, arg SetCreditCardAdjustmentsParams) (CreditCard, error) {
+	row := q.db.QueryRow(ctx, setCreditCardAdjustments, arg.ID, arg.UserID, arg.Column3)
+	var i CreditCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.ClosingDay,
+		&i.DueDay,
+		&i.CreatedAt,
+		&i.LimitCents,
+		&i.Payments,
+		&i.Adjustments,
 	)
 	return i, err
 }
@@ -1555,7 +1588,7 @@ UPDATE credit_cards SET
     due_day     = COALESCE($3, due_day),
     limit_cents = COALESCE($4, limit_cents)
 WHERE id = $5 AND user_id = $6
-RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments
+RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
 `
 
 type UpdateCreditCardParams struct {
@@ -1586,6 +1619,7 @@ func (q *Queries) UpdateCreditCard(ctx context.Context, arg UpdateCreditCardPara
 		&i.CreatedAt,
 		&i.LimitCents,
 		&i.Payments,
+		&i.Adjustments,
 	)
 	return i, err
 }

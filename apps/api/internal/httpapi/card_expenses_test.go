@@ -370,3 +370,88 @@ func TestCardExpenseIsPaidByTheInvoice(t *testing.T) {
 	// e a fatura paga normalmente
 	want(t, e.do(t, "PUT", "/api/v1/credit-cards/"+card.ID+"/payments/2026-12", tk, pix), 200)
 }
+
+// Ajustes da fatura (descontos e acréscimos): vários por mês, só registro, com leitura do formato antigo.
+func TestCardInvoiceAdjustments(t *testing.T) {
+	e := setup(t)
+	tk := e.register(t, "").AccessToken
+	other := e.register(t, "").AccessToken
+	card := newCard(t, e, tk, map[string]any{"name": "Nubank", "closingDay": 2, "dueDay": 9})
+	url := "/api/v1/credit-cards/" + card.ID + "/adjustments/2026-12"
+	item := func(id string, amount int64, note string) map[string]any {
+		return map[string]any{"id": id, "amount": amount, "note": note}
+	}
+
+	// lista, valor, id e mês são conferidos
+	want(t, e.do(t, "PUT", url, tk, []map[string]any{item("a", 0, "")}), 400)
+	want(t, e.do(t, "PUT", url, tk, []map[string]any{{"amount": -37}}), 400)
+	want(t, e.do(t, "PUT", url, tk, []map[string]any{item("a", -37, ""), item("a", 5, "")}), 400)
+	want(t, e.do(t, "PUT", "/api/v1/credit-cards/"+card.ID+"/adjustments/dezembro", tk, []map[string]any{item("a", -37, "")}), 400)
+
+	// vários ajustes no mesmo mês voltam na ordem, e os outros meses ficam separados
+	r := e.do(t, "PUT", url, tk, []map[string]any{item("a", -37, "desconto"), item("b", 120, "juros")})
+	want(t, r, 200)
+	var got domain.CreditCard
+	r.json(t, &got)
+	list := got.Adjustments["2026-12"]
+	if len(list) != 2 || list[0].ID != "a" || list[0].Amount != -37 || list[1].Amount != 120 || list[1].Note != "juros" {
+		t.Fatalf("depois de lançar: %+v", got.Adjustments)
+	}
+	want(t, e.do(t, "PUT", "/api/v1/credit-cards/"+card.ID+"/adjustments/2027-01", tk, []map[string]any{item("c", -5, "")}), 200)
+	if d := loadData(t, e, tk); len(d.CreditCards[0].Adjustments) != 2 || len(d.CreditCards[0].Adjustments["2026-12"]) != 2 {
+		t.Fatalf("o GET /data deveria trazer os dois meses: %+v", d.CreditCards[0].Adjustments)
+	}
+
+	// trocar a lista substitui a anterior
+	r = e.do(t, "PUT", url, tk, []map[string]any{item("b", 120, "juros")})
+	want(t, r, 200)
+	r.json(t, &got)
+	if len(got.Adjustments["2026-12"]) != 1 {
+		t.Fatalf("depois de trocar: %+v", got.Adjustments)
+	}
+
+	// outra conta não enxerga nem altera
+	want(t, e.do(t, "PUT", url, other, []map[string]any{item("a", -37, "")}), 404)
+	want(t, e.do(t, "DELETE", url, other, nil), 404)
+
+	// o ajuste é só registro: a fatura e o resumo do servidor não mudam
+	want(t, e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{"name": "Mercado", "amount": 5000, "type": "expense", "category": "Alimentação", "month": "2026-11", "cardId": card.ID, "purchaseDate": "2026-11-07"}), 201)
+	r = e.do(t, "GET", "/api/v1/summary/2026-12", tk, nil)
+	want(t, r, 200)
+	var sum domain.MonthSummary
+	r.json(t, &sum)
+	if sum.TotalExpense != 5000 {
+		t.Fatalf("o ajuste mexeu no resumo do servidor: %d", sum.TotalExpense)
+	}
+
+	// remover tudo (e remover de novo não dá erro); lista vazia também remove
+	r = e.do(t, "DELETE", url, tk, nil)
+	want(t, r, 200)
+	var cleared domain.CreditCard
+	r.json(t, &cleared)
+	if _, still := cleared.Adjustments["2026-12"]; still || len(cleared.Adjustments) != 1 {
+		t.Fatalf("depois de remover: %+v", cleared.Adjustments)
+	}
+	want(t, e.do(t, "DELETE", url, tk, nil), 200)
+	want(t, e.do(t, "PUT", url, tk, []map[string]any{}), 200)
+	want(t, e.do(t, "PUT", "/api/v1/credit-cards/nao-e-uuid/adjustments/2026-12", tk, []map[string]any{item("a", -37, "")}), 404)
+
+	// criar o cartão ignora ajustes no corpo (só o endpoint próprio e a importação gravam)
+	made := newCard(t, e, tk, map[string]any{"name": "Outro", "closingDay": 5, "dueDay": 12, "adjustments": map[string]any{"2026-12": []map[string]any{item("a", -9, "")}}})
+	if len(made.Adjustments) != 0 {
+		t.Fatalf("a criação deveria ignorar os ajustes: %+v", made.Adjustments)
+	}
+
+	// importar e exportar levam os ajustes; o formato antigo (um ajuste só por mês) não é aceito na importação nova,
+	// mas um ajuste inválido é recusado
+	pack := map[string]any{"creditCards": []map[string]any{{"id": "c1", "name": "Inter", "closingDay": 25, "dueDay": 5, "adjustments": map[string]any{"2026-12": []map[string]any{item("a", -50, "cashback"), item("b", 10, "iof")}}}}}
+	r = e.do(t, "POST", "/api/v1/import?replace=true", tk, pack)
+	want(t, r, http.StatusCreated)
+	var out domain.FinanceData
+	r.json(t, &out)
+	if len(out.CreditCards) != 1 || len(out.CreditCards[0].Adjustments["2026-12"]) != 2 || out.CreditCards[0].Adjustments["2026-12"][0].Note != "cashback" {
+		t.Fatalf("importação perdeu os ajustes: %+v", out.CreditCards)
+	}
+	bad := map[string]any{"creditCards": []map[string]any{{"id": "c1", "name": "Inter", "closingDay": 25, "dueDay": 5, "adjustments": map[string]any{"2026-12": []map[string]any{item("a", 0, "")}}}}}
+	want(t, e.do(t, "POST", "/api/v1/import?replace=true", tk, bad), 400)
+}

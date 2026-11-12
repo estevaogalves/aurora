@@ -159,6 +159,8 @@ func (s *Server) Router() http.Handler {
 				r.Delete("/{id}", s.deleteCreditCard)
 				r.Put("/{id}/payments/{month}", s.setCardPayment)
 				r.Delete("/{id}/payments/{month}", s.clearCardPayment)
+				r.Put("/{id}/adjustments/{month}", s.setCardAdjustments)
+				r.Delete("/{id}/adjustments/{month}", s.clearCardAdjustments)
 			})
 			r.Route("/goals", func(r chi.Router) {
 				r.Post("/", s.createGoal)
