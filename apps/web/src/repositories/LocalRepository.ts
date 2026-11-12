@@ -14,6 +14,7 @@ import type {
   Payment,
   Transaction,
 } from "../domain/types";
+import { renameCategoryIn, type CategoryPatch } from "../domain/categories";
 import { patchCardAdjustments, patchCardPayment } from "../domain/invoice";
 import { patchClearPayment, patchSetPayment } from "../domain/payment";
 import { patchAdvanceInstallment, patchClearActualValue,
@@ -243,6 +244,17 @@ export class LocalRepository implements FinanceRepository {
 
   async addCategory(category: CustomCategory) {
     this.data.customCategories = [...this.data.customCategories, category];
+    this.persist();
+  }
+
+  async updateCategory(id: string, patch: CategoryPatch) {
+    const current = this.data.customCategories.find((c) => c.id === id);
+    if (!current) return;
+    this.data.customCategories = this.data.customCategories.map((c) => (c.id === id ? { ...c, ...patch } : c));
+    if (patch.name !== undefined && patch.name !== current.name) {
+      this.data.transactions = renameCategoryIn(this.data.transactions, current.name, patch.name);
+      this.data.creditTransactions = renameCategoryIn(this.data.creditTransactions, current.name, patch.name);
+    }
     this.persist();
   }
 

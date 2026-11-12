@@ -534,6 +534,18 @@ paths:
         "409": { $ref: "#/components/responses/Error" }
   /categories/{id}:
     parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [configurações]
+      summary: Edita o nome e/ou a cor de uma categoria própria
+      description: Os lançamentos guardam a categoria pelo nome, então ao trocar o nome as despesas e as compras no crédito que usavam o nome antigo passam para o novo, tudo de uma vez. Trocar só a caixa das letras é permitido; nome igual ao de outra categoria (sem diferenciar maiúsculas) é recusado e nada muda.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CustomCategoryPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/CustomCategory" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
     delete:
       tags: [configurações]
       summary: Remove categoria própria
@@ -960,6 +972,11 @@ components:
       required: [name, color]
       properties:
         id: { type: string, format: uuid }
+        name: { type: string }
+        color: { type: string, pattern: '^#[0-9a-fA-F]{6}$' }
+    CustomCategoryPatch:
+      type: object
+      properties:
         name: { type: string }
         color: { type: string, pattern: '^#[0-9a-fA-F]{6}$' }
 

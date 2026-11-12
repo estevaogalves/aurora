@@ -1,4 +1,5 @@
 import { api } from "../api/http";
+import type { CategoryPatch } from "../domain/categories";
 import type {
   CreditCard,
   CreditTransaction,
@@ -179,6 +180,7 @@ export class ApiRepository implements FinanceRepository {
   removeExtraExpense = (id: string) => this.enqueue(() => api.delete(`/extra-expenses/${id}`));
 
   addCategory = (c: CustomCategory) => this.enqueue(() => api.post("/categories", c));
+  updateCategory = (id: string, patch: CategoryPatch) => this.enqueue(() => api.patch(`/categories/${id}`, pick(patch, ["name", "color"])));
   removeCategory = (id: string) => this.enqueue(() => api.delete(`/categories/${id}`));
 
   setDistribution = (items: DistributionItem[] | null) => this.enqueue(() => api.put("/settings/distribution", { items }));

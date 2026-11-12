@@ -513,6 +513,38 @@ func (s *Server) createCategory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, out)
 }
 
+type categoryPatchReq struct {
+	Name  *string `json:"name"`
+	Color *string `json:"color"`
+}
+
+// updateCategory troca nome e/ou cor; trocar o nome leva junto as despesas e compras que usavam o nome antigo.
+func (s *Server) updateCategory(w http.ResponseWriter, r *http.Request) {
+	var in categoryPatchReq
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	msg := ""
+	if in.Name != nil {
+		trimmedName := strings.TrimSpace(*in.Name)
+		in.Name = &trimmedName
+		msg = first(checkName(trimmedName), checkCategory(trimmedName))
+	}
+	if in.Color != nil && !colorRe.MatchString(*in.Color) {
+		msg = first(msg, "A cor deve ser um hexadecimal no formato #RRGGBB.")
+	}
+	if bad(w, msg) {
+		return
+	}
+	out, err := s.store.UpdateCategory(r.Context(), userID(r), chi.URLParam(r, "id"), store.CategoryPatch{Name: in.Name, Color: in.Color})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteCategory(r.Context(), userID(r), chi.URLParam(r, "id")); err != nil {
 		s.fail(w, r, err)

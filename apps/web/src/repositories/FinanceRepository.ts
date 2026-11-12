@@ -1,3 +1,4 @@
+import type { CategoryPatch } from "../domain/categories";
 import type {
   CreditCard,
   CreditTransaction,
@@ -75,6 +76,8 @@ export interface FinanceRepository {
   removeExtraExpense(id: string): Promise<void>;
 
   addCategory(category: CustomCategory): Promise<void>;
+  /** Troca o nome e/ou a cor; com nome novo, os lançamentos que usavam o antigo passam para o novo. */
+  updateCategory(id: string, patch: CategoryPatch): Promise<void>;
   removeCategory(id: string): Promise<void>;
 
   /** null volta ao padrão */

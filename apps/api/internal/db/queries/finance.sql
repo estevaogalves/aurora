@@ -165,6 +165,23 @@ INSERT INTO custom_categories (id, user_id, name, color)
 VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4)
 RETURNING *;
 
+-- name: GetCategoryForUpdate :one
+SELECT * FROM custom_categories WHERE id = $1 AND user_id = $2 FOR UPDATE;
+
+-- name: UpdateCategory :one
+UPDATE custom_categories SET
+  name  = COALESCE(sqlc.narg('name'), name),
+  color = COALESCE(sqlc.narg('color'), color)
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- Os lançamentos guardam a categoria pelo nome: renomear leva junto as despesas e as compras no crédito.
+-- name: RenameTransactionCategory :execrows
+UPDATE transactions SET category = sqlc.arg('new_name') WHERE user_id = sqlc.arg('user_id') AND category = sqlc.arg('old_name');
+
+-- name: RenameCreditCategory :execrows
+UPDATE credit_purchases SET category = sqlc.arg('new_name') WHERE user_id = sqlc.arg('user_id') AND category = sqlc.arg('old_name');
+
 -- name: DeleteCategory :execrows
 DELETE FROM custom_categories WHERE id = $1 AND user_id = $2;
 

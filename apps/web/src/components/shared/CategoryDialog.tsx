@@ -18,15 +18,11 @@ interface Props {
   onCreated?: (name: string) => void;
 }
 
-/** Cria categorias com cor própria e permite apagar as que o usuário criou. */
+/** Cria categorias com cor própria e permite editar (nome e cor) e apagar as que o usuário criou. */
 export default function CategoryDialog({ open, onClose, onCreated }: Props) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Nova categoria</DialogTitle>
-          <DialogDescription>Dê um nome e escolha a cor que aparece nos gráficos e listas.</DialogDescription>
-        </DialogHeader>
         {open && <CategoryFields onClose={onClose} onCreated={onCreated} />}
       </DialogContent>
     </Dialog>
@@ -36,17 +32,44 @@ export default function CategoryDialog({ open, onClose, onCreated }: Props) {
 function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
   const categories = useFinanceStore((s) => s.customCategories);
   const addCategory = useFinanceStore((s) => s.addCategory);
+  const updateCategory = useFinanceStore((s) => s.updateCategory);
   const removeCategory = useFinanceStore((s) => s.removeCategory);
+  // id da categoria que está sendo editada; null = criando uma nova
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState(SWATCHES[0]);
+  const editing = categories.find((c) => c.id === editingId);
+
+  function startEdit(id: string) {
+    const c = categories.find((x) => x.id === id);
+    if (!c) return;
+    setEditingId(id);
+    setName(c.name);
+    setColor(c.color);
+  }
+
+  function reset() {
+    setEditingId(null);
+    setName("");
+    setColor(SWATCHES[0]);
+  }
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
     e.stopPropagation(); // este formulário fica dentro de outro modal
     const trimmed = name.trim();
     if (!trimmed) return showToast({ type: "error", text: "Dê um nome à categoria" });
-    const taken = [...BUILTIN_CATEGORIES, ...categories.map((c) => c.name)].some((n) => n.toLowerCase() === trimmed.toLowerCase());
+    // o nome não pode repetir nenhuma outra (a própria categoria em edição pode manter ou trocar só a caixa das letras)
+    const taken = [...BUILTIN_CATEGORIES, ...categories.filter((c) => c.id !== editingId).map((c) => c.name)].some((n) => n.toLowerCase() === trimmed.toLowerCase());
     if (taken) return showToast({ type: "error", text: `Já existe uma categoria "${trimmed}"` });
+
+    if (editing) {
+      const patch = { ...(trimmed !== editing.name && { name: trimmed }), ...(color.toLowerCase() !== editing.color.toLowerCase() && { color }) };
+      if (Object.keys(patch).length === 0) return reset();
+      updateCategory(editing.id, patch);
+      showToast({ type: "success", text: patch.name ? `Categoria renomeada para "${trimmed}": os lançamentos acompanharam` : `Cor de "${trimmed}" atualizada` });
+      return reset();
+    }
 
     addCategory({ id: uuid(), name: trimmed, color });
     showToast({ type: "success", text: `Categoria "${trimmed}" criada` });
@@ -56,6 +79,12 @@ function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
 
   return (
     <div className="flex flex-col gap-4">
+      <DialogHeader>
+        <DialogTitle>{editing ? "Editar categoria" : "Nova categoria"}</DialogTitle>
+        <DialogDescription>
+          {editing ? "Trocar o nome também troca nos lançamentos que usam esta categoria." : "Dê um nome e escolha a cor que aparece nos gráficos e listas."}
+        </DialogDescription>
+      </DialogHeader>
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field label="Nome" htmlFor="cat-name">
           <input id="cat-name" autoFocus={canAutoFocus()} value={name} onChange={(e) => setName(e.target.value)} maxLength={30} placeholder="Ex.: Pets" className={inputClass} />
@@ -83,8 +112,8 @@ function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
           Prévia: <span className="inline-flex items-center gap-1.5 font-semibold"><i className="h-2.5 w-2.5 rounded-[3px]" style={{ background: color }} />{name.trim() || "Nome da categoria"}</span>
         </div>
         <div className="flex justify-end gap-2">
-          <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button type="submit">Criar categoria</Button>
+          {editing ? <Button type="button" variant="secondary" onClick={reset}>Cancelar edição</Button> : <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>}
+          <Button type="submit">{editing ? "Salvar alterações" : "Criar categoria"}</Button>
         </div>
       </form>
 
@@ -92,14 +121,19 @@ function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
         <div className="border-t border-border pt-3">
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Suas categorias</p>
           {categories.map((c) => (
-            <div key={c.id} className="flex items-center justify-between gap-3 py-1.5 text-[13px]">
-              <span className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-[3px]" style={{ background: c.color }} />{c.name}</span>
-              <button type="button" aria-label={`Apagar categoria ${c.name}`} onClick={() => removeCategory(c.id)} className="grid h-7 w-7 place-items-center rounded-md border border-border-strong text-muted-foreground hover:border-destructive hover:text-destructive">
-                <Icon name="trash" size={14} />
-              </button>
+            <div key={c.id} className={`flex items-center justify-between gap-3 py-1.5 text-[13px] ${c.id === editingId ? "font-semibold" : ""}`}>
+              <span className="flex min-w-0 items-center gap-2"><i className="h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: c.color }} /><span className="truncate">{c.name}</span></span>
+              <span className="flex flex-none items-center gap-1.5">
+                <button type="button" aria-label={`Editar categoria ${c.name}`} onClick={() => startEdit(c.id)} className="grid h-7 w-7 place-items-center rounded-md border border-border-strong text-muted-foreground hover:border-primary hover:text-foreground">
+                  <Icon name="edit" size={14} />
+                </button>
+                <button type="button" aria-label={`Apagar categoria ${c.name}`} onClick={() => { if (c.id === editingId) reset(); removeCategory(c.id); }} className="grid h-7 w-7 place-items-center rounded-md border border-border-strong text-muted-foreground hover:border-destructive hover:text-destructive">
+                  <Icon name="trash" size={14} />
+                </button>
+              </span>
             </div>
           ))}
-          <p className="mt-1 text-xs text-muted-foreground">Apagar não altera lançamentos antigos: eles mantêm o nome, com cor neutra.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Apagar não altera lançamentos antigos: eles mantêm o nome, com cor neutra. Editar o nome atualiza os lançamentos.</p>
         </div>
       )}
     </div>

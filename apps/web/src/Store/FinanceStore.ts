@@ -22,6 +22,8 @@ import {
   patchContribution,
   maturityAlertPrefix,
   patchCardAdjustments,
+  renameCategoryIn,
+  type CategoryPatch,
   patchCardPayment,
   patchEndFromMonth,
   patchResumeFixed,
@@ -143,6 +145,8 @@ interface FinanceState {
   removeInvestmentMovement: (id: string) => void;
 
   addCategory: (category: CustomCategory) => void;
+  /** Troca o nome e/ou a cor de uma categoria própria; com nome novo, lançamentos e compras que a usavam acompanham. */
+  updateCategory: (id: string, patch: CategoryPatch) => void;
   removeCategory: (id: string) => void;
 
   addExtraExpense: (extra: ExtraExpense) => void;
@@ -503,6 +507,20 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     addCategory: (category) => {
       set((state) => ({ customCategories: [...state.customCategories, category] }));
       sync(repository.addCategory(category));
+    },
+
+    updateCategory: (id, patch) => {
+      const current = get().customCategories.find((c) => c.id === id);
+      if (!current) return;
+      const renamed = patch.name !== undefined && patch.name !== current.name ? patch.name : null;
+      set((state) => ({
+        customCategories: state.customCategories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        ...(renamed !== null && {
+          transactions: renameCategoryIn(state.transactions, current.name, renamed),
+          creditTransactions: renameCategoryIn(state.creditTransactions, current.name, renamed),
+        }),
+      }));
+      sync(repository.updateCategory(id, patch));
     },
 
     removeCategory: (id) => {

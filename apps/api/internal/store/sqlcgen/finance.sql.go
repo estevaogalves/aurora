@@ -611,6 +611,27 @@ func (q *Queries) DeleteTransactionOverrides(ctx context.Context, transactionID 
 	return err
 }
 
+const getCategoryForUpdate = `-- name: GetCategoryForUpdate :one
+SELECT id, user_id, name, color FROM custom_categories WHERE id = $1 AND user_id = $2 FOR UPDATE
+`
+
+type GetCategoryForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetCategoryForUpdate(ctx context.Context, arg GetCategoryForUpdateParams) (CustomCategory, error) {
+	row := q.db.QueryRow(ctx, getCategoryForUpdate, arg.ID, arg.UserID)
+	var i CustomCategory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Color,
+	)
+	return i, err
+}
+
 const getCreditCardForUpdate = `-- name: GetCreditCardForUpdate :one
 SELECT id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE
 `
@@ -1270,6 +1291,43 @@ func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Tra
 	return items, nil
 }
 
+const renameCreditCategory = `-- name: RenameCreditCategory :execrows
+UPDATE credit_purchases SET category = $1 WHERE user_id = $2 AND category = $3
+`
+
+type RenameCreditCategoryParams struct {
+	NewName string
+	UserID  uuid.UUID
+	OldName string
+}
+
+func (q *Queries) RenameCreditCategory(ctx context.Context, arg RenameCreditCategoryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, renameCreditCategory, arg.NewName, arg.UserID, arg.OldName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const renameTransactionCategory = `-- name: RenameTransactionCategory :execrows
+UPDATE transactions SET category = $1 WHERE user_id = $2 AND category = $3
+`
+
+type RenameTransactionCategoryParams struct {
+	NewName string
+	UserID  uuid.UUID
+	OldName string
+}
+
+// Os lançamentos guardam a categoria pelo nome: renomear leva junto as despesas e as compras no crédito.
+func (q *Queries) RenameTransactionCategory(ctx context.Context, arg RenameTransactionCategoryParams) (int64, error) {
+	result, err := q.db.Exec(ctx, renameTransactionCategory, arg.NewName, arg.UserID, arg.OldName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const setCreditAdjustments = `-- name: SetCreditAdjustments :one
 UPDATE credit_purchases SET adjustments = $3::jsonb
 WHERE id = $1 AND user_id = $2
@@ -1304,20 +1362,20 @@ func (q *Queries) SetCreditAdjustments(ctx context.Context, arg SetCreditAdjustm
 	return i, err
 }
 
-const setCreditCardPayments = `-- name: SetCreditCardPayments :one
-UPDATE credit_cards SET payments = $3::jsonb
+const setCreditCardAdjustments = `-- name: SetCreditCardAdjustments :one
+UPDATE credit_cards SET adjustments = $3::jsonb
 WHERE id = $1 AND user_id = $2
 RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
 `
 
-type SetCreditCardPaymentsParams struct {
+type SetCreditCardAdjustmentsParams struct {
 	ID      uuid.UUID
 	UserID  uuid.UUID
 	Column3 []byte
 }
 
-func (q *Queries) SetCreditCardPayments(ctx context.Context, arg SetCreditCardPaymentsParams) (CreditCard, error) {
-	row := q.db.QueryRow(ctx, setCreditCardPayments, arg.ID, arg.UserID, arg.Column3)
+func (q *Queries) SetCreditCardAdjustments(ctx context.Context, arg SetCreditCardAdjustmentsParams) (CreditCard, error) {
+	row := q.db.QueryRow(ctx, setCreditCardAdjustments, arg.ID, arg.UserID, arg.Column3)
 	var i CreditCard
 	err := row.Scan(
 		&i.ID,
@@ -1333,20 +1391,20 @@ func (q *Queries) SetCreditCardPayments(ctx context.Context, arg SetCreditCardPa
 	return i, err
 }
 
-const setCreditCardAdjustments = `-- name: SetCreditCardAdjustments :one
-UPDATE credit_cards SET adjustments = $3::jsonb
+const setCreditCardPayments = `-- name: SetCreditCardPayments :one
+UPDATE credit_cards SET payments = $3::jsonb
 WHERE id = $1 AND user_id = $2
 RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
 `
 
-type SetCreditCardAdjustmentsParams struct {
+type SetCreditCardPaymentsParams struct {
 	ID      uuid.UUID
 	UserID  uuid.UUID
 	Column3 []byte
 }
 
-func (q *Queries) SetCreditCardAdjustments(ctx context.Context, arg SetCreditCardAdjustmentsParams) (CreditCard, error) {
-	row := q.db.QueryRow(ctx, setCreditCardAdjustments, arg.ID, arg.UserID, arg.Column3)
+func (q *Queries) SetCreditCardPayments(ctx context.Context, arg SetCreditCardPaymentsParams) (CreditCard, error) {
+	row := q.db.QueryRow(ctx, setCreditCardPayments, arg.ID, arg.UserID, arg.Column3)
 	var i CreditCard
 	err := row.Scan(
 		&i.ID,
@@ -1511,6 +1569,38 @@ func (q *Queries) SetTransactionPayments(ctx context.Context, arg SetTransaction
 		&i.CardID,
 		&i.PurchaseDate,
 		&i.EndMonth,
+	)
+	return i, err
+}
+
+const updateCategory = `-- name: UpdateCategory :one
+UPDATE custom_categories SET
+  name  = COALESCE($1, name),
+  color = COALESCE($2, color)
+WHERE id = $3 AND user_id = $4
+RETURNING id, user_id, name, color
+`
+
+type UpdateCategoryParams struct {
+	Name   pgtype.Text
+	Color  pgtype.Text
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (CustomCategory, error) {
+	row := q.db.QueryRow(ctx, updateCategory,
+		arg.Name,
+		arg.Color,
+		arg.ID,
+		arg.UserID,
+	)
+	var i CustomCategory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Color,
 	)
 	return i, err
 }

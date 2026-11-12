@@ -244,6 +244,28 @@ describe("LocalRepository", () => {
     expect((await new LocalRepository(storage).load()).customCategories).toEqual([]);
   });
 
+  it("editar categoria no LocalRepository renomeia as despesas e compras guardadas e persiste", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.addCategory({ id: "k1", name: "Pets", color: "#FF8800" });
+    await repo.addTransaction({ id: "t1", name: "Ração", amount: 5000, type: "expense", category: "Pets", month: "2026-11" });
+    await repo.addTransaction({ id: "t2", name: "Mercado", amount: 3000, type: "expense", category: "Alimentação", month: "2026-11" });
+    await repo.addCredit({ id: "c1", name: "Caminha", totalAmount: 30000, installments: 3, startMonth: "2026-11", category: "Pets" });
+
+    await repo.updateCategory("k1", { color: "#123ABC" });
+    expect((await new LocalRepository(storage).load()).transactions.map((t) => t.category)).toEqual(["Pets", "Alimentação"]);
+
+    await repo.updateCategory("k1", { name: "Bichos" });
+    const reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.customCategories).toEqual([{ id: "k1", name: "Bichos", color: "#123ABC" }]);
+    expect(reloaded.transactions.map((t) => t.category)).toEqual(["Bichos", "Alimentação"]);
+    expect(reloaded.creditTransactions[0].category).toBe("Bichos");
+
+    await repo.updateCategory("nao-existe", { name: "X" });
+    expect((await new LocalRepository(storage).load()).customCategories).toHaveLength(1);
+  });
+
   it("migra a v2 (sem categorias) sem perder metas", () => {
     const goal = { id: "g", name: "Viagem", target: 100, saved: 0, monthly: 0, deadline: null };
     const data = migrateStored({ version: 2, data: { goals: [goal] } });

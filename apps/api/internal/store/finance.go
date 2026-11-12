@@ -713,6 +713,44 @@ func (s *Store) CreateCategory(ctx context.Context, userID uuid.UUID, c domain.C
 	return domain.CustomCategory{ID: row.ID.String(), Name: row.Name, Color: row.Color}, mapErr(err)
 }
 
+// CategoryPatch: nil não muda.
+type CategoryPatch struct {
+	Name  *string
+	Color *string
+}
+
+// UpdateCategory troca o nome e/ou a cor de uma categoria. Os lançamentos guardam a categoria pelo nome, então,
+// quando o nome muda, as despesas e as compras no crédito do usuário que usavam o nome antigo passam para o novo,
+// tudo na mesma transação. Nome repetido (sem diferenciar maiúsculas) volta como ErrDuplicate.
+func (s *Store) UpdateCategory(ctx context.Context, userID uuid.UUID, id string, p CategoryPatch) (domain.CustomCategory, error) {
+	cid, err := parseID(id)
+	if err != nil {
+		return domain.CustomCategory{}, err
+	}
+	var out domain.CustomCategory
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetCategoryForUpdate(ctx, sqlcgen.GetCategoryForUpdateParams{ID: cid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		row, err := q.UpdateCategory(ctx, sqlcgen.UpdateCategoryParams{Name: text(p.Name), Color: text(p.Color), ID: cid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		if row.Name != cur.Name {
+			if _, err := q.RenameTransactionCategory(ctx, sqlcgen.RenameTransactionCategoryParams{UserID: userID, OldName: cur.Name, NewName: row.Name}); err != nil {
+				return err
+			}
+			if _, err := q.RenameCreditCategory(ctx, sqlcgen.RenameCreditCategoryParams{UserID: userID, OldName: cur.Name, NewName: row.Name}); err != nil {
+				return err
+			}
+		}
+		out = domain.CustomCategory{ID: row.ID.String(), Name: row.Name, Color: row.Color}
+		return nil
+	})
+	return out, err
+}
+
 func (s *Store) DeleteCategory(ctx context.Context, userID uuid.UUID, id string) error {
 	cid, err := parseID(id)
 	if err != nil {

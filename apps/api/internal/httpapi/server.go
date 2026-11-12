@@ -191,6 +191,7 @@ func (s *Server) Router() http.Handler {
 			})
 			r.Route("/categories", func(r chi.Router) {
 				r.Post("/", s.createCategory)
+				r.Patch("/{id}", s.updateCategory)
 				r.Delete("/{id}", s.deleteCategory)
 			})
 			r.Put("/settings/distribution", s.putDistribution)

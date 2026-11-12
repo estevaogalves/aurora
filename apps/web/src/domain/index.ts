@@ -1,3 +1,4 @@
+export * from "./categories";
 export * from "./credit";
 export * from "./distribution";
 export * from "./goals";

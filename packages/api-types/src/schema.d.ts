@@ -1868,7 +1868,39 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Edita o nome e/ou a cor de uma categoria própria
+         * @description Os lançamentos guardam a categoria pelo nome, então ao trocar o nome as despesas e as compras no crédito que usavam o nome antigo passam para o novo, tudo de uma vez. Trocar só a caixa das letras é permitido; nome igual ao de outra categoria (sem diferenciar maiúsculas) é recusado e nada muda.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CustomCategoryPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomCategory"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
         trace?: never;
     };
     "/settings/distribution": {
@@ -2492,6 +2524,10 @@ export interface components {
             id?: string;
             name: string;
             color: string;
+        };
+        CustomCategoryPatch: {
+            name?: string;
+            color?: string;
         };
         DistributionItem: {
             id: string;
