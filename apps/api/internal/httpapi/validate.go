@@ -574,6 +574,9 @@ func (l Limits) validateData(d domain.FinanceData) string {
 			return "Distribuição " + quote(key) + ": " + m
 		}
 	}
+	if m := validatePlanning(domain.Planning{Budgets: d.Budgets, Debts: d.Debts, Closings: d.Closings, DividendAssets: d.DividendAssets}); m != "" {
+		return m
+	}
 	for _, e := range d.ExtraExpenses {
 		if m := validateExtra(e); m != "" {
 			return "Despesa extra " + quote(e.Name) + ": " + m

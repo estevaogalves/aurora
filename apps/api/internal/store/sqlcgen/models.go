@@ -182,4 +182,5 @@ type UserSetting struct {
 	SeenAlerts            []string
 	Onboarding            []byte
 	DistributionOverrides []byte
+	Planning              []byte
 }

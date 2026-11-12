@@ -104,6 +104,16 @@ func (s *Store) SetSeenAlerts(ctx context.Context, userID uuid.UUID, keys []stri
 	return s.q.SetSeenAlerts(ctx, sqlcgen.SetSeenAlertsParams{UserID: userID, SeenAlerts: keys})
 }
 
+// SetPlanning troca o planejamento inteiro (orçamentos, dívidas, fechamentos e carteira de dividendos).
+func (s *Store) SetPlanning(ctx context.Context, userID uuid.UUID, p domain.Planning) error {
+	p.Normalize()
+	raw, err := jsonMarshal(p)
+	if err != nil {
+		return err
+	}
+	return s.q.SetPlanning(ctx, sqlcgen.SetPlanningParams{UserID: userID, Column2: raw})
+}
+
 // SetOnboarding grava a resposta de uma tela, sem mexer nas outras.
 func (s *Store) SetOnboarding(ctx context.Context, userID uuid.UUID, screen, state string) error {
 	return s.q.SetOnboardingScreen(ctx, sqlcgen.SetOnboardingScreenParams{UserID: userID, Screen: screen, State: state})

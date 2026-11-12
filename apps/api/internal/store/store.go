@@ -226,6 +226,13 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 				return d, err
 			}
 		}
+		if len(settings.Planning) > 0 {
+			var p domain.Planning
+			if err := json.Unmarshal(settings.Planning, &p); err != nil {
+				return d, err
+			}
+			d.Budgets, d.Debts, d.Closings, d.DividendAssets = p.Budgets, p.Debts, p.Closings, p.DividendAssets
+		}
 		if len(settings.Distribution) > 0 {
 			if err := json.Unmarshal(settings.Distribution, &d.Distribution); err != nil {
 				return d, err

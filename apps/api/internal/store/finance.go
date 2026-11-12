@@ -994,6 +994,15 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 		if err := q.SetDistributionOverrides(ctx, sqlcgen.SetDistributionOverridesParams{UserID: userID, Column2: rawOverrides}); err != nil {
 			return err
 		}
+		planning := domain.Planning{Budgets: d.Budgets, Debts: d.Debts, Closings: d.Closings, DividendAssets: d.DividendAssets}
+		planning.Normalize()
+		rawPlanning, err := jsonMarshal(planning)
+		if err != nil {
+			return err
+		}
+		if err := q.SetPlanning(ctx, sqlcgen.SetPlanningParams{UserID: userID, Column2: rawPlanning}); err != nil {
+			return err
+		}
 		seen := d.SeenAlerts
 		if seen == nil {
 			seen = []string{}

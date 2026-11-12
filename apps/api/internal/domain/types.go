@@ -137,6 +137,11 @@ type FinanceData struct {
 	// Sem a chave, vale Distribution (o padrão). A Dist 1 sempre usa o padrão.
 	DistributionOverrides map[string][]DistributionItem `json:"distributionOverrides"`
 	SeenAlerts         []string            `json:"seenAlerts"`
+	// Planejamento (veja planning.go): orçamento por categoria, dívidas, fechamento do mês e carteira de dividendos.
+	Budgets        Budgets                 `json:"budgets"`
+	Debts          []Debt                  `json:"debts"`
+	Closings       map[string]MonthClosing `json:"closings"`
+	DividendAssets []DividendAsset         `json:"dividendAssets"`
 	// Resposta ao tour de cada tela: "done" (viu até o fim) ou "dismissed" (recusou, fechou ou pulou).
 	Onboarding map[string]string `json:"onboarding"`
 }
@@ -182,6 +187,9 @@ func (d *FinanceData) Normalize() {
 	if d.Onboarding == nil {
 		d.Onboarding = map[string]string{}
 	}
+	p := Planning{Budgets: d.Budgets, Debts: d.Debts, Closings: d.Closings, DividendAssets: d.DividendAssets}
+	p.Normalize()
+	d.Budgets, d.Debts, d.Closings, d.DividendAssets = p.Budgets, p.Debts, p.Closings, p.DividendAssets
 }
 
 type MonthSummary struct {

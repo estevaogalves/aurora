@@ -1,0 +1,85 @@
+package domain
+
+// Planejamento do usuário (orçamento por categoria, dívidas, fechamento do mês e carteira de dividendos). Valores em
+// centavos; meses "AAAA-MM". Só marcas e anotações: nada aqui muda valor, saldo, projeção ou relatório.
+
+// Limites de tamanho (também usados na validação).
+const (
+	MaxBudgetCategories = 80
+	MaxBudgetChanges    = 60
+	MaxDebts            = 100
+	MaxDebtInstallments = 600
+	MaxClosings         = 240
+	MaxDividendAssets   = 100
+)
+
+// Budgets: categoria -> mês -> limite mensal em centavos. Cada par é uma mudança de limite: o limite de um mês é o
+// da última mudança até ele (o limite herda para os meses seguintes até o usuário mudar). 0 = sem limite desde o mês.
+type Budgets map[string]map[string]int64
+
+// Debt é uma dívida ou consórcio em parcelas fixas.
+type Debt struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// InstallmentValue: valor da parcela, em centavos.
+	InstallmentValue  int64 `json:"installmentValue"`
+	TotalInstallments int   `json:"totalInstallments"`
+	PaidInstallments  int   `json:"paidInstallments"`
+	// NextMonth: mês da próxima parcela a pagar. A quitação é NextMonth + (restantes − 1) meses.
+	NextMonth string `json:"nextMonth"`
+	// LinkedTransactionID: despesa fixa que já traz esta parcela no orçamento (para não somar duas vezes). Opcional.
+	LinkedTransactionID string `json:"linkedTransactionId,omitempty"`
+	Note                string `json:"note,omitempty"`
+}
+
+// MonthClosing é o retrato de um mês fechado.
+type MonthClosing struct {
+	// ClosedAt: data do fechamento, "AAAA-MM-DD".
+	ClosedAt string `json:"closedAt"`
+	Income   int64  `json:"income"`
+	Expense  int64  `json:"expense"`
+	Balance  int64  `json:"balance"`
+	// ByCategory: despesas por categoria no momento do fechamento.
+	ByCategory map[string]int64 `json:"byCategory"`
+	// Note: anotação de aprendizado do mês.
+	Note string `json:"note,omitempty"`
+}
+
+// DividendAsset é um ativo da carteira manual de dividendos (sem integração com corretora).
+type DividendAsset struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Invested: valor investido; MonthlyDividends: proventos recebidos por mês (média). Centavos.
+	Invested         int64 `json:"invested"`
+	MonthlyDividends int64 `json:"monthlyDividends"`
+}
+
+// Planning é o conjunto guardado em user_settings.planning.
+type Planning struct {
+	Budgets        Budgets                 `json:"budgets"`
+	Debts          []Debt                  `json:"debts"`
+	Closings       map[string]MonthClosing `json:"closings"`
+	DividendAssets []DividendAsset         `json:"dividendAssets"`
+}
+
+// Normalize troca nil por vazio, para o JSON nunca sair com null.
+func (p *Planning) Normalize() {
+	if p.Budgets == nil {
+		p.Budgets = Budgets{}
+	}
+	if p.Debts == nil {
+		p.Debts = []Debt{}
+	}
+	if p.Closings == nil {
+		p.Closings = map[string]MonthClosing{}
+	}
+	if p.DividendAssets == nil {
+		p.DividendAssets = []DividendAsset{}
+	}
+	for k, c := range p.Closings {
+		if c.ByCategory == nil {
+			c.ByCategory = map[string]int64{}
+			p.Closings[k] = c
+		}
+	}
+}

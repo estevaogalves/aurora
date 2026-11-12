@@ -2158,6 +2158,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/settings/planning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Troca o planejamento inteiro (orçamento por categoria, dívidas, fechamento do mês e carteira de dividendos)
+         * @description O front manda tudo a cada mudança (o último vale). Só marcas e anotações; nada aqui muda valor, saldo, projeção ou relatório.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Planning"];
+                };
+            };
+            responses: {
+                /** @description Salvo */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings/onboarding/{screen}": {
         parameters: {
             query?: never;
@@ -2778,10 +2820,64 @@ export interface components {
             /** @description Percentuais escolhidos; null = padrão */
             distribution: components["schemas"]["DistributionItem"][] | null;
             seenAlerts: string[];
+            budgets?: components["schemas"]["Budgets"];
+            debts?: components["schemas"]["Debt"][];
+            /** @description Meses fechados, por `AAAA-MM`. */
+            closings?: {
+                [key: string]: components["schemas"]["MonthClosing"];
+            };
+            dividendAssets?: components["schemas"]["DividendAsset"][];
             /** @description Resposta ao tour de cada tela (chave = tela). Tela ausente = ainda não convidado. */
             onboarding: {
                 [key: string]: components["schemas"]["OnboardingState"];
             };
+        };
+        /** @description Orçamento por categoria. Categoria -> mês (`AAAA-MM`) -> limite mensal em centavos. Cada par é uma mudança de limite, e o limite herda para os meses seguintes até a próxima mudança. 0 = sem limite desde o mês. */
+        Budgets: {
+            [key: string]: {
+                [key: string]: components["schemas"]["Cents"];
+            };
+        };
+        Debt: {
+            id: string;
+            name: string;
+            installmentValue: components["schemas"]["Cents"];
+            totalInstallments: number;
+            paidInstallments: number;
+            /** @description Mês da próxima parcela a pagar. */
+            nextMonth: components["schemas"]["Month"];
+            /** @description Despesa fixa que já traz esta parcela (para não somar duas vezes). */
+            linkedTransactionId?: string;
+            note?: string;
+        };
+        MonthClosing: {
+            /** @description Data do fechamento, AAAA-MM-DD. */
+            closedAt: string;
+            income: components["schemas"]["Cents"];
+            expense: components["schemas"]["Cents"];
+            /**
+             * Format: int64
+             * @description Saldo do mês em centavos (pode ser negativo).
+             */
+            balance: number;
+            byCategory: {
+                [key: string]: components["schemas"]["Cents"];
+            };
+            note?: string;
+        };
+        DividendAsset: {
+            id: string;
+            name: string;
+            invested: components["schemas"]["Cents"];
+            monthlyDividends: components["schemas"]["Cents"];
+        };
+        Planning: {
+            budgets?: components["schemas"]["Budgets"];
+            debts?: components["schemas"]["Debt"][];
+            closings?: {
+                [key: string]: components["schemas"]["MonthClosing"];
+            };
+            dividendAssets?: components["schemas"]["DividendAsset"][];
         };
         MonthSummary: {
             month: components["schemas"]["Month"];
