@@ -15,6 +15,8 @@ import type {
   InvoiceAdjustment,
   Payment,
   Transaction,
+  Planning,
+  ReceiptMeta,
 } from "../domain/types";
 
 /**
@@ -93,6 +95,13 @@ export interface FinanceRepository {
 
   /** Lista completa dos avisos de meta marcados como vistos. */
   setSeenAlerts(keys: string[]): Promise<void>;
+  /** Anexa um comprovante (imagem ou PDF, até 300 KB) a um lançamento; devolve os dados dele. Recusa com uma mensagem pronta. */
+  addReceipt(transactionId: string, file: { name: string; data: ArrayBuffer }): Promise<ReceiptMeta>;
+  /** Os dados e o conteúdo de um comprovante. */
+  getReceipt(id: string): Promise<{ meta: ReceiptMeta; data: ArrayBuffer }>;
+  removeReceipt(id: string): Promise<void>;
+  /** Troca o planejamento inteiro (orçamentos, dívidas, fechamentos e carteira de dividendos). */
+  setPlanning(planning: Planning): Promise<void>;
 
   /** Grava a resposta ao tour de uma tela, sem mexer nas outras. */
   setOnboarding(screen: string, state: OnboardingState): Promise<void>;

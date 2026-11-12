@@ -229,12 +229,25 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 				return d, err
 			}
 		}
+		if len(settings.Planning) > 0 {
+			var p domain.Planning
+			if err := json.Unmarshal(settings.Planning, &p); err != nil {
+				return d, err
+			}
+			d.Budgets, d.Debts, d.Closings, d.DividendAssets = p.Budgets, p.Debts, p.Closings, p.DividendAssets
+		}
 		if len(settings.Distribution) > 0 {
 			if err := json.Unmarshal(settings.Distribution, &d.Distribution); err != nil {
 				return d, err
 			}
 		}
 	}
+
+	receipts, err := s.ListReceipts(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	d.Receipts = receipts
 
 	d.Normalize()
 	return d, nil
@@ -256,7 +269,10 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 	t := domain.Transaction{
 		ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Type: r.Type,
 		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month, VariableAmount: r.VariableAmount,
-		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, DistGroup: int(r.DistGroup),
+		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, DistGroup: int(r.DistGroup), DueDay: int(r.DueDay),
+	}
+	if len(r.Tags) > 0 {
+		_ = json.Unmarshal(r.Tags, &t.Tags)
 	}
 	if r.CardID.Valid {
 		t.CardID = r.CardID.UUID.String()
@@ -399,4 +415,16 @@ func extraFrom(r sqlcgen.ExtraExpense) domain.ExtraExpense {
 		}
 	}
 	return e
+}
+
+// tagsJSON serializa as etiquetas ("[]" quando não há nenhuma), para a coluna jsonb.
+func tagsJSON(tags []string) []byte {
+	if len(tags) == 0 {
+		return []byte("[]")
+	}
+	raw, err := json.Marshal(tags)
+	if err != nil {
+		return []byte("[]")
+	}
+	return raw
 }

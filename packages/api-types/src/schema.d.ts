@@ -2158,6 +2158,170 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transactions/{id}/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Anexa um comprovante (imagem ou PDF) a um lançamento
+         * @description O arquivo vai em base64. O tipo é conferido pelos primeiros bytes (PNG, JPEG, WebP ou PDF; SVG e HTML são recusados). Até 300 KiB e 5 comprovantes por lançamento. Só anexos: nada muda valores.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        /** @description Só informativo; o servidor decide pelos bytes. */
+                        mime?: string;
+                        /**
+                         * Format: byte
+                         * @description O arquivo em base64.
+                         */
+                        data: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Anexado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReceiptMeta"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+                415: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/receipts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Conteúdo de um comprovante (em base64) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O comprovante */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReceiptMeta"] & {
+                            /** Format: byte */
+                            data: string;
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Apaga um comprovante */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Apagado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/settings/planning": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Troca o planejamento inteiro (orçamento por categoria, dívidas, fechamento do mês e carteira de dividendos)
+         * @description O front manda tudo a cada mudança (o último vale). Só marcas e anotações; nada aqui muda valor, saldo, projeção ou relatório.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Planning"];
+                };
+            };
+            responses: {
+                /** @description Salvo */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings/onboarding/{screen}": {
         parameters: {
             query?: never;
@@ -2408,6 +2572,10 @@ export interface components {
             endMonth?: components["schemas"]["Month"];
             /** @description Só renda não fixa (13º, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente ou 0 = soma ao saldo do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não muda nenhum valor, saldo, projeção ou relatório. */
             distGroup?: number;
+            /** @description Só despesas: dia do vencimento (1 a 31). Ausente ou 0 = sem dia, e a despesa não aparece no card Próximos vencimentos. Em despesa fixa vale para todos os meses; em meses curtos, o dia vira o último dia do mês. Só marca: não muda nenhum valor. */
+            dueDay?: number;
+            /** @description Etiquetas livres (ex.: viagem) para buscar e filtrar em Lançamentos. Sem repetir (maiúscula e minúscula contam igual). Só marcas: não mudam nenhum valor. */
+            tags?: string[];
         };
         Payment: {
             /** @enum {string} */
@@ -2443,6 +2611,10 @@ export interface components {
             endMonth?: string;
             /** @description Só renda não fixa: a distribuição da sugestão do saldo (0 = Dist 1; 2 a 20 = Dist 2 em diante). Número fora disso é recusado (400); despesa ou renda fixa em distribuição própria é recusada (422). */
             distGroup?: number;
+            /** @description Só despesas: dia do vencimento (1 a 31); 0 tira o dia. Sem a chave, não muda. */
+            dueDay?: number;
+            /** @description A lista inteira de etiquetas; vazia tira todas. Sem a chave, não muda. */
+            tags?: string[];
         };
         CreditTransaction: {
             /** Format: uuid */
@@ -2574,6 +2746,8 @@ export interface components {
         /**
          * @description `contribution` (aporte) e `redemption` (resgate) mexem no dinheiro que entra e sai; `yield` (rendimento)
          *     soma ao valor atual sem ser aporte; `adjustment` (atualização de valor) define o novo valor atual.
+         *     No negócio próprio (`business`): `contribution` é o investimento feito (não altera o valor atual), `income`
+         *     (recebimento) é o dinheiro das vendas, que entra no saldo a sacar, e `redemption` é o saque.
          * @enum {string}
          */
         InvestmentMovementType: "contribution" | "redemption" | "yield" | "adjustment" | "income";
@@ -2772,10 +2946,79 @@ export interface components {
             /** @description Percentuais escolhidos; null = padrão */
             distribution: components["schemas"]["DistributionItem"][] | null;
             seenAlerts: string[];
+            budgets?: components["schemas"]["Budgets"];
+            debts?: components["schemas"]["Debt"][];
+            /** @description Meses fechados, por `AAAA-MM`. */
+            closings?: {
+                [key: string]: components["schemas"]["MonthClosing"];
+            };
+            dividendAssets?: components["schemas"]["DividendAsset"][];
+            /** @description Dados dos comprovantes anexados (sem o conteúdo, que sai por GET /receipts/{id}). Não entram na importação. */
+            receipts?: components["schemas"]["ReceiptMeta"][];
             /** @description Resposta ao tour de cada tela (chave = tela). Tela ausente = ainda não convidado. */
             onboarding: {
                 [key: string]: components["schemas"]["OnboardingState"];
             };
+        };
+        ReceiptMeta: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            transactionId: string;
+            name: string;
+            /** @enum {string} */
+            mime: "image/png" | "image/jpeg" | "image/webp" | "application/pdf";
+            /** @description Tamanho em bytes. */
+            size: number;
+            /** @description AAAA-MM-DD */
+            createdAt: string;
+        };
+        /** @description Orçamento por categoria. Categoria -> mês (`AAAA-MM`) -> limite mensal em centavos. Cada par é uma mudança de limite, e o limite herda para os meses seguintes até a próxima mudança. 0 = sem limite desde o mês. */
+        Budgets: {
+            [key: string]: {
+                [key: string]: components["schemas"]["Cents"];
+            };
+        };
+        Debt: {
+            id: string;
+            name: string;
+            installmentValue: components["schemas"]["Cents"];
+            totalInstallments: number;
+            paidInstallments: number;
+            /** @description Mês da próxima parcela a pagar. */
+            nextMonth: components["schemas"]["Month"];
+            /** @description Despesa fixa que já traz esta parcela (para não somar duas vezes). */
+            linkedTransactionId?: string;
+            note?: string;
+        };
+        MonthClosing: {
+            /** @description Data do fechamento, AAAA-MM-DD. */
+            closedAt: string;
+            income: components["schemas"]["Cents"];
+            expense: components["schemas"]["Cents"];
+            /**
+             * Format: int64
+             * @description Saldo do mês em centavos (pode ser negativo).
+             */
+            balance: number;
+            byCategory: {
+                [key: string]: components["schemas"]["Cents"];
+            };
+            note?: string;
+        };
+        DividendAsset: {
+            id: string;
+            name: string;
+            invested: components["schemas"]["Cents"];
+            monthlyDividends: components["schemas"]["Cents"];
+        };
+        Planning: {
+            budgets?: components["schemas"]["Budgets"];
+            debts?: components["schemas"]["Debt"][];
+            closings?: {
+                [key: string]: components["schemas"]["MonthClosing"];
+            };
+            dividendAssets?: components["schemas"]["DividendAsset"][];
         };
         MonthSummary: {
             month: components["schemas"]["Month"];

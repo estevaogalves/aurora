@@ -1,0 +1,203 @@
+{
+  "transactions": [
+    {
+      "id": "i9",
+      "name": "Salário",
+      "amount": 300000,
+      "type": "income",
+      "category": "Salário",
+      "month": "2026-09",
+      "fixed": true
+    },
+    {
+      "id": "a9",
+      "name": "Aluguel",
+      "amount": 100000,
+      "type": "expense",
+      "category": "Moradia",
+      "month": "2026-09",
+      "fixed": true,
+      "dueDay": 5
+    },
+    {
+      "id": "m9",
+      "name": "Mercado",
+      "amount": 40000,
+      "type": "expense",
+      "category": "Alimentação",
+      "month": "2026-09"
+    },
+    {
+      "id": "m10",
+      "name": "Mercado",
+      "amount": 45000,
+      "type": "expense",
+      "category": "Alimentação",
+      "month": "2026-10"
+    },
+    {
+      "id": "m11",
+      "name": "Mercado",
+      "amount": 80000,
+      "type": "expense",
+      "category": "Alimentação",
+      "month": "2026-11",
+      "tags": [
+        "casa",
+        "mercado"
+      ]
+    },
+    {
+      "id": "d11",
+      "name": "Dentista",
+      "amount": 70000,
+      "type": "expense",
+      "category": "Saúde",
+      "month": "2026-11",
+      "tags": [
+        "Heitor"
+      ]
+    },
+    {
+      "id": "net",
+      "name": "Internet",
+      "amount": 12000,
+      "type": "expense",
+      "category": "Moradia",
+      "month": "2026-11",
+      "fixed": true,
+      "dueDay": 14
+    },
+    {
+      "id": "agua",
+      "name": "Água",
+      "amount": 8000,
+      "type": "expense",
+      "category": "Moradia",
+      "month": "2026-11",
+      "dueDay": 20
+    },
+    {
+      "id": "bonus10",
+      "name": "Freela",
+      "amount": 150000,
+      "type": "income",
+      "category": "Renda",
+      "month": "2026-10"
+    },
+    {
+      "id": "bonus11",
+      "name": "Bônus",
+      "amount": 100000,
+      "type": "income",
+      "category": "Renda",
+      "month": "2026-11"
+    }
+  ],
+  "creditTransactions": [],
+  "creditCards": [],
+  "notes": [],
+  "extraExpenses": [],
+  "customCategories": [],
+  "goals": [
+    {
+      "id": "g1",
+      "name": "Reserva de emergência",
+      "target": 200000,
+      "saved": 120000,
+      "monthly": 0,
+      "deadline": null
+    },
+    {
+      "id": "g2",
+      "name": "Viagem",
+      "target": 500000,
+      "saved": 50000,
+      "monthly": 10000,
+      "deadline": "2027-02"
+    }
+  ],
+  "goalMovements": [
+    {
+      "id": "gm1",
+      "goalId": "g2",
+      "type": "contribution",
+      "date": "2026-09-10",
+      "amount": 20000
+    },
+    {
+      "id": "gm2",
+      "goalId": "g2",
+      "type": "contribution",
+      "date": "2026-10-10",
+      "amount": 20000
+    },
+    {
+      "id": "gm3",
+      "goalId": "g2",
+      "type": "contribution",
+      "date": "2026-11-10",
+      "amount": 20000
+    }
+  ],
+  "investments": [],
+  "investmentMovements": [],
+  "distribution": null,
+  "distributionOverrides": {},
+  "seenAlerts": [],
+  "onboarding": {
+    "geral": "dismissed"
+  },
+  "budgets": {
+    "Alimentação": {
+      "2026-10": 80000
+    },
+    "Moradia": {
+      "2026-10": 150000
+    },
+    "Saúde": {
+      "2026-10": 100000
+    }
+  },
+  "debts": [
+    {
+      "id": "c1",
+      "name": "Consórcio moto",
+      "installmentValue": 69700,
+      "totalInstallments": 60,
+      "paidInstallments": 12,
+      "nextMonth": "2026-12",
+      "linkedTransactionId": "net"
+    },
+    {
+      "id": "c2",
+      "name": "Celular",
+      "installmentValue": 20000,
+      "totalInstallments": 10,
+      "paidInstallments": 10,
+      "nextMonth": "2026-11"
+    },
+    {
+      "id": "c3",
+      "name": "Notebook",
+      "installmentValue": 30000,
+      "totalInstallments": 12,
+      "paidInstallments": 9,
+      "nextMonth": "2026-11"
+    }
+  ],
+  "dividendAssets": [
+    {
+      "id": "a1",
+      "name": "HGLG11",
+      "invested": 1000000,
+      "monthlyDividends": 8000
+    },
+    {
+      "id": "a2",
+      "name": "ITSA4",
+      "invested": 500000,
+      "monthlyDividends": 2500
+    }
+  ]
+}

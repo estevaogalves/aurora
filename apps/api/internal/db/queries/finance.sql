@@ -5,8 +5,8 @@ SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at, rowid;
 SELECT * FROM transactions WHERE id = ? AND user_id = ?;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -22,7 +22,11 @@ UPDATE transactions SET
     -- fixa encerrada: ultimo mes em que vale; texto vazio tira o fim
     end_month     = COALESCE(sqlc.narg('end_month'), end_month),
     -- renda variavel: em qual distribuicao do saldo entra (0 = Dist 1, 2 a 20 = distribuicao propria); so marca
-    dist_group    = COALESCE(sqlc.narg('dist_group'), dist_group)
+    dist_group    = COALESCE(sqlc.narg('dist_group'), dist_group),
+    -- dia do vencimento (1 a 31); 0 tira o dia
+    due_day       = COALESCE(sqlc.narg('due_day'), due_day),
+    -- etiquetas: lista inteira em JSON; so muda quando vem na requisicao
+    tags          = COALESCE(sqlc.narg('tags'), tags)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 

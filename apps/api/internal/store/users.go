@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"aurora/api/internal/domain"
+	"aurora/api/internal/sqlitetypes"
 	"aurora/api/internal/store/sqlcgen"
 )
 
@@ -101,6 +102,16 @@ func (s *Store) SetSeenAlerts(ctx context.Context, userID uuid.UUID, keys []stri
 		keys = []string{}
 	}
 	return s.q.SetSeenAlerts(ctx, sqlcgen.SetSeenAlertsParams{UserID: userID, SeenAlerts: keys})
+}
+
+// SetPlanning troca o planejamento inteiro (orçamentos, dívidas, fechamentos e carteira de dividendos).
+func (s *Store) SetPlanning(ctx context.Context, userID uuid.UUID, p domain.Planning) error {
+	p.Normalize()
+	raw, err := jsonMarshal(p)
+	if err != nil {
+		return err
+	}
+	return s.q.SetPlanning(ctx, sqlcgen.SetPlanningParams{UserID: userID, Planning: sqlitetypes.JSON(raw)})
 }
 
 // SetOnboarding grava a resposta de uma tela, sem mexer nas outras.

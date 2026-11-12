@@ -32,6 +32,10 @@ type Transaction struct {
 	// 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não
 	// muda nenhum valor. Só vale para renda não fixa (13º, bônus).
 	DistGroup int `json:"distGroup,omitempty"`
+	// DueDay: dia do vencimento da despesa (1 a 31); 0 (ausente) = sem dia. Só aparece no card "Próximos vencimentos".
+	DueDay int `json:"dueDay,omitempty"`
+	// Tags: etiquetas livres (ex.: "viagem"), para buscar e filtrar. Só marcas: não mudam nenhum valor.
+	Tags []string `json:"tags,omitempty"`
 }
 
 type CreditTransaction struct {
@@ -135,6 +139,13 @@ type FinanceData struct {
 	// Sem a chave, vale Distribution (o padrão). A Dist 1 sempre usa o padrão.
 	DistributionOverrides map[string][]DistributionItem `json:"distributionOverrides"`
 	SeenAlerts         []string            `json:"seenAlerts"`
+	// Planejamento (veja planning.go): orçamento por categoria, dívidas, fechamento do mês e carteira de dividendos.
+	Budgets        Budgets                 `json:"budgets"`
+	Debts          []Debt                  `json:"debts"`
+	Closings       map[string]MonthClosing `json:"closings"`
+	DividendAssets []DividendAsset         `json:"dividendAssets"`
+	// Receipts: dados dos comprovantes anexados (sem o conteúdo). O conteúdo sai por GET /receipts/{id}.
+	Receipts []ReceiptMeta `json:"receipts"`
 	// Resposta ao tour de cada tela: "done" (viu até o fim) ou "dismissed" (recusou, fechou ou pulou).
 	Onboarding map[string]string `json:"onboarding"`
 }
@@ -180,6 +191,12 @@ func (d *FinanceData) Normalize() {
 	if d.Onboarding == nil {
 		d.Onboarding = map[string]string{}
 	}
+	if d.Receipts == nil {
+		d.Receipts = []ReceiptMeta{}
+	}
+	p := Planning{Budgets: d.Budgets, Debts: d.Debts, Closings: d.Closings, DividendAssets: d.DividendAssets}
+	p.Normalize()
+	d.Budgets, d.Debts, d.Closings, d.DividendAssets = p.Budgets, p.Debts, p.Closings, p.DividendAssets
 }
 
 type MonthSummary struct {

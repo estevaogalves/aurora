@@ -138,7 +138,7 @@ func (q *Queries) GetRefreshToken(ctx context.Context, tokenHash string) (Refres
 }
 
 const getSettings = `-- name: GetSettings :one
-SELECT user_id, distribution, seen_alerts, onboarding, distribution_overrides FROM user_settings WHERE user_id = ?
+SELECT user_id, distribution, seen_alerts, onboarding, distribution_overrides, planning FROM user_settings WHERE user_id = ?
 `
 
 func (q *Queries) GetSettings(ctx context.Context, userID uuid.UUID) (UserSetting, error) {
@@ -150,6 +150,7 @@ func (q *Queries) GetSettings(ctx context.Context, userID uuid.UUID) (UserSettin
 		&i.SeenAlerts,
 		&i.Onboarding,
 		&i.DistributionOverrides,
+		&i.Planning,
 	)
 	return i, err
 }
@@ -371,6 +372,21 @@ type SetOnboardingScreenParams struct {
 // Muda so a chave da tela, para dois dispositivos nao apagarem as respostas um do outro.
 func (q *Queries) SetOnboardingScreen(ctx context.Context, arg SetOnboardingScreenParams) error {
 	_, err := q.db.ExecContext(ctx, setOnboardingScreen, arg.UserID, arg.Screen, arg.State)
+	return err
+}
+
+const setPlanning = `-- name: SetPlanning :exec
+INSERT INTO user_settings (user_id, planning) VALUES (?, ?)
+ON CONFLICT (user_id) DO UPDATE SET planning = EXCLUDED.planning
+`
+
+type SetPlanningParams struct {
+	UserID   uuid.UUID
+	Planning sqlitetypes.JSON
+}
+
+func (q *Queries) SetPlanning(ctx context.Context, arg SetPlanningParams) error {
+	_, err := q.db.ExecContext(ctx, setPlanning, arg.UserID, arg.Planning)
 	return err
 }
 

@@ -646,6 +646,78 @@ paths:
         "204": { description: Salvo }
         "400": { $ref: "#/components/responses/Error" }
 
+  /transactions/{id}/receipts:
+    post:
+      tags: [lançamentos]
+      summary: Anexa um comprovante (imagem ou PDF) a um lançamento
+      description: "O arquivo vai em base64. O tipo é conferido pelos primeiros bytes (PNG, JPEG, WebP ou PDF; SVG e HTML são recusados). Até 300 KiB e 5 comprovantes por lançamento. Só anexos: nada muda valores."
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, data]
+              properties:
+                name: { type: string, maxLength: 80 }
+                mime: { type: string, description: Só informativo; o servidor decide pelos bytes. }
+                data: { type: string, format: byte, description: O arquivo em base64. }
+      responses:
+        "201":
+          description: Anexado
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReceiptMeta" }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "413": { $ref: "#/components/responses/Error" }
+        "415": { $ref: "#/components/responses/Error" }
+        "422": { $ref: "#/components/responses/Error" }
+
+  /receipts/{id}:
+    get:
+      tags: [lançamentos]
+      summary: Conteúdo de um comprovante (em base64)
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "200":
+          description: O comprovante
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/ReceiptMeta"
+                  - type: object
+                    required: [data]
+                    properties:
+                      data: { type: string, format: byte }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [lançamentos]
+      summary: Apaga um comprovante
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string, format: uuid } }
+      responses:
+        "204": { description: Apagado }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /settings/planning:
+    put:
+      tags: [configurações]
+      summary: Troca o planejamento inteiro (orçamento por categoria, dívidas, fechamento do mês e carteira de dividendos)
+      description: "O front manda tudo a cada mudança (o último vale). Só marcas e anotações; nada aqui muda valor, saldo, projeção ou relatório."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Planning" }
+      responses:
+        "204": { description: Salvo }
+        "400": { $ref: "#/components/responses/Error" }
+
   /settings/onboarding/{screen}:
     put:
       tags: [configurações]
@@ -776,6 +848,8 @@ components:
         purchaseDate: { type: string, format: date, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
         endMonth: { $ref: "#/components/schemas/Month", description: "Só fixas. Fixa encerrada: o último mês em que vale (\"2026-11\" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam." }
         distGroup: { type: integer, minimum: 0, maximum: 20, description: "Só renda não fixa (13º, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente ou 0 = soma ao saldo do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não muda nenhum valor, saldo, projeção ou relatório." }
+        dueDay: { type: integer, minimum: 0, maximum: 31, description: "Só despesas: dia do vencimento (1 a 31). Ausente ou 0 = sem dia, e a despesa não aparece no card Próximos vencimentos. Em despesa fixa vale para todos os meses; em meses curtos, o dia vira o último dia do mês. Só marca: não muda nenhum valor." }
+        tags: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 30 }, description: "Etiquetas livres (ex.: viagem) para buscar e filtrar em Lançamentos. Sem repetir (maiúscula e minúscula contam igual). Só marcas: não mudam nenhum valor." }
     Payment:
       type: object
       required: [method, date]
@@ -799,6 +873,8 @@ components:
         purchaseDate: { type: string, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
         endMonth: { type: string, description: 'Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa.' }
         distGroup: { type: integer, minimum: 0, maximum: 20, description: "Só renda não fixa: a distribuição da sugestão do saldo (0 = Dist 1; 2 a 20 = Dist 2 em diante). Número fora disso é recusado (400); despesa ou renda fixa em distribuição própria é recusada (422)." }
+        dueDay: { type: integer, minimum: 0, maximum: 31, description: "Só despesas: dia do vencimento (1 a 31); 0 tira o dia. Sem a chave, não muda." }
+        tags: { type: array, maxItems: 10, items: { type: string, minLength: 1, maxLength: 30 }, description: "A lista inteira de etiquetas; vazia tira todas. Sem a chave, não muda." }
 
     CreditTransaction:
       type: object
@@ -1114,10 +1190,72 @@ components:
           description: Percentuais escolhidos; null = padrão
           items: { $ref: "#/components/schemas/DistributionItem" }
         seenAlerts: { type: array, items: { type: string } }
+        budgets: { $ref: "#/components/schemas/Budgets" }
+        debts: { type: array, items: { $ref: "#/components/schemas/Debt" } }
+        closings:
+          type: object
+          description: Meses fechados, por `AAAA-MM`.
+          additionalProperties: { $ref: "#/components/schemas/MonthClosing" }
+        dividendAssets: { type: array, items: { $ref: "#/components/schemas/DividendAsset" } }
+        receipts: { type: array, items: { $ref: "#/components/schemas/ReceiptMeta" }, description: "Dados dos comprovantes anexados (sem o conteúdo, que sai por GET /receipts/{id}). Não entram na importação." }
         onboarding:
           type: object
           description: Resposta ao tour de cada tela (chave = tela). Tela ausente = ainda não convidado.
           additionalProperties: { $ref: "#/components/schemas/OnboardingState" }
+
+    ReceiptMeta:
+      type: object
+      required: [id, transactionId, name, mime, size, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        transactionId: { type: string, format: uuid }
+        name: { type: string }
+        mime: { type: string, enum: [image/png, image/jpeg, image/webp, application/pdf] }
+        size: { type: integer, description: Tamanho em bytes. }
+        createdAt: { type: string, description: "AAAA-MM-DD" }
+    Budgets:
+      type: object
+      description: Orçamento por categoria. Categoria -> mês (`AAAA-MM`) -> limite mensal em centavos. Cada par é uma mudança de limite, e o limite herda para os meses seguintes até a próxima mudança. 0 = sem limite desde o mês.
+      additionalProperties:
+        type: object
+        additionalProperties: { $ref: "#/components/schemas/Cents" }
+    Debt:
+      type: object
+      required: [id, name, installmentValue, totalInstallments, paidInstallments, nextMonth]
+      properties:
+        id: { type: string, maxLength: 64 }
+        name: { type: string }
+        installmentValue: { $ref: "#/components/schemas/Cents" }
+        totalInstallments: { type: integer, minimum: 1, maximum: 600 }
+        paidInstallments: { type: integer, minimum: 0 }
+        nextMonth: { $ref: "#/components/schemas/Month", description: Mês da próxima parcela a pagar. }
+        linkedTransactionId: { type: string, description: Despesa fixa que já traz esta parcela (para não somar duas vezes). }
+        note: { type: string, maxLength: 200 }
+    MonthClosing:
+      type: object
+      required: [closedAt, income, expense, balance, byCategory]
+      properties:
+        closedAt: { type: string, description: "Data do fechamento, AAAA-MM-DD." }
+        income: { $ref: "#/components/schemas/Cents" }
+        expense: { $ref: "#/components/schemas/Cents" }
+        balance: { type: integer, format: int64, description: Saldo do mês em centavos (pode ser negativo). }
+        byCategory: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
+        note: { type: string }
+    DividendAsset:
+      type: object
+      required: [id, name, invested, monthlyDividends]
+      properties:
+        id: { type: string, maxLength: 64 }
+        name: { type: string, maxLength: 60 }
+        invested: { $ref: "#/components/schemas/Cents" }
+        monthlyDividends: { $ref: "#/components/schemas/Cents" }
+    Planning:
+      type: object
+      properties:
+        budgets: { $ref: "#/components/schemas/Budgets" }
+        debts: { type: array, items: { $ref: "#/components/schemas/Debt" } }
+        closings: { type: object, additionalProperties: { $ref: "#/components/schemas/MonthClosing" } }
+        dividendAssets: { type: array, items: { $ref: "#/components/schemas/DividendAsset" } }
 
     MonthSummary:
       type: object

@@ -1,4 +1,4 @@
-import { monthsDifference } from "../Utils/Date";
+import { changeMonth, monthsDifference } from "../Utils/Date";
 import type { Goal, GoalMovement, Month } from "./types";
 
 /** Percentual guardado (0 a 100). Meta sem valor-alvo conta como 0. */
@@ -69,6 +69,83 @@ export function piggyAtDeadline(goal: Goal, today: Month): number | null {
   if (!goal.deadline || goal.monthly <= 0) return null;
   const monthsLeft = monthsDifference(goal.deadline, today);
   return monthsLeft > 0 ? goal.saved + goal.monthly * monthsLeft : null;
+}
+
+/** Meses de despesa fixa que a reserva sugerida cobre por padrão (o usuário pode escolher outro). */
+export const RESERVE_SUGGESTED_MONTHS = 6;
+
+const plainName = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * Metas e porquinhos que já "são" o nome de uma linha da sugestão do saldo, sem ligar para acento, maiúscula ou
+ * espaço: nome igual, ou um contido no outro ("Reserva" casa com "Reserva de emergência"). Serve para não pedir
+ * para criar uma meta que já existe.
+ */
+export function findGoalsByName(goals: Goal[], label: string): Goal[] {
+  const wanted = plainName(label);
+  if (!wanted) return [];
+  return goals.filter((g) => {
+    const name = plainName(g.name);
+    return name === wanted || name.includes(wanted) || wanted.includes(name);
+  });
+}
+
+export interface ReserveSuggestion {
+  /** centavos: 6 meses da despesa fixa mensal */
+  suggested: number;
+  /** a meta informada é menor que 1 mês de despesa fixa */
+  belowOneMonth: boolean;
+}
+
+/**
+ * Tamanho sugerido para a reserva de emergência: 6 meses da despesa fixa mensal. null se não há despesa fixa
+ * cadastrada (sem dado, não sugere). `target` é o valor que o usuário digitou (0 ou vazio = ainda sem valor).
+ */
+export function reserveSuggestion(fixedMonthly: number, target = 0, months = RESERVE_SUGGESTED_MONTHS): ReserveSuggestion | null {
+  if (!(fixedMonthly > 0) || !(months > 0)) return null;
+  return { suggested: fixedMonthly * months, belowOneMonth: target > 0 && target < fixedMonthly };
+}
+
+export interface GoalForecast {
+  /** meses até concluir, a partir de `today` */
+  months: number;
+  /** mês previsto para a conclusão */
+  month: Month;
+  /** centavos por mês usados na conta */
+  perMonth: number;
+  /** "history": média dos últimos aportes; "planned": aporte mensal definido na meta (sem aportes recentes) */
+  basis: "history" | "planned";
+}
+
+/** Janela (em meses) da média dos últimos aportes. */
+export const FORECAST_WINDOW_MONTHS = 3;
+
+/**
+ * Previsão de conclusão no ritmo atual: média mensal dos aportes líquidos (aportes − retiradas) dos últimos
+ * `FORECAST_WINDOW_MONTHS` meses (só conta os meses desde o primeiro movimento da janela). Sem aportes recentes,
+ * usa o aporte mensal definido na meta; sem nenhum dos dois, null. Meta concluída, sem valor-alvo ou porquinho: null.
+ */
+export function goalForecast(goal: Goal, movements: GoalMovement[], today: Month, window = FORECAST_WINDOW_MONTHS): GoalForecast | null {
+  if (goal.piggy || goal.target <= 0 || isGoalDone(goal)) return null;
+  const remaining = goalRemaining(goal);
+  const start = changeMonth(today, -(window - 1));
+  const recent = movements.filter((m) => m.goalId === goal.id && (m.type === "contribution" || m.type === "withdrawal") && m.date.slice(0, 7) >= start && m.date.slice(0, 7) <= today);
+
+  if (recent.length > 0) {
+    const first = recent.reduce((min, m) => (m.date.slice(0, 7) < min ? m.date.slice(0, 7) : min), today);
+    const span = Math.min(window, monthsDifference(today, first) + 1);
+    const net = recent.reduce((sum, m) => sum + (m.type === "contribution" ? m.amount : -m.amount), 0);
+    const perMonth = Math.round(net / span);
+    if (perMonth > 0) {
+      const months = Math.ceil(remaining / perMonth);
+      return { months, month: changeMonth(today, months), perMonth, basis: "history" };
+    }
+  }
+  if (goal.monthly > 0) {
+    const months = Math.ceil(remaining / goal.monthly);
+    return { months, month: changeMonth(today, months), perMonth: goal.monthly, basis: "planned" };
+  }
+  return null;
 }
 
 /** Totais para o resumo da tela de metas. */

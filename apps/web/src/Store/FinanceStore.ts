@@ -22,6 +22,7 @@ import {
   findSentMovements,
   goalOpeningMovements,
   overrideKey,
+  pruneSeenAlerts,
   replayGoal,
   todayISO,
   type GoalMovement,
@@ -38,6 +39,11 @@ import {
   type CreditCard,
   type CreditTransaction,
   type FinanceData,
+  type Budgets,
+  type Debt,
+  type DividendAsset,
+  type MonthClosing,
+  type ReceiptMeta,
   type CustomCategory,
   type DistributionItem,
   type ExtraExpense,
@@ -88,6 +94,11 @@ interface FinanceState {
   distribution: DistributionItem[] | null;
   /** percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave "AAAA-MM|n" */
   distributionOverrides: Record<string, DistributionItem[]>;
+  /** Planejamento: orçamento por categoria, dívidas, fechamento do mês e carteira de dividendos (veja `Planning`). */
+  budgets: Budgets;
+  debts: Debt[];
+  closings: Record<string, MonthClosing>;
+  dividendAssets: DividendAsset[];
   /** chaves dos avisos de meta já vistos */
   seenAlerts: string[];
   /** resposta ao tour de cada tela */
@@ -167,6 +178,29 @@ interface FinanceState {
   addExtraExpense: (extra: ExtraExpense) => void;
   updateExtraExpense: (id: string, patch: Partial<ExtraExpense>) => void;
   setDistribution: (items: DistributionItem[] | null) => void;
+  /** Comprovantes anexados (só os dados; o conteúdo é baixado à parte). */
+  receipts: ReceiptMeta[];
+  /** Anexa um comprovante a um lançamento; devolve uma mensagem de erro pronta, ou null se deu certo. */
+  attachReceipt: (transactionId: string, file: { name: string; data: ArrayBuffer }) => Promise<string | null>;
+  removeReceipt: (id: string) => void;
+  /** O conteúdo de um comprovante, para baixar. */
+  loadReceipt: (id: string) => Promise<{ meta: ReceiptMeta; data: ArrayBuffer }>;
+  /** Muda o limite mensal de uma categoria a partir de um mês (0 tira o limite desde o mês). Herda para os meses seguintes. */
+  setBudget: (category: string, month: string, limit: number) => void;
+  /** Tira o orçamento de uma categoria. */
+  clearBudget: (category: string) => void;
+  addDebt: (debt: Debt) => void;
+  updateDebt: (id: string, patch: Partial<Debt>) => void;
+  removeDebt: (id: string) => void;
+  /** Registra uma parcela paga da dívida (avança a próxima parcela em um mês). */
+  payDebtInstallment: (id: string) => void;
+  /** Fecha um mês com o retrato e a anotação; fechar de novo substitui. */
+  closeMonth: (month: string, closing: MonthClosing) => void;
+  /** Reabre o mês (tira o fechamento). */
+  reopenMonth: (month: string) => void;
+  addDividendAsset: (asset: DividendAsset) => void;
+  updateDividendAsset: (id: string, patch: Partial<DividendAsset>) => void;
+  removeDividendAsset: (id: string) => void;
   /** Percentuais próprios de uma distribuição (Dist 2 em diante) deste mês; null volta ao padrão. Mexe só nela. */
   setDistributionOverride: (month: string, group: number, items: DistributionItem[] | null) => void;
   /**
@@ -183,6 +217,10 @@ interface FinanceState {
   setTransactionCard: (id: string, cardId: string, purchaseDate?: string) => void;
   /** Renda variável: em qual distribuição do saldo entra (1 = Dist 1, o saldo do mês; 2 a 20 = própria). Só marca: não muda nenhum valor. */
   setTransactionDistGroup: (id: string, group: number) => void;
+  /** dia do vencimento de uma despesa (1 a 31); 0 ou vazio tira o dia */
+  setTransactionDueDay: (id: string, day: number) => void;
+  /** etiquetas do lançamento (a lista inteira; vazia tira todas) */
+  setTransactionTags: (id: string, tags: string[]) => void;
   /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro. */
   setCardPayment: (cardId: string, month: string, payment: Payment | null) => void;
   /** Troca a lista de ajustes (descontos e acréscimos) da fatura que vence em `month`; lista vazia remove. */
@@ -195,6 +233,9 @@ interface FinanceState {
   getCreditTransactionsByMonth: (month: string) => CreditInstallment[];
   getNotesByMonth: (month: string) => Note[];
 }
+
+/** Teto de um valor de planejamento: R$ 1 bilhão, o mesmo da API. */
+const MAX_PLANNING_CENTS = 100_000_000_000;
 
 export const useFinanceStore = create<FinanceState>()((set, get) => {
   /** Avisa o repositório. Se falhar, recarrega para a tela não ficar diferente do salvo. */
@@ -216,6 +257,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       ),
     }));
     sync(repository.updateTransaction(id, patch));
+  };
+
+  /** Grava o planejamento inteiro (orçamentos, dívidas, fechamentos e carteira): o servidor guarda tudo junto. */
+  const savePlanning = () => {
+    const { budgets, debts, closings, dividendAssets } = get();
+    sync(repository.setPlanning({ budgets, debts, closings, dividendAssets }));
   };
 
   /** Aplica na tela a regra de uma parcela e avisa o repositório; o servidor valida de novo. */
@@ -262,7 +309,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     hydrate: async () => {
       const data = await repository.load();
-      set({ ...data, goalMovements: data.goalMovements ?? [], distributionOverrides: data.distributionOverrides ?? {}, hydrated: true });
+      set({ ...data, goalMovements: data.goalMovements ?? [], distributionOverrides: data.distributionOverrides ?? {}, budgets: data.budgets ?? {}, debts: data.debts ?? [], closings: data.closings ?? {}, dividendAssets: data.dividendAssets ?? [], receipts: data.receipts ?? [], hydrated: true });
     },
 
     reset: () =>
@@ -280,6 +327,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         customCategories: [],
         distribution: null,
         distributionOverrides: {},
+        budgets: {},
+        debts: [],
+        closings: {},
+        dividendAssets: [],
+        receipts: [],
         seenAlerts: [],
         onboarding: {},
       }),
@@ -299,6 +351,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     customCategories: [],
     distribution: null,
     distributionOverrides: {},
+    budgets: {},
+    debts: [],
+    closings: {},
+    dividendAssets: [],
+    receipts: [],
     seenAlerts: [],
     onboarding: {},
 
@@ -315,6 +372,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeTransaction: (id) => {
       set((state) => ({
         transactions: state.transactions.filter((t) => t.id !== id),
+        // os comprovantes do lançamento vão junto (o repositório apaga os arquivos)
+        receipts: state.receipts.filter((r) => r.transactionId !== id),
       }));
       sync(repository.removeTransaction(id));
     },
@@ -614,7 +673,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     markAlertsSeen: (keys) => {
-      const next = [...new Set([...get().seenAlerts, ...keys])];
+      const next = pruneSeenAlerts([...new Set([...get().seenAlerts, ...keys])], todayISO());
       set({ seenAlerts: next });
       sync(repository.setSeenAlerts(next));
     },
@@ -644,6 +703,78 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       return found.goalMovements.length + found.investmentMovements.length;
     },
 
+    attachReceipt: async (transactionId, file) => {
+      try {
+        const meta = await repository.addReceipt(transactionId, file);
+        set((s) => ({ receipts: [...s.receipts, meta] }));
+        return null;
+      } catch (error) {
+        return error instanceof Error && error.message ? error.message : "Não foi possível anexar o comprovante.";
+      }
+    },
+    removeReceipt: (id) => {
+      set((s) => ({ receipts: s.receipts.filter((r) => r.id !== id) }));
+      sync(repository.removeReceipt(id));
+    },
+    loadReceipt: (id) => repository.getReceipt(id),
+
+    setBudget: (category, month, limit) => {
+      const valid = Number.isInteger(limit) && limit >= 0 && limit <= MAX_PLANNING_CENTS;
+      if (!valid || !category.trim()) return;
+      set((s) => ({ budgets: { ...s.budgets, [category]: { ...s.budgets[category], [month]: limit } } }));
+      savePlanning();
+    },
+    clearBudget: (category) => {
+      set((s) => {
+        const rest = { ...s.budgets };
+        delete rest[category];
+        return { budgets: rest };
+      });
+      savePlanning();
+    },
+    addDebt: (debt) => {
+      set((s) => ({ debts: [...s.debts, debt] }));
+      savePlanning();
+    },
+    updateDebt: (id, patch) => {
+      set((s) => ({ debts: s.debts.map((d) => (d.id === id ? { ...d, ...patch } : d)) }));
+      savePlanning();
+    },
+    removeDebt: (id) => {
+      set((s) => ({ debts: s.debts.filter((d) => d.id !== id) }));
+      savePlanning();
+    },
+    payDebtInstallment: (id) => {
+      const d = get().debts.find((x) => x.id === id);
+      if (!d || d.paidInstallments >= d.totalInstallments) return;
+      set((s) => ({ debts: s.debts.map((x) => (x.id === id ? { ...x, paidInstallments: x.paidInstallments + 1, nextMonth: changeMonth(x.nextMonth, 1) } : x)) }));
+      savePlanning();
+    },
+    closeMonth: (month, closing) => {
+      set((s) => ({ closings: { ...s.closings, [month]: closing } }));
+      savePlanning();
+    },
+    reopenMonth: (month) => {
+      set((s) => {
+        const rest = { ...s.closings };
+        delete rest[month];
+        return { closings: rest };
+      });
+      savePlanning();
+    },
+    addDividendAsset: (asset) => {
+      set((s) => ({ dividendAssets: [...s.dividendAssets, asset] }));
+      savePlanning();
+    },
+    updateDividendAsset: (id, patch) => {
+      set((s) => ({ dividendAssets: s.dividendAssets.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
+      savePlanning();
+    },
+    removeDividendAsset: (id) => {
+      set((s) => ({ dividendAssets: s.dividendAssets.filter((a) => a.id !== id) }));
+      savePlanning();
+    },
+
     setDistribution: (items) => {
       set({ distribution: items });
       sync(repository.setDistribution(items));
@@ -663,6 +794,19 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       // só renda não fixa pode ter distribuição própria (o servidor também recusa o resto)
       if (!t || t.type !== "income" || t.fixed) return;
       patchTransaction(id, { distGroup: group >= 2 ? group : undefined });
+    },
+
+    setTransactionTags: (id, tags) => {
+      if (!get().transactions.some((t) => t.id === id)) return;
+      patchTransaction(id, { tags: tags.length > 0 ? tags : undefined });
+    },
+
+    setTransactionDueDay: (id, day) => {
+      const t = findTransaction(id);
+      // só despesa tem vencimento (o servidor também recusa o resto)
+      if (!t || t.type !== "expense") return;
+      const valid = Number.isInteger(day) && day >= 1 && day <= 31;
+      patchTransaction(id, { dueDay: valid ? day : undefined });
     },
 
     setTransactionCard: (id, cardId, purchaseDate) => {

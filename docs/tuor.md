@@ -79,16 +79,20 @@ Os textos estão em `Features/*/tour.ts`. Quando um card depende de dados (por e
 - [ ok ] 1. Botão **Lançar**: todo cadastro começa aqui; o Painel só mostra os números
 - [ ok ] 2. **Seletor de mês**: troca o período; não passa do mês atual
 - [ ok ] 3. **Aviso de prazo das metas** (só aparece se houver meta com prazo próximo ou vencido)
-- [ ok ] 4. Card **Saldo do mês**: renda menos despesas (com as parcelas do crédito) e % da renda comprometida
-- [ ok ] 5. Card **Últimos 6 meses**: gráfico de renda e despesas
-- [ ok ] 6. Card **Despesas por categoria**: onde o dinheiro do mês foi
-- [ ok ] 7. Card **Sugestão do saldo**: como dividir o que sobrou; menu ⋮ ajusta os percentuais
-- [ ok ] 8. Card **Metas**: progresso geral dos objetivos
-- [ ok ] 9. Card **Despesas do mês**: as 5 mais recentes
-- [ ok ] 10. Card **Anotações**: lembretes do mês (somente leitura aqui)
+- [ ok ] 4. **Tempo e fôlego** (botão): horas de trabalho e card Dias de fôlego, desligados por padrão
+- [ ok ] 5. **Em destaque neste mês**: insights por regras locais, dispensáveis (só com 2+ meses de movimento)
+- [ ok ] 6. Card **Saldo do mês**: renda menos despesas (com as parcelas do crédito) e % da renda comprometida
+- [ ok ] 7. Card **Últimos 6 meses**: gráfico de renda e despesas
+- [ ok ] 8. Card **Próximos vencimentos**: despesas com "Dia do vencimento" e faturas de cartão não pagas; atrasados primeiro; "Marcar como paga" só registra; janela de 7, 14 ou 30 dias. Sem vencimentos, usa exemplos fictícios durante o tour. Os atrasados e os que vencem em até 3 dias também avisam no sino
+- [ ok ] 9. Card **Despesas por categoria**: onde o dinheiro do mês foi
+- [ ok ] 10. Card **Sugestão do saldo**: como dividir o que sobrou; menu ⋮ ajusta os percentuais
+- [ ok ] 11. Card **Metas**: progresso geral dos objetivos
+- [ ok ] 12. Card **Despesas do mês**: as 5 mais recentes
+- [ ok ] 13. Card **Anotações**: lembretes do mês (somente leitura aqui)
 
 ### Lançamentos (`lancamentos`)
 
+- [ ok ] 0. Botão **Importar arquivo**: CSV de extrato ou fatura (a janela traz duas planilhas modelo para baixar, de extrato e de fatura) (colunas, pré-visualização com categoria por regras e duplicados desmarcados; nada é gravado antes de confirmar; também em Lançar > Importar extrato ou fatura)
 - [ ok ] 1. Card **Rendas**: fontes do mês; fixas se repetem todo mês; menu de ações da linha
 - [ ok ] 2. Card **Despesas do mês**: despesas comuns, fixas e parcelas do crédito; fixa pode ser ocultada só num mês e restaurada
 - [ ok ] 3. Card **Anotações**: lembretes do mês, que podem ser fixados e editados
@@ -143,8 +147,30 @@ A tela Metas e Investimentos tem dois cabeçalhos, cada um com o seu botão ?: o
 - [ ok ] 9. Card **Próximos vencimentos**
 - [ ok ] 10. **Cartão do investimento**
 - [ ok ] 11. Ações do cartão: **movimentar, histórico, editar e excluir**
+- [ ok ] 12. Seção **Meus negócios** (negócio próprio: investido, recebido, sacado e lucro; usa um negócio de exemplo durante o tour)
 
-Fica fora do tour geral: a aba Metas abre em Metas e o seletor Metas | Investimentos é estado local da tela.
+Fica fora do tour geral: a aba Metas abre em Metas e o seletor Metas | Investimentos | Simulador é estado local da tela.
+
+### Simulador (`simulador`, dentro de Metas)
+
+Aba **Simulador** do seletor da tela Metas, com o seu próprio botão ?. Com os campos vazios, o tour usa números de exemplo (R$ 500 por mês, 10 anos, 10% ao ano, 6% de yield) enquanto está aberto, com a faixa "Exemplo ilustrativo"; eles nunca são gravados.
+
+- [ ok ] 1. Aviso **simulação, não promessa**
+- [ ok ] 2. **Seus números**: aporte, valor inicial, prazo e rentabilidade
+- [ ok ] 3. **Exemplos de taxa** (só preenchem o campo)
+- [ ok ] 4. **O resultado**: investido, rendimento e valor final
+- [ ok ] 5. **Evolução** ano a ano
+- [ ok ] 6. **Renda passiva por dividendos** e yield on cost
+- [ ok ] 7. **Carteira de dividendos** (manual, com yield on cost por ativo)
+
+### Dívidas (`dividas`, dentro de Metas)
+
+Sem nenhuma dívida, o tour usa dívidas de exemplo (fictícias, nunca gravadas).
+
+- [ ok ] 1. Botão **Nova dívida**
+- [ ok ] 2. **Resumo**: parcelas por mês, saldo a pagar e última parcela
+- [ ok ] 3. **Cartão da dívida**: parcelas, saldo, quitação, vínculo com a despesa fixa e **Registrar parcela paga**
+- [ ok ] 4. **Simular quitação antecipada** (com o desconto informado)
 
 ### Relatórios (`relatorios`)
 

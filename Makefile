@@ -1,6 +1,6 @@
 # Atalhos do Aurora. `make help` lista os comandos.
 .DEFAULT_GOAL := help
-.PHONY: help env install dev up down logs test test-web test-api lint typecheck build generate check clean backup backup-verify
+.PHONY: help env install dev up down logs test test-web test-api lint typecheck build generate check layout clean backup backup-verify
 
 GO_IMAGE  ?= golang:1.26-alpine
 
@@ -66,3 +66,6 @@ backup-verify: ## Ensaia a restauração do último backup
 	  && docker run --rm -v "$$d":/d alpine:3.21 sh -c "apk add -q --no-cache sqlite >/dev/null && sqlite3 /d/aurora.db \"select 'usuarios: '||count(*) from users\"" \
 	  && echo "restauração de $$f OK"; \
 	rm -rf "$$d"
+
+layout: ## Confere no Chrome o hero/cabeçalho e a rolagem horizontal em várias larguras (rodar depois de QUALQUER mudança no front)
+	node scripts/layout-check.mjs

@@ -1,3 +1,4 @@
+import { isPrivate } from "@/lib/privacy";
 /** Escala "bonita" para o eixo: passo redondo e no máximo ~4 divisões. `max` em reais. */
 export function niceTicks(max: number) {
   const cand = [1, 2, 2.5, 5];
@@ -30,6 +31,7 @@ const oneDecimal = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDig
  * Tem no máximo ~8 caracteres, então nunca invade a margem do gráfico.
  */
 export function shortReais(reais: number): string {
+  if (isPrivate()) return "••";
   const abs = Math.abs(reais);
   const sign = reais < 0 ? "-" : "";
   if (!Number.isFinite(reais)) return "";

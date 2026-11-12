@@ -6,12 +6,13 @@ import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import RowMenu from "@/components/shared/RowMenu";
 import StatCard from "@/components/shared/StatCard";
-import { getCreditByMonth, getCreditProgress, getProjection, getProjectionDetail, type ProjectionLine } from "@/domain";
+import { SCENARIOS, basisLabel, estimateVariableIncome, getDebtRelief, getCreditByMonth, getCreditProgress, getProjection, getProjectionDetail, type ProjectionLine } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
+import { usePrefsStore } from "@/lib/preferences";
 import { useFinanceStore, type ExtraExpense } from "@/Store/FinanceStore";
 import { useResolvedCredits } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
-import { changeMonth, formatMonthShort, formatMonthTitle } from "@/Utils/Date";
+import { changeMonth, formatMonthShort, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 import EditExtraDialog from "./EditExtraDialog";
 import { PROJECAO_TOUR } from "./tour";
 
@@ -63,12 +64,20 @@ export default function ProjectionPage() {
   const [editing, setEditing] = useState<ExtraExpense | null>(null);
   const [deleting, setDeleting] = useState<ExtraExpense | null>(null);
   const [count, setCount] = useState(DEFAULT_MONTHS);
+  const scenario = usePrefsStore((s) => s.scenario);
 
   // do mês seguinte ao que está sendo visto
   const start = changeMonth(current, 1);
+  // cenário: estima a renda variável dos meses futuros (nunca de mês passado). Conservador = só renda fixa, como antes.
+  const today = getCurrentMonth();
+  const variable = useMemo(
+    () => estimateVariableIncome({ transactions, creditTransactions, creditCards }, scenario, today),
+    [transactions, creditTransactions, creditCards, scenario, today],
+  );
+  const estimate = useMemo(() => ({ perMonth: variable.perMonth, after: today }), [variable.perMonth, today]);
   const projection = useMemo(
-    () => getProjection({ transactions, creditTransactions, creditCards }, extras, start, count),
-    [transactions, creditTransactions, creditCards, extras, start, count],
+    () => getProjection({ transactions, creditTransactions, creditCards }, extras, start, count, estimate),
+    [transactions, creditTransactions, creditCards, extras, start, count, estimate],
   );
   const months = projection.map((p) => p.month);
   const labels = months.map(shortLabel);
@@ -81,7 +90,7 @@ export default function ProjectionPage() {
 
   const detailOf = (index: number) => {
     const month = months[index];
-    const { incomes, expenses } = getProjectionDetail({ transactions, creditTransactions, creditCards }, extras, month);
+    const { incomes, expenses } = getProjectionDetail({ transactions, creditTransactions, creditCards }, extras, month, estimate);
     return (
       <div className="flex flex-col gap-3">
         <p className="font-display text-[14px] font-semibold">{cap(formatMonthTitle(month))}</p>
@@ -91,6 +100,9 @@ export default function ProjectionPage() {
     );
   };
 
+  // dívidas vinculadas a uma despesa fixa: a partir de quando essa despesa fixa cai (só informação: a Projeção não muda)
+  const debts = useFinanceStore((s) => s.debts);
+  const relief = useMemo(() => getDebtRelief(debts), [debts]);
   const extrasInWindow = extras.filter((e) => months.includes(e.month)).sort((a, b) => a.month.localeCompare(b.month));
   // compras que ainda cobram parcela em algum mês da janela
   const activeCredits = resolvedCredits.filter((c) => months.some((m) => getCreditByMonth([c], m).some((i) => !i.advanced)));
@@ -119,6 +131,41 @@ export default function ProjectionPage() {
         }
       />
 
+      <section data-tour="cenario" aria-label="Cenário da renda variável" className="mb-3.5 rounded-lg border border-border bg-card px-5 py-4 shadow-[var(--shadow-card)]">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div className="min-w-0">
+            <h2 className="font-display text-[15px] font-semibold">Cenário da renda variável</h2>
+            <p className="mt-0.5 text-[12.5px] text-muted-foreground">A Projeção só conta renda fixa. Escolha como estimar a renda variável (13º, bônus, freelas) dos meses futuros.</p>
+          </div>
+          <div role="radiogroup" aria-label="Cenário" className="inline-flex rounded-full border border-border bg-background p-1">
+            {SCENARIOS.map((s) => (
+              <button
+                key={s.value}
+                type="button"
+                role="radio"
+                aria-checked={scenario === s.value}
+                title={s.hint}
+                onClick={() => usePrefsStore.getState().setPrefs({ scenario: s.value })}
+                className={`rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-sm:min-h-10 ${scenario === s.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+              >
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="mt-2 text-[12.5px] text-ink2">
+          {scenario === "conservative" && "Só renda fixa: nada é estimado."}
+          {scenario !== "conservative" && variable.noHistory && "Ainda não há meses com movimento para estimar a renda variável; nada foi acrescentado."}
+          {scenario !== "conservative" && !variable.noHistory && variable.perMonth === 0 && `Nos meses de ${basisLabel(variable.basis)} você não teve renda variável; nada foi acrescentado.`}
+          {scenario !== "conservative" && variable.perMonth > 0 && (
+            <>
+              Renda variável estimada {scenario === "average" ? "pela média" : "pelo maior valor"} de {basisLabel(variable.basis)}: <b className="num text-foreground">{formatBRL(variable.perMonth)}</b> por mês, só nos meses depois de {formatMonthTitle(today)}.
+              {variable.basis.length < 3 && " (Histórico curto: usei o que havia.)"}
+            </>
+          )}
+        </p>
+      </section>
+
       <div className="grid grid-cols-[repeat(auto-fit,minmax(190px,1fr))] gap-3.5">
         <StatCard tour="fixa" label="Despesa fixa mensal" value={formatBRL(fixedMonthly)} hint="Despesas marcadas como fixas" />
         <StatCard tour="parcelas-total" label={`Parcelas até ${shortLabel(months[months.length - 1]).toLowerCase()}`} value={formatBRL(creditTotal)} hint="Compras no crédito em curso" />
@@ -141,9 +188,25 @@ export default function ProjectionPage() {
               <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-inc" />Renda prevista</span>
               <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-exp" />Despesa prevista</span>
             </div>
-            <p className="mt-3 text-[12.5px] text-muted-foreground">Só entram rendas e despesas marcadas como fixas, parcelas do crédito e despesas extras.</p>
+            <p className="mt-3 text-[12.5px] text-muted-foreground">Só entram rendas e despesas marcadas como fixas, parcelas do crédito e despesas extras{scenario !== "conservative" && variable.perMonth > 0 ? ", mais a renda variável estimada do cenário escolhido" : ""}.</p>
           </Panel>
         </div>
+
+        {relief.length > 0 && (
+          <div className="col-span-12">
+            <Panel tour="dividas-fim" title="Quando as dívidas terminam" subtitle="Dívidas vinculadas a uma despesa fixa: a partir do mês seguinte à última parcela, a despesa fixa cai">
+              <ul className="flex flex-col divide-y divide-border">
+                {relief.map((r) => (
+                  <li key={r.debt.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2 text-[13.5px] first:pt-0 last:pb-0">
+                    <span className="min-w-0 break-words font-semibold">{r.debt.name}</span>
+                    <span className="text-ink2">A partir de <b className="text-foreground">{cap(formatMonthTitle(r.from))}</b> sua despesa fixa cai <b className="num text-success">{formatBRL(r.amount)}</b> por mês.</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[12.5px] text-muted-foreground">É só uma informação: a projeção acima segue o que está cadastrado como fixo.</p>
+            </Panel>
+          </div>
+        )}
 
         <div className="col-span-12 lg:col-span-4">
           <Panel tour="acumulado" title="Saldo acumulado" subtitle="Quanto sobra somando os meses">
@@ -161,7 +224,7 @@ export default function ProjectionPage() {
                   <Pill>{shortLabel(e.month)}</Pill>
                   <span className="min-w-0 break-words font-semibold">{e.name}</span>
                   <span className="num font-bold">{formatBRL(e.amount)}</span>
-                  <RowMenu label={e.name} onEdit={() => setEditing(e)} onDelete={() => setDeleting(e)} />
+                  <RowMenu label={e.name} month={e.month} onEdit={() => setEditing(e)} onDelete={() => setDeleting(e)} />
                 </div>
               ))
             )}

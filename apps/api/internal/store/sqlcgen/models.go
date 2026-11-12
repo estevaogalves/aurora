@@ -167,6 +167,19 @@ type Transaction struct {
 	PurchaseDate   string
 	EndMonth       string
 	DistGroup      int64
+	DueDay         int64
+	Tags           sqlitetypes.JSON
+}
+
+type TransactionReceipt struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	TransactionID uuid.UUID
+	Name          string
+	Mime          string
+	SizeBytes     int64
+	Data          []byte
+	CreatedAt     time.Time
 }
 
 type User struct {
@@ -184,4 +197,5 @@ type UserSetting struct {
 	SeenAlerts            sqlitetypes.TextList
 	Onboarding            sqlitetypes.JSON
 	DistributionOverrides sqlitetypes.JSON
+	Planning              sqlitetypes.JSON
 }

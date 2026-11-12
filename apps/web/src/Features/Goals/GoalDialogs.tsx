@@ -6,13 +6,13 @@ import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import OriginBadge from "@/components/shared/OriginBadge";
-import { GOAL_MOVEMENT_LABEL, formatDateBR, replayGoal, sortGoalMovements, todayISO, type GoalMovement, type GoalMovementType } from "@/domain";
+import { GOAL_MOVEMENT_LABEL, formatDateBR, getFixedExpense, isReserveName, replayGoal, reserveSuggestion, sortGoalMovements, todayISO, type GoalMovement, type GoalMovementType } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { showToast } from "../Warnings/toast";
 
 /** Criar (goal = null) ou editar uma meta. */
-export function GoalDialog({ open, goal, onClose }: { open: boolean; goal: Goal | null; onClose: () => void }) {
+export function GoalDialog({ open, goal, onClose, initialName, onCreated }: { open: boolean; goal: Goal | null; onClose: () => void; /** nome já preenchido ao criar (ex.: vindo de uma linha da sugestão do saldo) */ initialName?: string; /** chamado com o id da meta recém-criada */ onCreated?: (id: string) => void }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent>
@@ -21,22 +21,29 @@ export function GoalDialog({ open, goal, onClose }: { open: boolean; goal: Goal 
           <DialogDescription>{goal?.piggy ? "Ajuste o nome, o aporte ou o prazo." : goal ? "Ajuste o valor, o aporte ou o prazo." : "Defina quanto guardar e até quando."}</DialogDescription>
         </DialogHeader>
         {/* key reinicia os campos a cada abertura ou troca de meta */}
-        {open && <GoalFields key={goal?.id ?? "new"} goal={goal} onClose={onClose} />}
+        {open && <GoalFields key={goal?.id ?? `new-${initialName ?? ""}`} goal={goal} onClose={onClose} initialName={initialName} onCreated={onCreated} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void }) {
+function GoalFields({ goal, onClose, initialName, onCreated }: { goal: Goal | null; onClose: () => void; initialName?: string; onCreated?: (id: string) => void }) {
   const addGoal = useFinanceStore((s) => s.addGoal);
   const updateGoal = useFinanceStore((s) => s.updateGoal);
+  const transactions = useFinanceStore((s) => s.transactions);
+  const month = useFinanceStore((s) => s.currentMonth);
 
   const piggy = !!goal?.piggy;
-  const [name, setName] = useState(goal?.name ?? "");
+  const [name, setName] = useState(goal?.name ?? initialName ?? "");
   const [target, setTarget] = useState(goal ? centsToInput(goal.target) : "");
   const [saved, setSaved] = useState("");
   const [monthly, setMonthly] = useState(goal && goal.monthly ? centsToInput(goal.monthly) : "");
   const [deadline, setDeadline] = useState(goal?.deadline ?? "");
+
+  // reserva de emergência: sugere 6 meses da despesa fixa mensal (só com despesa fixa cadastrada)
+  const fixedMonthly = getFixedExpense(transactions, month);
+  const [reserveMonths, setReserveMonths] = useState(6);
+  const reserve = !piggy && isReserveName(name) ? reserveSuggestion(fixedMonthly, parseBRL(target) ?? 0, reserveMonths) : null;
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,7 +64,9 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
       updateGoal(goal.id, values);
       showToast({ type: "success", text: `${piggy ? "Porquinho" : "Meta"} "${trimmed}" atualizada` });
     } else {
-      addGoal({ id: uuid(), ...values, saved: parseBRL(saved) ?? 0 });
+      const id = uuid();
+      addGoal({ id, ...values, saved: parseBRL(saved) ?? 0 });
+      onCreated?.(id);
       showToast({ type: "success", text: `Meta "${trimmed}" criada` });
     }
     onClose();
@@ -78,6 +87,26 @@ function GoalFields({ goal, onClose }: { goal: Goal | null; onClose: () => void 
           <MoneyInput id="goal-monthly" value={monthly} onChange={setMonthly} placeholder="500,00" />
         </Field>
       </div>
+      {reserve && (
+        <div className="-mt-1 flex flex-col gap-2 rounded-md bg-secondary px-3 py-2.5 text-[13px] text-ink2">
+          <span>
+            <b className="text-foreground">Para que serve:</b> a reserva de emergência é um dinheiro separado para imprevistos (perder a renda, um problema de saúde, um conserto). A regra mais usada é guardar de 3 a 12 meses das suas despesas fixas, para continuar pagando as contas até se reorganizar.
+          </span>
+          <span>
+            <b className="text-foreground">No seu caso:</b> suas despesas fixas somam <b className="num text-foreground">{formatBRL(fixedMonthly)}</b> por mês.
+          </span>
+          <label className="flex flex-wrap items-center gap-2">
+            Cobrir
+            <select value={reserveMonths} onChange={(e) => setReserveMonths(Number(e.target.value))} aria-label="Meses de despesa fixa que a reserva cobre" className={`${inputClass} !w-auto !py-1`}>
+              {[3, 6, 12].map((m) => <option key={m} value={m}>{m} meses</option>)}
+            </select>
+            = <b className="num text-foreground">{formatBRL(reserve.suggested)}</b>
+          </label>
+          {reserve.belowOneMonth && <span className="font-semibold text-destructive">A meta está abaixo de 1 mês de despesa fixa ({formatBRL(fixedMonthly)}).</span>}
+          <span className="text-muted-foreground">É só uma referência: o valor da meta é você quem decide.</span>
+          <button type="button" onClick={() => setTarget(centsToInput(reserve.suggested))} className="self-start text-[13px] font-bold text-primary hover:underline">Usar valor sugerido</button>
+        </div>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         {goal ? (
           <div className="flex flex-col gap-1.5 text-sm">

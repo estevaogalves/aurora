@@ -21,7 +21,7 @@ import {
   type ReportRow,
 } from "../domain";
 import { downloadBlob } from "./download";
-import { formatBRL } from "../lib/money";
+import { formatBRLExact as formatBRL } from "../lib/money";
 import { useFinanceStore } from "../Store/FinanceStore";
 import { categoryHex, hexToRgb } from "../Utils/categoryHex";
 import { formatMonth, formatMonthTitle, getToday } from "../Utils/Date";

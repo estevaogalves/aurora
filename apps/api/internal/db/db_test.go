@@ -69,7 +69,7 @@ func TestOpenEmptyPath(t *testing.T) {
 }
 
 // Quem já usa o Aurora com SQLite tem um aurora.db na versão 1 (só o 00001). Ao ligar a versão nova, as migrations
-// 00012 a 00019 têm que rodar sozinhas, sem perder nada, e as metas existentes ganham o histórico ("Saldo inicial")
+// 00012 a 00023 têm que rodar sozinhas, sem perder nada, e as metas existentes ganham o histórico ("Saldo inicial")
 // que reproduz exatamente o valor que já estava guardado.
 func TestUpgradeFromVersion1KeepsDataAndBackfillsGoalHistory(t *testing.T) {
 	ctx := context.Background()
@@ -106,7 +106,7 @@ func TestUpgradeFromVersion1KeepsDataAndBackfillsGoalHistory(t *testing.T) {
 		t.Fatalf("atualizar: %v", err)
 	}
 	var version int64
-	if err := d.QueryRowContext(ctx, "SELECT max(version_id) FROM goose_db_version").Scan(&version); err != nil || version != 19 {
+	if err := d.QueryRowContext(ctx, "SELECT max(version_id) FROM goose_db_version").Scan(&version); err != nil || version != 23 {
 		t.Fatalf("versão depois de atualizar: %d %v", version, err)
 	}
 
@@ -231,5 +231,59 @@ func TestBusinessMigrationKeepsInvestments(t *testing.T) {
 	exec("DELETE FROM investments WHERE id = 'b1'")
 	if err := d.QueryRowContext(ctx, "SELECT count(*) FROM investment_movements WHERE investment_id = 'b1'").Scan(&n); err != nil || n != 0 {
 		t.Fatalf("cascata: %d %v", n, err)
+	}
+}
+
+// As migrations 00020 a 00023 (dia do vencimento, planejamento, etiquetas e comprovantes) só acrescentam colunas com valor
+// padrão e uma tabela: o que já existia continua igual, e apagar o lançamento leva os comprovantes junto.
+func TestMigrations20to23KeepOldData(t *testing.T) {
+	ctx := context.Background()
+	d, err := Open(ctx, filepath.Join(t.TempDir(), "antigo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	goose.SetBaseFS(migrations)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpToContext(ctx, d, "migrations", 19); err != nil {
+		t.Fatal(err)
+	}
+	exec := func(q string) {
+		t.Helper()
+		if _, err := d.ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec("INSERT INTO users (id, email, password_hash) VALUES ('u1', 'a@b.c', 'x')")
+	exec("INSERT INTO user_settings (user_id, seen_alerts) VALUES ('u1', '[\"k\"]')")
+	exec("INSERT INTO transactions (id, user_id, name, amount_cents, type, category, month) VALUES ('t1', 'u1', 'Aluguel', 150000, 'expense', 'Moradia', '2026-11')")
+
+	if err := Migrate(ctx, d); err != nil {
+		t.Fatalf("atualizar: %v", err)
+	}
+	var name string
+	var cents, dueDay int64
+	var tags, planning, seen string
+	if err := d.QueryRowContext(ctx, "SELECT name, amount_cents, due_day, tags FROM transactions WHERE id = 't1'").Scan(&name, &cents, &dueDay, &tags); err != nil {
+		t.Fatal(err)
+	}
+	if name != "Aluguel" || cents != 150000 || dueDay != 0 || tags != "[]" {
+		t.Fatalf("lançamento depois de atualizar: %s %d %d %s", name, cents, dueDay, tags)
+	}
+	if err := d.QueryRowContext(ctx, "SELECT planning, seen_alerts FROM user_settings WHERE user_id = 'u1'").Scan(&planning, &seen); err != nil || planning != "{}" || seen != `["k"]` {
+		t.Fatalf("configurações depois de atualizar: %q %q %v", planning, seen, err)
+	}
+
+	// comprovante: só os tipos aceitos, e apagar o lançamento leva o comprovante
+	exec("INSERT INTO transaction_receipts (id, user_id, transaction_id, name, mime, size_bytes, data) VALUES ('r1', 'u1', 't1', 'nota.png', 'image/png', 3, x'89504e')")
+	if _, err := d.ExecContext(ctx, "INSERT INTO transaction_receipts (id, user_id, transaction_id, name, mime, size_bytes, data) VALUES ('r2', 'u1', 't1', 'x.svg', 'image/svg+xml', 3, x'3c7376')"); err == nil {
+		t.Fatal("SVG deveria ser recusado pela migration")
+	}
+	exec("DELETE FROM transactions WHERE id = 't1'")
+	var n int
+	if err := d.QueryRowContext(ctx, "SELECT count(*) FROM transaction_receipts").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("cascata dos comprovantes: %d %v", n, err)
 	}
 }

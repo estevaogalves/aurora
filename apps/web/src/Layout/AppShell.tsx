@@ -8,13 +8,20 @@ import { ToastContainer } from "../Features/Warnings/ToastContainer";
 import { useUiStore } from "../Store/UiStore";
 import Logo from "../theme/Logo";
 import { APP_NAME } from "../theme/theme";
+import PrivacyBanner from "../theme/PrivacyBanner";
+import ClosedMonthBanner from "../components/shared/ClosedMonthBanner";
+import ReopenMonthDialog from "../components/shared/ReopenMonthDialog";
+import { useClosedGuard } from "../Store/closedGuard";
+import { usePrivacyShortcut } from "../lib/usePrivacyShortcut";
 import ThemeToggle from "../theme/ThemeToggle";
+import { usePrivacyStore } from "../lib/privacy";
 import { FloatingCalculator } from "../Features/Calculator/Calculator";
 import GoalBell from "./GoalBell";
 import ImportBanner from "./ImportBanner";
 import MonthSelector from "./MonthSelector";
 import AppTour from "../components/tour/AppTour";
 import CardsDialog from "@/Features/Profile/CardsDialog";
+import ImportDialog from "@/Features/Launch/ImportDialog";
 import { NAV_ITEMS } from "./navigation";
 import UserMenu from "./UserMenu";
 
@@ -26,6 +33,11 @@ export default function AppShell() {
   const calcOpen = useUiStore((s) => s.calcOpen);
   const toggleCalc = useUiStore((s) => s.toggleCalc);
   const [scrolled, setScrolled] = useState(false);
+  // os valores são formatados fora do React; ao ligar/desligar a privacidade, a tela é redesenhada
+  const privacyHidden = usePrivacyStore((s) => s.hidden);
+  usePrivacyShortcut();
+  // "Lançar" num mês fechado pede para reabrir o mês antes
+  const closedGuard = useClosedGuard();
 
   // no topo o cabeçalho é transparente (sem caixa atrás dos botões); ao rolar ganha fundo
   useEffect(() => {
@@ -41,7 +53,8 @@ export default function AppShell() {
         <div className={`${CONTAINER} flex flex-wrap items-center gap-x-2 gap-y-2 py-3.5`}>
           <NavLink to="/painel" aria-label={APP_NAME} className="flex items-center gap-2.5 font-display text-lg font-semibold tracking-[-0.02em]">
             <Logo />
-            {APP_NAME}
+            {/* em celular estreito só o logo: o nome empurraria os botões para uma segunda linha */}
+            <span className="max-[430px]:hidden">{APP_NAME}</span>
           </NavLink>
 
           <TopTabs />
@@ -63,7 +76,7 @@ export default function AppShell() {
               </button>
               <ThemeToggle />
               <UserMenu />
-              <button type="button" data-tour="lancar" onClick={() => openLaunch()} className={btnClass.primary}>
+              <button type="button" data-tour="lancar" onClick={() => closedGuard.run(() => openLaunch())} className={btnClass.primary}>
                 <Icon name="plus" size={16} />
                 Lançar
               </button>
@@ -78,12 +91,16 @@ export default function AppShell() {
       <ToastContainer />
       <TransactionForm />
       <CardsDialog />
+      <ImportDialog />
       <FloatingCalculator />
       {/* ao manter o mouse sobre um valor, diz quanto é por extenso */}
       <MoneyTooltip />
 
       <main className={`${CONTAINER} pb-[70px] pt-[26px] max-[700px]:pb-[104px] max-[700px]:pt-3.5`}>
-        <Outlet />
+        <PrivacyBanner />
+        <ClosedMonthBanner />
+        <ReopenMonthDialog open={closedGuard.open} month={closedGuard.month} onConfirm={closedGuard.confirm} onCancel={closedGuard.cancel} />
+        <Outlet key={String(privacyHidden)} />
       </main>
     </div>
   );

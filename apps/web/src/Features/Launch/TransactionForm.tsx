@@ -5,6 +5,7 @@ import MonthPicker from "@/components/shared/MonthPicker";
 import { useEffect, useState } from "react";
 import { CardSelect, InvoiceInfo } from "./CardField";
 import DistGroupField from "./DistGroupField";
+import TagsField from "@/components/shared/TagsField";
 import CardPurchaseField from "./CardPurchaseField";
 import { isISODate } from "./isoDate";
 import TourHelpButton from "@/components/tour/TourHelpButton";
@@ -137,6 +138,10 @@ export default function TransactionForm() {
             </button>
           </div>
           <DialogDescription>Um só formulário para renda, despesa, compra parcelada, cartão, despesa extra e meta. A janela continua aberta para você lançar em sequência.</DialogDescription>
+          <button type="button" onClick={() => useUiStore.getState().openImport()} className="inline-flex items-center gap-1.5 self-start text-[13px] font-bold text-primary hover:underline">
+            <Icon name="upload" size={14} />
+            Importar extrato ou fatura (CSV)
+          </button>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => openLaunch(v as LaunchTab)}>
@@ -224,6 +229,10 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [variable, setVariable] = useState(false);
   // renda variável: em qual distribuição da sugestão do saldo entra (1 = Dist 1, o saldo do mês)
   const [distGroup, setDistGroup] = useState(1);
+  // dia do vencimento da despesa (1 a 31), opcional: alimenta o card "Próximos vencimentos" do Painel
+  const [txDueDay, setTxDueDay] = useState("");
+  // etiquetas livres (opcional), para buscar e filtrar em Lançamentos
+  const [txTags, setTxTags] = useState<string[]>([]);
   const [cardId, setCardId] = useState("");
   // dia da compra (despesa avulsa ou extra no cartão) e teto mensal (cadastro do cartão)
   const [purchaseDate, setPurchaseDate] = useState(() => defaultStartDate(currentMonth));
@@ -260,6 +269,8 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setRecurring(false);
     setVariable(false);
     setDistGroup(1);
+    setTxDueDay("");
+    setTxTags([]);
     setStartDate(defaultStartDate(currentMonth));
     setClosingDay("");
     setDueDay("");
@@ -291,6 +302,10 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     }
 
     if (kind === "credit" && !billingDayOf(startDate)) return showToast({ type: "error", text: "Informe a data de início da cobrança" });
+
+    // dia do vencimento: vazio = sem dia; senão de 1 a 31
+    const dueDayValue = txDueDay.trim() ? Number(txDueDay) : 0;
+    if (kind === "expense" && !cardId && txDueDay.trim() && !(dueDayValue >= 1 && dueDayValue <= 31)) return showToast({ type: "error", text: "O dia do vencimento vai de 1 a 31" });
 
     const isPiggy = kind === "goal" && piggy;
     // porquinho não tem valor de meta
@@ -342,7 +357,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed: false, month: purchaseDate.slice(0, 7), cardId, purchaseDate });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada no cartão` });
     } else {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(variable && { variableAmount: true }) });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(variable && { variableAmount: true }), ...(dueDayValue && { dueDay: dueDayValue }), ...(txTags.length > 0 && { tags: txTags }) });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada${inFuture ? ` a partir de ${formatMonthTitle(launchMonth)}` : ""}` });
     }
 
@@ -522,6 +537,15 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
           </label>
         </div>
       )}
+
+      {kind === "expense" && !cardId && (
+        <Field label="Dia do vencimento" hint="(opcional)" htmlFor="launch-due-day">
+          <input id="launch-due-day" inputMode="numeric" value={txDueDay} onChange={(e) => setTxDueDay(e.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="Ex.: 10" className={inputClass} />
+          <p className="mt-1 text-xs text-muted-foreground">Com o dia, a despesa aparece em “Próximos vencimentos” no Painel. Sem o dia, ela não aparece lá.</p>
+        </Field>
+      )}
+
+      {(kind === "expense" || kind === "income") && !(kind === "expense" && !fixed && cardId) && <TagsField id="launch-tags" value={txTags} onChange={setTxTags} />}
 
       {kind === "income" && !fixed && (
         <DistGroupField id="launch-dist-group" month={launchMonth} transactions={transactions} value={distGroup} onChange={setDistGroup} />

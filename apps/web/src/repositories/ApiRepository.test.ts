@@ -70,6 +70,17 @@ describe("ApiRepository: despesas no cartão", () => {
   });
 });
 
+describe("ApiRepository: dia do vencimento", () => {
+  it("manda o dia e, ao tirar, 0 (sem 0 a API entenderia \"não mudou\")", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.updateTransaction("e", { dueDay: 15 });
+    await repo.updateTransaction("e", { dueDay: undefined });
+    expect(calls.map((c) => c.body)).toEqual([{ dueDay: 15 }, { dueDay: 0 }]);
+  });
+});
+
 describe("ApiRepository: encerrar despesa fixa", () => {
   it("manda o último mês em que vale e, ao reativar, \"\" para tirar o fim", async () => {
     setAccessToken("t");
@@ -227,5 +238,26 @@ describe("ApiRepository", () => {
     const repo = new ApiRepository();
     await expect(repo.removeGoal("a")).rejects.toThrow();
     await expect(repo.removeGoal("b")).resolves.toBeUndefined();
+  });
+});
+
+describe("ApiRepository: planejamento", () => {
+  it("manda o planejamento inteiro em PUT /settings/planning", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 204 }));
+    const planning = { budgets: { Lazer: { "2026-11": 50000 } }, debts: [], closings: {}, dividendAssets: [] };
+    await new ApiRepository().setPlanning(planning);
+    expect(calls[0]).toMatchObject({ url: "/api/v1/settings/planning", method: "PUT", body: planning });
+  });
+});
+
+describe("ApiRepository: etiquetas", () => {
+  it("manda a lista e, ao tirar todas, [] (sem isso a API entenderia \"não mudou\")", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.updateTransaction("e", { tags: ["viagem"] });
+    await repo.updateTransaction("e", { tags: undefined });
+    expect(calls.map((c) => c.body)).toEqual([{ tags: ["viagem"] }, { tags: [] }]);
   });
 });

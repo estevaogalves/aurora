@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 
 	"aurora/api/internal/domain"
+	"aurora/api/internal/sqlitetypes"
 	"aurora/api/internal/store/sqlcgen"
 )
 
@@ -31,6 +32,10 @@ type TransactionPatch struct {
 	EndMonth *string
 	// DistGroup: distribuição da sugestão do saldo (0 = Dist 1, 2 a 20). nil não muda.
 	DistGroup *int
+	// DueDay: dia do vencimento (1 a 31; 0 tira o dia). nil não muda.
+	DueDay *int
+	// Tags: lista inteira de etiquetas (vazia tira todas). nil não muda.
+	Tags *[]string
 }
 
 func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
@@ -50,7 +55,7 @@ func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		ID: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.VariableAmount,
-		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int64(t.DistGroup),
+		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int64(t.DistGroup), DueDay: int64(t.DueDay), Tags: sqlitetypes.JSON(tagsJSON(t.Tags)),
 	})
 	if err != nil {
 		return domain.Transaction{}, err
@@ -109,6 +114,16 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		}
 		if p.DistGroup != nil {
 			arg.DistGroup.Int64, arg.DistGroup.Valid = int64(*p.DistGroup), true
+		}
+		if p.DueDay != nil {
+			arg.DueDay.Int64, arg.DueDay.Valid = int64(*p.DueDay), true
+		}
+		if p.Tags != nil {
+			raw, err := jsonMarshal(*p.Tags)
+			if err != nil {
+				return err
+			}
+			arg.Tags = sqlitetypes.JSON(raw)
 		}
 		row, err := q.UpdateTransaction(ctx, arg)
 		if err != nil {
@@ -1006,6 +1021,15 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			return err
 		}
 		if err := q.SetDistributionOverrides(ctx, sqlcgen.SetDistributionOverridesParams{UserID: userID, DistributionOverrides: rawOverrides}); err != nil {
+			return err
+		}
+		planning := domain.Planning{Budgets: d.Budgets, Debts: d.Debts, Closings: d.Closings, DividendAssets: d.DividendAssets}
+		planning.Normalize()
+		rawPlanning, err := jsonMarshal(planning)
+		if err != nil {
+			return err
+		}
+		if err := q.SetPlanning(ctx, sqlcgen.SetPlanningParams{UserID: userID, Planning: sqlitetypes.JSON(rawPlanning)}); err != nil {
 			return err
 		}
 		seen := d.SeenAlerts

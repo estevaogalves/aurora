@@ -14,6 +14,8 @@ import type {
   InvoiceAdjustment,
   Payment,
   Transaction,
+  Planning,
+  ReceiptMeta,
 } from "../domain/types";
 import { renameCategoryIn, type CategoryPatch } from "../domain/categories";
 import { overrideKey } from "../domain/distribution";
@@ -22,6 +24,10 @@ import { patchCardAdjustments, patchCardPayment } from "../domain/invoice";
 import { patchClearPayment, patchSetPayment } from "../domain/payment";
 import { patchAdvanceInstallment, patchClearActualValue,
   patchEditInstallment, patchRemoveInstallment, type PatchResult } from "../domain/credit";
+import { MAX_RECEIPTS_PER_TRANSACTION, MAX_RECEIPT_BYTES, cleanFileName, receiptMimeOf } from "../domain/receipts";
+import { todayISO } from "../domain/payment";
+import { deleteReceiptFile, getReceiptFile, putReceiptFile } from "../lib/receiptDb";
+import { uuid } from "../lib/uuid";
 import { getCurrentMonth } from "../Utils/Date";
 import type { FinanceRepository } from "./FinanceRepository";
 import {
@@ -63,8 +69,11 @@ export class LocalRepository implements FinanceRepository {
   }
 
   async replaceAll(data: FinanceData) {
-    this.data = data;
+    // restaurar um backup não traz comprovantes (backups não levam anexos): os de antes saem junto
+    const old = this.data?.receipts ?? [];
+    this.data = { ...data, receipts: [] };
     this.persist();
+    await Promise.all(old.map((r) => deleteReceiptFile(r.id).catch(() => undefined)));
   }
 
   async addTransaction(transaction: Transaction) {
@@ -81,7 +90,11 @@ export class LocalRepository implements FinanceRepository {
 
   async removeTransaction(id: string) {
     this.data.transactions = this.data.transactions.filter((t) => t.id !== id);
+    // os comprovantes do lançamento vão junto (os dados e os arquivos)
+    const gone = (this.data.receipts ?? []).filter((r) => r.transactionId === id);
+    this.data.receipts = (this.data.receipts ?? []).filter((r) => r.transactionId !== id);
     this.persist();
+    await Promise.all(gone.map((r) => deleteReceiptFile(r.id).catch(() => undefined)));
   }
 
   async addCredit(credit: CreditTransaction) {
@@ -307,6 +320,41 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async addReceipt(transactionId: string, file: { name: string; data: ArrayBuffer }): Promise<ReceiptMeta> {
+    if (!this.data.transactions.some((t) => t.id === transactionId)) throw new Error("Lançamento não encontrado.");
+    const receipts = this.data.receipts ?? [];
+    if (receipts.filter((r) => r.transactionId === transactionId).length >= MAX_RECEIPTS_PER_TRANSACTION) throw new Error("Cada lançamento aceita no máximo 5 comprovantes.");
+    if (file.data.byteLength > MAX_RECEIPT_BYTES) throw new Error("O comprovante passa de 300 KB.");
+    const mime = receiptMimeOf(new Uint8Array(file.data));
+    if (!mime) throw new Error("Só são aceitos comprovantes em imagem (PNG, JPEG ou WebP) ou PDF.");
+    const meta: ReceiptMeta = { id: uuid(), transactionId, name: cleanFileName(file.name), mime, size: file.data.byteLength, createdAt: todayISO() };
+    await putReceiptFile(meta.id, file.data);
+    this.data.receipts = [...receipts, meta];
+    this.persist();
+    return meta;
+  }
+
+  async getReceipt(id: string) {
+    const meta = (this.data.receipts ?? []).find((r) => r.id === id);
+    const data = meta ? await getReceiptFile(id) : undefined;
+    if (!meta || !data) throw new Error("Comprovante não encontrado neste navegador.");
+    return { meta, data };
+  }
+
+  async removeReceipt(id: string) {
+    this.data.receipts = (this.data.receipts ?? []).filter((r) => r.id !== id);
+    this.persist();
+    await deleteReceiptFile(id).catch(() => undefined);
+  }
+
+  async setPlanning(planning: Planning) {
+    this.data.budgets = planning.budgets;
+    this.data.debts = planning.debts;
+    this.data.closings = planning.closings;
+    this.data.dividendAssets = planning.dividendAssets;
+    this.persist();
+  }
+
   async setSeenAlerts(keys: string[]) {
     this.data.seenAlerts = keys;
     this.persist();
@@ -334,6 +382,11 @@ export class LocalRepository implements FinanceRepository {
       distribution: this.data.distribution,
       distributionOverrides: this.data.distributionOverrides ?? {},
       seenAlerts: this.data.seenAlerts,
+      budgets: this.data.budgets ?? {},
+      debts: this.data.debts ?? [],
+      closings: this.data.closings ?? {},
+      dividendAssets: this.data.dividendAssets ?? [],
+      receipts: this.data.receipts ?? [],
       onboarding: this.data.onboarding,
     };
   }

@@ -7,6 +7,8 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import DistGroupField from "./DistGroupField";
+import TagsField from "@/components/shared/TagsField";
+import ReceiptsField from "@/components/shared/ReceiptsField";
 import { chargeDate, distGroupOf, patchEditAll } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type Transaction } from "@/Store/FinanceStore";
@@ -42,7 +44,7 @@ export function EditTransactionDialog({ transaction, onClose }: { transaction: T
 
 function TransactionFields({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
   const month = useFinanceStore((s) => s.currentMonth);
-  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, setTransactionDistGroup, clearTransactionActualValue, setTransactionCard } = useFinanceStore();
+  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, setTransactionDistGroup, setTransactionDueDay, setTransactionTags, clearTransactionActualValue, setTransactionCard } = useFinanceStore();
   const income = transaction.type === "income";
 
   const [name, setName] = useState(transaction.name);
@@ -55,6 +57,9 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
   // renda variável: em qual distribuição da sugestão do saldo entra (1 = Dist 1, o saldo do mês)
   const [distGroup, setDistGroup] = useState(distGroupOf(transaction));
   const allTransactions = useFinanceStore((s) => s.transactions);
+  // despesa: dia do vencimento (1 a 31), opcional; alimenta "Próximos vencimentos" no Painel
+  const [tags, setTags] = useState<string[]>(transaction.tags ?? []);
+  const [dueDayText, setDueDayText] = useState(transaction.dueDay ? String(transaction.dueDay) : "");
   // despesa avulsa (não fixa): cartão e dia da compra
   const canHaveCard = !income && !transaction.fixed;
   const [cardId, setCardId] = useState(transaction.cardId ?? "");
@@ -69,10 +74,14 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
     if (!trimmed) return showToast({ type: "error", text: "Preencha o nome" });
     if (cents === null) return showToast({ type: "error", text: "Informe um valor válido" });
     if (canHaveCard && cardId && !isISODate(purchaseDate)) return showToast({ type: "error", text: "Informe a data da compra" });
+    const dueDayValue = dueDayText.trim() ? Number(dueDayText) : 0;
+    if (!income && dueDayText.trim() && !(dueDayValue >= 1 && dueDayValue <= 31)) return showToast({ type: "error", text: "O dia do vencimento vai de 1 a 31" });
 
     if (trimmed !== transaction.name) updateTransactionName(transaction.id, trimmed);
     if (canHaveCard && (cardId !== (transaction.cardId ?? "") || (cardId && purchaseDate !== transaction.purchaseDate))) setTransactionCard(transaction.id, cardId, purchaseDate);
     if (variable !== !!transaction.variableAmount) setTransactionVariable(transaction.id, variable);
+    if (!income && dueDayValue !== (transaction.dueDay ?? 0)) setTransactionDueDay(transaction.id, dueDayValue);
+    if (JSON.stringify(tags) !== JSON.stringify(transaction.tags ?? [])) setTransactionTags(transaction.id, tags);
     if (income && !transaction.fixed && distGroup !== distGroupOf(transaction)) setTransactionDistGroup(transaction.id, distGroup);
     if (cents !== transaction.amount) {
       if (transaction.fixed && scope === "following") updateTransactionAmountFromMonth(transaction.id, month, cents);
@@ -125,6 +134,14 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
       {!income && (
         <Field label="Categoria" htmlFor="edit-category">
           <CategorySelect id="edit-category" value={category} onChange={setCategory} />
+        </Field>
+      )}
+      <TagsField id="edit-tags" value={tags} onChange={setTags} />
+      <ReceiptsField transactionId={transaction.id} />
+      {!income && !cardId && (
+        <Field label="Dia do vencimento" hint="(opcional)" htmlFor="edit-due-day">
+          <input id="edit-due-day" inputMode="numeric" value={dueDayText} onChange={(e) => setDueDayText(e.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="Ex.: 10" className={inputClass} />
+          <p className="mt-1 text-xs text-muted-foreground">Aparece em “Próximos vencimentos” no Painel{transaction.fixed ? ", todo mês" : ""}. Vazio = sem dia.</p>
         </Field>
       )}
       {canHaveCard && <CardPurchaseField idPrefix="edit-expense" cardId={cardId} onCardChange={setCardId} date={purchaseDate} onDateChange={setPurchaseDate} onNavigate={onClose} />}

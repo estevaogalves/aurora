@@ -15,6 +15,11 @@ import type {
   Note,
   OnboardingState,
   Transaction,
+  Budgets,
+  Debt,
+  DividendAsset,
+  MonthClosing,
+  ReceiptMeta,
 } from "../domain/types";
 
 /** Versão atual do formato salvo. Aumente ao mudar o formato e trate em `migrateStored`. */
@@ -45,6 +50,11 @@ export const emptyData = (): FinanceData => ({
   distribution: null,
   distributionOverrides: {},
   seenAlerts: [],
+  budgets: {},
+  debts: [],
+  closings: {},
+  dividendAssets: [],
+  receipts: [],
   onboarding: {},
 });
 
@@ -124,6 +134,12 @@ export function migrateStored(raw: unknown): FinanceData | null {
     distribution: Array.isArray(raw.data.distribution) ? (raw.data.distribution as DistributionItem[]) : null,
     distributionOverrides: isRecord(raw.data.distributionOverrides) ? (raw.data.distributionOverrides as Record<string, DistributionItem[]>) : {},
     seenAlerts: asArray<string>(raw.data.seenAlerts).filter((k) => typeof k === "string"),
+    // planejamento (sem mudar a versão: backups antigos não têm estes campos e ficam com os padrões)
+    budgets: isRecord(raw.data.budgets) ? (raw.data.budgets as Budgets) : {},
+    debts: asArray<Debt>(raw.data.debts),
+    closings: isRecord(raw.data.closings) ? (raw.data.closings as Record<string, MonthClosing>) : {},
+    dividendAssets: asArray<DividendAsset>(raw.data.dividendAssets),
+    receipts: asArray<ReceiptMeta>(raw.data.receipts),
     onboarding: parseOnboarding(raw.data.onboarding),
   };
 }

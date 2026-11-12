@@ -5,13 +5,16 @@ import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { getGoalsSummary, type GoalAlert, type GoalMovement, goalDeadlinePlan, goalMonthsLeft, goalPercent, isGoalDone, piggyAtDeadline } from "@/domain";
+import { getGoalsSummary, type GoalAlert, type GoalMovement, goalDeadlinePlan, goalForecast, goalMonthsLeft, goalPercent, isGoalDone, piggyAtDeadline } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { formatMonthShort, getCurrentMonth } from "@/Utils/Date";
 import InvestmentsView from "../Investments/InvestmentsView";
-import { INVESTIMENTOS_TOUR } from "../Investments/tour";
+import SimulatorView from "../Investments/SimulatorView";
+import DebtsView from "../Debts/DebtsView";
+import { DIVIDAS_TOUR } from "../Debts/tour";
+import { INVESTIMENTOS_TOUR, SIMULADOR_TOUR } from "../Investments/tour";
 import { getDemoGoals } from "./demo";
 import { GoalDialog, GoalHistoryDialog, GoalMovementDialog } from "./GoalDialogs";
 import { deadlineStatus, useGoalAlerts } from "./goalAlerts";
@@ -27,10 +30,16 @@ const plural = (n: number) => `${n} ${n === 1 ? "mês" : "meses"}`;
 
 /** Previsão da meta. Com prazo, recomenda o aporte mensal que o cumpre; sem prazo, prevê pelo aporte informado. */
 function Forecast({ goal, done }: { goal: Goal; done: boolean }) {
+  const allMovements = useFinanceStore((s) => s.goalMovements);
   if (done) return <>Meta atingida. Parabéns!</>;
 
   const plan = goalDeadlinePlan(goal, getCurrentMonth());
   const left = goalMonthsLeft(goal);
+  // no ritmo dos últimos aportes (média dos últimos 3 meses); sem aportes, vale o aporte mensal definido
+  const pace = goalForecast(goal, allMovements, getCurrentMonth());
+  const paceLine = pace?.basis === "history" && (
+    <span>No ritmo dos últimos aportes (média de <b className="num text-foreground">{formatBRLShort(pace.perMonth)}</b> por mês), você conclui em {plural(pace.months)} ({deadlineLabel(pace.month)}).</span>
+  );
 
   if (plan) {
     if (plan.monthsLeft <= 0) {
@@ -39,6 +48,7 @@ function Forecast({ goal, done }: { goal: Goal; done: boolean }) {
     return (
       <div className="flex flex-col gap-1">
         <span>Para chegar no prazo ({plural(plan.monthsLeft)}), junte cerca de <b className="num text-foreground">{formatBRLShort(plan.recommended)}</b> por mês.</span>
+        {paceLine}
         {plan.covered === true && <span className="text-success">Seu aporte de {formatBRLShort(goal.monthly)} por mês cobre o prazo.</span>}
         {plan.covered === false && (
           <span className="font-semibold text-destructive">
@@ -49,8 +59,13 @@ function Forecast({ goal, done }: { goal: Goal; done: boolean }) {
     );
   }
 
-  if (left === null) return <>Sem aporte mensal definido para prever a conclusão.</>;
-  return <>Guardando {formatBRLShort(goal.monthly)} por mês, faltam {plural(left)}.</>;
+  if (left === null) return paceLine || <>Defina um aporte mensal para prever.</>;
+  return (
+    <div className="flex flex-col gap-1">
+      <span>Guardando {formatBRLShort(goal.monthly)} por mês, faltam {plural(left)}.</span>
+      {paceLine}
+    </div>
+  );
 }
 
 function GoalCard({ goal, alert, first, onContribute, onHistory, onEdit, onDelete }: { goal: Goal; alert?: GoalAlert; first?: boolean; onContribute: () => void; onHistory: () => void; onEdit: () => void; onDelete: () => void }) {
@@ -242,7 +257,7 @@ function GoalsView() {
   );
 }
 
-type View = "metas" | "investimentos";
+type View = "metas" | "investimentos" | "simulador" | "dividas";
 
 /** Tela Metas e Investimentos: o seletor no topo alterna entre as duas visões, sem ocupar uma aba nova. */
 export default function GoalsPage() {
@@ -250,7 +265,7 @@ export default function GoalsPage() {
   // mesmo já estando na tela). Sem o parâmetro, a visão escolhida no seletor fica como está.
   const { key, search } = useLocation();
   const aba = new URLSearchParams(search).get("aba");
-  const requested: View | null = aba === "investimentos" ? "investimentos" : aba === "metas" ? "metas" : null;
+  const requested: View | null = aba === "investimentos" ? "investimentos" : aba === "simulador" ? "simulador" : aba === "dividas" ? "dividas" : aba === "metas" ? "metas" : null;
   const [view, setView] = useState<View>(requested ?? "metas");
   const [lastNav, setLastNav] = useState(key);
   if (key !== lastNav) {
@@ -260,11 +275,13 @@ export default function GoalsPage() {
   const options: { id: View; label: string }[] = [
     { id: "metas", label: "Metas" },
     { id: "investimentos", label: "Investimentos" },
+    { id: "dividas", label: "Dívidas" },
+    { id: "simulador", label: "Simulador" },
   ];
 
   return (
     <>
-      <div role="tablist" aria-label="Metas ou investimentos" className="mb-4 inline-flex rounded-full border border-border bg-card p-1">
+      <div role="tablist" aria-label="Metas, investimentos, dívidas ou simulador" className="mb-4 inline-flex rounded-full border border-border bg-card p-1">
         {options.map((o) => (
           <button
             key={o.id}
@@ -280,6 +297,16 @@ export default function GoalsPage() {
       </div>
       {view === "metas" ? (
         <GoalsView />
+      ) : view === "dividas" ? (
+        <>
+          <PageHeader tour={DIVIDAS_TOUR} title="Dívidas e consórcios" subtitle="Parcelas fixas: quanto falta pagar, quando quita e quando a despesa fixa vinculada cai. Só acompanhamento." />
+          <DebtsView />
+        </>
+      ) : view === "simulador" ? (
+        <>
+          <PageHeader tour={SIMULADOR_TOUR} title="Simulador" subtitle="Veja como um aporte mensal cresce com juros compostos e quanto poderia render em dividendos, com a taxa que você escolher." />
+          <SimulatorView />
+        </>
       ) : (
         <>
           <PageHeader tour={INVESTIMENTOS_TOUR} title="Investimentos" subtitle="Registro manual do que você tem investido: valores e prazos ficam como você informar, sem ligação com bancos ou corretoras." />

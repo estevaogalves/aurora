@@ -6,9 +6,12 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
+import { useUiStore } from "@/Store/UiStore";
 import { canAdvanceInstallment, chargeDay, dayMonth, distGroupOf, distLabel, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
+import { useLaunchFiltering } from "./filtering";
+import FilterBar from "./FilterBar";
 import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits, useResolvedExtras } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
@@ -65,6 +68,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
   const colorOf = useCategoryColor();
   const cardName = useFinanceStore((s) => s.creditCards.find((k) => k.id === t.cardId)?.name);
   const income = t.type === "income";
+  const receiptCount = useFinanceStore((s) => s.receipts.filter((r) => r.transactionId === t.id).length);
   const payment = pay ? paymentOf(t, month) : undefined;
   const note = useNotes(t.notes, payment?.notes);
 
@@ -94,6 +98,9 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="break-words">{t.name}</span>
             {t.estimated && <Pill>Estimado</Pill>}
+            {t.type === "expense" && t.dueDay ? <Pill>Vence dia {t.dueDay}</Pill> : null}
+            {t.tags?.map((tag) => <Pill key={tag}>#{tag}</Pill>)}
+            {receiptCount > 0 && <Pill>{receiptCount === 1 ? "1 comprovante" : `${receiptCount} comprovantes`}</Pill>}
             {payment && <PaidBadge payment={payment} />}
           </span>
           {note.text}
@@ -116,6 +123,9 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
           {!income && t.category}
           {t.fixed ? <Pill tone="fix">Fixa</Pill> : income ? <Pill>Variável</Pill> : null}
           {t.estimated && <Pill>Estimado</Pill>}
+          {!income && t.dueDay ? <Pill>Vence dia {t.dueDay}</Pill> : null}
+          {t.tags?.map((tag) => <Pill key={tag}>#{tag}</Pill>)}
+          {receiptCount > 0 && <Pill>{receiptCount === 1 ? "1 comprovante" : `${receiptCount} comprovantes`}</Pill>}
           {income && distGroupOf(t) >= 2 && <Pill tone="good">{distLabel(distGroupOf(t))}</Pill>}
           {cardName && <Pill>{cardName}{t.purchaseDate ? ` · compra ${dayMonth(t.purchaseDate)}` : ""}</Pill>}
           {payment && <PaidBadge payment={payment} />}
@@ -123,6 +133,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
       }
       amount={formatBRL(t.amount)}
       amountClass={income ? "text-success" : ""}
+      hoursOf={income ? undefined : t.amount}
       below={note.text}
       actions={<>{note.button}{menu}</>}
     />
@@ -145,6 +156,7 @@ function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraE
       }
       below={note.text}
       amount={formatBRL(e.amount)}
+      hoursOf={e.amount}
       actions={
         <>
           {note.button}
@@ -199,8 +211,10 @@ function HiddenList({ kind }: { kind: "income" | "expense" }) {
 
 function IncomesPanel() {
   const incomes = useMonthTransactions().filter((t) => t.type === "income");
-  const variable = incomes.filter((t) => !t.fixed);
-  const fixed = incomes.filter((t) => t.fixed);
+  // a busca e os filtros só escondem linhas: o total do rodapé continua sendo o do mês inteiro
+  const view = useLaunchFiltering();
+  const variable = incomes.filter((t) => !t.fixed && view.income(t));
+  const fixed = incomes.filter((t) => t.fixed && view.income(t));
   const month = useFinanceStore((s) => s.currentMonth);
   const removeByMonth = useFinanceStore((s) => s.removeTransactionByMonth);
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -211,7 +225,8 @@ function IncomesPanel() {
   return (
     <Panel tour="rendas" title="Rendas" subtitle="Fontes do mês">
       {incomes.length === 0 ? <Empty>Nenhuma renda cadastrada. Use o botão Lançar.</Empty> : variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}
-      {incomes.length > 0 && variable.length === 0 && <Empty>Nenhuma renda variável neste mês.</Empty>}
+      {incomes.length > 0 && variable.length === 0 && fixed.length === 0 && view.active && <Empty>Nenhuma renda com estes filtros.</Empty>}
+      {incomes.length > 0 && variable.length === 0 && !view.active && <Empty>Nenhuma renda variável neste mês.</Empty>}
       {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} />)}</FixedSection>}
       <HiddenList kind="income" />
       <EndedList kind="income" />
@@ -249,8 +264,10 @@ function ExpensesPanel() {
   const [ending, setEnding] = useState<Transaction | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
   const target = expenses.find((e) => e.id === toDelete);
-  const fixed = expenses.filter((t) => t.fixed).sort((a, b) => b.amount - a.amount);
-  const variable = expenses.filter((t) => !t.fixed).sort((a, b) => b.amount - a.amount);
+  const view = useLaunchFiltering();
+  const fixed = expenses.filter((t) => t.fixed && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  const variable = expenses.filter((t) => !t.fixed && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  const shownExtras = extras.filter((e) => view.extra(e));
   const count = expenses.length + extras.length;
 
   const payTx = (t: Transaction) => ({
@@ -269,9 +286,10 @@ function ExpensesPanel() {
     <Panel tour="despesas" title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
       {onCard > 0 && <p className="mb-1 text-[12.5px] text-muted-foreground">{onCard === 1 ? "1 compra no cartão está" : `${onCard} compras no cartão estão`} na fatura, em Compras parceladas.</p>}
-      {count > 0 && variable.length === 0 && extras.length === 0 && <Empty>Nenhuma despesa variável neste mês.</Empty>}
+      {count > 0 && variable.length === 0 && shownExtras.length === 0 && fixed.length === 0 && view.active && <Empty>Nenhuma despesa com estes filtros.</Empty>}
+      {count > 0 && variable.length === 0 && extras.length === 0 && !view.active && <Empty>Nenhuma despesa variável neste mês.</Empty>}
       {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={t.cardId ? undefined : payTx(t)} />)}
-      {extras.map((e) => (
+      {shownExtras.map((e) => (
         <ExtraRow
           key={e.id}
           e={e}
@@ -341,6 +359,7 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, 
           </>
         }
         amount={formatBRL(c.installmentValue)}
+        hoursOf={c.installmentValue}
         actions={<RowMenu label={c.name} onEdit={onEdit} onDelete={onDelete} onCancelRecurrence={credit && !ending ? onCancelRecurrence : undefined} />}
       />
     );
@@ -370,6 +389,7 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, 
       }
       below={<ProgressMini value={c.currentInstallment} max={c.installments} />}
       amount={formatBRL(c.installmentValue)}
+        hoursOf={c.installmentValue}
       actions={<RowMenu label={c.name} onEdit={onEdit} onDelete={onDelete} onAdvance={canAdvance ? onAdvance : undefined} />}
     />
   );
@@ -611,7 +631,18 @@ function NotesPanel() {
 export default function LaunchPage() {
   return (
     <>
-      <PageHeader tour={LANCAMENTOS_TOUR} title="Lançamentos" subtitle="Rendas, despesas e parcelas do mês. Para cadastrar, use o botão Lançar." />
+      <PageHeader
+        tour={LANCAMENTOS_TOUR}
+        title="Lançamentos"
+        subtitle="Rendas, despesas e parcelas do mês. Para cadastrar, use o botão Lançar."
+        action={
+          <button type="button" data-tour="importar" onClick={() => useUiStore.getState().openImport()} className={`${btnClass.base} ${btnClass.sm}`}>
+            <Icon name="upload" size={14} />
+            Importar arquivo
+          </button>
+        }
+      />
+      <FilterBar />
       <div className="grid grid-cols-12 items-start gap-3.5">
         {/* no celular o wrapper some (contents) e os cards seguem a ordem: rendas, despesas, anotações */}
         <div className="col-span-12 flex min-w-0 flex-col gap-3.5 max-lg:contents lg:col-span-4">

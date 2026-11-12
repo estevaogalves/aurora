@@ -83,3 +83,7 @@ UPDATE users SET role = ? WHERE id = ? RETURNING *;
 -- name: DeleteUser :execrows
 -- Apaga a conta e, em cascata, tudo que e dela (lancamentos, metas, notas, configuracoes, refresh tokens).
 DELETE FROM users WHERE id = ?;
+
+-- name: SetPlanning :exec
+INSERT INTO user_settings (user_id, planning) VALUES (?, ?)
+ON CONFLICT (user_id) DO UPDATE SET planning = EXCLUDED.planning;

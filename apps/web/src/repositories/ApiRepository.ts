@@ -1,3 +1,4 @@
+import { fromBase64, toBase64 } from "../lib/base64";
 import { api } from "../api/http";
 import type { CategoryPatch } from "../domain/categories";
 import type {
@@ -16,6 +17,8 @@ import type {
   InvoiceAdjustment,
   Payment,
   Transaction,
+  Planning,
+  ReceiptMeta,
 } from "../domain/types";
 import type { FinanceRepository } from "./FinanceRepository";
 
@@ -26,7 +29,7 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
   return out;
 }
 
-const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "distGroup"] as const;
+const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "distGroup", "dueDay", "tags"] as const;
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
 const CARD_PATCH = ["name", "closingDay", "dueDay", "limit"] as const;
 // guardado e rendimentos não vão aqui: são refeitos pelo histórico (`/goal-movements`)
@@ -65,6 +68,10 @@ export function cardExpensePatchBody<T extends { cardId?: string }>(patch: Parti
   if ("endMonth" in body && body.endMonth === undefined) body.endMonth = "";
   // volta para a Dist 1 (undefined) vira 0, que tira a distribuição própria; sem a chave a API entenderia "não mudou"
   if ("distGroup" in body && body.distGroup === undefined) body.distGroup = 0;
+  // sem dia de vencimento (undefined) vira 0, que tira o dia
+  if ("dueDay" in body && body.dueDay === undefined) body.dueDay = 0;
+  // sem etiquetas (undefined) vira a lista vazia, que tira todas
+  if ("tags" in body && body.tags === undefined) body.tags = [];
   return body;
 }
 
@@ -117,6 +124,11 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
     distribution: raw.distribution ?? null,
     distributionOverrides: raw.distributionOverrides ?? {},
     seenAlerts: raw.seenAlerts ?? [],
+    budgets: raw.budgets ?? {},
+    debts: raw.debts ?? [],
+    closings: raw.closings ?? {},
+    dividendAssets: raw.dividendAssets ?? [],
+    receipts: raw.receipts ?? [],
     onboarding: raw.onboarding ?? {},
   };
 }
@@ -206,6 +218,15 @@ export class ApiRepository implements FinanceRepository {
   setDistributionOverride = (month: string, group: number, items: DistributionItem[] | null) =>
     this.enqueue(() => api.put(`/settings/distribution-overrides/${month}/${group}`, { items }));
   setSeenAlerts = (keys: string[]) => this.enqueue(() => api.put("/settings/seen-alerts", { keys }));
+  // comprovantes: o arquivo vai e volta em base64; o servidor decide o tipo pelos bytes e aplica os limites
+  addReceipt = (transactionId: string, file: { name: string; data: ArrayBuffer }) =>
+    this.enqueue(() => api.post<ReceiptMeta>(`/transactions/${transactionId}/receipts`, { name: file.name, data: toBase64(file.data) }));
+  getReceipt = async (id: string) => {
+    const { data, ...meta } = await api.get<ReceiptMeta & { data: string }>(`/receipts/${id}`);
+    return { meta, data: fromBase64(data) };
+  };
+  removeReceipt = (id: string) => this.enqueue(() => api.delete(`/receipts/${id}`));
+  setPlanning = (planning: Planning) => this.enqueue(() => api.put("/settings/planning", planning));
   setOnboarding = (screen: string, state: OnboardingState) =>
     this.enqueue(() => api.put(`/settings/onboarding/${encodeURIComponent(screen)}`, { state }));
 }

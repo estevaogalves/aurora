@@ -4,14 +4,19 @@ import ChartDonut, { type DonutSlice } from "@/components/charts/ChartDonut";
 import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
+import { btnClass } from "@/components/shared/styles";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
+import { breathingDays, comparisonAvailable, freedomDay, getInsights, reserveTotal, visibleInsights, DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
+import HoursHint from "@/components/shared/HoursHint";
 import { formatBRL, formatBRLShort } from "@/lib/money";
+import { dismissInsight, usePrefsStore } from "@/lib/preferences";
+import { formatWorkHours, workHours } from "@/domain";
+import { useHourInfo } from "@/Store/hours";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { useCategoryTotals, useDistributionItemsFor, useMonthCredit, useMonthDistributions, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
-import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
+import { changeMonth, formatMonthShort, formatMonthTitle, getCurrentMonth, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
 import { deadlineStatus, paceHint, useGoalAlerts } from "../Goals/goalAlerts";
 import { getDemoGoals } from "../Goals/demo";
@@ -20,6 +25,10 @@ import SendDistributionDialog, { type SendRequest } from "./SendDistributionDial
 import UndoSendDialog, { type UndoRequest } from "./UndoSendDialog";
 import { showToast } from "../Warnings/toast";
 import { PAINEL_TOUR } from "./tour";
+import TimeSettings from "./TimeSettings";
+import DuesCard from "./DuesCard";
+import BudgetBars from "./BudgetBars";
+import CloseMonthDialog from "./CloseMonthDialog";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
 const sliceColor = (items: { id: string }[], id: string) => `hsl(var(--k${(items.findIndex((i) => i.id === id) % 9) + 1}))`;
@@ -50,6 +59,7 @@ function Hero() {
           <div key={label} className="min-w-0 rounded-md bg-background/40 px-3 py-2.5">
             <small className="block text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">{label}</small>
             <b className="num block truncate text-base">{formatBRLShort(value as number)}</b>
+            {label === "Despesas" && <HoursHint cents={value as number} />}
           </div>
         ))}
       </div>
@@ -133,6 +143,7 @@ function Categories() {
       ) : (
         <ChartDonut renderDetail={detailOf} slices={totals.map((t) => ({ label: t.category, value: t.value, color: colorOf(t.category) }))} />
       )}
+      <BudgetBars />
     </Panel>
   );
 }
@@ -453,22 +464,151 @@ function GoalDeadlines() {
   );
 }
 
+/** Faixa de 1 a 3 frases geradas por regras (sem IA e sem enviar dados para fora). Cada uma pode ser dispensada. */
+function Insights() {
+  const month = useFinanceStore((s) => s.currentMonth);
+  const transactions = useFinanceStore((s) => s.transactions);
+  const creditTransactions = useFinanceStore((s) => s.creditTransactions);
+  const creditCards = useFinanceStore((s) => s.creditCards);
+  const extraExpenses = useFinanceStore((s) => s.extraExpenses);
+  const goals = useFinanceStore((s) => s.goals);
+  const notes = useFinanceStore((s) => s.notes);
+  const dismissed = usePrefsStore((s) => s.dismissedInsights);
+  const insights = useMemo(() => {
+    const today = getCurrentMonth();
+    // a tela Comparação só existe com 2 meses ou mais de movimento: sem ela, o "Ver" leva para Lançamentos
+    const toComparison = comparisonAvailable({ transactions, creditTransactions, creditCards, extraExpenses, notes }, today);
+    return visibleInsights(getInsights({ transactions, creditTransactions, creditCards, extraExpenses, goals }, month, today), dismissed).map((i) => (i.to === "/comparacao" && !toComparison ? { ...i, to: "/lancamentos" as const } : i));
+  }, [transactions, creditTransactions, creditCards, extraExpenses, goals, notes, month, dismissed]);
+  if (insights.length === 0) {
+    // sem nada a mostrar, explica por quê (senão parece que o recurso não existe)
+    return (
+      <section data-tour="insights" aria-label="Insights do mês" className="mb-3.5 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg border border-dashed border-border px-5 py-3 text-[13px] text-muted-foreground">
+        <span>
+          <b className="text-ink2">Em destaque neste mês:</b>{" "}
+          {dismissed.length > 0 ? "você dispensou os destaques de agora." : "nada a destacar por enquanto. Os destaques aparecem quando há 2 meses ou mais de movimento e algo relevante mudou (categoria, saldo, despesa nova, metas ou um mês futuro apertado)."}
+        </span>
+        {dismissed.length > 0 && (
+          <button type="button" onClick={() => usePrefsStore.getState().setPrefs({ dismissedInsights: [] })} className="font-bold text-primary hover:underline">Mostrar de novo</button>
+        )}
+      </section>
+    );
+  }
+
+  return (
+    <section data-tour="insights" aria-label="Insights do mês" className="mb-3.5 rounded-lg border border-border bg-card px-5 py-4 shadow-[var(--shadow-card)]">
+      <h2 className="mb-2 font-display text-[15px] font-semibold">Em destaque neste mês</h2>
+      <ul className="flex flex-col divide-y divide-border">
+        {insights.map((i) => (
+          <li key={i.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 text-[13.5px] first:pt-0 last:pb-0">
+            <span className="min-w-0 break-words text-ink2">{i.text}</span>
+            <span className="flex flex-none items-center gap-3">
+              <Link to={i.to} className="text-[13px] font-bold text-primary">Ver →</Link>
+              <button type="button" onClick={() => dismissInsight(i.id)} aria-label="Dispensar este insight" title="Dispensar" className="text-muted-foreground hover:text-foreground">
+                <Icon name="close" size={14} />
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/** Dias de fôlego: quanto tempo a reserva sustenta a despesa média diária do mês. Só aparece se o usuário ligar e tiver reserva. */
+function Breathing() {
+  const show = usePrefsStore((s) => s.showBreathing);
+  const goals = useFinanceStore((s) => s.goals);
+  const investments = useFinanceStore((s) => s.investments);
+  const month = useFinanceStore((s) => s.currentMonth);
+  const { totalIncome, totalExpense } = useMonthSummary();
+  const monthTransactions = useMonthTransactions();
+  if (!show) return null;
+
+  const reserve = reserveTotal(goals, investments);
+  const [y, m] = month.split("-").map(Number);
+  const days = new Date(y, m, 0).getDate();
+  const result = breathingDays(reserve, totalExpense, days);
+  if (result === null) return null;
+  const fixed = monthTransactions.filter((t) => t.type === "expense" && t.fixed).reduce((sum, t) => sum + t.amount, 0);
+  const free = freedomDay(totalIncome, fixed, days);
+
+  return (
+    <div className="col-span-12 lg:col-span-4">
+    <Panel title="Dias de fôlego" subtitle="Quanto tempo a sua reserva sustenta">
+      <p className="font-display text-[28px] font-semibold leading-tight">{result} {result === 1 ? "dia" : "dias"}</p>
+      <p className="mt-1 text-[13px] text-muted-foreground">
+        Reserva de {formatBRL(reserve)} (metas com “reserva” ou “emergência” no nome e investimentos de liquidez diária) ÷ despesa média de {formatBRL(Math.round(totalExpense / days))} por dia.
+      </p>
+      {free !== null && <p className="mt-2 text-[13px] text-ink2">Dia da liberdade de gastos: a partir do dia <b>{free}</b> a renda do mês cobre as despesas fixas.</p>}
+    </Panel>
+    </div>
+  );
+}
+
+/** Explica a conta das horas de trabalho enquanto o recurso está ligado (valor da hora = renda líquida ÷ horas do mês). */
+function HoursNote({ onAdjust }: { onAdjust: () => void }) {
+  const show = usePrefsStore((s) => s.showHours);
+  const { rate, income, hoursPerMonth, informed } = useHourInfo();
+  if (!show) return null;
+  const example = workHours(10000, rate);
+
+  return (
+    <p role="note" className="mb-3.5 rounded-md border border-border bg-secondary px-3.5 py-2.5 text-[13px] text-ink2">
+      <b className="text-foreground">Horas de trabalho ligadas.</b>{" "}
+      {rate > 0 ? (
+        <>
+          O valor da sua hora é <b className="num text-foreground">{formatBRL(Math.round(rate))}</b> ({informed ? "renda líquida base" : "renda do mês"} de {formatBRL(income)} ÷ {hoursPerMonth.toLocaleString("pt-BR")} h por mês). Cada despesa mostra quantas horas você precisa trabalhar para pagá-la: por exemplo, {formatBRL(10000)} = {example !== null ? formatWorkHours(example) : ""} de trabalho.
+        </>
+      ) : (
+        "Sem renda neste mês e sem renda líquida base, não há como calcular o valor da hora."
+      )}{" "}
+      <button type="button" onClick={onAdjust} className="font-bold text-primary hover:underline">Ajustar</button>
+    </p>
+  );
+}
+
 /** Painel: só leitura, com um atalho de escrita (enviar uma fatia da sugestão do saldo para metas, porquinhos e investimentos). Tudo o que se edita fica em Lançamentos. */
 export default function Painel() {
   const month = useFinanceStore((s) => s.currentMonth);
+  const [timeOpen, setTimeOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const closed = useFinanceStore((s) => !!s.closings[month]);
+  const showHours = usePrefsStore((s) => s.showHours);
 
   return (
     <>
-      <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui é só leitura (exceto enviar o saldo para as metas); cadastre pelo botão “Lançar”.`} />
+      <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui é só leitura (exceto enviar o saldo para as metas); cadastre pelo botão “Lançar”.`}
+        action={
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {!closed && (
+              <button type="button" data-tour="fechar-mes" onClick={() => setClosing(true)} className={`${btnClass.base} ${btnClass.sm}`}>
+                <Icon name="check" size={14} />
+                Fechar mês
+              </button>
+            )}
+            <button type="button" data-tour="tempo" onClick={() => setTimeOpen(true)} aria-pressed={showHours} className={`${btnClass.base} ${btnClass.sm} ${showHours ? "!border-primary !text-primary" : ""}`}>
+              <Icon name="clock" size={14} />
+              Tempo e fôlego
+            </button>
+          </div>
+        }
+      />
+      <CloseMonthDialog open={closing} onClose={() => setClosing(false)} />
+      <TimeSettings open={timeOpen} onClose={() => setTimeOpen(false)} />
+      <HoursNote onAdjust={() => setTimeOpen(true)} />
       <GoalDeadlines />
+      <Insights />
       <div className="grid grid-cols-12 items-stretch gap-3.5 [&>div>*]:h-full">
         <div className="col-span-12 lg:col-span-4"><Hero /></div>
         <div className="col-span-12 lg:col-span-8"><Trend /></div>
+        <div className="col-span-12"><DuesCard /></div>
         <div className="col-span-12 lg:col-span-4"><Categories /></div>
         <div className="col-span-12 lg:col-span-4"><Suggestion /></div>
         <div className="col-span-12 lg:col-span-4"><GoalsMini /></div>
         <div className="col-span-12 lg:col-span-8"><RecentExpenses /></div>
         <div className="col-span-12 lg:col-span-4"><NotesReadOnly /></div>
+        <Breathing />
       </div>
     </>
   );
