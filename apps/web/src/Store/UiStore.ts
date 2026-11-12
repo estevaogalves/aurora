@@ -12,6 +12,10 @@ interface UiState {
   cardsOpen: boolean;
   openCards: () => void;
   closeCards: () => void;
+  /** Janela "Importar arquivo" (CSV de extrato ou fatura), aberta pelo Lançar ou por Lançamentos. */
+  importOpen: boolean;
+  openImport: () => void;
+  closeImport: () => void;
   /** Calculadora: aberta ou fechada independente do "Lançar". A conta em andamento sobrevive à troca de lugar do card e também ao fechar; só o botão C limpa. */
   calcOpen: boolean;
   calc: CalcState;
@@ -36,6 +40,10 @@ export const useUiStore = create<UiState>((set) => ({
   cardsOpen: false,
   openCards: () => set({ cardsOpen: true }),
   closeCards: () => set({ cardsOpen: false }),
+  importOpen: false,
+  // abrir a importação fecha o "Lançar" (as duas janelas não ficam empilhadas)
+  openImport: () => set({ importOpen: true, launchOpen: false, calcOpen: false }),
+  closeImport: () => set({ importOpen: false }),
   calcOpen: false,
   calc: initialCalc,
   toggleCalc: () => set((s) => ({ calcOpen: !s.calcOpen })),

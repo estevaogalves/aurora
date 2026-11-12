@@ -137,6 +137,10 @@ export default function TransactionForm() {
             </button>
           </div>
           <DialogDescription>Um só formulário para renda, despesa, compra parcelada, cartão, despesa extra e meta. A janela continua aberta para você lançar em sequência.</DialogDescription>
+          <button type="button" onClick={() => useUiStore.getState().openImport()} className="inline-flex items-center gap-1.5 self-start text-[13px] font-bold text-primary hover:underline">
+            <Icon name="upload" size={14} />
+            Importar extrato ou fatura (CSV)
+          </button>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={(v) => openLaunch(v as LaunchTab)}>

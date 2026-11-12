@@ -6,6 +6,7 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
+import { useUiStore } from "@/Store/UiStore";
 import { canAdvanceInstallment, chargeDay, dayMonth, distGroupOf, distLabel, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
@@ -617,7 +618,17 @@ function NotesPanel() {
 export default function LaunchPage() {
   return (
     <>
-      <PageHeader tour={LANCAMENTOS_TOUR} title="Lançamentos" subtitle="Rendas, despesas e parcelas do mês. Para cadastrar, use o botão Lançar." />
+      <PageHeader
+        tour={LANCAMENTOS_TOUR}
+        title="Lançamentos"
+        subtitle="Rendas, despesas e parcelas do mês. Para cadastrar, use o botão Lançar."
+        action={
+          <button type="button" data-tour="importar" onClick={() => useUiStore.getState().openImport()} className={`${btnClass.base} ${btnClass.sm}`}>
+            <Icon name="upload" size={14} />
+            Importar arquivo
+          </button>
+        }
+      />
       <div className="grid grid-cols-12 items-start gap-3.5">
         {/* no celular o wrapper some (contents) e os cards seguem a ordem: rendas, despesas, anotações */}
         <div className="col-span-12 flex min-w-0 flex-col gap-3.5 max-lg:contents lg:col-span-4">

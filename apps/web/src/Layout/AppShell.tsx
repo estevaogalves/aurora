@@ -18,6 +18,7 @@ import ImportBanner from "./ImportBanner";
 import MonthSelector from "./MonthSelector";
 import AppTour from "../components/tour/AppTour";
 import CardsDialog from "@/Features/Profile/CardsDialog";
+import ImportDialog from "@/Features/Launch/ImportDialog";
 import { NAV_ITEMS } from "./navigation";
 import UserMenu from "./UserMenu";
 
@@ -85,6 +86,7 @@ export default function AppShell() {
       <ToastContainer />
       <TransactionForm />
       <CardsDialog />
+      <ImportDialog />
       <FloatingCalculator />
       {/* ao manter o mouse sobre um valor, diz quanto é por extenso */}
       <MoneyTooltip />
