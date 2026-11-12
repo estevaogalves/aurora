@@ -68,7 +68,7 @@ describe("migrateLegacy", () => {
 describe("migrateStored", () => {
   it("aceita o envelope atual", () => {
     const data = migrateStored({ version: 6, data: { transactions: [], creditTransactions: [], notes: [], goals: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] } });
-    expect(data).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
+    expect(data).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
   });
 
   it("recusa versão futura e lixo", () => {
@@ -84,6 +84,7 @@ describe("migrateStored", () => {
       creditCards: [],
       notes: [],
       goals: [],
+      goalMovements: [],
       investments: [],
       investmentMovements: [],
       extraExpenses: [],
@@ -133,7 +134,7 @@ describe("investimentos no LocalRepository", () => {
 describe("LocalRepository", () => {
   it("começa vazio sem nenhum dado salvo", async () => {
     const repo = new LocalRepository(fakeStorage());
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
   });
 
   it("importa o formato antigo uma vez e mantém o backup intacto", async () => {
@@ -145,7 +146,7 @@ describe("LocalRepository", () => {
 
     expect(data.transactions[0].amount).toBe(500050);
     expect(storage.map.get(LEGACY_STORAGE_KEY)).toBe(original);
-    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(8);
+    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(9);
   });
 
   it("depois de migrar, ignora o formato antigo", async () => {
@@ -199,6 +200,7 @@ describe("LocalRepository", () => {
       creditCards: [],
       notes: [],
       goals: [],
+      goalMovements: [],
       investments: [],
       investmentMovements: [],
       extraExpenses: [],
@@ -266,6 +268,35 @@ describe("LocalRepository", () => {
     expect((await new LocalRepository(storage).load()).customCategories).toHaveLength(1);
   });
 
+  it("v8 -> v9: metas que já tinham valor ganham o 'Saldo inicial', sem mudar nenhum valor", () => {
+    const goal = { id: "g", name: "Viagem", target: 100000, saved: 10300, monthly: 0, deadline: null, yieldTotal: 300 };
+    const empty = { id: "e", name: "Vazia", target: 100000, saved: 0, monthly: 0, deadline: null };
+    const data = migrateStored({ version: 8, data: { goals: [goal, empty] } });
+    expect(data?.goalMovements?.map((m) => [m.goalId, m.type, m.amount])).toEqual([["g", "yield", 300], ["g", "adjustment", 10300]]);
+    // quem já tem histórico (formato novo) não ganha nada
+    const again = migrateStored({ version: 9, data: { goals: [goal], goalMovements: data?.goalMovements } });
+    expect(again?.goalMovements).toHaveLength(2);
+  });
+
+  it("LocalRepository: o histórico refaz o guardado da meta e sobrevive a um novo carregamento", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.addGoal({ id: "g", name: "Viagem", target: 100000, saved: 0, monthly: 0, deadline: null });
+    await repo.addGoalMovement({ id: "m1", goalId: "g", type: "contribution", date: "2026-11-01", amount: 10000 });
+    await repo.addGoalMovement({ id: "m2", goalId: "g", type: "yield", date: "2026-11-30", amount: 300 });
+    await repo.updateGoalMovement("m1", { amount: 20000 });
+    let reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.goals[0]).toMatchObject({ saved: 20300, yieldTotal: 300 });
+    expect(reloaded.goalMovements).toHaveLength(2);
+    await repo.removeGoalMovement("m1");
+    reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.goals[0].saved).toBe(300);
+    await repo.removeGoal("g");
+    reloaded = await new LocalRepository(storage).load();
+    expect([reloaded.goals, reloaded.goalMovements]).toEqual([[], []]);
+  });
+
   it("migra a v2 (sem categorias) sem perder metas", () => {
     const goal = { id: "g", name: "Viagem", target: 100, saved: 0, monthly: 0, deadline: null };
     const data = migrateStored({ version: 2, data: { goals: [goal] } });
@@ -321,7 +352,7 @@ describe("LocalRepository", () => {
         throw new Error("bloqueado");
       },
     });
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
     await expect(
       repo.addNote({ id: "1", content: "a", date: "d", pinned: false, month: "2026-03" }),
     ).resolves.toBeUndefined();

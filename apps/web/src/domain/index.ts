@@ -3,6 +3,7 @@ export * from "./credit";
 export * from "./distribution";
 export * from "./goals";
 export * from "./investments";
+export * from "./origin";
 export * from "./invoice";
 export * from "./payment";
 export * from "./report";

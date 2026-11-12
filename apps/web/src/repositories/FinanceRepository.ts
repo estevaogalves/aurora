@@ -7,6 +7,7 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  GoalMovement,
   Investment,
   InvestmentMovement,
   Note,
@@ -61,7 +62,12 @@ export interface FinanceRepository {
 
   addGoal(goal: Goal): Promise<void>;
   updateGoal(id: string, patch: Partial<Goal>): Promise<void>;
+  /** Apaga a meta e o histórico dela. */
   removeGoal(id: string): Promise<void>;
+  /** Histórico de metas e porquinhos: o guardado é refeito pelas movimentações (`replayGoal`). */
+  addGoalMovement(movement: GoalMovement): Promise<void>;
+  updateGoalMovement(id: string, patch: Partial<GoalMovement>): Promise<void>;
+  removeGoalMovement(id: string): Promise<void>;
 
   addInvestment(investment: Investment): Promise<void>;
   updateInvestment(id: string, patch: Partial<Investment>): Promise<void>;

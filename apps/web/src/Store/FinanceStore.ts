@@ -19,7 +19,10 @@ import {
   patchToggleFixed,
   patchClearMonthValue,
   type CreditInstallment,
-  patchContribution,
+  goalOpeningMovements,
+  replayGoal,
+  todayISO,
+  type GoalMovement,
   maturityAlertPrefix,
   patchCardAdjustments,
   renameCategoryIn,
@@ -73,6 +76,8 @@ interface FinanceState {
   creditCards: CreditCard[];
   notes: Note[];
   goals: Goal[];
+  /** histórico das metas e porquinhos: o guardado de cada um é refeito por ele */
+  goalMovements: GoalMovement[];
   investments: Investment[];
   investmentMovements: InvestmentMovement[];
   extraExpenses: ExtraExpense[];
@@ -129,11 +134,17 @@ interface FinanceState {
   togglePinNote: (id: string) => void;
   updateNote: (id: string, content: string) => void;
 
+  /** Cria a meta; o valor já guardado (`saved`) vira o "Saldo inicial" do histórico dela. */
   addGoal: (goal: Goal) => void;
+  /** Muda nome, valor-alvo, aporte mensal e prazo. Um `saved` diferente do atual vira um ajuste no histórico. */
   updateGoal: (id: string, patch: Partial<Goal>) => void;
-  /** Registra aporte e rendimento (centavos) na meta. */
-  contributeToGoal: (id: string, cents: number, yieldCents?: number) => void;
+  /** Registra aporte (ou retirada, se negativo) e rendimento (centavos) no histórico da meta. */
+  contributeToGoal: (id: string, cents: number, yieldCents?: number, extra?: Pick<GoalMovement, "date" | "note" | "origin">) => void;
+  /** Apaga a meta e o histórico dela. */
   removeGoal: (id: string) => void;
+  addGoalMovement: (movement: GoalMovement) => void;
+  updateGoalMovement: (id: string, patch: Partial<GoalMovement>) => void;
+  removeGoalMovement: (id: string) => void;
 
   addInvestment: (investment: Investment, first?: Pick<InvestmentMovement, "amount" | "quantity" | "unitPrice">) => void;
   updateInvestment: (id: string, patch: Partial<Investment>) => void;
@@ -218,6 +229,16 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     sync(repository.updateInvestment(investmentId, { currentValue: next.currentValue, quantity: next.quantity, avgPrice: next.avgPrice }));
   };
 
+  /** Muda a lista de movimentações e refaz o guardado e os rendimentos da meta a partir dela. */
+  const applyGoalMovements = (goalId: string, change: (all: GoalMovement[]) => GoalMovement[], save: (r: typeof repository) => Promise<void>) => {
+    const goal = get().goals.find((g) => g.id === goalId);
+    if (!goal) return;
+    const movements = change(get().goalMovements);
+    const next = replayGoal(goal, movements);
+    set((state) => ({ goalMovements: movements, goals: state.goals.map((g) => (g.id === goalId ? next : g)) }));
+    sync(save(repository));
+  };
+
   return {
     hydrated: false,
 
@@ -228,7 +249,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     hydrate: async () => {
       const data = await repository.load();
-      set({ ...data, hydrated: true });
+      set({ ...data, goalMovements: data.goalMovements ?? [], hydrated: true });
     },
 
     reset: () =>
@@ -239,6 +260,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         creditCards: [],
         notes: [],
         goals: [],
+        goalMovements: [],
         investments: [],
         investmentMovements: [],
         extraExpenses: [],
@@ -256,6 +278,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     creditCards: [],
     notes: [],
     goals: [],
+    goalMovements: [],
     investments: [],
     investmentMovements: [],
     extraExpenses: [],
@@ -438,25 +461,60 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     addGoal: (goal) => {
-      set((state) => ({ goals: [...state.goals, goal] }));
-      sync(repository.addGoal(goal));
+      // o guardado é refeito pelo histórico: a meta nasce zerada e o valor que já tinha vira o "Saldo inicial"
+      const { saved, yieldTotal, ...rest } = goal;
+      const created: Goal = { ...rest, saved: 0 };
+      set((state) => ({ goals: [...state.goals, created] }));
+      sync(repository.addGoal(created));
+      if (saved > 0 || (yieldTotal ?? 0) > 0) {
+        for (const m of goalOpeningMovements([{ ...goal, id: goal.id }], [], todayISO())) {
+          get().addGoalMovement({ ...m, id: uuid() });
+        }
+      }
     },
 
     updateGoal: (id, patch) => {
-      set((state) => ({ goals: state.goals.map((g) => (g.id === id ? { ...g, ...patch } : g)) }));
-      sync(repository.updateGoal(id, patch));
+      const goal = get().goals.find((g) => g.id === id);
+      if (!goal) return;
+      // guardado e rendimentos só mudam pelo histórico: um `saved` novo vira um ajuste de valor
+      const { saved, yieldTotal: _ignored, ...rest } = patch;
+      void _ignored;
+      set((state) => ({ goals: state.goals.map((g) => (g.id === id ? { ...g, ...rest } : g)) }));
+      if (Object.keys(rest).length > 0) sync(repository.updateGoal(id, rest));
+      if (saved !== undefined && saved !== goal.saved) {
+        get().addGoalMovement({ id: uuid(), goalId: id, type: "adjustment", date: todayISO(), amount: Math.max(0, saved), note: "Ajuste do valor guardado" });
+      }
     },
 
-    contributeToGoal: (id, cents, yieldCents = 0) => {
-      const goal = get().goals.find((g) => g.id === id);
-      if (goal) get().updateGoal(id, patchContribution(goal, cents, yieldCents));
+    contributeToGoal: (id, cents, yieldCents = 0, extra) => {
+      if (!get().goals.some((g) => g.id === id)) return;
+      const date = extra?.date ?? todayISO();
+      const base = { goalId: id, date, ...(extra?.note && { note: extra.note }), ...(extra?.origin && { origin: extra.origin }) };
+      if (cents !== 0) get().addGoalMovement({ id: uuid(), ...base, type: cents > 0 ? "contribution" : "withdrawal", amount: Math.abs(cents) });
+      if (yieldCents !== 0) get().addGoalMovement({ id: uuid(), goalId: id, date, type: "yield", amount: yieldCents });
     },
 
     removeGoal: (id) => {
       const seenAlerts = get().seenAlerts.filter((k) => !k.startsWith(`${id}:`));
-      set((state) => ({ goals: state.goals.filter((g) => g.id !== id), seenAlerts }));
+      set((state) => ({ goals: state.goals.filter((g) => g.id !== id), goalMovements: state.goalMovements.filter((m) => m.goalId !== id), seenAlerts }));
       sync(repository.removeGoal(id));
       sync(repository.setSeenAlerts(seenAlerts));
+    },
+
+    addGoalMovement: (movement) => {
+      applyGoalMovements(movement.goalId, (all) => [...all, movement], (r) => r.addGoalMovement(movement));
+    },
+
+    updateGoalMovement: (id, patch) => {
+      const current = get().goalMovements.find((m) => m.id === id);
+      if (!current) return;
+      applyGoalMovements(current.goalId, (all) => all.map((m) => (m.id === id ? { ...m, ...patch } : m)), (r) => r.updateGoalMovement(id, patch));
+    },
+
+    removeGoalMovement: (id) => {
+      const current = get().goalMovements.find((m) => m.id === id);
+      if (!current) return;
+      applyGoalMovements(current.goalId, (all) => all.filter((m) => m.id !== id), (r) => r.removeGoalMovement(id));
     },
 
     addInvestment: (investment, first) => {

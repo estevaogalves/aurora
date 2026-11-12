@@ -5,7 +5,7 @@ import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { getGoalsSummary, type GoalAlert, goalDeadlinePlan, goalMonthsLeft, goalPercent, isGoalDone, piggyAtDeadline } from "@/domain";
+import { getGoalsSummary, type GoalAlert, type GoalMovement, goalDeadlinePlan, goalMonthsLeft, goalPercent, isGoalDone, piggyAtDeadline } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
@@ -13,7 +13,7 @@ import { formatMonthShort, getCurrentMonth } from "@/Utils/Date";
 import InvestmentsView from "../Investments/InvestmentsView";
 import { INVESTIMENTOS_TOUR } from "../Investments/tour";
 import { getDemoGoals } from "./demo";
-import { ContributeDialog, GoalDialog } from "./GoalDialogs";
+import { GoalDialog, GoalHistoryDialog, GoalMovementDialog } from "./GoalDialogs";
 import { deadlineStatus, useGoalAlerts } from "./goalAlerts";
 import { METAS_TOUR } from "./tour";
 
@@ -53,7 +53,7 @@ function Forecast({ goal, done }: { goal: Goal; done: boolean }) {
   return <>Guardando {formatBRLShort(goal.monthly)} por mês, faltam {plural(left)}.</>;
 }
 
-function GoalCard({ goal, alert, first, onContribute, onEdit, onDelete }: { goal: Goal; alert?: GoalAlert; first?: boolean; onContribute: () => void; onEdit: () => void; onDelete: () => void }) {
+function GoalCard({ goal, alert, first, onContribute, onHistory, onEdit, onDelete }: { goal: Goal; alert?: GoalAlert; first?: boolean; onContribute: () => void; onHistory: () => void; onEdit: () => void; onDelete: () => void }) {
   const pct = goalPercent(goal);
   const done = isGoalDone(goal);
 
@@ -91,6 +91,7 @@ function GoalCard({ goal, alert, first, onContribute, onEdit, onDelete }: { goal
             Aportar
           </button>
         )}
+        <button type="button" onClick={onHistory} className={`${btnClass.base} ${btnClass.sm}`}>Histórico</button>
         <button type="button" onClick={onEdit} className={`${btnClass.base} ${btnClass.sm}`}>Editar</button>
         <button type="button" onClick={onDelete} className={`${btnClass.base} ${btnClass.sm} hover:!border-destructive hover:!text-destructive`}>
           <Icon name="trash" size={14} />
@@ -102,7 +103,7 @@ function GoalCard({ goal, alert, first, onContribute, onEdit, onDelete }: { goal
 }
 
 /** Porquinho: guardado sem valor de meta, só com o que já tem, o aporte, o rendimento e o prazo. */
-function PiggyCard({ goal, onContribute, onEdit, onDelete }: { goal: Goal; onContribute: () => void; onEdit: () => void; onDelete: () => void }) {
+function PiggyCard({ goal, onContribute, onHistory, onEdit, onDelete }: { goal: Goal; onContribute: () => void; onHistory: () => void; onEdit: () => void; onDelete: () => void }) {
   const projected = piggyAtDeadline(goal, getCurrentMonth());
 
   return (
@@ -135,6 +136,7 @@ function PiggyCard({ goal, onContribute, onEdit, onDelete }: { goal: Goal; onCon
           <Icon name="plus" size={14} />
           Aportar
         </button>
+        <button type="button" onClick={onHistory} className={`${btnClass.base} ${btnClass.sm}`}>Histórico</button>
         <button type="button" onClick={onEdit} className={`${btnClass.base} ${btnClass.sm}`}>Editar</button>
         <button type="button" onClick={onDelete} className={`${btnClass.base} ${btnClass.sm} hover:!border-destructive hover:!text-destructive`}>
           <Icon name="trash" size={14} />
@@ -161,6 +163,12 @@ function GoalsView() {
   const [contributing, setContributing] = useState<Goal | null>(null);
   const [contributeOpen, setContributeOpen] = useState(false);
   const [deleting, setDeleting] = useState<Goal | null>(null);
+  // histórico aberto e movimentação em edição (a meta fica guardada para o título não piscar vazio ao fechar)
+  const [history, setHistory] = useState<Goal | null>(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [editingMovement, setEditingMovement] = useState<GoalMovement | null>(null);
+  const openHistory = (g: Goal) => { setHistory(g); setHistoryOpen(true); };
+  const fresh = (g: Goal | null) => (g ? goals.find((x) => x.id === g.id) ?? g : null);
 
   return (
     <>
@@ -185,7 +193,7 @@ function GoalsView() {
                 </p>
                 <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
                   {demoGoals.map((g, i) => (
-                    <GoalCard key={g.id} first={i === 0} goal={g} onContribute={noop} onEdit={noop} onDelete={noop} />
+                    <GoalCard key={g.id} first={i === 0} goal={g} onContribute={noop} onHistory={noop} onEdit={noop} onDelete={noop} />
                   ))}
                 </div>
               </>
@@ -194,7 +202,7 @@ function GoalsView() {
         ) : mainGoals.length > 0 && (
           <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
             {mainGoals.map((g, i) => (
-              <GoalCard key={g.id} first={i === 0} goal={g} alert={alerts.find((a) => a.goal.id === g.id)} onContribute={() => { setContributing(g); setContributeOpen(true); }} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
+              <GoalCard key={g.id} first={i === 0} goal={g} alert={alerts.find((a) => a.goal.id === g.id)} onContribute={() => { setContributing(g); setContributeOpen(true); }} onHistory={() => openHistory(g)} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
             ))}
           </div>
         )}
@@ -211,14 +219,16 @@ function GoalsView() {
           </div>
           <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3.5">
             {piggies.map((g) => (
-              <PiggyCard key={g.id} goal={g} onContribute={() => { setContributing(g); setContributeOpen(true); }} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
+              <PiggyCard key={g.id} goal={g} onContribute={() => { setContributing(g); setContributeOpen(true); }} onHistory={() => openHistory(g)} onEdit={() => setEditing(g)} onDelete={() => setDeleting(g)} />
             ))}
           </div>
         </section>
       )}
 
       <GoalDialog open={!!editing} goal={editing} onClose={() => setEditing(null)} />
-      <ContributeDialog goal={contributing ? goals.find((g) => g.id === contributing.id) ?? contributing : null} open={contributeOpen} onClose={() => setContributeOpen(false)} />
+      <GoalMovementDialog goal={fresh(contributing)} open={contributeOpen} onClose={() => setContributeOpen(false)} />
+      <GoalHistoryDialog goal={fresh(history)} open={historyOpen && !editingMovement} onClose={() => setHistoryOpen(false)} onEdit={setEditingMovement} />
+      <GoalMovementDialog goal={fresh(history)} movement={editingMovement} open={!!editingMovement} onClose={() => setEditingMovement(null)} />
       <ConfirmDeletion
         open={!!deleting}
         itemLabel={deleting ? `${deleting.piggy ? "porquinho" : "meta"} "${deleting.name}" (${formatBRL(deleting.saved)} guardados)` : "meta"}

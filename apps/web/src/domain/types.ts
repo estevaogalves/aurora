@@ -186,6 +186,27 @@ export interface Goal {
   piggy?: boolean;
 }
 
+/**
+ * Histórico de metas e porquinhos, no mesmo conceito dos investimentos: o guardado é refeito pelas movimentações.
+ * Aporte soma; retirada subtrai (nunca abaixo de zero); rendimento soma ao guardado e ao total de rendimentos;
+ * ajuste define o novo guardado (`amount` é o valor, não a diferença).
+ */
+export type GoalMovementType = "contribution" | "withdrawal" | "yield" | "adjustment";
+
+export interface GoalMovement {
+  id: string;
+  goalId: string;
+  type: GoalMovementType;
+  /** "AAAA-MM-DD" */
+  date: string;
+  /** centavos */
+  amount: number;
+  /** observação livre (até 200 letras) */
+  note?: string;
+  /** vazio = lançado à mão; "distribution|AAAA-MM|fonte|fatia" = enviado pela sugestão do saldo (veja `parseDistributionOrigin`) */
+  origin?: string;
+}
+
 /** Família de investimento: define quais campos o cadastro pede. */
 export type InvestmentFamily = "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other";
 
@@ -244,6 +265,10 @@ export interface InvestmentMovement {
   quantity?: number;
   /** centavos: preço por cota nesta movimentação */
   unitPrice?: number;
+  /** observação livre (até 200 letras) */
+  note?: string;
+  /** vazio = lançado à mão; "distribution|AAAA-MM|fonte|fatia" = enviado pela sugestão do saldo */
+  origin?: string;
 }
 
 /** Uma fatia da sugestão de distribuição do saldo. */
@@ -267,6 +292,8 @@ export interface FinanceData {
   creditCards?: CreditCard[];
   notes: Note[];
   goals: Goal[];
+  /** Histórico das metas e porquinhos (o guardado de cada um é refeito por ele). Ausente = nenhum. */
+  goalMovements?: GoalMovement[];
   /** Investimentos e suas movimentações. Ausente = nenhum. */
   investments?: Investment[];
   investmentMovements?: InvestmentMovement[];

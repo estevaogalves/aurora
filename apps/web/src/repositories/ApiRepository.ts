@@ -8,6 +8,7 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  GoalMovement,
   Investment,
   InvestmentMovement,
   Note,
@@ -28,12 +29,14 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
 const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth"] as const;
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
 const CARD_PATCH = ["name", "closingDay", "dueDay", "limit"] as const;
-const GOAL_PATCH = ["name", "target", "saved", "monthly", "yieldTotal", "deadline"] as const;
+// guardado e rendimentos não vão aqui: são refeitos pelo histórico (`/goal-movements`)
+const GOAL_PATCH = ["name", "target", "monthly", "deadline"] as const;
+const GOAL_MOVEMENT_PATCH = ["type", "date", "amount", "note", "origin"] as const;
 const INVESTMENT_PATCH = [
   "name", "family", "product", "institution", "appliedAt", "currentValue", "maturityDate", "indexer", "rate",
   "liquidity", "graceUntil", "earlyRedeem", "quantity", "avgPrice", "redeemDays", "ticker", "fees", "notes",
 ] as const;
-const MOVEMENT_PATCH = ["type", "date", "amount", "quantity", "unitPrice"] as const;
+const MOVEMENT_PATCH = ["type", "date", "amount", "quantity", "unitPrice", "note", "origin"] as const;
 const EXTRA_PATCH = ["name", "amount", "month", "cardId", "purchaseDate"] as const;
 const NOTE_PATCH = ["content", "date", "pinned", "month"] as const;
 
@@ -73,6 +76,14 @@ export function cardPatchBody(patch: Partial<CreditCard>): Record<string, unknow
 export function movementPatchBody(patch: Partial<InvestmentMovement>): Record<string, unknown> {
   const body: Record<string, unknown> = pick(patch, MOVEMENT_PATCH);
   for (const key of ["quantity", "unitPrice"]) if (key in body && body[key] === undefined) body[key] = null;
+  // observação e origem limpas (undefined) viram texto vazio, que as apaga; sem a chave, não mudam
+  for (const key of ["note", "origin"]) if (key in body && body[key] === undefined) body[key] = "";
+  return body;
+}
+
+export function goalMovementPatchBody(patch: Partial<GoalMovement>): Record<string, unknown> {
+  const body: Record<string, unknown> = pick(patch, GOAL_MOVEMENT_PATCH);
+  for (const key of ["note", "origin"]) if (key in body && body[key] === undefined) body[key] = "";
   return body;
 }
 
@@ -97,6 +108,7 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
     notes: raw.notes ?? [],
     investments: raw.investments ?? [],
     investmentMovements: raw.investmentMovements ?? [],
+    goalMovements: raw.goalMovements ?? [],
     goals: (raw.goals ?? []).map((g) => ({ ...g, deadline: g.deadline ?? null, yieldTotal: g.yieldTotal ?? 0 })),
     extraExpenses: raw.extraExpenses ?? [],
     customCategories: raw.customCategories ?? [],
@@ -173,6 +185,10 @@ export class ApiRepository implements FinanceRepository {
   // `deadline: null` limpa o prazo na API; sem a chave ele não muda
   updateGoal = (id: string, patch: Partial<Goal>) => this.enqueue(() => api.patch(`/goals/${id}`, pick(patch, GOAL_PATCH)));
   removeGoal = (id: string) => this.enqueue(() => api.delete(`/goals/${id}`));
+  // o servidor refaz o guardado e os rendimentos da meta a cada movimentação (mesma regra do replayGoal)
+  addGoalMovement = (m: GoalMovement) => this.enqueue(() => api.post("/goal-movements", m));
+  updateGoalMovement = (id: string, patch: Partial<GoalMovement>) => this.enqueue(() => api.patch(`/goal-movements/${id}`, goalMovementPatchBody(patch)));
+  removeGoalMovement = (id: string) => this.enqueue(() => api.delete(`/goal-movements/${id}`));
 
   addExtraExpense = (e: ExtraExpense) => this.enqueue(() => api.post("/extra-expenses", e));
   updateExtraExpense = (id: string, patch: Partial<ExtraExpense>) =>

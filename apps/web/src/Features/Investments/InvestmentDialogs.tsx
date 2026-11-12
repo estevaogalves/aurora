@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
+import OriginBadge from "@/components/shared/OriginBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -357,7 +358,8 @@ function MovementFields({ investment, movement, onClose }: { investment: Investm
   const [quantity, setQuantity] = useState(movement?.quantity ? qtyText(movement.quantity) : "");
   const [price, setPrice] = useState(movement?.unitPrice ? centsToInput(movement.unitPrice) : "");
   const [date, setDate] = useState(movement?.date ?? todayISO());
-  const sig = JSON.stringify([type, amount, quantity, price, date]);
+  const [note, setNote] = useState(movement?.note ?? "");
+  const sig = JSON.stringify([type, amount, quantity, price, date, note]);
   const [error, setError] = useFormError(sig);
   const negative = [amount, quantity, price].some((v) => v.includes("-"));
 
@@ -385,7 +387,7 @@ function MovementFields({ investment, movement, onClose }: { investment: Investm
     if (total > MAX_CENTS) return setError(`O valor passa do limite de ${MAX_LABEL}.`);
     if (type === "redemption" && !movement && total > investment.currentValue) return setError(`O resgate (${formatBRL(total)}) é maior que o valor atual (${formatBRL(investment.currentValue)}).`);
 
-    const fields = { type, date, amount: total, quantity: byQuantity ? qty : undefined, unitPrice: byQuantity ? (unit ?? undefined) : undefined };
+    const fields = { type, date, amount: total, quantity: byQuantity ? qty : undefined, unitPrice: byQuantity ? (unit ?? undefined) : undefined, note: note.trim() || undefined };
     if (movement) updateMovement(movement.id, fields);
     else addMovement({ id: uuid(), investmentId: investment.id, ...fields });
     showToast({ type: "success", text: `${MOVEMENT_DONE[type]} em "${investment.name}"` });
@@ -429,6 +431,9 @@ function MovementFields({ investment, movement, onClose }: { investment: Investm
       <Field label="Data" htmlFor="mov-date">
         <input id="mov-date" type="date" min={investment.appliedAt} value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
       </Field>
+      <Field label="Observação" hint="(opcional)" htmlFor="mov-note">
+        <input id="mov-note" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Ex.: sobra do mês" className={inputClass} />
+      </Field>
       <FormMessage>{negative ? NEGATIVE_MSG : error}</FormMessage>
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
@@ -469,6 +474,12 @@ export function HistoryDialog({ investment, open, onClose, onEdit }: { investmen
                 </div>
                 {m.quantity != null && m.unitPrice != null && (
                   <span className="text-[12px] text-muted-foreground">{qtyText(m.quantity)} {m.quantity === 1 ? "cota" : "cotas"} a {formatBRL(m.unitPrice)}</span>
+                )}
+                {(m.note || m.origin) && (
+                  <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-muted-foreground">
+                    <OriginBadge origin={m.origin} />
+                    {m.note && <span className="break-words">{m.note}</span>}
+                  </div>
                 )}
                 <div className="flex gap-2">
                   <button type="button" onClick={() => { setConfirming(null); onEdit(m); }} className="text-[12px] font-semibold text-primary hover:underline">Editar</button>

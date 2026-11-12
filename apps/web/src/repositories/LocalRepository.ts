@@ -6,6 +6,7 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  GoalMovement,
   Investment,
   InvestmentMovement,
   Note,
@@ -15,6 +16,7 @@ import type {
   Transaction,
 } from "../domain/types";
 import { renameCategoryIn, type CategoryPatch } from "../domain/categories";
+import { replayGoal } from "../domain/goals";
 import { patchCardAdjustments, patchCardPayment } from "../domain/invoice";
 import { patchClearPayment, patchSetPayment } from "../domain/payment";
 import { patchAdvanceInstallment, patchClearActualValue,
@@ -193,6 +195,34 @@ export class LocalRepository implements FinanceRepository {
 
   async removeGoal(id: string) {
     this.data.goals = this.data.goals.filter((g) => g.id !== id);
+    this.data.goalMovements = (this.data.goalMovements ?? []).filter((m) => m.goalId !== id);
+    this.persist();
+  }
+
+  /** Refaz o guardado e os rendimentos da meta pelo histórico (a mesma conta do servidor). */
+  private refreshGoal(goalId: string) {
+    this.data.goals = this.data.goals.map((g) => (g.id === goalId ? replayGoal(g, this.data.goalMovements ?? []) : g));
+  }
+
+  async addGoalMovement(movement: GoalMovement) {
+    this.data.goalMovements = [...(this.data.goalMovements ?? []), movement];
+    this.refreshGoal(movement.goalId);
+    this.persist();
+  }
+
+  async updateGoalMovement(id: string, patch: Partial<GoalMovement>) {
+    const current = (this.data.goalMovements ?? []).find((m) => m.id === id);
+    if (!current) return;
+    this.data.goalMovements = (this.data.goalMovements ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m));
+    this.refreshGoal(current.goalId);
+    this.persist();
+  }
+
+  async removeGoalMovement(id: string) {
+    const current = (this.data.goalMovements ?? []).find((m) => m.id === id);
+    if (!current) return;
+    this.data.goalMovements = (this.data.goalMovements ?? []).filter((m) => m.id !== id);
+    this.refreshGoal(current.goalId);
     this.persist();
   }
 
@@ -287,6 +317,7 @@ export class LocalRepository implements FinanceRepository {
       creditCards: this.data.creditCards ?? [],
       notes: this.data.notes,
       goals: this.data.goals,
+      goalMovements: this.data.goalMovements ?? [],
       investments: this.data.investments ?? [],
       investmentMovements: this.data.investmentMovements ?? [],
       extraExpenses: this.data.extraExpenses,
