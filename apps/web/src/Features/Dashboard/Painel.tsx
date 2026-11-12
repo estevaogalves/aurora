@@ -230,7 +230,7 @@ function Suggestion() {
   );
 
   const positive = sources.filter((s) => s.amount > 0);
-  const subtitle = separated ? "Separada por origem: o saldo do mês e cada renda à parte" : positive.length === 1 ? `Como dividir ${formatBRLShort(positive[0].amount)}` : undefined;
+  const subtitle = separated ? "Separada por origem" : positive.length === 1 ? `Como dividir ${formatBRLShort(positive[0].amount)}` : undefined;
 
   return (
     <>
