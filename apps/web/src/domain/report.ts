@@ -1,4 +1,4 @@
-import { CREDIT_CATEGORY, getMonthSummary } from "./summary";
+import { creditCategoryOf, getMonthSummary } from "./summary";
 import { getCreditByMonth } from "./credit";
 import { cardPaymentOf, dayMonth, getCardInvoice, isCardPurchase, resolveCardExpenses, resolveCredits } from "./invoice";
 import { getTransactionsByMonth } from "./transactions";
@@ -107,7 +107,7 @@ export function getReportRows(data: Source, months: Month[], options: Pick<Repor
           month,
           source: "credit",
           name: c.name,
-          category: CREDIT_CATEGORY,
+          category: creditCategoryOf(c),
           type: "Despesa",
           amount: c.installmentValue,
           note: c.recurring

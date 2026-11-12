@@ -41,7 +41,8 @@ describe("compra recorrente no cartão", () => {
   it("entra no resumo do mês e na projeção como crédito", () => {
     const summary = getMonthSummary({ transactions: [], creditTransactions: [stream, buy2], extraExpenses: [] }, "2026-11");
     expect(summary.creditExpense).toBe(3990 + 10000);
-    expect(summary.byCategory["Crédito/Parcelado"]).toBe(13990);
+    // cada compra conta na própria categoria: o streaming é "Lazer" e a cadeira, "Outros"
+    expect(summary.byCategory).toEqual({ Lazer: 3990, Outros: 10000 });
 
     const projection = getProjection({ transactions: [], creditTransactions: [stream, buy2] }, [], "2026-11", 4);
     expect(projection.map((p) => p.creditExpense)).toEqual([13990, 13990, 3990, 3990]);

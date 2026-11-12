@@ -128,7 +128,7 @@ export default function ReportsPage() {
         <StatCard tour="renda" label="Renda no período" value={formatBRLShort(total.income)} hint={`média de ${avg(total.income)} por mês`} />
         <StatCard tour="despesas" label="Despesas no período" value={formatBRLShort(total.expense)} hint={`média de ${avg(total.expense)} por mês`} />
         <StatCard tour="economia" label="Economia acumulada" value={formatBRLShort(total.balance)} hint={total.income > 0 ? `${Math.round((total.balance / total.income) * 100)}% da renda` : "Sem renda no período"} highlight />
-        <StatCard tour="categoria" label="Maior categoria" value={total.topCategory ? total.topCategory.category.replace("/Parcelado", "") : "—"} hint={total.topCategory ? `${formatBRLShort(total.topCategory.value)} no período` : "Sem despesas no período"} />
+        <StatCard tour="categoria" label="Maior categoria" value={total.topCategory ? total.topCategory.category : "—"} hint={total.topCategory ? `${formatBRLShort(total.topCategory.value)} no período` : "Sem despesas no período"} />
       </div>
 
       <div className="mt-3.5 grid grid-cols-12 items-start gap-3.5">

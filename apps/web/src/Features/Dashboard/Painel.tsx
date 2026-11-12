@@ -97,10 +97,9 @@ function Categories() {
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
-  // lançamentos que formam a categoria clicada (o rótulo da fatia perde o "/Parcelado", então volta pela lista de totais)
+  // lançamentos que formam a categoria clicada (o rótulo da fatia é o nome da categoria)
   const detailOf = (slice: DonutSlice) => {
-    const category = totals.find((t) => t.category.replace("/Parcelado", "") === slice.label)?.category;
-    const lines = category ? getCategoryDetail({ transactions, creditTransactions, creditCards, extraExpenses }, month, category) : [];
+    const lines = getCategoryDetail({ transactions, creditTransactions, creditCards, extraExpenses }, month, slice.label);
     return (
       <div className="flex flex-col gap-1.5">
         <p className="font-display text-[14px] font-semibold">{slice.label}</p>
@@ -129,7 +128,7 @@ function Categories() {
       {totals.length === 0 ? (
         <Empty>Nenhuma despesa neste mês.</Empty>
       ) : (
-        <ChartDonut renderDetail={detailOf} slices={totals.map((t) => ({ label: t.category.replace("/Parcelado", ""), value: t.value, color: colorOf(t.category) }))} />
+        <ChartDonut renderDetail={detailOf} slices={totals.map((t) => ({ label: t.category, value: t.value, color: colorOf(t.category) }))} />
       )}
     </Panel>
   );

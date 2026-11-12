@@ -579,7 +579,8 @@ func TestSummaryCacheAndReports(t *testing.T) {
 	if cache != "MISS" || s.TotalIncome != 500000 || s.TotalExpense != 150000+30000+33333 || s.CreditExpense != 33333 {
 		t.Errorf("resumo: %+v (%s)", s, cache)
 	}
-	if s.ByCategory["Crédito/Parcelado"] != 33333 {
+	// a TV é "Lazer": a parcela conta na categoria da compra, não num balde "Crédito/Parcelado"
+	if s.ByCategory["Lazer"] != 33333 || s.ByCategory["Crédito/Parcelado"] != 0 {
 		t.Errorf("categorias: %v", s.ByCategory)
 	}
 	if _, cache := get("2026-02"); cache != "HIT" {

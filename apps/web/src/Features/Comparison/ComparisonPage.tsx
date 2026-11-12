@@ -17,8 +17,8 @@ const MAX_SELECTED = 5;
 const MAX_MONTHS = 12;
 const SERIES_COLORS = ["hsl(var(--s1))", "hsl(var(--s2))", "hsl(var(--s3))", "hsl(var(--s4))", "hsl(var(--s5))"];
 
-const BASE_CATEGORIES: Category[] = [...EXPENSE_CATEGORIES, "Crédito/Parcelado"];
-const RADAR_AXES: Category[] = ["Moradia", "Alimentação", "Transporte", "Saúde", "Lazer", "Crédito/Parcelado"];
+const BASE_CATEGORIES: Category[] = [...EXPENSE_CATEGORIES];
+const RADAR_AXES: Category[] = ["Moradia", "Alimentação", "Transporte", "Saúde", "Lazer"];
 
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const shortLabel = (m: string) => cap(formatMonthShort(m).split(" ")[0]);
@@ -62,7 +62,10 @@ export default function ComparisonPage() {
 
   const bySelected = summaries.filter((s) => selected.includes(s.month));
 
-  const CATEGORIES = [...BASE_CATEGORIES, ...customCategories.map((c) => c.name)];
+  // as da lista mais qualquer outra que tenha gasto nos meses escolhidos (ex.: uma categoria apagada ou o resto antigo do crédito)
+  const known = [...BASE_CATEGORIES, ...customCategories.map((c) => c.name)];
+  const extra = [...new Set(bySelected.flatMap((m) => Object.entries(m.byCategory).filter(([c, v]) => (v ?? 0) !== 0 && !known.includes(c)).map(([c]) => c)))];
+  const CATEGORIES = [...known, ...extra];
   const avg = bySelected.length ? Math.round(bySelected.reduce((s, m) => s + m.balance, 0) / bySelected.length) : 0;
   const best = bySelected.reduce((a, b) => (b.balance > a.balance ? b : a), bySelected[0]);
   const worst = bySelected.reduce((a, b) => (b.balance < a.balance ? b : a), bySelected[0]);
@@ -163,7 +166,7 @@ export default function ComparisonPage() {
             <div className="col-span-12 lg:col-span-6">
               <Panel tour="perfil" title="Perfil de gastos" subtitle="Onde cada mês pesou mais">
                 <ChartRadar
-                  axes={RADAR_AXES.map((c) => c.replace("/Parcelado", "").replace("Crédito", "Crédito"))}
+                  axes={RADAR_AXES}
                   series={bySelected.map((m, i) => ({ name: formatMonth(m.month), color: SERIES_COLORS[i], values: RADAR_AXES.map((c) => m.byCategory[c] ?? 0) }))}
                 />
                 <Legend months={bySelected.map((m) => m.month)} />
@@ -174,7 +177,7 @@ export default function ComparisonPage() {
                 <div className="flex flex-col gap-3">
                   {CATEGORIES.map((c) => (
                     <div key={c} className="grid grid-cols-[110px_1fr] items-center gap-3 text-[13px]">
-                      <span className="flex items-center gap-1.5"><i className="h-2 w-2 flex-none rounded-[2px]" style={{ background: colorOf(c) }} />{c.replace("/Parcelado", "")}</span>
+                      <span className="flex items-center gap-1.5"><i className="h-2 w-2 flex-none rounded-[2px]" style={{ background: colorOf(c) }} />{c}</span>
                       <div className="flex flex-col gap-[3px]">
                         {bySelected.map((m, j) => {
                           const v = m.byCategory[c] ?? 0;

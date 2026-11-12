@@ -14,6 +14,12 @@ import type {
 } from "./types";
 
 export const CREDIT_CATEGORY: Category = "Crédito/Parcelado";
+/**
+ * Categoria em que uma parcela ou recorrência do crédito conta nos totais: a que a compra tem. "Crédito/Parcelado"
+ * só serve de reserva para compra antiga sem categoria.
+ */
+export const creditCategoryOf = (c: { category?: string }): Category => c.category?.trim() || CREDIT_CATEGORY;
+
 /** Despesas extras planejadas não têm categoria própria: entram em "Outros". */
 const EXTRA_CATEGORY: Category = "Outros";
 
@@ -27,7 +33,7 @@ export function splitInvoiceAdjustment(invoice: CardInvoice): Partial<Record<Cat
   if (adj === 0) return {};
   const parts: Partial<Record<Category, number>> = {};
   const add = (c: Category, v: number) => { parts[c] = (parts[c] ?? 0) + v; };
-  add(CREDIT_CATEGORY, invoice.installmentsTotal + invoice.recurringTotal);
+  for (const c of [...invoice.installments, ...invoice.recurring]) add(creditCategoryOf(c), c.installmentValue);
   for (const p of invoice.purchases) add(p.category as Category, p.amount);
   const entries = (Object.entries(parts) as [Category, number][]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
   const total = entries.reduce((s, [, v]) => s + v, 0);
@@ -77,9 +83,14 @@ export function getMonthSummary(
     }
   }
 
-  const creditExpense = installments.reduce((s, c) => s + c.installmentValue, 0);
-  if (creditExpense > 0) {
-    byCategory[CREDIT_CATEGORY] = (byCategory[CREDIT_CATEGORY] ?? 0) + creditExpense;
+  // cada parcela e recorrência conta na categoria da própria compra (trocar a categoria muda o gráfico)
+  let creditExpense = 0;
+  for (const c of installments) {
+    creditExpense += c.installmentValue;
+    if (c.installmentValue > 0) {
+      const cat = creditCategoryOf(c);
+      byCategory[cat] = (byCategory[cat] ?? 0) + c.installmentValue;
+    }
   }
 
   // despesas extras planejadas para o mês (as mesmas que a Projeção usa)
@@ -225,10 +236,9 @@ export function getCategoryDetail(
     .filter((t) => t.type === "expense" && t.category === category)
     .map((t) => ({ name: t.name, amount: t.amount, kind: "fixed" as const }));
 
-  if (category === CREDIT_CATEGORY) {
-    for (const c of getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month)) {
-      lines.push({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" });
-    }
+  // as parcelas e recorrências entram na categoria da própria compra (a mesma regra de `getMonthSummary`)
+  for (const c of getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month).filter((x) => creditCategoryOf(x) === category)) {
+    lines.push({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" });
   }
   for (const a of getInvoiceAdjustments(data, month)) {
     const share = a.byCategory[category];

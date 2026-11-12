@@ -95,8 +95,14 @@ func TestMonthSummaryAndCredit(t *testing.T) {
 	if s.TotalIncome != 500000 || s.CreditExpense != 33333 || s.TotalExpense != 183333 || s.Balance != 316667 {
 		t.Errorf("resumo errado: %+v", s)
 	}
-	if s.ByCategory[CreditCategory] != 33333 || s.ByCategory["Moradia"] != 150000 {
+	// a parcela conta na categoria da própria compra ("Lazer"), não num balde "Crédito/Parcelado"
+	if s.ByCategory["Lazer"] != 33333 || s.ByCategory["Moradia"] != 150000 || s.ByCategory[CreditCategory] != 0 {
 		t.Errorf("categorias: %+v", s.ByCategory)
+	}
+	// compra antiga sem categoria cai na reserva
+	legacy := []CreditTransaction{{ID: "c", Name: "Antiga", TotalAmount: 100000, Installments: 3, StartMonth: "2026-01"}}
+	if l := GetMonthSummary(nil, legacy, "2026-02"); l.ByCategory[CreditCategory] != 33333 {
+		t.Errorf("reserva: %+v", l.ByCategory)
 	}
 	// 1ª parcela leva o centavo que sobra
 	if p := CreditByMonth(credits, "2026-01")[0]; p.InstallmentValue != 33334 || p.CurrentInstallment != 1 {

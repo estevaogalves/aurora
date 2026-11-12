@@ -295,7 +295,7 @@ export interface MonthSummary {
   balance: number;
   /** 0 a 100+ (despesas / renda). 0 se não há renda. */
   expensePercentage: number;
-  /** centavos por categoria (crédito entra em "Crédito/Parcelado") */
+  /** centavos por categoria; parcelas e recorrências do crédito entram na categoria da própria compra */
   byCategory: Partial<Record<Category, number>>;
 }
 
