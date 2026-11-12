@@ -1,6 +1,6 @@
 import { changeMonth, monthsDifference } from "../Utils/Date";
-import { chargeDate } from "./credit";
-import type { CreditCard, CreditTransaction, Month } from "./types";
+import { chargeDate, getCreditByMonth } from "./credit";
+import type { CreditCard, CreditInstallment, CreditTransaction, FinanceData, InvoiceAdjustment, Month, Payment } from "./types";
 
 /** Fatura em que uma cobrança cai. Datas "AAAA-MM-DD". */
 export interface Invoice {
@@ -57,3 +57,164 @@ export function resolveCredits(credits: CreditTransaction[], cards: CreditCard[]
   });
 }
 
+/* ---------- despesas avulsas no cartão ---------- */
+
+/** Despesa avulsa (comum ou extra) com cartão e dia da compra: só essas valem no mês da fatura. */
+type CardExpense = { month: Month; cardId?: string; purchaseDate?: string; fixed?: boolean; type?: "income" | "expense" };
+
+export const isCardPurchase = (x: CardExpense) => !x.fixed && x.type !== "income" && !!x.cardId && !!x.purchaseDate;
+
+/**
+ * Despesas avulsas com cartão passam a valer no mês do vencimento da fatura, a partir do dia da compra, igual
+ * às parcelas do crédito (`resolveCredits`). `month` é deslocado; `purchaseDate` e o resto ficam como estão.
+ * Sem cartão (ou com um cartão que não existe mais), fixas e rendas ficam como estão. Os dados salvos não mudam.
+ */
+export function resolveCardExpenses<T extends CardExpense>(items: T[], cards: CreditCard[] | undefined): T[] {
+  if (!cards?.length) return items;
+  return items.map((x) => {
+    if (!isCardPurchase(x)) return x;
+    const card = cards.find((k) => k.id === x.cardId);
+    if (!card) return x;
+    const month = getInvoice(card, x.purchaseDate as string).month;
+    return month === x.month ? x : { ...x, month };
+  });
+}
+
+/* ---------- fatura de um cartão em um mês ---------- */
+
+/** Datas da fatura que vence em `month` (o mês em que o valor é contabilizado). */
+export function invoiceDates(card: Pick<CreditCard, "closingDay" | "dueDay">, month: Month): { closingDate: string; dueDate: string } {
+  // vencimento <= fechamento: a fatura fecha no mês anterior ao vencimento
+  const closingMonth = card.dueDay <= card.closingDay ? changeMonth(month, -1) : month;
+  return { closingDate: chargeDate(card.closingDay, closingMonth), dueDate: chargeDate(card.dueDay, month) };
+}
+
+/** Uma compra avulsa dentro da fatura. */
+export interface InvoicePurchase {
+  id: string;
+  name: string;
+  /** centavos */
+  amount: number;
+  /** dia da compra, "YYYY-MM-DD" */
+  purchaseDate: string;
+  /** "expense" = despesa comum; "extra" = despesa extra */
+  source: "expense" | "extra";
+  /** categoria em que a compra conta nos totais ("Outros" para despesa extra) */
+  category: string;
+}
+
+/** Fatura de um cartão no mês em que vence: o que entra nela, o total, o teto e as datas. */
+export interface CardInvoice {
+  card: CreditCard;
+  /** mês do vencimento */
+  month: Month;
+  closingDate: string;
+  dueDate: string;
+  installments: CreditInstallment[];
+  recurring: CreditInstallment[];
+  purchases: InvoicePurchase[];
+  installmentsTotal: number;
+  recurringTotal: number;
+  purchasesTotal: number;
+  /** soma das três partes (centavos), sem o ajuste */
+  total: number;
+  /** ajustes lançados na fatura (negativo = desconto), na ordem em que foram lançados */
+  adjustments: InvoiceAdjustment[];
+  /** a soma dos ajustes que vale de fato: o desconto nunca passa do total das compras (centavos, 0 sem ajuste) */
+  adjustmentApplied: number;
+  /** total a pagar: `total` mais o ajuste aplicado (centavos); é o valor que bate com a fatura do banco */
+  payable: number;
+  /** teto do cartão, ou null se não tem */
+  limit: number | null;
+  /** quanto do teto a fatura usa, em %, ou null se não há teto (passa de 100 quando estoura) */
+  limitUsed: number | null;
+  overLimit: boolean;
+}
+
+type InvoiceSource = Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses" | "creditCards">>;
+
+/**
+ * Fatura de um cartão no mês `month` (o do vencimento): parcelas, recorrências e compras avulsas ligadas a ele.
+ * É só uma visão agrupada dos lançamentos que já existem: nunca é somada por cima dos totais do mês, porque cada
+ * lançamento já conta uma vez, na própria categoria (`getMonthSummary`).
+ */
+export function getCardInvoice(data: InvoiceSource, card: CreditCard, month: Month): CardInvoice {
+  const cards = data.creditCards?.some((k) => k.id === card.id) ? data.creditCards : [...(data.creditCards ?? []), card];
+  const ofCard = new Set(data.creditTransactions.filter((c) => c.cardId === card.id).map((c) => c.id));
+  const charges = getCreditByMonth(resolveCredits(data.creditTransactions, cards), month).filter((c) => ofCard.has(c.id));
+  const installments = charges.filter((c) => !c.recurring);
+  const recurring = charges.filter((c) => c.recurring);
+
+  const purchases: InvoicePurchase[] = [
+    ...resolveCardExpenses(data.transactions, cards)
+      .filter((t) => isCardPurchase(t) && t.type === "expense" && t.cardId === card.id && t.month === month)
+      .map((t): InvoicePurchase => ({ id: t.id, name: t.name, amount: t.amount, purchaseDate: t.purchaseDate as string, source: "expense", category: t.category })),
+    ...resolveCardExpenses(data.extraExpenses ?? [], cards)
+      .filter((e) => isCardPurchase(e) && e.cardId === card.id && e.month === month)
+      .map((e): InvoicePurchase => ({ id: e.id, name: e.name, amount: e.amount, purchaseDate: e.purchaseDate as string, source: "extra", category: "Outros" })),
+  ].sort((a, b) => a.purchaseDate.localeCompare(b.purchaseDate) || a.name.localeCompare(b.name));
+
+  const sum = (list: { amount?: number; installmentValue?: number }[]) => list.reduce((s, x) => s + (x.amount ?? x.installmentValue ?? 0), 0);
+  const installmentsTotal = sum(installments);
+  const recurringTotal = sum(recurring);
+  const purchasesTotal = sum(purchases);
+  const total = installmentsTotal + recurringTotal + purchasesTotal;
+  const limit = card.limit && card.limit > 0 ? card.limit : null;
+  const adjustments = cardAdjustmentsOf(card, month);
+  const adjustmentApplied = Math.max(adjustments.reduce((s, a) => s + a.amount, 0), -total);
+
+  return {
+    card,
+    month,
+    ...invoiceDates(card, month),
+    installments,
+    recurring,
+    purchases,
+    installmentsTotal,
+    recurringTotal,
+    purchasesTotal,
+    total,
+    adjustments,
+    adjustmentApplied,
+    payable: total + adjustmentApplied,
+    limit,
+    limitUsed: limit ? (total / limit) * 100 : null,
+    overLimit: limit !== null && total > limit,
+  };
+}
+
+/**
+ * Marca ou desmarca o pagamento da fatura que vence em `month`. Devolve o patch do cartão: só registro, não mexe
+ * em nenhum valor. Sem nenhum pagamento restante, `payments` some.
+ */
+export function patchCardPayment(card: Pick<CreditCard, "payments">, month: Month, payment: Payment | null): Pick<CreditCard, "payments"> {
+  const payments = { ...card.payments };
+  if (payment) payments[month] = payment;
+  else delete payments[month];
+  return { payments: Object.keys(payments).length > 0 ? payments : undefined };
+}
+
+/** Pagamento da fatura do cartão que vence em `month`, se houver. */
+export const cardPaymentOf = (card: Pick<CreditCard, "payments">, month: Month): Payment | undefined => card.payments?.[month];
+
+/**
+ * Ajustes (descontos e acréscimos) da fatura do cartão que vence em `month`. Lê também o formato antigo, de um ajuste
+ * só por mês (`{ amount, note }`), que vira uma lista de um item.
+ */
+export function cardAdjustmentsOf(card: Pick<CreditCard, "adjustments">, month: Month): InvoiceAdjustment[] {
+  const raw = card.adjustments?.[month] as InvoiceAdjustment[] | InvoiceAdjustment | undefined;
+  if (!raw) return [];
+  if (Array.isArray(raw)) return raw;
+  return raw.amount ? [{ ...raw, id: raw.id ?? `antigo-${month}` }] : [];
+}
+
+/**
+ * Troca a lista de ajustes da fatura que vence em `month` (lista vazia remove). Devolve o patch do cartão: só
+ * registro, não mexe em nenhuma despesa. Sem nenhum ajuste restante, `adjustments` some.
+ */
+export function patchCardAdjustments(card: Pick<CreditCard, "adjustments">, month: Month, list: InvoiceAdjustment[]): Pick<CreditCard, "adjustments"> {
+  const adjustments: Record<Month, InvoiceAdjustment[]> = {};
+  for (const m of Object.keys(card.adjustments ?? {})) if (m !== month) adjustments[m] = cardAdjustmentsOf(card, m);
+  if (list.length > 0) adjustments[month] = list;
+  return { adjustments: Object.keys(adjustments).length > 0 ? adjustments : undefined };
+}

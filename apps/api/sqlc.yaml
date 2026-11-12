@@ -9,6 +9,22 @@ sql:
         out: "internal/store/sqlcgen"
         emit_json_tags: false
         overrides:
+          # cotas fracionárias (até 6 casas): float64, como no front
+          - db_type: "pg_catalog.numeric"
+            go_type: "float64"
+          - db_type: "pg_catalog.numeric"
+            nullable: true
+            go_type:
+              type: "float64"
+              pointer: true
+          # cotas fracionárias dos investimentos (SQLite: real): float64, ponteiro quando pode ser nulo
+          - db_type: "real"
+            go_type: "float64"
+          - db_type: "real"
+            nullable: true
+            go_type:
+              type: "float64"
+              pointer: true
           - db_type: "uuid"
             go_type: "github.com/google/uuid.UUID"
           - db_type: "uuid"

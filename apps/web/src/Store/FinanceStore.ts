@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { uuid } from "@/lib/uuid";
 import {
   getCreditByMonth,
   resolveCredits,
@@ -18,7 +19,22 @@ import {
   patchToggleFixed,
   patchClearMonthValue,
   type CreditInstallment,
-  patchContribution,
+  findSentMovements,
+  goalOpeningMovements,
+  overrideKey,
+  replayGoal,
+  todayISO,
+  type GoalMovement,
+  maturityAlertPrefix,
+  patchCardAdjustments,
+  renameCategoryIn,
+  type CategoryPatch,
+  patchCardPayment,
+  patchEndFromMonth,
+  patchResumeFixed,
+  replayInvestment,
+  type Investment,
+  type InvestmentMovement,
   type CreditCard,
   type CreditTransaction,
   type FinanceData,
@@ -28,6 +44,7 @@ import {
   type Goal,
   type Note,
   type OnboardingState,
+  type InvoiceAdjustment,
   type Payment,
   type Transaction,
   patchClearPayment,
@@ -37,7 +54,7 @@ import { repository } from "../repositories";
 import type { Category } from "../Types/Category";
 import { changeMonth, getCurrentMonth, monthsDifference } from "../Utils/Date";
 
-export type { CreditCard, CreditInstallment, CreditTransaction, CustomCategory, DistributionItem, ExtraExpense, Goal, Note, Transaction };
+export type { Investment, InvestmentMovement, CreditCard, CreditInstallment, CreditTransaction, CustomCategory, DistributionItem, ExtraExpense, Goal, Note, Transaction };
 
 /**
  * Estado do app. Os dados vêm do repositório (hoje o localStorage) e a store
@@ -61,10 +78,16 @@ interface FinanceState {
   creditCards: CreditCard[];
   notes: Note[];
   goals: Goal[];
+  /** histórico das metas e porquinhos: o guardado de cada um é refeito por ele */
+  goalMovements: GoalMovement[];
+  investments: Investment[];
+  investmentMovements: InvestmentMovement[];
   extraExpenses: ExtraExpense[];
   customCategories: CustomCategory[];
   /** null = percentuais padrão */
   distribution: DistributionItem[] | null;
+  /** percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave "AAAA-MM|n" */
+  distributionOverrides: Record<string, DistributionItem[]>;
   /** chaves dos avisos de meta já vistos */
   seenAlerts: string[];
   /** resposta ao tour de cada tela */
@@ -81,10 +104,14 @@ interface FinanceState {
   /** Fixa: o novo valor vale deste mês em diante (os anteriores não mudam). */
   updateTransactionAmountFromMonth: (id: string, month: string, cents: number) => void;
   toggleTransactionFixed: (id: string) => void;
-  /** Fixa: liga ou desliga o valor variável (estimado). */
+  /** Liga ou desliga o valor variável (estimado), em fixa ou avulsa. */
   setTransactionVariable: (id: string, variable: boolean) => void;
   /** Fixa variável: tira o valor real do mês e volta ao estimado. */
   clearTransactionActualValue: (id: string, month: string) => void;
+  /** Encerra a fixa a partir de `month` (inclusive). Devolve a mensagem de erro, ou null se deu certo. */
+  endTransactionFromMonth: (id: string, month: string) => string | null;
+  /** Reativa uma fixa encerrada a partir de `month`; os meses desativados antes dele continuam desativados. */
+  resumeTransaction: (id: string, month: string) => void;
   /** Fixa: oculta no mês. Comum: remove de vez. */
   removeTransactionByMonth: (id: string, month: string) => void;
   restoreTransactionByMonth: (id: string, month: string) => void;
@@ -111,23 +138,55 @@ interface FinanceState {
   togglePinNote: (id: string) => void;
   updateNote: (id: string, content: string) => void;
 
+  /** Cria a meta; o valor já guardado (`saved`) vira o "Saldo inicial" do histórico dela. */
   addGoal: (goal: Goal) => void;
+  /** Muda nome, valor-alvo, aporte mensal e prazo. Um `saved` diferente do atual vira um ajuste no histórico. */
   updateGoal: (id: string, patch: Partial<Goal>) => void;
-  /** Registra aporte e rendimento (centavos) na meta. */
-  contributeToGoal: (id: string, cents: number, yieldCents?: number) => void;
+  /** Registra aporte (ou retirada, se negativo) e rendimento (centavos) no histórico da meta. */
+  contributeToGoal: (id: string, cents: number, yieldCents?: number, extra?: Pick<GoalMovement, "date" | "note" | "origin">) => void;
+  /** Apaga a meta e o histórico dela. */
   removeGoal: (id: string) => void;
+  addGoalMovement: (movement: GoalMovement) => void;
+  updateGoalMovement: (id: string, patch: Partial<GoalMovement>) => void;
+  removeGoalMovement: (id: string) => void;
+
+  addInvestment: (investment: Investment, first?: Pick<InvestmentMovement, "amount" | "quantity" | "unitPrice">) => void;
+  updateInvestment: (id: string, patch: Partial<Investment>) => void;
+  /** Apaga o investimento e as movimentações dele. */
+  removeInvestment: (id: string) => void;
+  /** Registra aporte, resgate, rendimento ou ajuste (data "YYYY-MM-DD") e atualiza o valor atual. */
+  addInvestmentMovement: (movement: InvestmentMovement) => void;
+  updateInvestmentMovement: (id: string, patch: Partial<InvestmentMovement>) => void;
+  removeInvestmentMovement: (id: string) => void;
 
   addCategory: (category: CustomCategory) => void;
+  /** Troca o nome e/ou a cor de uma categoria própria; com nome novo, lançamentos e compras que a usavam acompanham. */
+  updateCategory: (id: string, patch: CategoryPatch) => void;
   removeCategory: (id: string) => void;
 
   addExtraExpense: (extra: ExtraExpense) => void;
   updateExtraExpense: (id: string, patch: Partial<ExtraExpense>) => void;
   setDistribution: (items: DistributionItem[] | null) => void;
+  /** Percentuais próprios de uma distribuição (Dist 2 em diante) deste mês; null volta ao padrão. Mexe só nela. */
+  setDistributionOverride: (month: string, group: number, items: DistributionItem[] | null) => void;
+  /**
+   * Desfaz o envio de uma fatia: apaga os aportes (em metas, porquinhos e investimentos) que nasceram dela, e os
+   * destinos voltam ao valor de antes. Devolve quantos aportes saíram.
+   */
+  undoDistributionSend: (month: string, source: string, slice: string) => number;
   markAlertsSeen: (keys: string[]) => void;
   markAlertUnseen: (key: string) => void;
   removeExtraExpense: (id: string) => void;
   /** Marca (ou troca) o pagamento de uma despesa em um mês; null desmarca. Só registro: não muda nenhum valor. */
   setTransactionPayment: (id: string, month: string, payment: Payment | null) => void;
+  /** Liga a despesa avulsa a um cartão (com o dia da compra) ou a solta (`cardId` vazio). O dia da compra fica no histórico. */
+  setTransactionCard: (id: string, cardId: string, purchaseDate?: string) => void;
+  /** Renda variável: em qual distribuição do saldo entra (1 = Dist 1, o saldo do mês; 2 a 20 = própria). Só marca: não muda nenhum valor. */
+  setTransactionDistGroup: (id: string, group: number) => void;
+  /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro. */
+  setCardPayment: (cardId: string, month: string, payment: Payment | null) => void;
+  /** Troca a lista de ajustes (descontos e acréscimos) da fatura que vence em `month`; lista vazia remove. */
+  setCardAdjustments: (cardId: string, month: string, adjustments: InvoiceAdjustment[]) => void;
   /** Marca (ou troca) o pagamento de uma despesa extra; null desmarca. */
   setExtraPayment: (id: string, payment: Payment | null) => void;
 
@@ -172,6 +231,27 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     return null;
   };
 
+  /** Muda a lista de movimentações e refaz valor atual, cotas e preço médio do investimento a partir dela. */
+  const applyMovements = (investmentId: string, change: (all: InvestmentMovement[]) => InvestmentMovement[], save: (r: typeof repository) => Promise<void>) => {
+    const inv = get().investments.find((i) => i.id === investmentId);
+    if (!inv) return;
+    const movements = change(get().investmentMovements);
+    const next = replayInvestment(inv, movements);
+    set((state) => ({ investmentMovements: movements, investments: state.investments.map((i) => (i.id === investmentId ? next : i)) }));
+    sync(save(repository));
+    sync(repository.updateInvestment(investmentId, { currentValue: next.currentValue, quantity: next.quantity, avgPrice: next.avgPrice }));
+  };
+
+  /** Muda a lista de movimentações e refaz o guardado e os rendimentos da meta a partir dela. */
+  const applyGoalMovements = (goalId: string, change: (all: GoalMovement[]) => GoalMovement[], save: (r: typeof repository) => Promise<void>) => {
+    const goal = get().goals.find((g) => g.id === goalId);
+    if (!goal) return;
+    const movements = change(get().goalMovements);
+    const next = replayGoal(goal, movements);
+    set((state) => ({ goalMovements: movements, goals: state.goals.map((g) => (g.id === goalId ? next : g)) }));
+    sync(save(repository));
+  };
+
   return {
     hydrated: false,
 
@@ -182,7 +262,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     hydrate: async () => {
       const data = await repository.load();
-      set({ ...data, hydrated: true });
+      set({ ...data, goalMovements: data.goalMovements ?? [], distributionOverrides: data.distributionOverrides ?? {}, hydrated: true });
     },
 
     reset: () =>
@@ -193,9 +273,13 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         creditCards: [],
         notes: [],
         goals: [],
+        goalMovements: [],
+        investments: [],
+        investmentMovements: [],
         extraExpenses: [],
         customCategories: [],
         distribution: null,
+        distributionOverrides: {},
         seenAlerts: [],
         onboarding: {},
       }),
@@ -208,9 +292,13 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     creditCards: [],
     notes: [],
     goals: [],
+    goalMovements: [],
+    investments: [],
+    investmentMovements: [],
     extraExpenses: [],
     customCategories: [],
     distribution: null,
+    distributionOverrides: {},
     seenAlerts: [],
     onboarding: {},
 
@@ -252,18 +340,33 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     toggleTransactionFixed: (id) => {
       const t = findTransaction(id);
-      if (t) patchTransaction(id, patchToggleFixed(t));
+      // despesa no cartão não fixa: uma despesa fixa no cartão é uma recorrência (Lançar → Crédito parcelado)
+      if (t && !t.cardId) patchTransaction(id, patchToggleFixed(t));
     },
 
     setTransactionVariable: (id, variable) => {
-      const t = findTransaction(id);
-      if (t?.fixed) patchTransaction(id, { variableAmount: variable });
+      // vale para fixa e para avulsa (renda ou despesa de um mês só)
+      if (findTransaction(id)) patchTransaction(id, { variableAmount: variable });
     },
 
     clearTransactionActualValue: (id, month) => {
       const t = findTransaction(id);
       const patch = t && patchClearMonthValue(t, month);
       if (patch) patchTransaction(id, patch);
+    },
+
+    endTransactionFromMonth: (id, month) => {
+      const t = findTransaction(id);
+      if (!t) return "Lançamento não encontrado.";
+      const result = patchEndFromMonth(t, month);
+      if (!result.ok) return result.error;
+      patchTransaction(id, result.patch);
+      return null;
+    },
+
+    resumeTransaction: (id, month) => {
+      const t = findTransaction(id);
+      if (t?.fixed && t.endMonth) patchTransaction(id, patchResumeFixed(t, month));
     },
 
     removeTransactionByMonth: (id, month) => {
@@ -308,6 +411,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       set((state) => ({
         creditCards: state.creditCards.filter((k) => k.id !== id),
         creditTransactions: state.creditTransactions.map((c) => (c.cardId === id ? { ...c, cardId: undefined } : c)),
+        // despesas avulsas e extras também soltam o cartão: voltam a valer no mês em que foram lançadas, nenhuma some
+        transactions: state.transactions.map((t) => (t.cardId === id ? { ...t, cardId: undefined } : t)),
+        extraExpenses: state.extraExpenses.map((e) => (e.cardId === id ? { ...e, cardId: undefined } : e)),
       }));
       sync(repository.removeCreditCard(id));
     },
@@ -370,30 +476,124 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     addGoal: (goal) => {
-      set((state) => ({ goals: [...state.goals, goal] }));
-      sync(repository.addGoal(goal));
+      // o guardado é refeito pelo histórico: a meta nasce zerada e o valor que já tinha vira o "Saldo inicial"
+      const { saved, yieldTotal, ...rest } = goal;
+      const created: Goal = { ...rest, saved: 0 };
+      set((state) => ({ goals: [...state.goals, created] }));
+      sync(repository.addGoal(created));
+      if (saved > 0 || (yieldTotal ?? 0) > 0) {
+        for (const m of goalOpeningMovements([{ ...goal, id: goal.id }], [], todayISO())) {
+          get().addGoalMovement({ ...m, id: uuid() });
+        }
+      }
     },
 
     updateGoal: (id, patch) => {
-      set((state) => ({ goals: state.goals.map((g) => (g.id === id ? { ...g, ...patch } : g)) }));
-      sync(repository.updateGoal(id, patch));
+      const goal = get().goals.find((g) => g.id === id);
+      if (!goal) return;
+      // guardado e rendimentos só mudam pelo histórico: um `saved` novo vira um ajuste de valor
+      const { saved, yieldTotal: _ignored, ...rest } = patch;
+      void _ignored;
+      set((state) => ({ goals: state.goals.map((g) => (g.id === id ? { ...g, ...rest } : g)) }));
+      if (Object.keys(rest).length > 0) sync(repository.updateGoal(id, rest));
+      if (saved !== undefined && saved !== goal.saved) {
+        get().addGoalMovement({ id: uuid(), goalId: id, type: "adjustment", date: todayISO(), amount: Math.max(0, saved), note: "Ajuste do valor guardado" });
+      }
     },
 
-    contributeToGoal: (id, cents, yieldCents = 0) => {
-      const goal = get().goals.find((g) => g.id === id);
-      if (goal) get().updateGoal(id, patchContribution(goal, cents, yieldCents));
+    contributeToGoal: (id, cents, yieldCents = 0, extra) => {
+      if (!get().goals.some((g) => g.id === id)) return;
+      const date = extra?.date ?? todayISO();
+      const base = { goalId: id, date, ...(extra?.note && { note: extra.note }), ...(extra?.origin && { origin: extra.origin }) };
+      if (cents !== 0) get().addGoalMovement({ id: uuid(), ...base, type: cents > 0 ? "contribution" : "withdrawal", amount: Math.abs(cents) });
+      if (yieldCents !== 0) get().addGoalMovement({ id: uuid(), goalId: id, date, type: "yield", amount: yieldCents });
     },
 
     removeGoal: (id) => {
       const seenAlerts = get().seenAlerts.filter((k) => !k.startsWith(`${id}:`));
-      set((state) => ({ goals: state.goals.filter((g) => g.id !== id), seenAlerts }));
+      set((state) => ({ goals: state.goals.filter((g) => g.id !== id), goalMovements: state.goalMovements.filter((m) => m.goalId !== id), seenAlerts }));
       sync(repository.removeGoal(id));
       sync(repository.setSeenAlerts(seenAlerts));
+    },
+
+    addGoalMovement: (movement) => {
+      applyGoalMovements(movement.goalId, (all) => [...all, movement], (r) => r.addGoalMovement(movement));
+    },
+
+    updateGoalMovement: (id, patch) => {
+      const current = get().goalMovements.find((m) => m.id === id);
+      if (!current) return;
+      applyGoalMovements(current.goalId, (all) => all.map((m) => (m.id === id ? { ...m, ...patch } : m)), (r) => r.updateGoalMovement(id, patch));
+    },
+
+    removeGoalMovement: (id) => {
+      const current = get().goalMovements.find((m) => m.id === id);
+      if (!current) return;
+      applyGoalMovements(current.goalId, (all) => all.filter((m) => m.id !== id), (r) => r.removeGoalMovement(id));
+    },
+
+    addInvestment: (investment, first) => {
+      // o valor investido na criação vira o primeiro aporte do histórico
+      set((state) => ({ investments: [...state.investments, investment] }));
+      sync(repository.addInvestment(investment));
+      if (first && first.amount > 0) {
+        const movement: InvestmentMovement = { id: uuid(), investmentId: investment.id, type: "contribution", date: investment.appliedAt, ...first };
+        set((state) => ({ investmentMovements: [...state.investmentMovements, movement] }));
+        sync(repository.addInvestmentMovement(movement));
+      }
+    },
+
+    updateInvestment: (id, patch) => {
+      set((state) => ({ investments: state.investments.map((i) => (i.id === id ? { ...i, ...patch } : i)) }));
+      sync(repository.updateInvestment(id, patch));
+    },
+
+    removeInvestment: (id) => {
+      // os avisos de vencimento vistos deste investimento saem junto (como acontece com as metas)
+      const seenAlerts = get().seenAlerts.filter((k) => !k.startsWith(maturityAlertPrefix(id)));
+      const changed = seenAlerts.length !== get().seenAlerts.length;
+      set((state) => ({
+        investments: state.investments.filter((i) => i.id !== id),
+        investmentMovements: state.investmentMovements.filter((m) => m.investmentId !== id),
+        seenAlerts,
+      }));
+      sync(repository.removeInvestment(id));
+      if (changed) sync(repository.setSeenAlerts(seenAlerts));
+    },
+
+    addInvestmentMovement: (movement) => {
+      applyMovements(movement.investmentId, (all) => [...all, movement], (r) => r.addInvestmentMovement(movement));
+    },
+
+    updateInvestmentMovement: (id, patch) => {
+      const current = get().investmentMovements.find((m) => m.id === id);
+      if (!current) return;
+      applyMovements(current.investmentId, (all) => all.map((m) => (m.id === id ? { ...m, ...patch } : m)), (r) => r.updateInvestmentMovement(id, patch));
+    },
+
+    removeInvestmentMovement: (id) => {
+      const current = get().investmentMovements.find((m) => m.id === id);
+      if (!current) return;
+      applyMovements(current.investmentId, (all) => all.filter((m) => m.id !== id), (r) => r.removeInvestmentMovement(id));
     },
 
     addCategory: (category) => {
       set((state) => ({ customCategories: [...state.customCategories, category] }));
       sync(repository.addCategory(category));
+    },
+
+    updateCategory: (id, patch) => {
+      const current = get().customCategories.find((c) => c.id === id);
+      if (!current) return;
+      const renamed = patch.name !== undefined && patch.name !== current.name ? patch.name : null;
+      set((state) => ({
+        customCategories: state.customCategories.map((c) => (c.id === id ? { ...c, ...patch } : c)),
+        ...(renamed !== null && {
+          transactions: renameCategoryIn(state.transactions, current.name, renamed),
+          creditTransactions: renameCategoryIn(state.creditTransactions, current.name, renamed),
+        }),
+      }));
+      sync(repository.updateCategory(id, patch));
     },
 
     removeCategory: (id) => {
@@ -425,6 +625,25 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       sync(repository.setSeenAlerts(next));
     },
 
+    setDistributionOverride: (month, group, items) => {
+      if (group < 2) return;
+      const key = overrideKey(month, group);
+      set((state) => {
+        const rest = { ...state.distributionOverrides };
+        if (items) rest[key] = items;
+        else delete rest[key];
+        return { distributionOverrides: rest };
+      });
+      sync(repository.setDistributionOverride(month, group, items));
+    },
+
+    undoDistributionSend: (month, source, slice) => {
+      const found = findSentMovements(get(), month, source, slice);
+      for (const m of found.goalMovements) get().removeGoalMovement(m.id);
+      for (const m of found.investmentMovements) get().removeInvestmentMovement(m.id);
+      return found.goalMovements.length + found.investmentMovements.length;
+    },
+
     setDistribution: (items) => {
       set({ distribution: items });
       sync(repository.setDistribution(items));
@@ -432,13 +651,38 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     setTransactionPayment: (id, month, payment) => {
       const t = findTransaction(id);
-      if (!t) return;
+      // despesa no cartão não é paga sozinha: o pagamento é da fatura (desmarcar um registro antigo continua permitido)
+      if (!t || (t.cardId && payment)) return;
       const patch = payment ? patchSetPayment(t, month, payment) : patchClearPayment(t, month);
       set((state) => ({ transactions: state.transactions.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
       sync(repository.setTransactionPayment(id, month, payment));
     },
 
+    setTransactionDistGroup: (id, group) => {
+      const t = findTransaction(id);
+      // só renda não fixa pode ter distribuição própria (o servidor também recusa o resto)
+      if (!t || t.type !== "income" || t.fixed) return;
+      patchTransaction(id, { distGroup: group >= 2 ? group : undefined });
+    },
+
+    setTransactionCard: (id, cardId, purchaseDate) => {
+      patchTransaction(id, { cardId: cardId || undefined, ...(cardId && purchaseDate && { purchaseDate }) });
+    },
+
+    setCardPayment: (cardId, month, payment) => {
+      if (!get().creditCards.some((k) => k.id === cardId)) return;
+      set((state) => ({ creditCards: state.creditCards.map((k) => (k.id === cardId ? { ...k, ...patchCardPayment(k, month, payment) } : k)) }));
+      sync(repository.setCardPayment(cardId, month, payment));
+    },
+
+    setCardAdjustments: (cardId, month, adjustments) => {
+      if (!get().creditCards.some((k) => k.id === cardId)) return;
+      set((state) => ({ creditCards: state.creditCards.map((k) => (k.id === cardId ? { ...k, ...patchCardAdjustments(k, month, adjustments) } : k)) }));
+      sync(repository.setCardAdjustments(cardId, month, adjustments));
+    },
+
     setExtraPayment: (id, payment) => {
+      if (payment && get().extraExpenses.find((e) => e.id === id)?.cardId) return;
       set((state) => ({ extraExpenses: state.extraExpenses.map((e) => (e.id === id ? { ...e, payment: payment ?? undefined } : e)) }));
       sync(repository.setExtraPayment(id, payment));
     },

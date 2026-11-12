@@ -5,17 +5,20 @@ import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { distributeBalance, getCategoryDetail, getMonthSummary, goalPercent } from "@/domain";
+import { DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
-import { useCategoryTotals, useDistributionItems, useMonthCredit, useMonthSummary, useMonthTransactions } from "@/Store/selectors";
+import { useCategoryTotals, useDistributionItemsFor, useMonthCredit, useMonthDistributions, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
 import { deadlineStatus, paceHint, useGoalAlerts } from "../Goals/goalAlerts";
 import { getDemoGoals } from "../Goals/demo";
 import { DistributionDialog } from "./DistributionDialog";
+import SendDistributionDialog, { type SendRequest } from "./SendDistributionDialog";
+import UndoSendDialog, { type UndoRequest } from "./UndoSendDialog";
+import { showToast } from "../Warnings/toast";
 import { PAINEL_TOUR } from "./tour";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
@@ -29,7 +32,8 @@ function Hero() {
   return (
     <section data-tour="saldo" className="flex flex-col gap-1.5 rounded-lg border border-border-strong bg-[linear-gradient(155deg,color-mix(in_srgb,hsl(var(--primary))_38%,hsl(var(--card))),hsl(var(--card))_70%)] p-6 shadow-[var(--shadow-card)]">
       <span className="text-xs font-bold uppercase tracking-[0.1em] text-ink2">Saldo de {getMonthName(month)}</span>
-      <span className={`num text-[40px] font-semibold leading-[1.1] tracking-[-0.03em] max-[700px]:text-[34px] ${balance < 0 ? "text-destructive" : ""}`}>
+      {/* valor longo é cortado com "…" em vez de empurrar o card (min-w-0 deixa o item da coluna encolher) */}
+      <span className={`num block min-w-0 truncate text-[40px] font-semibold leading-[1.1] tracking-[-0.03em] max-[700px]:text-[34px] ${balance < 0 ? "text-destructive" : ""}`}>
         {formatBRL(balance)}
       </span>
       <span className="text-[13.5px] text-ink2">{pct}% da renda comprometida</span>
@@ -43,9 +47,9 @@ function Hero() {
           ["Renda", totalIncome],
           ["Despesas", totalExpense],
         ].map(([label, value]) => (
-          <div key={label} className="rounded-md bg-background/40 px-3 py-2.5">
+          <div key={label} className="min-w-0 rounded-md bg-background/40 px-3 py-2.5">
             <small className="block text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">{label}</small>
-            <b className="num text-base">{formatBRLShort(value as number)}</b>
+            <b className="num block truncate text-base">{formatBRLShort(value as number)}</b>
           </div>
         ))}
       </div>
@@ -96,10 +100,9 @@ function Categories() {
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
-  // lançamentos que formam a categoria clicada (o rótulo da fatia perde o "/Parcelado", então volta pela lista de totais)
+  // lançamentos que formam a categoria clicada (o rótulo da fatia é o nome da categoria)
   const detailOf = (slice: DonutSlice) => {
-    const category = totals.find((t) => t.category.replace("/Parcelado", "") === slice.label)?.category;
-    const lines = category ? getCategoryDetail({ transactions, creditTransactions, creditCards, extraExpenses }, month, category) : [];
+    const lines = getCategoryDetail({ transactions, creditTransactions, creditCards, extraExpenses }, month, slice.label);
     return (
       <div className="flex flex-col gap-1.5">
         <p className="font-display text-[14px] font-semibold">{slice.label}</p>
@@ -128,20 +131,120 @@ function Categories() {
       {totals.length === 0 ? (
         <Empty>Nenhuma despesa neste mês.</Empty>
       ) : (
-        <ChartDonut renderDetail={detailOf} slices={totals.map((t) => ({ label: t.category.replace("/Parcelado", ""), value: t.value, color: colorOf(t.category) }))} />
+        <ChartDonut renderDetail={detailOf} slices={totals.map((t) => ({ label: t.category, value: t.value, color: colorOf(t.category) }))} />
       )}
     </Panel>
   );
 }
 
-function Suggestion() {
-  const { balance } = useMonthSummary();
-  const items = useDistributionItems();
-  const setDistribution = useFinanceStore((s) => s.setDistribution);
-  const customized = useFinanceStore((s) => s.distribution) !== null;
+const SENT_KIND: Record<SentTarget["kind"], string> = { piggy: "porquinho", goal: "meta", investment: "investimento" };
+
+/** Texto curto de um envio, para a dica da linha: "Enviado R$ 300,00 para o porquinho “Reserva” e mais 1". */
+function sentText(sent: SentSummary): string {
+  const first = sent.targets[0];
+  const rest = sent.targets.length - 1;
+  return `Enviado ${formatBRL(sent.total)} para ${SENT_KIND[first.kind]} “${first.name}”${rest > 0 ? ` e mais ${rest}` : ""}`;
+}
+
+/** Uma página do card: a barra e as fatias de uma distribuição, cada uma com Enviar e, depois de enviada, a seta de desfazer. */
+function DistributionPage({ dist, items, sent, onSend, onUndo }: {
+  dist: MonthDistribution;
+  items: DistributionItem[];
+  sent: Record<string, SentSummary>;
+  onSend: (slice: DistributionItem, remaining: number) => void;
+  onUndo: (slice: DistributionItem, done: SentSummary) => void;
+}) {
   // categorias com 0% continuam cadastradas, mas não aparecem na apresentação
-  const parts = useMemo(() => distributeBalance(balance, items).filter((p) => p.item.percent > 0), [balance, items]);
+  const parts = useMemo(() => distributeBalance(dist.amount, items).filter((p) => p.item.percent > 0), [dist.amount, items]);
+
+  if (dist.amount <= 0) {
+    return (
+      <div className="rounded-md bg-bad-bg px-3 py-2.5 text-[13px] font-semibold text-destructive">
+        {dist.amount === 0 ? "Seu saldo está zerado. Não há o que distribuir." : "Seu saldo está negativo. Revise despesas variáveis antes de investir."}
+      </div>
+    );
+  }
+
+  const sentTotal = parts.reduce((sum, p) => sum + (sent[sentKey(dist.id, p.item.id)]?.total ?? 0), 0);
+
+  return (
+    <>
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <span className="min-w-0 break-words text-[13px]">
+          <b>{dist.label}</b>
+          <span className="text-muted-foreground"> · {dist.group === 1 ? "saldo do mês" : dist.incomes.map((i) => i.name).join(", ")}</span>
+        </span>
+        <b className="num flex-none text-[13px]">{formatBRL(dist.amount)}</b>
+      </div>
+      <div className="mb-1 flex h-3 gap-0.5 overflow-hidden rounded-full">
+        {parts.map((p) => (
+          <i key={p.item.id} className="block min-w-1" style={{ flex: p.item.percent, background: sliceColor(items, p.item.id) }} title={`${p.item.label}: ${formatBRL(p.value)}`} />
+        ))}
+      </div>
+      {sentTotal > 0 && <p className="mb-1 text-[12px] text-success">{formatBRL(sentTotal)} de {formatBRL(dist.amount)} enviados</p>}
+      {parts.map((p) => {
+        const done = sent[sentKey(dist.id, p.item.id)];
+        const remaining = Math.max(0, p.value - (done?.total ?? 0));
+        const fraction = done ? Math.min(100, (done.total / p.value) * 100) : 0;
+        return (
+          <div
+            key={p.item.id}
+            title={done ? `${sentText(done)}${remaining > 0 ? `; falta ${formatBRL(remaining)}` : "; tudo enviado"}` : undefined}
+            className="relative flex items-center gap-2 border-t border-border py-2 text-[13.5px] first:border-t-0"
+          >
+            <i className="h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: sliceColor(items, p.item.id) }} />
+            <span className="min-w-0 flex-1 break-words">{p.item.label} <small className="text-muted-foreground">{p.item.percent}%</small></span>
+            <b className="num flex-none">{formatBRL(p.value)}</b>
+            {done && (
+              <button
+                type="button"
+                onClick={() => onUndo(p.item, done)}
+                aria-label={`Desfazer o envio de ${p.item.label}`}
+                title="Desfazer o envio"
+                className="grid h-7 w-7 flex-none place-items-center rounded-md border border-border-strong text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+              >
+                <Icon name="restore" size={14} />
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={remaining <= 0}
+              onClick={() => onSend(p.item, remaining)}
+              aria-label={`Enviar ${p.item.label} para metas`}
+              className="w-[74px] flex-none whitespace-nowrap rounded-md border border-border-strong px-2 py-1 text-xs font-bold text-primary transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              {done && remaining <= 0 ? "Enviado ✓" : "Enviar"}
+            </button>
+            {done && <i className="absolute bottom-0 left-0 block h-[2px] rounded-full bg-success" style={{ width: `${fraction}%` }} />}
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
+function Suggestion() {
+  const month = useFinanceStore((s) => s.currentMonth);
+  const dists = useMonthDistributions();
+  const sent = useSentByDistribution();
+  const setDistribution = useFinanceStore((s) => s.setDistribution);
+  const setOverride = useFinanceStore((s) => s.setDistributionOverride);
+  const undoSend = useFinanceStore((s) => s.undoDistributionSend);
+  const globalItems = useFinanceStore((s) => s.distribution);
+  const overrides = useFinanceStore((s) => s.distributionOverrides);
+  const [selected, setSelected] = useState(1);
   const [editing, setEditing] = useState(false);
+  const [sending, setSending] = useState<SendRequest | null>(null);
+  const [undoing, setUndoing] = useState<UndoRequest | null>(null);
+
+  // a página aberta some se a distribuição deixou de existir (ex.: a renda dela foi apagada)
+  const dist = dists.find((d) => d.group === selected) ?? dists[0];
+  const items = useDistributionItemsFor(dist.group);
+  const base = globalItems ?? DEFAULT_DISTRIBUTION;
+  const first = dist.group === 1;
+  const hasOwn = !first && !!overrides[overrideKey(month, dist.group)];
+  const canRestore = first ? globalItems !== null : hasOwn;
+  const multiple = dists.length > 1;
 
   const menu = (
     <DropdownMenu modal={false}>
@@ -153,12 +256,12 @@ function Suggestion() {
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => setEditing(true)}>
           <Icon name="edit" size={15} />
-          Personalizar percentuais
+          {first ? "Personalizar o padrão" : `Personalizar a ${dist.label}`}
         </DropdownMenuItem>
-        {customized && (
-          <DropdownMenuItem onSelect={() => setDistribution(null)}>
+        {canRestore && (
+          <DropdownMenuItem onSelect={() => (first ? setDistribution(null) : setOverride(month, dist.group, null))}>
             <Icon name="restore" size={15} />
-            Restaurar padrão
+            {first ? "Restaurar padrão" : "Voltar ao padrão"}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
@@ -167,29 +270,63 @@ function Suggestion() {
 
   return (
     <>
-      {balance <= 0 ? (
-        <Panel tour="sugestao" title="Sugestão do saldo" action={menu}>
-          <div className="rounded-md bg-bad-bg px-3 py-2.5 text-[13px] font-semibold text-destructive">
-            {balance === 0 ? "Seu saldo está zerado. Não há o que distribuir." : "Seu saldo está negativo. Revise despesas variáveis antes de investir."}
-          </div>
-        </Panel>
-      ) : (
-        <Panel tour="sugestao" title="Sugestão para o saldo" subtitle={`Como dividir ${formatBRLShort(balance)}`} action={menu}>
-          <div className="mb-3.5 flex h-3.5 gap-0.5 overflow-hidden rounded-full">
-            {parts.map((p) => (
-              <i key={p.item.id} className="block min-w-1" style={{ flex: p.item.percent, background: sliceColor(items, p.item.id) }} title={`${p.item.label}: ${formatBRL(p.value)}`} />
+      <Panel tour="sugestao" title="Sugestão para o saldo" subtitle={!multiple && dist.amount > 0 ? `Como dividir ${formatBRLShort(dist.amount)}` : undefined} action={menu}>
+        {multiple && (
+          <div role="tablist" aria-label="Distribuições do mês" className="mb-3 flex flex-wrap gap-1.5">
+            {dists.map((d) => (
+              <button
+                key={d.group}
+                type="button"
+                role="tab"
+                aria-selected={d.group === dist.group}
+                onClick={() => setSelected(d.group)}
+                className="rounded-full border border-border-strong bg-card px-3 py-1 text-[12.5px] font-semibold text-ink2 transition-colors aria-selected:border-primary aria-selected:bg-primary aria-selected:text-primary-foreground"
+              >
+                {d.label}
+              </button>
             ))}
           </div>
-          {parts.map((p) => (
-            <div key={p.item.id} className="flex items-center gap-2.5 border-t border-border py-2 text-[13.5px] first:border-t-0">
-              <i className="h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: sliceColor(items, p.item.id) }} />
-              <span className="min-w-0 break-words">{p.item.label}</span> <small className="text-muted-foreground">{p.item.percent}%</small>
-              <b className="num ml-auto">{formatBRL(p.value)}</b>
-            </div>
-          ))}
-        </Panel>
-      )}
-      <DistributionDialog open={editing} onClose={() => setEditing(false)} />
+        )}
+        {!first && (
+          <p className="mb-2 text-[12px] text-muted-foreground">{hasOwn ? "Percentuais só desta distribuição, neste mês." : "Segue os percentuais padrão. Se você alterar, muda só esta distribuição, neste mês."}</p>
+        )}
+        <DistributionPage
+          key={`${month}-${dist.group}`}
+          dist={dist}
+          items={items}
+          sent={sent}
+          onSend={(slice, remaining) => setSending({ month, sourceId: dist.id, sourceLabel: dist.label, slice, remaining })}
+          onUndo={(slice, done) => setUndoing({ month, sourceId: dist.id, distLabel: dist.label, sliceId: slice.id, sliceLabel: slice.label, sent: done })}
+        />
+      </Panel>
+      <DistributionDialog
+        key={`${month}-${dist.group}`}
+        open={editing}
+        onClose={() => setEditing(false)}
+        title={first ? "Personalizar o padrão da sugestão" : `Personalizar a ${dist.label}`}
+        description={
+          first
+            ? "O padrão vale para a Dist 1 de todos os meses e é o ponto de partida das outras distribuições. As cinco categorias padrão ficam sempre, e a soma precisa ser 100%."
+            : `Muda só a ${dist.label}, neste mês: as outras distribuições e os outros meses não mudam. A soma precisa ser 100%.`
+        }
+        current={items}
+        base={base}
+        onSave={(next) => {
+          if (first) setDistribution(next);
+          else setOverride(month, dist.group, next);
+          showToast({ type: "success", text: first ? "Padrão da sugestão atualizado" : `${dist.label} atualizada` });
+        }}
+      />
+      <SendDistributionDialog request={sending} onClose={() => setSending(null)} />
+      <UndoSendDialog
+        request={undoing}
+        onClose={() => setUndoing(null)}
+        onConfirm={(r) => {
+          const removed = undoSend(r.month, r.sourceId, r.sliceId);
+          showToast({ type: "success", text: removed > 0 ? `Envio desfeito: ${formatBRL(r.sent.total)} voltaram para “${r.sliceLabel}”` : "Nenhum envio para desfazer" });
+          setUndoing(null);
+        }}
+      />
     </>
   );
 }
@@ -233,10 +370,11 @@ function GoalsMini() {
 }
 
 function RecentExpenses() {
-  const expenses = useMonthTransactions().filter((t) => t.type === "expense");
+  // compras avulsas no cartão ficam só na fatura, não nesta lista
+  const expenses = useMonthTransactions().filter((t) => t.type === "expense" && !isCardPurchase(t));
   const credit = useMonthCredit();
   const month = useFinanceStore((s) => s.currentMonth);
-  const extras = useFinanceStore((s) => s.extraExpenses).filter((e) => e.month === month);
+  const extras = useResolvedExtras().filter((e) => e.month === month && !isCardPurchase(e));
 
   const lines: ExpenseLine[] = [
     ...[...expenses].reverse().map((e) => ({ id: e.id, name: e.name, category: e.category, amount: e.amount, fixed: e.fixed })),
@@ -315,13 +453,13 @@ function GoalDeadlines() {
   );
 }
 
-/** Painel somente leitura: tudo o que se edita fica em Lançamentos. */
+/** Painel: só leitura, com um atalho de escrita (enviar uma fatia da sugestão do saldo para metas, porquinhos e investimentos). Tudo o que se edita fica em Lançamentos. */
 export default function Painel() {
   const month = useFinanceStore((s) => s.currentMonth);
 
   return (
     <>
-      <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui só leitura; cadastre pelo botão “Lançar”.`} />
+      <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui é só leitura (exceto enviar o saldo para as metas); cadastre pelo botão “Lançar”.`} />
       <GoalDeadlines />
       <div className="grid grid-cols-12 items-stretch gap-3.5 [&>div>*]:h-full">
         <div className="col-span-12 lg:col-span-4"><Hero /></div>

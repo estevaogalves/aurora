@@ -102,9 +102,9 @@ func (q *Queries) CreateCredit(ctx context.Context, arg CreateCreditParams) (Cre
 }
 
 const createCreditCard = `-- name: CreateCreditCard :one
-INSERT INTO credit_cards (id, user_id, name, closing_day, due_day)
-VALUES (?, ?, ?, ?, ?)
-RETURNING id, user_id, name, closing_day, due_day, created_at
+INSERT INTO credit_cards (id, user_id, name, closing_day, due_day, limit_cents, payments)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
 `
 
 type CreateCreditCardParams struct {
@@ -113,6 +113,8 @@ type CreateCreditCardParams struct {
 	Name       string
 	ClosingDay int64
 	DueDay     int64
+	LimitCents int64
+	Payments   sqlitetypes.JSON
 }
 
 func (q *Queries) CreateCreditCard(ctx context.Context, arg CreateCreditCardParams) (CreditCard, error) {
@@ -122,6 +124,8 @@ func (q *Queries) CreateCreditCard(ctx context.Context, arg CreateCreditCardPara
 		arg.Name,
 		arg.ClosingDay,
 		arg.DueDay,
+		arg.LimitCents,
+		arg.Payments,
 	)
 	var i CreditCard
 	err := row.Scan(
@@ -131,22 +135,27 @@ func (q *Queries) CreateCreditCard(ctx context.Context, arg CreateCreditCardPara
 		&i.ClosingDay,
 		&i.DueDay,
 		&i.CreatedAt,
+		&i.LimitCents,
+		&i.Payments,
+		&i.Adjustments,
 	)
 	return i, err
 }
 
 const createExtraExpense = `-- name: CreateExtraExpense :one
-INSERT INTO extra_expenses (id, user_id, name, amount_cents, month)
-VALUES (?, ?, ?, ?, ?)
-RETURNING id, user_id, name, amount_cents, month, payment, created_at
+INSERT INTO extra_expenses (id, user_id, name, amount_cents, month, card_id, purchase_date)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+RETURNING id, user_id, name, amount_cents, month, payment, created_at, card_id, purchase_date
 `
 
 type CreateExtraExpenseParams struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	Name        string
-	AmountCents int64
-	Month       string
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	Name         string
+	AmountCents  int64
+	Month        string
+	CardID       uuid.NullUUID
+	PurchaseDate string
 }
 
 func (q *Queries) CreateExtraExpense(ctx context.Context, arg CreateExtraExpenseParams) (ExtraExpense, error) {
@@ -156,6 +165,8 @@ func (q *Queries) CreateExtraExpense(ctx context.Context, arg CreateExtraExpense
 		arg.Name,
 		arg.AmountCents,
 		arg.Month,
+		arg.CardID,
+		arg.PurchaseDate,
 	)
 	var i ExtraExpense
 	err := row.Scan(
@@ -166,6 +177,8 @@ func (q *Queries) CreateExtraExpense(ctx context.Context, arg CreateExtraExpense
 		&i.Month,
 		&i.Payment,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
 	)
 	return i, err
 }
@@ -216,6 +229,178 @@ func (q *Queries) CreateGoal(ctx context.Context, arg CreateGoalParams) (Goal, e
 	return i, err
 }
 
+const createGoalMovement = `-- name: CreateGoalMovement :one
+INSERT INTO goal_movements (id, user_id, goal_id, type, date, amount_cents, note, origin)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, user_id, goal_id, type, date, amount_cents, note, origin, created_at
+`
+
+type CreateGoalMovementParams struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	GoalID      uuid.UUID
+	Type        string
+	Date        string
+	AmountCents int64
+	Note        string
+	Origin      string
+}
+
+func (q *Queries) CreateGoalMovement(ctx context.Context, arg CreateGoalMovementParams) (GoalMovement, error) {
+	row := q.db.QueryRowContext(ctx, createGoalMovement,
+		arg.ID,
+		arg.UserID,
+		arg.GoalID,
+		arg.Type,
+		arg.Date,
+		arg.AmountCents,
+		arg.Note,
+		arg.Origin,
+	)
+	var i GoalMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.GoalID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Note,
+		&i.Origin,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createInvestment = `-- name: CreateInvestment :one
+INSERT INTO investments (id, user_id, name, family, product, institution, applied_at, current_value_cents,
+    maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at
+`
+
+type CreateInvestmentParams struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Name              string
+	Family            string
+	Product           string
+	Institution       string
+	AppliedAt         string
+	CurrentValueCents int64
+	MaturityDate      string
+	Indexer           string
+	Rate              string
+	Liquidity         string
+	GraceUntil        string
+	EarlyRedeem       bool
+	Quantity          *float64
+	AvgPriceCents     sql.NullInt64
+	RedeemDays        int64
+	Ticker            string
+	Fees              string
+	Notes             string
+}
+
+func (q *Queries) CreateInvestment(ctx context.Context, arg CreateInvestmentParams) (Investment, error) {
+	row := q.db.QueryRowContext(ctx, createInvestment,
+		arg.ID,
+		arg.UserID,
+		arg.Name,
+		arg.Family,
+		arg.Product,
+		arg.Institution,
+		arg.AppliedAt,
+		arg.CurrentValueCents,
+		arg.MaturityDate,
+		arg.Indexer,
+		arg.Rate,
+		arg.Liquidity,
+		arg.GraceUntil,
+		arg.EarlyRedeem,
+		arg.Quantity,
+		arg.AvgPriceCents,
+		arg.RedeemDays,
+		arg.Ticker,
+		arg.Fees,
+		arg.Notes,
+	)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createInvestmentMovement = `-- name: CreateInvestmentMovement :one
+INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, note, origin)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at, note, origin
+`
+
+type CreateInvestmentMovementParams struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	InvestmentID   uuid.UUID
+	Type           string
+	Date           string
+	AmountCents    int64
+	Quantity       *float64
+	UnitPriceCents sql.NullInt64
+	Note           string
+	Origin         string
+}
+
+func (q *Queries) CreateInvestmentMovement(ctx context.Context, arg CreateInvestmentMovementParams) (InvestmentMovement, error) {
+	row := q.db.QueryRowContext(ctx, createInvestmentMovement,
+		arg.ID,
+		arg.UserID,
+		arg.InvestmentID,
+		arg.Type,
+		arg.Date,
+		arg.AmountCents,
+		arg.Quantity,
+		arg.UnitPriceCents,
+		arg.Note,
+		arg.Origin,
+	)
+	var i InvestmentMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.InvestmentID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Quantity,
+		&i.UnitPriceCents,
+		&i.CreatedAt,
+		&i.Note,
+		&i.Origin,
+	)
+	return i, err
+}
+
 const createNote = `-- name: CreateNote :one
 INSERT INTO notes (id, user_id, content, date, pinned, month)
 VALUES (?, ?, ?, ?, ?, ?)
@@ -254,9 +439,9 @@ func (q *Queries) CreateNote(ctx context.Context, arg CreateNoteParams) (Note, e
 }
 
 const createTransaction = `-- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at, card_id, purchase_date, end_month, dist_group
 `
 
 type CreateTransactionParams struct {
@@ -270,6 +455,10 @@ type CreateTransactionParams struct {
 	Fixed          bool
 	Month          string
 	VariableAmount bool
+	CardID         uuid.NullUUID
+	PurchaseDate   string
+	EndMonth       string
+	DistGroup      int64
 }
 
 func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionParams) (Transaction, error) {
@@ -284,6 +473,10 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.Fixed,
 		arg.Month,
 		arg.VariableAmount,
+		arg.CardID,
+		arg.PurchaseDate,
+		arg.EndMonth,
+		arg.DistGroup,
 	)
 	var i Transaction
 	err := row.Scan(
@@ -300,6 +493,10 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.MonthlyNotes,
 		&i.VariableAmount,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+		&i.EndMonth,
+		&i.DistGroup,
 	)
 	return i, err
 }
@@ -389,6 +586,57 @@ func (q *Queries) DeleteGoal(ctx context.Context, arg DeleteGoalParams) (int64, 
 	return result.RowsAffected()
 }
 
+const deleteGoalMovement = `-- name: DeleteGoalMovement :execrows
+DELETE FROM goal_movements WHERE id = ? AND user_id = ?
+`
+
+type DeleteGoalMovementParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteGoalMovement(ctx context.Context, arg DeleteGoalMovementParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteGoalMovement, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteInvestment = `-- name: DeleteInvestment :execrows
+DELETE FROM investments WHERE id = ? AND user_id = ?
+`
+
+type DeleteInvestmentParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteInvestment(ctx context.Context, arg DeleteInvestmentParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteInvestment, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const deleteInvestmentMovement = `-- name: DeleteInvestmentMovement :execrows
+DELETE FROM investment_movements WHERE id = ? AND user_id = ?
+`
+
+type DeleteInvestmentMovementParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) DeleteInvestmentMovement(ctx context.Context, arg DeleteInvestmentMovementParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, deleteInvestmentMovement, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteNote = `-- name: DeleteNote :execrows
 DELETE FROM notes WHERE id = ? AND user_id = ?
 `
@@ -432,6 +680,53 @@ func (q *Queries) DeleteTransactionOverrides(ctx context.Context, transactionID 
 	return err
 }
 
+const getCategoryForUpdate = `-- name: GetCategoryForUpdate :one
+SELECT id, user_id, name, color FROM custom_categories WHERE id = ? AND user_id = ?
+`
+
+type GetCategoryForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetCategoryForUpdate(ctx context.Context, arg GetCategoryForUpdateParams) (CustomCategory, error) {
+	row := q.db.QueryRowContext(ctx, getCategoryForUpdate, arg.ID, arg.UserID)
+	var i CustomCategory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Color,
+	)
+	return i, err
+}
+
+const getCreditCardForUpdate = `-- name: GetCreditCardForUpdate :one
+SELECT id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments FROM credit_cards WHERE id = ? AND user_id = ?
+`
+
+type GetCreditCardForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetCreditCardForUpdate(ctx context.Context, arg GetCreditCardForUpdateParams) (CreditCard, error) {
+	row := q.db.QueryRowContext(ctx, getCreditCardForUpdate, arg.ID, arg.UserID)
+	var i CreditCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.ClosingDay,
+		&i.DueDay,
+		&i.CreatedAt,
+		&i.LimitCents,
+		&i.Payments,
+		&i.Adjustments,
+	)
+	return i, err
+}
+
 const getCreditForUpdate = `-- name: GetCreditForUpdate :one
 SELECT id, user_id, name, total_cents, installments, start_month, category, adjustments, recurring, end_month, billing_day, card_id, variable_amount, created_at FROM credit_purchases WHERE id = ? AND user_id = ?
 `
@@ -464,7 +759,7 @@ func (q *Queries) GetCreditForUpdate(ctx context.Context, arg GetCreditForUpdate
 }
 
 const getExtraExpenseForUpdate = `-- name: GetExtraExpenseForUpdate :one
-SELECT id, user_id, name, amount_cents, month, payment, created_at FROM extra_expenses WHERE id = ? AND user_id = ?
+SELECT id, user_id, name, amount_cents, month, payment, created_at, card_id, purchase_date FROM extra_expenses WHERE id = ? AND user_id = ?
 `
 
 type GetExtraExpenseForUpdateParams struct {
@@ -483,12 +778,133 @@ func (q *Queries) GetExtraExpenseForUpdate(ctx context.Context, arg GetExtraExpe
 		&i.Month,
 		&i.Payment,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+	)
+	return i, err
+}
+
+const getGoalForUpdate = `-- name: GetGoalForUpdate :one
+SELECT id, user_id, name, target_cents, saved_cents, monthly_cents, deadline, yield_total_cents, piggy, created_at FROM goals WHERE id = ? AND user_id = ?
+`
+
+type GetGoalForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetGoalForUpdate(ctx context.Context, arg GetGoalForUpdateParams) (Goal, error) {
+	row := q.db.QueryRowContext(ctx, getGoalForUpdate, arg.ID, arg.UserID)
+	var i Goal
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.TargetCents,
+		&i.SavedCents,
+		&i.MonthlyCents,
+		&i.Deadline,
+		&i.YieldTotalCents,
+		&i.Piggy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getGoalMovementForUpdate = `-- name: GetGoalMovementForUpdate :one
+SELECT id, user_id, goal_id, type, date, amount_cents, note, origin, created_at FROM goal_movements WHERE id = ? AND user_id = ?
+`
+
+type GetGoalMovementForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetGoalMovementForUpdate(ctx context.Context, arg GetGoalMovementForUpdateParams) (GoalMovement, error) {
+	row := q.db.QueryRowContext(ctx, getGoalMovementForUpdate, arg.ID, arg.UserID)
+	var i GoalMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.GoalID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Note,
+		&i.Origin,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getInvestmentForUpdate = `-- name: GetInvestmentForUpdate :one
+SELECT id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at FROM investments WHERE id = ? AND user_id = ?
+`
+
+type GetInvestmentForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetInvestmentForUpdate(ctx context.Context, arg GetInvestmentForUpdateParams) (Investment, error) {
+	row := q.db.QueryRowContext(ctx, getInvestmentForUpdate, arg.ID, arg.UserID)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getInvestmentMovementForUpdate = `-- name: GetInvestmentMovementForUpdate :one
+SELECT id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at, note, origin FROM investment_movements WHERE id = ? AND user_id = ?
+`
+
+type GetInvestmentMovementForUpdateParams struct {
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) GetInvestmentMovementForUpdate(ctx context.Context, arg GetInvestmentMovementForUpdateParams) (InvestmentMovement, error) {
+	row := q.db.QueryRowContext(ctx, getInvestmentMovementForUpdate, arg.ID, arg.UserID)
+	var i InvestmentMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.InvestmentID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Quantity,
+		&i.UnitPriceCents,
+		&i.CreatedAt,
+		&i.Note,
+		&i.Origin,
 	)
 	return i, err
 }
 
 const getTransaction = `-- name: GetTransaction :one
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at FROM transactions WHERE id = ? AND user_id = ?
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at, card_id, purchase_date, end_month, dist_group FROM transactions WHERE id = ? AND user_id = ?
 `
 
 type GetTransactionParams struct {
@@ -513,12 +929,16 @@ func (q *Queries) GetTransaction(ctx context.Context, arg GetTransactionParams) 
 		&i.MonthlyNotes,
 		&i.VariableAmount,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+		&i.EndMonth,
+		&i.DistGroup,
 	)
 	return i, err
 }
 
 const getTransactionForUpdate = `-- name: GetTransactionForUpdate :one
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at FROM transactions WHERE id = ? AND user_id = ?
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at, card_id, purchase_date, end_month, dist_group FROM transactions WHERE id = ? AND user_id = ?
 `
 
 type GetTransactionForUpdateParams struct {
@@ -543,6 +963,10 @@ func (q *Queries) GetTransactionForUpdate(ctx context.Context, arg GetTransactio
 		&i.MonthlyNotes,
 		&i.VariableAmount,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+		&i.EndMonth,
+		&i.DistGroup,
 	)
 	return i, err
 }
@@ -602,7 +1026,7 @@ func (q *Queries) ListCategories(ctx context.Context, userID uuid.UUID) ([]Custo
 }
 
 const listCreditCards = `-- name: ListCreditCards :many
-SELECT id, user_id, name, closing_day, due_day, created_at FROM credit_cards WHERE user_id = ? ORDER BY created_at, rowid
+SELECT id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments FROM credit_cards WHERE user_id = ? ORDER BY created_at, rowid
 `
 
 func (q *Queries) ListCreditCards(ctx context.Context, userID uuid.UUID) ([]CreditCard, error) {
@@ -621,6 +1045,9 @@ func (q *Queries) ListCreditCards(ctx context.Context, userID uuid.UUID) ([]Cred
 			&i.ClosingDay,
 			&i.DueDay,
 			&i.CreatedAt,
+			&i.LimitCents,
+			&i.Payments,
+			&i.Adjustments,
 		); err != nil {
 			return nil, err
 		}
@@ -678,7 +1105,7 @@ func (q *Queries) ListCredits(ctx context.Context, userID uuid.UUID) ([]CreditPu
 }
 
 const listExtraExpenses = `-- name: ListExtraExpenses :many
-SELECT id, user_id, name, amount_cents, month, payment, created_at FROM extra_expenses WHERE user_id = ? ORDER BY created_at, rowid
+SELECT id, user_id, name, amount_cents, month, payment, created_at, card_id, purchase_date FROM extra_expenses WHERE user_id = ? ORDER BY created_at, rowid
 `
 
 func (q *Queries) ListExtraExpenses(ctx context.Context, userID uuid.UUID) ([]ExtraExpense, error) {
@@ -697,6 +1124,45 @@ func (q *Queries) ListExtraExpenses(ctx context.Context, userID uuid.UUID) ([]Ex
 			&i.AmountCents,
 			&i.Month,
 			&i.Payment,
+			&i.CreatedAt,
+			&i.CardID,
+			&i.PurchaseDate,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGoalMovements = `-- name: ListGoalMovements :many
+SELECT id, user_id, goal_id, type, date, amount_cents, note, origin, created_at FROM goal_movements WHERE user_id = ? ORDER BY created_at, rowid
+`
+
+func (q *Queries) ListGoalMovements(ctx context.Context, userID uuid.UUID) ([]GoalMovement, error) {
+	rows, err := q.db.QueryContext(ctx, listGoalMovements, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GoalMovement
+	for rows.Next() {
+		var i GoalMovement
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.GoalID,
+			&i.Type,
+			&i.Date,
+			&i.AmountCents,
+			&i.Note,
+			&i.Origin,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -736,6 +1202,180 @@ func (q *Queries) ListGoals(ctx context.Context, userID uuid.UUID) ([]Goal, erro
 			&i.YieldTotalCents,
 			&i.Piggy,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvestmentMovements = `-- name: ListInvestmentMovements :many
+SELECT id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at, note, origin FROM investment_movements WHERE user_id = ? ORDER BY created_at, rowid
+`
+
+func (q *Queries) ListInvestmentMovements(ctx context.Context, userID uuid.UUID) ([]InvestmentMovement, error) {
+	rows, err := q.db.QueryContext(ctx, listInvestmentMovements, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvestmentMovement
+	for rows.Next() {
+		var i InvestmentMovement
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.InvestmentID,
+			&i.Type,
+			&i.Date,
+			&i.AmountCents,
+			&i.Quantity,
+			&i.UnitPriceCents,
+			&i.CreatedAt,
+			&i.Note,
+			&i.Origin,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listInvestments = `-- name: ListInvestments :many
+SELECT id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at FROM investments WHERE user_id = ? ORDER BY created_at, rowid
+`
+
+func (q *Queries) ListInvestments(ctx context.Context, userID uuid.UUID) ([]Investment, error) {
+	rows, err := q.db.QueryContext(ctx, listInvestments, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Investment
+	for rows.Next() {
+		var i Investment
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Name,
+			&i.Family,
+			&i.Product,
+			&i.Institution,
+			&i.AppliedAt,
+			&i.CurrentValueCents,
+			&i.MaturityDate,
+			&i.Indexer,
+			&i.Rate,
+			&i.Liquidity,
+			&i.GraceUntil,
+			&i.EarlyRedeem,
+			&i.Quantity,
+			&i.AvgPriceCents,
+			&i.RedeemDays,
+			&i.Ticker,
+			&i.Fees,
+			&i.Notes,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMovementsOfGoal = `-- name: ListMovementsOfGoal :many
+SELECT id, user_id, goal_id, type, date, amount_cents, note, origin, created_at FROM goal_movements WHERE goal_id = ? AND user_id = ? ORDER BY created_at, rowid
+`
+
+type ListMovementsOfGoalParams struct {
+	GoalID uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) ListMovementsOfGoal(ctx context.Context, arg ListMovementsOfGoalParams) ([]GoalMovement, error) {
+	rows, err := q.db.QueryContext(ctx, listMovementsOfGoal, arg.GoalID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GoalMovement
+	for rows.Next() {
+		var i GoalMovement
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.GoalID,
+			&i.Type,
+			&i.Date,
+			&i.AmountCents,
+			&i.Note,
+			&i.Origin,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listMovementsOfInvestment = `-- name: ListMovementsOfInvestment :many
+SELECT id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at, note, origin FROM investment_movements WHERE investment_id = ? AND user_id = ? ORDER BY created_at, rowid
+`
+
+type ListMovementsOfInvestmentParams struct {
+	InvestmentID uuid.UUID
+	UserID       uuid.UUID
+}
+
+func (q *Queries) ListMovementsOfInvestment(ctx context.Context, arg ListMovementsOfInvestmentParams) ([]InvestmentMovement, error) {
+	rows, err := q.db.QueryContext(ctx, listMovementsOfInvestment, arg.InvestmentID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []InvestmentMovement
+	for rows.Next() {
+		var i InvestmentMovement
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.InvestmentID,
+			&i.Type,
+			&i.Date,
+			&i.AmountCents,
+			&i.Quantity,
+			&i.UnitPriceCents,
+			&i.CreatedAt,
+			&i.Note,
+			&i.Origin,
 		); err != nil {
 			return nil, err
 		}
@@ -853,7 +1493,7 @@ func (q *Queries) ListTransactionOverrides(ctx context.Context, transactionID uu
 }
 
 const listTransactions = `-- name: ListTransactions :many
-SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at FROM transactions WHERE user_id = ? ORDER BY created_at, rowid
+SELECT id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at, card_id, purchase_date, end_month, dist_group FROM transactions WHERE user_id = ? ORDER BY created_at, rowid
 `
 
 func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Transaction, error) {
@@ -879,6 +1519,10 @@ func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Tra
 			&i.MonthlyNotes,
 			&i.VariableAmount,
 			&i.CreatedAt,
+			&i.CardID,
+			&i.PurchaseDate,
+			&i.EndMonth,
+			&i.DistGroup,
 		); err != nil {
 			return nil, err
 		}
@@ -891,6 +1535,43 @@ func (q *Queries) ListTransactions(ctx context.Context, userID uuid.UUID) ([]Tra
 		return nil, err
 	}
 	return items, nil
+}
+
+const renameCreditCategory = `-- name: RenameCreditCategory :execrows
+UPDATE credit_purchases SET category = ?1 WHERE user_id = ?2 AND category = ?3
+`
+
+type RenameCreditCategoryParams struct {
+	NewName string
+	UserID  uuid.UUID
+	OldName string
+}
+
+func (q *Queries) RenameCreditCategory(ctx context.Context, arg RenameCreditCategoryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renameCreditCategory, arg.NewName, arg.UserID, arg.OldName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+const renameTransactionCategory = `-- name: RenameTransactionCategory :execrows
+UPDATE transactions SET category = ?1 WHERE user_id = ?2 AND category = ?3
+`
+
+type RenameTransactionCategoryParams struct {
+	NewName string
+	UserID  uuid.UUID
+	OldName string
+}
+
+// Os lancamentos guardam a categoria pelo nome: renomear leva junto as despesas e as compras no credito.
+func (q *Queries) RenameTransactionCategory(ctx context.Context, arg RenameTransactionCategoryParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, renameTransactionCategory, arg.NewName, arg.UserID, arg.OldName)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const setCreditAdjustments = `-- name: SetCreditAdjustments :one
@@ -960,10 +1641,92 @@ func (q *Queries) SetCreditCard(ctx context.Context, arg SetCreditCardParams) (C
 	return i, err
 }
 
+const setCreditCardAdjustments = `-- name: SetCreditCardAdjustments :one
+UPDATE credit_cards SET adjustments = ?1 WHERE id = ?2 AND user_id = ?3 RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
+`
+
+type SetCreditCardAdjustmentsParams struct {
+	Adjustments sqlitetypes.JSON
+	ID          uuid.UUID
+	UserID      uuid.UUID
+}
+
+func (q *Queries) SetCreditCardAdjustments(ctx context.Context, arg SetCreditCardAdjustmentsParams) (CreditCard, error) {
+	row := q.db.QueryRowContext(ctx, setCreditCardAdjustments, arg.Adjustments, arg.ID, arg.UserID)
+	var i CreditCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.ClosingDay,
+		&i.DueDay,
+		&i.CreatedAt,
+		&i.LimitCents,
+		&i.Payments,
+		&i.Adjustments,
+	)
+	return i, err
+}
+
+const setCreditCardPayments = `-- name: SetCreditCardPayments :one
+UPDATE credit_cards SET payments = ?1 WHERE id = ?2 AND user_id = ?3 RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
+`
+
+type SetCreditCardPaymentsParams struct {
+	Payments sqlitetypes.JSON
+	ID       uuid.UUID
+	UserID   uuid.UUID
+}
+
+func (q *Queries) SetCreditCardPayments(ctx context.Context, arg SetCreditCardPaymentsParams) (CreditCard, error) {
+	row := q.db.QueryRowContext(ctx, setCreditCardPayments, arg.Payments, arg.ID, arg.UserID)
+	var i CreditCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.ClosingDay,
+		&i.DueDay,
+		&i.CreatedAt,
+		&i.LimitCents,
+		&i.Payments,
+		&i.Adjustments,
+	)
+	return i, err
+}
+
+const setExtraExpenseCard = `-- name: SetExtraExpenseCard :one
+UPDATE extra_expenses SET card_id = ? WHERE id = ? AND user_id = ? RETURNING id, user_id, name, amount_cents, month, payment, created_at, card_id, purchase_date
+`
+
+type SetExtraExpenseCardParams struct {
+	CardID uuid.NullUUID
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// card_id nulo solta a despesa extra do cartao.
+func (q *Queries) SetExtraExpenseCard(ctx context.Context, arg SetExtraExpenseCardParams) (ExtraExpense, error) {
+	row := q.db.QueryRowContext(ctx, setExtraExpenseCard, arg.CardID, arg.ID, arg.UserID)
+	var i ExtraExpense
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.AmountCents,
+		&i.Month,
+		&i.Payment,
+		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+	)
+	return i, err
+}
+
 const setExtraExpensePayment = `-- name: SetExtraExpensePayment :one
 UPDATE extra_expenses SET payment = ?
 WHERE id = ? AND user_id = ?
-RETURNING id, user_id, name, amount_cents, month, payment, created_at
+RETURNING id, user_id, name, amount_cents, month, payment, created_at, card_id, purchase_date
 `
 
 type SetExtraExpensePaymentParams struct {
@@ -983,6 +1746,8 @@ func (q *Queries) SetExtraExpensePayment(ctx context.Context, arg SetExtraExpens
 		&i.Month,
 		&i.Payment,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
 	)
 	return i, err
 }
@@ -1016,10 +1781,274 @@ func (q *Queries) SetGoalDeadline(ctx context.Context, arg SetGoalDeadlineParams
 	return i, err
 }
 
+const setGoalDerived = `-- name: SetGoalDerived :one
+UPDATE goals SET saved_cents = ?1, yield_total_cents = ?2
+WHERE id = ?3 AND user_id = ?4
+RETURNING id, user_id, name, target_cents, saved_cents, monthly_cents, deadline, yield_total_cents, piggy, created_at
+`
+
+type SetGoalDerivedParams struct {
+	SavedCents      int64
+	YieldTotalCents int64
+	ID              uuid.UUID
+	UserID          uuid.UUID
+}
+
+func (q *Queries) SetGoalDerived(ctx context.Context, arg SetGoalDerivedParams) (Goal, error) {
+	row := q.db.QueryRowContext(ctx, setGoalDerived,
+		arg.SavedCents,
+		arg.YieldTotalCents,
+		arg.ID,
+		arg.UserID,
+	)
+	var i Goal
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.TargetCents,
+		&i.SavedCents,
+		&i.MonthlyCents,
+		&i.Deadline,
+		&i.YieldTotalCents,
+		&i.Piggy,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const setInvestmentAvgPrice = `-- name: SetInvestmentAvgPrice :one
+UPDATE investments SET avg_price_cents = ? WHERE id = ? AND user_id = ? RETURNING id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at
+`
+
+type SetInvestmentAvgPriceParams struct {
+	AvgPriceCents sql.NullInt64
+	ID            uuid.UUID
+	UserID        uuid.UUID
+}
+
+// Preco medio: so muda quando veio na requisicao; valor nulo limpa.
+func (q *Queries) SetInvestmentAvgPrice(ctx context.Context, arg SetInvestmentAvgPriceParams) (Investment, error) {
+	row := q.db.QueryRowContext(ctx, setInvestmentAvgPrice, arg.AvgPriceCents, arg.ID, arg.UserID)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const setInvestmentDerived = `-- name: SetInvestmentDerived :one
+UPDATE investments SET
+    current_value_cents = ?1,
+    quantity            = ?2,
+    avg_price_cents     = ?3
+WHERE id = ?4 AND user_id = ?5
+RETURNING id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at
+`
+
+type SetInvestmentDerivedParams struct {
+	CurrentValueCents int64
+	Quantity          *float64
+	AvgPriceCents     sql.NullInt64
+	ID                uuid.UUID
+	UserID            uuid.UUID
+}
+
+func (q *Queries) SetInvestmentDerived(ctx context.Context, arg SetInvestmentDerivedParams) (Investment, error) {
+	row := q.db.QueryRowContext(ctx, setInvestmentDerived,
+		arg.CurrentValueCents,
+		arg.Quantity,
+		arg.AvgPriceCents,
+		arg.ID,
+		arg.UserID,
+	)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const setInvestmentMovementQuantity = `-- name: SetInvestmentMovementQuantity :one
+UPDATE investment_movements SET quantity = ? WHERE id = ? AND user_id = ? RETURNING id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at, note, origin
+`
+
+type SetInvestmentMovementQuantityParams struct {
+	Quantity *float64
+	ID       uuid.UUID
+	UserID   uuid.UUID
+}
+
+// Cotas da movimentacao: so mudam quando vieram na requisicao; valor nulo limpa.
+func (q *Queries) SetInvestmentMovementQuantity(ctx context.Context, arg SetInvestmentMovementQuantityParams) (InvestmentMovement, error) {
+	row := q.db.QueryRowContext(ctx, setInvestmentMovementQuantity, arg.Quantity, arg.ID, arg.UserID)
+	var i InvestmentMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.InvestmentID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Quantity,
+		&i.UnitPriceCents,
+		&i.CreatedAt,
+		&i.Note,
+		&i.Origin,
+	)
+	return i, err
+}
+
+const setInvestmentMovementUnitPrice = `-- name: SetInvestmentMovementUnitPrice :one
+UPDATE investment_movements SET unit_price_cents = ? WHERE id = ? AND user_id = ? RETURNING id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at, note, origin
+`
+
+type SetInvestmentMovementUnitPriceParams struct {
+	UnitPriceCents sql.NullInt64
+	ID             uuid.UUID
+	UserID         uuid.UUID
+}
+
+// Preco por cota da movimentacao: so muda quando veio na requisicao; valor nulo limpa.
+func (q *Queries) SetInvestmentMovementUnitPrice(ctx context.Context, arg SetInvestmentMovementUnitPriceParams) (InvestmentMovement, error) {
+	row := q.db.QueryRowContext(ctx, setInvestmentMovementUnitPrice, arg.UnitPriceCents, arg.ID, arg.UserID)
+	var i InvestmentMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.InvestmentID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Quantity,
+		&i.UnitPriceCents,
+		&i.CreatedAt,
+		&i.Note,
+		&i.Origin,
+	)
+	return i, err
+}
+
+const setInvestmentQuantity = `-- name: SetInvestmentQuantity :one
+UPDATE investments SET quantity = ? WHERE id = ? AND user_id = ? RETURNING id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at
+`
+
+type SetInvestmentQuantityParams struct {
+	Quantity *float64
+	ID       uuid.UUID
+	UserID   uuid.UUID
+}
+
+// Cotas: so mudam quando vieram na requisicao; valor nulo limpa.
+func (q *Queries) SetInvestmentQuantity(ctx context.Context, arg SetInvestmentQuantityParams) (Investment, error) {
+	row := q.db.QueryRowContext(ctx, setInvestmentQuantity, arg.Quantity, arg.ID, arg.UserID)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const setTransactionCard = `-- name: SetTransactionCard :one
+UPDATE transactions SET card_id = ? WHERE id = ? AND user_id = ? RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at, card_id, purchase_date, end_month, dist_group
+`
+
+type SetTransactionCardParams struct {
+	CardID uuid.NullUUID
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+// card_id nulo solta a despesa do cartao.
+func (q *Queries) SetTransactionCard(ctx context.Context, arg SetTransactionCardParams) (Transaction, error) {
+	row := q.db.QueryRowContext(ctx, setTransactionCard, arg.CardID, arg.ID, arg.UserID)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.AmountCents,
+		&i.Type,
+		&i.Category,
+		&i.Notes,
+		&i.Fixed,
+		&i.Month,
+		&i.Payments,
+		&i.MonthlyNotes,
+		&i.VariableAmount,
+		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+		&i.EndMonth,
+		&i.DistGroup,
+	)
+	return i, err
+}
+
 const setTransactionMonthlyNotes = `-- name: SetTransactionMonthlyNotes :one
 UPDATE transactions SET monthly_notes = ?
 WHERE id = ? AND user_id = ?
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at, card_id, purchase_date, end_month, dist_group
 `
 
 type SetTransactionMonthlyNotesParams struct {
@@ -1045,6 +2074,10 @@ func (q *Queries) SetTransactionMonthlyNotes(ctx context.Context, arg SetTransac
 		&i.MonthlyNotes,
 		&i.VariableAmount,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+		&i.EndMonth,
+		&i.DistGroup,
 	)
 	return i, err
 }
@@ -1052,7 +2085,7 @@ func (q *Queries) SetTransactionMonthlyNotes(ctx context.Context, arg SetTransac
 const setTransactionPayments = `-- name: SetTransactionPayments :one
 UPDATE transactions SET payments = ?
 WHERE id = ? AND user_id = ?
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at, card_id, purchase_date, end_month, dist_group
 `
 
 type SetTransactionPaymentsParams struct {
@@ -1078,6 +2111,42 @@ func (q *Queries) SetTransactionPayments(ctx context.Context, arg SetTransaction
 		&i.MonthlyNotes,
 		&i.VariableAmount,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+		&i.EndMonth,
+		&i.DistGroup,
+	)
+	return i, err
+}
+
+const updateCategory = `-- name: UpdateCategory :one
+UPDATE custom_categories SET
+  name  = COALESCE(?1, name),
+  color = COALESCE(?2, color)
+WHERE id = ?3 AND user_id = ?4
+RETURNING id, user_id, name, color
+`
+
+type UpdateCategoryParams struct {
+	Name   sql.NullString
+	Color  sql.NullString
+	ID     uuid.UUID
+	UserID uuid.UUID
+}
+
+func (q *Queries) UpdateCategory(ctx context.Context, arg UpdateCategoryParams) (CustomCategory, error) {
+	row := q.db.QueryRowContext(ctx, updateCategory,
+		arg.Name,
+		arg.Color,
+		arg.ID,
+		arg.UserID,
+	)
+	var i CustomCategory
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Color,
 	)
 	return i, err
 }
@@ -1146,15 +2215,17 @@ const updateCreditCard = `-- name: UpdateCreditCard :one
 UPDATE credit_cards SET
     name        = COALESCE(?1, name),
     closing_day = COALESCE(?2, closing_day),
-    due_day     = COALESCE(?3, due_day)
-WHERE id = ?4 AND user_id = ?5
-RETURNING id, user_id, name, closing_day, due_day, created_at
+    due_day     = COALESCE(?3, due_day),
+    limit_cents = COALESCE(?4, limit_cents)
+WHERE id = ?5 AND user_id = ?6
+RETURNING id, user_id, name, closing_day, due_day, created_at, limit_cents, payments, adjustments
 `
 
 type UpdateCreditCardParams struct {
 	Name       sql.NullString
 	ClosingDay sql.NullInt64
 	DueDay     sql.NullInt64
+	LimitCents sql.NullInt64
 	ID         uuid.UUID
 	UserID     uuid.UUID
 }
@@ -1164,6 +2235,7 @@ func (q *Queries) UpdateCreditCard(ctx context.Context, arg UpdateCreditCardPara
 		arg.Name,
 		arg.ClosingDay,
 		arg.DueDay,
+		arg.LimitCents,
 		arg.ID,
 		arg.UserID,
 	)
@@ -1175,6 +2247,9 @@ func (q *Queries) UpdateCreditCard(ctx context.Context, arg UpdateCreditCardPara
 		&i.ClosingDay,
 		&i.DueDay,
 		&i.CreatedAt,
+		&i.LimitCents,
+		&i.Payments,
+		&i.Adjustments,
 	)
 	return i, err
 }
@@ -1183,17 +2258,19 @@ const updateExtraExpense = `-- name: UpdateExtraExpense :one
 UPDATE extra_expenses SET
     name         = COALESCE(?1, name),
     amount_cents = COALESCE(?2, amount_cents),
-    month        = COALESCE(?3, month)
-WHERE id = ?4 AND user_id = ?5
-RETURNING id, user_id, name, amount_cents, month, payment, created_at
+    month        = COALESCE(?3, month),
+    purchase_date = COALESCE(?4, purchase_date)
+WHERE id = ?5 AND user_id = ?6
+RETURNING id, user_id, name, amount_cents, month, payment, created_at, card_id, purchase_date
 `
 
 type UpdateExtraExpenseParams struct {
-	Name        sql.NullString
-	AmountCents sql.NullInt64
-	Month       sql.NullString
-	ID          uuid.UUID
-	UserID      uuid.UUID
+	Name         sql.NullString
+	AmountCents  sql.NullInt64
+	Month        sql.NullString
+	PurchaseDate sql.NullString
+	ID           uuid.UUID
+	UserID       uuid.UUID
 }
 
 func (q *Queries) UpdateExtraExpense(ctx context.Context, arg UpdateExtraExpenseParams) (ExtraExpense, error) {
@@ -1201,6 +2278,7 @@ func (q *Queries) UpdateExtraExpense(ctx context.Context, arg UpdateExtraExpense
 		arg.Name,
 		arg.AmountCents,
 		arg.Month,
+		arg.PurchaseDate,
 		arg.ID,
 		arg.UserID,
 	)
@@ -1213,6 +2291,8 @@ func (q *Queries) UpdateExtraExpense(ctx context.Context, arg UpdateExtraExpense
 		&i.Month,
 		&i.Payment,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
 	)
 	return i, err
 }
@@ -1260,6 +2340,191 @@ func (q *Queries) UpdateGoal(ctx context.Context, arg UpdateGoalParams) (Goal, e
 		&i.YieldTotalCents,
 		&i.Piggy,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateGoalMovement = `-- name: UpdateGoalMovement :one
+UPDATE goal_movements SET
+    type         = COALESCE(?1, type),
+    date         = COALESCE(?2, date),
+    amount_cents = COALESCE(?3, amount_cents),
+    note         = COALESCE(?4, note),
+    origin       = COALESCE(?5, origin)
+WHERE id = ?6 AND user_id = ?7
+RETURNING id, user_id, goal_id, type, date, amount_cents, note, origin, created_at
+`
+
+type UpdateGoalMovementParams struct {
+	Type        sql.NullString
+	Date        sql.NullString
+	AmountCents sql.NullInt64
+	Note        sql.NullString
+	Origin      sql.NullString
+	ID          uuid.UUID
+	UserID      uuid.UUID
+}
+
+func (q *Queries) UpdateGoalMovement(ctx context.Context, arg UpdateGoalMovementParams) (GoalMovement, error) {
+	row := q.db.QueryRowContext(ctx, updateGoalMovement,
+		arg.Type,
+		arg.Date,
+		arg.AmountCents,
+		arg.Note,
+		arg.Origin,
+		arg.ID,
+		arg.UserID,
+	)
+	var i GoalMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.GoalID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Note,
+		&i.Origin,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateInvestment = `-- name: UpdateInvestment :one
+UPDATE investments SET
+    name                = COALESCE(?1, name),
+    family              = COALESCE(?2, family),
+    product             = COALESCE(?3, product),
+    institution         = COALESCE(?4, institution),
+    applied_at          = COALESCE(?5, applied_at),
+    current_value_cents = COALESCE(?6, current_value_cents),
+    maturity_date       = COALESCE(?7, maturity_date),
+    indexer             = COALESCE(?8, indexer),
+    rate                = COALESCE(?9, rate),
+    liquidity           = COALESCE(?10, liquidity),
+    grace_until         = COALESCE(?11, grace_until),
+    early_redeem        = COALESCE(?12, early_redeem),
+    redeem_days         = COALESCE(?13, redeem_days),
+    ticker              = COALESCE(?14, ticker),
+    fees                = COALESCE(?15, fees),
+    notes               = COALESCE(?16, notes)
+WHERE id = ?17 AND user_id = ?18
+RETURNING id, user_id, name, family, product, institution, applied_at, current_value_cents, maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes, created_at
+`
+
+type UpdateInvestmentParams struct {
+	Name              sql.NullString
+	Family            sql.NullString
+	Product           sql.NullString
+	Institution       sql.NullString
+	AppliedAt         sql.NullString
+	CurrentValueCents sql.NullInt64
+	MaturityDate      sql.NullString
+	Indexer           sql.NullString
+	Rate              sql.NullString
+	Liquidity         sql.NullString
+	GraceUntil        sql.NullString
+	EarlyRedeem       sql.NullBool
+	RedeemDays        sql.NullInt64
+	Ticker            sql.NullString
+	Fees              sql.NullString
+	Notes             sql.NullString
+	ID                uuid.UUID
+	UserID            uuid.UUID
+}
+
+func (q *Queries) UpdateInvestment(ctx context.Context, arg UpdateInvestmentParams) (Investment, error) {
+	row := q.db.QueryRowContext(ctx, updateInvestment,
+		arg.Name,
+		arg.Family,
+		arg.Product,
+		arg.Institution,
+		arg.AppliedAt,
+		arg.CurrentValueCents,
+		arg.MaturityDate,
+		arg.Indexer,
+		arg.Rate,
+		arg.Liquidity,
+		arg.GraceUntil,
+		arg.EarlyRedeem,
+		arg.RedeemDays,
+		arg.Ticker,
+		arg.Fees,
+		arg.Notes,
+		arg.ID,
+		arg.UserID,
+	)
+	var i Investment
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Name,
+		&i.Family,
+		&i.Product,
+		&i.Institution,
+		&i.AppliedAt,
+		&i.CurrentValueCents,
+		&i.MaturityDate,
+		&i.Indexer,
+		&i.Rate,
+		&i.Liquidity,
+		&i.GraceUntil,
+		&i.EarlyRedeem,
+		&i.Quantity,
+		&i.AvgPriceCents,
+		&i.RedeemDays,
+		&i.Ticker,
+		&i.Fees,
+		&i.Notes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateInvestmentMovement = `-- name: UpdateInvestmentMovement :one
+UPDATE investment_movements SET
+    type         = COALESCE(?1, type),
+    date         = COALESCE(?2, date),
+    amount_cents = COALESCE(?3, amount_cents),
+    note         = COALESCE(?4, note),
+    origin       = COALESCE(?5, origin)
+WHERE id = ?6 AND user_id = ?7
+RETURNING id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, created_at, note, origin
+`
+
+type UpdateInvestmentMovementParams struct {
+	Type        sql.NullString
+	Date        sql.NullString
+	AmountCents sql.NullInt64
+	Note        sql.NullString
+	Origin      sql.NullString
+	ID          uuid.UUID
+	UserID      uuid.UUID
+}
+
+func (q *Queries) UpdateInvestmentMovement(ctx context.Context, arg UpdateInvestmentMovementParams) (InvestmentMovement, error) {
+	row := q.db.QueryRowContext(ctx, updateInvestmentMovement,
+		arg.Type,
+		arg.Date,
+		arg.AmountCents,
+		arg.Note,
+		arg.Origin,
+		arg.ID,
+		arg.UserID,
+	)
+	var i InvestmentMovement
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.InvestmentID,
+		&i.Type,
+		&i.Date,
+		&i.AmountCents,
+		&i.Quantity,
+		&i.UnitPriceCents,
+		&i.CreatedAt,
+		&i.Note,
+		&i.Origin,
 	)
 	return i, err
 }
@@ -1312,10 +2577,15 @@ UPDATE transactions SET
     category     = COALESCE(?3, category),
     notes        = COALESCE(?4, notes),
     fixed        = COALESCE(?5, fixed),
-    -- so fixa tem valor variavel: deixar de ser fixa desliga
-    variable_amount = COALESCE(?5, fixed) AND COALESCE(?6, variable_amount)
-WHERE id = ?7 AND user_id = ?8
-RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at
+    -- valor variavel (estimado): vale para fixa e para avulsa; so muda quando vem na requisicao
+    variable_amount = COALESCE(?6, variable_amount),
+    purchase_date = COALESCE(?7, purchase_date),
+    -- fixa encerrada: ultimo mes em que vale; texto vazio tira o fim
+    end_month     = COALESCE(?8, end_month),
+    -- renda variavel: em qual distribuicao do saldo entra (0 = Dist 1, 2 a 20 = distribuicao propria); so marca
+    dist_group    = COALESCE(?9, dist_group)
+WHERE id = ?10 AND user_id = ?11
+RETURNING id, user_id, name, amount_cents, type, category, notes, fixed, month, payments, monthly_notes, variable_amount, created_at, card_id, purchase_date, end_month, dist_group
 `
 
 type UpdateTransactionParams struct {
@@ -1325,6 +2595,9 @@ type UpdateTransactionParams struct {
 	Notes          sql.NullString
 	Fixed          sql.NullBool
 	VariableAmount sql.NullBool
+	PurchaseDate   sql.NullString
+	EndMonth       sql.NullString
+	DistGroup      sql.NullInt64
 	ID             uuid.UUID
 	UserID         uuid.UUID
 }
@@ -1337,6 +2610,9 @@ func (q *Queries) UpdateTransaction(ctx context.Context, arg UpdateTransactionPa
 		arg.Notes,
 		arg.Fixed,
 		arg.VariableAmount,
+		arg.PurchaseDate,
+		arg.EndMonth,
+		arg.DistGroup,
 		arg.ID,
 		arg.UserID,
 	)
@@ -1355,6 +2631,10 @@ func (q *Queries) UpdateTransaction(ctx context.Context, arg UpdateTransactionPa
 		&i.MonthlyNotes,
 		&i.VariableAmount,
 		&i.CreatedAt,
+		&i.CardID,
+		&i.PurchaseDate,
+		&i.EndMonth,
+		&i.DistGroup,
 	)
 	return i, err
 }
@@ -1401,6 +2681,15 @@ DELETE FROM goals WHERE user_id = ?
 
 func (q *Queries) WipeGoals(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, wipeGoals, userID)
+	return err
+}
+
+const wipeInvestments = `-- name: WipeInvestments :exec
+DELETE FROM investments WHERE user_id = ?
+`
+
+func (q *Queries) WipeInvestments(ctx context.Context, userID uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, wipeInvestments, userID)
 	return err
 }
 

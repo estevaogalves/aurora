@@ -1,5 +1,5 @@
 import { monthsDifference } from "../Utils/Date";
-import type { Goal, Month } from "./types";
+import type { Goal, GoalMovement, Month } from "./types";
 
 /** Percentual guardado (0 a 100). Meta sem valor-alvo conta como 0. */
 export function goalPercent(goal: Goal): number {
@@ -145,4 +145,57 @@ export function getGoalAlerts(goals: Goal[], today: Month): GoalAlert[] {
   }
 
   return alerts.sort((a, b) => a.monthsLeft - b.monthsLeft || b.remaining - a.remaining);
+}
+
+/* ---------- histórico (movimentações) ---------- */
+
+/** Movimentações em ordem cronológica (mesma data: a registrada primeiro vem antes). */
+export function sortGoalMovements(movements: GoalMovement[]): GoalMovement[] {
+  return movements.map((m, i) => ({ m, i })).sort((a, b) => a.m.date.localeCompare(b.m.date) || a.i - b.i).map((x) => x.m);
+}
+
+/**
+ * Recalcula o guardado e o total de rendimentos refazendo as movimentações da meta em ordem de data. É a versão
+ * em TypeScript de `ReplayGoal` (apps/api/internal/domain/goal.go) e as duas têm que dar o mesmo resultado.
+ * O guardado nunca fica negativo; `yieldTotal` só aparece quando há rendimento.
+ */
+export function replayGoal(goal: Goal, movements: GoalMovement[]): Goal {
+  let saved = 0;
+  let yieldTotal = 0;
+  for (const m of sortGoalMovements(movements.filter((x) => x.goalId === goal.id))) {
+    if (m.type === "contribution") saved += m.amount;
+    else if (m.type === "withdrawal") saved = Math.max(0, saved - m.amount);
+    else if (m.type === "yield") {
+      saved += m.amount;
+      yieldTotal += m.amount;
+    } else saved = m.amount;
+  }
+  const { yieldTotal: _old, ...rest } = goal;
+  void _old;
+  return { ...rest, saved: Math.max(0, saved), ...(yieldTotal > 0 && { yieldTotal }) };
+}
+
+export const GOAL_MOVEMENT_LABEL: Record<GoalMovement["type"], string> = {
+  contribution: "Aporte",
+  withdrawal: "Retirada",
+  yield: "Rendimento",
+  adjustment: "Ajuste de valor",
+};
+
+/**
+ * Começo de histórico para metas que já tinham valor guardado e ainda não têm movimentação (dados antigos):
+ * primeiro os rendimentos, depois um ajuste que define o guardado. Refazer a conta devolve os mesmos valores.
+ * Os ids são fixos, então repetir a migração não cria nada duplicado.
+ */
+export function goalOpeningMovements(goals: Goal[], movements: GoalMovement[], date: string): GoalMovement[] {
+  const withHistory = new Set(movements.map((m) => m.goalId));
+  const out: GoalMovement[] = [];
+  for (const g of goals) {
+    if (withHistory.has(g.id)) continue;
+    const yieldTotal = g.yieldTotal ?? 0;
+    if (g.saved <= 0 && yieldTotal <= 0) continue;
+    if (yieldTotal > 0) out.push({ id: `inicio-rendimento-${g.id}`, goalId: g.id, type: "yield", date, amount: yieldTotal, note: "Rendimentos até aqui" });
+    out.push({ id: `inicio-saldo-${g.id}`, goalId: g.id, type: "adjustment", date, amount: Math.max(0, g.saved), note: "Saldo inicial" });
+  }
+  return out;
 }

@@ -212,6 +212,110 @@ paths:
         "204": { description: Removido }
         "404": { $ref: "#/components/responses/Error" }
 
+  /investments:
+    post:
+      tags: [investimentos]
+      summary: Cadastra um investimento
+      description: |
+        Controle manual do que está investido, sem integração com banco ou corretora. Fica **separado do fluxo
+        de caixa**: não entra em receitas, despesas, saldo, projeção nem relatórios.
+        O valor atual (`currentValue`) é o informado aqui; depois, cada movimentação o refaz no servidor.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Investment" } } }
+      responses:
+        "201": { description: Criado, content: { application/json: { schema: { $ref: "#/components/schemas/Investment" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+  /investments/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [investimentos]
+      summary: Altera só os campos enviados
+      description: |
+        Texto vazio limpa um campo opcional. `"quantity": null` e `"avgPrice": null` limpam cotas e preço médio;
+        sem a chave, não mudam. Para mexer no valor por movimentação, use `/investment-movements`.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentPatch" } } }
+      responses:
+        "200": { description: Atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/Investment" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [investimentos]
+      summary: Remove o investimento e as movimentações dele
+      responses:
+        "204": { description: Removido }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /investment-movements:
+    post:
+      tags: [investimentos]
+      summary: Registra uma movimentação (aporte, resgate, rendimento ou atualização de valor)
+      description: |
+        O servidor refaz valor atual, cotas e preço médio do investimento pelas movimentações, em ordem de data,
+        na mesma transação, e devolve o investimento atualizado. O valor atual nunca fica negativo.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovement" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /investment-movements/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [investimentos]
+      summary: Corrige a movimentação e refaz o investimento
+      description: '`"quantity": null` e `"unitPrice": null` limpam os campos; sem a chave, não mudam.'
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [investimentos]
+      summary: Exclui a movimentação e refaz o investimento
+      responses:
+        "200": { description: Excluída (devolve só o investimento refeito), content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementResult" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /goal-movements:
+    post:
+      tags: [metas]
+      summary: Registra uma movimentação de meta ou porquinho (aporte, retirada, rendimento ou ajuste)
+      description: |
+        O servidor refaz o guardado e o total de rendimentos da meta pelas movimentações, em ordem de data, na mesma
+        transação, e devolve a meta atualizada. O guardado nunca fica negativo.
+        A `origin` é vazia (lançado à mão) ou `distribution|AAAA-MM|fonte|fatia` (enviado pela sugestão do saldo).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovement" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovementResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /goal-movements/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [metas]
+      summary: Corrige a movimentação e refaz a meta
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovementPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovementResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [metas]
+      summary: Exclui a movimentação e refaz a meta
+      responses:
+        "200": { description: Excluída (devolve só a meta refeita), content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovementResult" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+
   /credits/{id}/installments/{n}/advance:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -296,6 +400,52 @@ paths:
       summary: Remove
       responses:
         "204": { description: Removida }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /credit-cards/{id}/payments/{month}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/PaymentMonth" }
+    put:
+      tags: [crédito]
+      summary: Marca a fatura do cartão como paga (ou edita o pagamento)
+      description: O mês é o do vencimento da fatura. Só registro para consulta; não muda nenhum valor, resumo, projeção ou comparação. Forma, data e observação como no pagamento de despesas (só boleto pode ter data futura).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/Payment" } } }
+      responses:
+        "200": { description: Cartão atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [crédito]
+      summary: Desmarca o pagamento da fatura deste mês
+      responses:
+        "200": { description: Cartão atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+
+  /credit-cards/{id}/adjustments/{month}:
+    parameters:
+      - { $ref: "#/components/parameters/Id" }
+      - { $ref: "#/components/parameters/PaymentMonth" }
+    put:
+      tags: [crédito]
+      summary: Troca a lista de ajustes (descontos e acréscimos) da fatura do cartão
+      description: O mês é o do vencimento da fatura. O corpo é a lista inteira de ajustes do mês (até 50; lista vazia remove todos). Cada ajuste tem id único, valor em centavos diferente de zero (negativo é desconto, positivo é acréscimo) e observação opcional. Só registro para a fatura bater com a do banco; não muda nenhuma despesa, projeção ou comparação.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: array, maxItems: 50, items: { $ref: "#/components/schemas/InvoiceAdjustment" } } } }
+      responses:
+        "200": { description: Cartão atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [crédito]
+      summary: Remove todos os ajustes da fatura deste mês
+      responses:
+        "200": { description: Cartão atualizado, content: { application/json: { schema: { $ref: "#/components/schemas/CreditCard" } } } }
+        "400": { $ref: "#/components/responses/Error" }
         "404": { $ref: "#/components/responses/Error" }
 
   /transactions/{id}/payments/{month}:
@@ -405,6 +555,29 @@ paths:
         "204": { description: Removida }
         "404": { $ref: "#/components/responses/Error" }
 
+  /settings/distribution-overrides/{month}/{group}:
+    parameters:
+      - { $ref: "#/components/parameters/PaymentMonth" }
+      - { name: group, in: path, required: true, schema: { type: integer, minimum: 2, maximum: 20 }, description: "Número da distribuição (Dist 2 a 20). A Dist 1 sempre usa o padrão de /settings/distribution." }
+    put:
+      tags: [configurações]
+      summary: Define os percentuais próprios de uma distribuição (Dist 2 em diante) de um mês
+      description: "Vale só para essa distribuição e esse mês; as outras seguem o padrão. `items: null` volta ao padrão. Mesmas regras de /settings/distribution (as cinco fatias padrão e soma 100%)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  nullable: true
+                  items: { $ref: "#/components/schemas/DistributionItem" }
+      responses:
+        "204": { description: Salvo }
+        "400": { $ref: "#/components/responses/Error" }
   /categories:
     post:
       tags: [configurações]
@@ -418,6 +591,18 @@ paths:
         "409": { $ref: "#/components/responses/Error" }
   /categories/{id}:
     parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [configurações]
+      summary: Edita o nome e/ou a cor de uma categoria própria
+      description: Os lançamentos guardam a categoria pelo nome, então ao trocar o nome as despesas e as compras no crédito que usavam o nome antigo passam para o novo, tudo de uma vez. Trocar só a caixa das letras é permitido; nome igual ao de outra categoria (sem diferenciar maiúsculas) é recusado e nada muda.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/CustomCategoryPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/CustomCategory" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+        "409": { $ref: "#/components/responses/Error" }
     delete:
       tags: [configurações]
       summary: Remove categoria própria
@@ -582,11 +767,15 @@ components:
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
         monthlyNotes: { type: object, description: "Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação).", additionalProperties: { type: string } }
-        variableAmount: { type: boolean, description: "Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado." }
+        variableAmount: { type: boolean, description: "Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu `monthlyValues`; na avulsa, o valor real vem de enviar um novo `amount` e `variableAmount: false`. Só muda quando vem na requisição." }
         payments:
           type: object
           description: Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação.
           additionalProperties: { $ref: "#/components/schemas/Payment" }
+        cardId: { type: string, format: uuid, description: "Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`." }
+        purchaseDate: { type: string, format: date, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
+        endMonth: { $ref: "#/components/schemas/Month", description: "Só fixas. Fixa encerrada: o último mês em que vale (\"2026-11\" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam." }
+        distGroup: { type: integer, minimum: 0, maximum: 20, description: "Só renda não fixa (13º, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente ou 0 = soma ao saldo do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não muda nenhum valor, saldo, projeção ou relatório." }
     Payment:
       type: object
       required: [method, date]
@@ -605,7 +794,11 @@ components:
         hiddenMonths: { type: array, items: { $ref: "#/components/schemas/Month" } }
         monthlyValues: { type: object, additionalProperties: { $ref: "#/components/schemas/Cents" } }
         monthlyNotes: { type: object, description: "Fixas: observação de um mês (só vale nele; `notes` vale no mês de criação).", additionalProperties: { type: string } }
-        variableAmount: { type: boolean, description: "Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado." }
+        variableAmount: { type: boolean, description: "Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu `monthlyValues`; na avulsa, o valor real vem de enviar um novo `amount` e `variableAmount: false`. Só muda quando vem na requisição." }
+        cardId: { type: string, description: 'Despesa avulsa no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, a despesa tem que ter `purchaseDate` (no mesmo pedido ou já guardado) e não pode ser fixa.' }
+        purchaseDate: { type: string, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
+        endMonth: { type: string, description: 'Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa.' }
+        distGroup: { type: integer, minimum: 0, maximum: 20, description: "Só renda não fixa: a distribuição da sugestão do saldo (0 = Dist 1; 2 a 20 = Dist 2 em diante). Número fora disso é recusado (400); despesa ou renda fixa em distribuição própria é recusada (422)." }
 
     CreditTransaction:
       type: object
@@ -643,12 +836,112 @@ components:
         name: { type: string }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
+        limit: { $ref: "#/components/schemas/Cents", description: "Teto mensal da fatura. Ausente ou 0 = sem teto. Só acompanhamento, não bloqueia nada." }
+        payments:
+          type: object
+          description: Pagamento da fatura por mês de vencimento (AAAA-MM). Só registro, não entra em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação.
+          additionalProperties: { $ref: "#/components/schemas/Payment" }
+        adjustments:
+          type: object
+          description: Ajustes (descontos e acréscimos) da fatura por mês de vencimento (AAAA-MM), vários por fatura. Só registro, não entram em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação.
+          additionalProperties: { type: array, items: { $ref: "#/components/schemas/InvoiceAdjustment" } }
+    InvoiceAdjustment:
+      type: object
+      required: [id, amount]
+      properties:
+        id: { type: string, maxLength: 64, description: "Identifica o ajuste dentro da fatura; único no mês." }
+        amount: { type: integer, format: int64, description: "Centavos, diferente de zero. Negativo = desconto; positivo = acréscimo." }
+        note: { type: string, maxLength: 200 }
     CreditCardPatch:
       type: object
       properties:
         name: { type: string }
         closingDay: { type: integer, minimum: 1, maximum: 31 }
         dueDay: { type: integer, minimum: 1, maximum: 31 }
+        limit: { $ref: "#/components/schemas/Cents", description: "Teto mensal da fatura (0 tira o teto)." }
+    InvestmentFamily:
+      type: string
+      enum: [fixed, treasury, liquid, equity, fund, other]
+      description: Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos e outros.
+    Investment:
+      type: object
+      required: [name, family, institution, appliedAt, currentValue]
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        family: { $ref: "#/components/schemas/InvestmentFamily" }
+        product: { type: string, maxLength: 60, description: Produto dentro da família (CDB, FII, Tesouro Selic...) }
+        institution: { type: string, description: Banco, corretora ou plataforma }
+        appliedAt: { type: string, format: date, description: Data da primeira aplicação }
+        currentValue: { $ref: "#/components/schemas/Cents", description: Quanto vale hoje. Máximo R$ 1 bilhão. }
+        maturityDate: { type: string, format: date, description: Vencimento (vazio = não tem) }
+        indexer: { type: string, maxLength: 40 }
+        rate: { type: string, maxLength: 80, description: 'Taxa contratada, ex.: "110% do CDI"' }
+        liquidity: { type: string, maxLength: 80 }
+        graceUntil: { type: string, format: date, description: Carência até esta data }
+        earlyRedeem: { type: boolean }
+        quantity: { type: number, minimum: 0, description: Cotas (fracionário, até 6 casas). Ausente = não controla quantidade. }
+        avgPrice: { $ref: "#/components/schemas/Cents", description: Preço médio por cota }
+        redeemDays: { type: integer, minimum: 0, maximum: 3650 }
+        ticker: { type: string, maxLength: 40 }
+        fees: { type: string }
+        notes: { type: string }
+    InvestmentPatch:
+      type: object
+      properties:
+        name: { type: string }
+        family: { $ref: "#/components/schemas/InvestmentFamily" }
+        product: { type: string }
+        institution: { type: string }
+        appliedAt: { type: string, format: date }
+        currentValue: { $ref: "#/components/schemas/Cents" }
+        maturityDate: { type: string }
+        indexer: { type: string }
+        rate: { type: string }
+        liquidity: { type: string }
+        graceUntil: { type: string }
+        earlyRedeem: { type: boolean }
+        quantity: { type: number, nullable: true, minimum: 0 }
+        avgPrice: { type: integer, format: int64, nullable: true, minimum: 0 }
+        redeemDays: { type: integer, minimum: 0, maximum: 3650 }
+        ticker: { type: string }
+        fees: { type: string }
+        notes: { type: string }
+    InvestmentMovementType:
+      type: string
+      enum: [contribution, redemption, yield, adjustment]
+      description: |
+        `contribution` (aporte) e `redemption` (resgate) mexem no dinheiro que entra e sai; `yield` (rendimento)
+        soma ao valor atual sem ser aporte; `adjustment` (atualização de valor) define o novo valor atual.
+    InvestmentMovement:
+      type: object
+      required: [investmentId, type, date, amount]
+      properties:
+        id: { type: string, format: uuid }
+        investmentId: { type: string, format: uuid }
+        type: { $ref: "#/components/schemas/InvestmentMovementType" }
+        date: { type: string, format: date }
+        amount: { $ref: "#/components/schemas/Cents", description: Valor total da movimentação (no ajuste, o novo valor atual) }
+        quantity: { type: number, minimum: 0, description: Cotas compradas (aporte) ou vendidas (resgate) }
+        unitPrice: { $ref: "#/components/schemas/Cents", description: Preço por cota nesta movimentação }
+        note: { type: string, maxLength: 200, description: Observação livre }
+        origin: { type: string, description: "Vazio = lançado à mão; `distribution|AAAA-MM|fonte|fatia` = enviado pela sugestão do saldo" }
+    InvestmentMovementPatch:
+      type: object
+      properties:
+        type: { $ref: "#/components/schemas/InvestmentMovementType" }
+        date: { type: string, format: date }
+        amount: { $ref: "#/components/schemas/Cents" }
+        quantity: { type: number, nullable: true, minimum: 0 }
+        unitPrice: { type: integer, format: int64, nullable: true, minimum: 0 }
+        note: { type: string, maxLength: 200 }
+        origin: { type: string }
+    InvestmentMovementResult:
+      type: object
+      required: [investment]
+      properties:
+        movement: { $ref: "#/components/schemas/InvestmentMovement" }
+        investment: { $ref: "#/components/schemas/Investment" }
     InstallmentAdjustment:
       type: object
       properties:
@@ -692,6 +985,9 @@ components:
           description: Porquinho. Não exige valor de meta (target pode ser 0); meta comum exige target maior que zero. Não muda depois de criado.
     GoalPatch:
       type: object
+      description: |
+        `saved` (clientes antigos) vira um ajuste no histórico da meta; `yieldTotal` é ignorado, porque o total de
+        rendimentos é derivado das movimentações (use `/goal-movements`).
       properties:
         name: { type: string }
         target: { $ref: "#/components/schemas/Cents" }
@@ -699,6 +995,35 @@ components:
         monthly: { $ref: "#/components/schemas/Cents" }
         yieldTotal: { $ref: "#/components/schemas/Cents" }
         deadline: { allOf: [{ $ref: "#/components/schemas/Month" }], nullable: true }
+    GoalMovementType:
+      type: string
+      enum: [contribution, withdrawal, yield, adjustment]
+      description: Aporte soma; retirada subtrai (nunca abaixo de zero); rendimento soma ao guardado e ao total de rendimentos; ajuste define o novo guardado (`amount` é o valor, não a diferença).
+    GoalMovement:
+      type: object
+      required: [goalId, type, date, amount]
+      properties:
+        id: { type: string, format: uuid }
+        goalId: { type: string, format: uuid }
+        type: { $ref: "#/components/schemas/GoalMovementType" }
+        date: { type: string, format: date }
+        amount: { $ref: "#/components/schemas/Cents" }
+        note: { type: string, maxLength: 200 }
+        origin: { type: string, description: "Vazio = lançado à mão; `distribution|AAAA-MM|fonte|fatia` = enviado pela sugestão do saldo" }
+    GoalMovementPatch:
+      type: object
+      properties:
+        type: { $ref: "#/components/schemas/GoalMovementType" }
+        date: { type: string, format: date }
+        amount: { $ref: "#/components/schemas/Cents" }
+        note: { type: string, maxLength: 200 }
+        origin: { type: string }
+    GoalMovementResult:
+      type: object
+      required: [goal]
+      properties:
+        movement: { $ref: "#/components/schemas/GoalMovement" }
+        goal: { $ref: "#/components/schemas/Goal" }
 
     ExtraExpense:
       type: object
@@ -709,12 +1034,16 @@ components:
         amount: { $ref: "#/components/schemas/Cents" }
         month: { $ref: "#/components/schemas/Month" }
         payment: { $ref: "#/components/schemas/Payment", description: Pagamento da despesa (só registro). Na criação o servidor ignora; entra na importação. }
+        cardId: { type: string, format: uuid, description: "Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`." }
+        purchaseDate: { type: string, format: date, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
     ExtraExpensePatch:
       type: object
       properties:
         name: { type: string }
         amount: { $ref: "#/components/schemas/Cents" }
         month: { $ref: "#/components/schemas/Month" }
+        cardId: { type: string, description: 'Despesa extra no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, tem que ter `purchaseDate`.' }
+        purchaseDate: { type: string, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
 
     Note:
       type: object
@@ -740,6 +1069,11 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         color: { type: string, pattern: '^#[0-9a-fA-F]{6}$' }
+    CustomCategoryPatch:
+      type: object
+      properties:
+        name: { type: string }
+        color: { type: string, pattern: '^#[0-9a-fA-F]{6}$' }
 
     DistributionItem:
       type: object
@@ -763,6 +1097,13 @@ components:
         creditCards: { type: array, items: { $ref: "#/components/schemas/CreditCard" } }
         notes: { type: array, items: { $ref: "#/components/schemas/Note" } }
         goals: { type: array, items: { $ref: "#/components/schemas/Goal" } }
+        investments: { type: array, items: { $ref: "#/components/schemas/Investment" } }
+        goalMovements: { type: array, items: { $ref: "#/components/schemas/GoalMovement" } }
+        distributionOverrides:
+          type: object
+          description: Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave `AAAA-MM|n`. Sem a chave, vale `distribution` (o padrão).
+          additionalProperties: { type: array, items: { $ref: "#/components/schemas/DistributionItem" } }
+        investmentMovements: { type: array, items: { $ref: "#/components/schemas/InvestmentMovement" } }
         extraExpenses: { type: array, items: { $ref: "#/components/schemas/ExtraExpense" } }
         customCategories: { type: array, items: { $ref: "#/components/schemas/CustomCategory" } }
         distribution:

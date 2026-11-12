@@ -67,8 +67,8 @@ describe("migrateLegacy", () => {
 
 describe("migrateStored", () => {
   it("aceita o envelope atual", () => {
-    const data = migrateStored({ version: 6, data: { transactions: [], creditTransactions: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] } });
-    expect(data).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
+    const data = migrateStored({ version: 6, data: { transactions: [], creditTransactions: [], notes: [], goals: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] } });
+    expect(data).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], onboarding: {} });
   });
 
   it("recusa versão futura e lixo", () => {
@@ -84,9 +84,13 @@ describe("migrateStored", () => {
       creditCards: [],
       notes: [],
       goals: [],
+      goalMovements: [],
+      investments: [],
+      investmentMovements: [],
       extraExpenses: [],
       customCategories: [],
       distribution: null,
+      distributionOverrides: {},
       seenAlerts: [],
       onboarding: {},
     });
@@ -101,10 +105,37 @@ describe("migrateStored", () => {
   });
 });
 
+describe("investimentos no LocalRepository", () => {
+  it("guarda investimento e movimentações e apaga os dois juntos", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.addInvestment({ id: "i1", name: "CDB", family: "fixed", institution: "Banco A", appliedAt: "2026-01-10", currentValue: 100000 });
+    await repo.addInvestmentMovement({ id: "m1", investmentId: "i1", type: "contribution", date: "2026-01-10", amount: 100000 });
+    await repo.updateInvestment("i1", { currentValue: 105000 });
+
+    const reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.investments).toHaveLength(1);
+    expect(reloaded.investments?.[0].currentValue).toBe(105000);
+    expect(reloaded.investmentMovements).toHaveLength(1);
+
+    await repo.updateInvestmentMovement("m1", { amount: 90000 });
+    expect((await new LocalRepository(storage).load()).investmentMovements?.[0].amount).toBe(90000);
+    await repo.removeInvestmentMovement("m1");
+    expect((await new LocalRepository(storage).load()).investmentMovements).toEqual([]);
+    await repo.addInvestmentMovement({ id: "m2", investmentId: "i1", type: "yield", date: "2026-02-01", amount: 5 });
+
+    await repo.removeInvestment("i1");
+    const empty = await new LocalRepository(storage).load();
+    expect(empty.investments).toEqual([]);
+    expect(empty.investmentMovements).toEqual([]);
+  });
+});
+
 describe("LocalRepository", () => {
   it("começa vazio sem nenhum dado salvo", async () => {
     const repo = new LocalRepository(fakeStorage());
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], onboarding: {} });
   });
 
   it("importa o formato antigo uma vez e mantém o backup intacto", async () => {
@@ -116,7 +147,7 @@ describe("LocalRepository", () => {
 
     expect(data.transactions[0].amount).toBe(500050);
     expect(storage.map.get(LEGACY_STORAGE_KEY)).toBe(original);
-    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(7);
+    expect(JSON.parse(storage.map.get(STORAGE_KEY)!).version).toBe(9);
   });
 
   it("depois de migrar, ignora o formato antigo", async () => {
@@ -170,9 +201,13 @@ describe("LocalRepository", () => {
       creditCards: [],
       notes: [],
       goals: [],
+      goalMovements: [],
+      investments: [],
+      investmentMovements: [],
       extraExpenses: [],
       customCategories: [],
       distribution: null,
+      distributionOverrides: {},
       seenAlerts: [],
       onboarding: {},
     });
@@ -211,6 +246,57 @@ describe("LocalRepository", () => {
 
     await repo.removeCategory("k1");
     expect((await new LocalRepository(storage).load()).customCategories).toEqual([]);
+  });
+
+  it("editar categoria no LocalRepository renomeia as despesas e compras guardadas e persiste", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.addCategory({ id: "k1", name: "Pets", color: "#FF8800" });
+    await repo.addTransaction({ id: "t1", name: "Ração", amount: 5000, type: "expense", category: "Pets", month: "2026-11" });
+    await repo.addTransaction({ id: "t2", name: "Mercado", amount: 3000, type: "expense", category: "Alimentação", month: "2026-11" });
+    await repo.addCredit({ id: "c1", name: "Caminha", totalAmount: 30000, installments: 3, startMonth: "2026-11", category: "Pets" });
+
+    await repo.updateCategory("k1", { color: "#123ABC" });
+    expect((await new LocalRepository(storage).load()).transactions.map((t) => t.category)).toEqual(["Pets", "Alimentação"]);
+
+    await repo.updateCategory("k1", { name: "Bichos" });
+    const reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.customCategories).toEqual([{ id: "k1", name: "Bichos", color: "#123ABC" }]);
+    expect(reloaded.transactions.map((t) => t.category)).toEqual(["Bichos", "Alimentação"]);
+    expect(reloaded.creditTransactions[0].category).toBe("Bichos");
+
+    await repo.updateCategory("nao-existe", { name: "X" });
+    expect((await new LocalRepository(storage).load()).customCategories).toHaveLength(1);
+  });
+
+  it("v8 -> v9: metas que já tinham valor ganham o 'Saldo inicial', sem mudar nenhum valor", () => {
+    const goal = { id: "g", name: "Viagem", target: 100000, saved: 10300, monthly: 0, deadline: null, yieldTotal: 300 };
+    const empty = { id: "e", name: "Vazia", target: 100000, saved: 0, monthly: 0, deadline: null };
+    const data = migrateStored({ version: 8, data: { goals: [goal, empty] } });
+    expect(data?.goalMovements?.map((m) => [m.goalId, m.type, m.amount])).toEqual([["g", "yield", 300], ["g", "adjustment", 10300]]);
+    // quem já tem histórico (formato novo) não ganha nada
+    const again = migrateStored({ version: 9, data: { goals: [goal], goalMovements: data?.goalMovements } });
+    expect(again?.goalMovements).toHaveLength(2);
+  });
+
+  it("LocalRepository: o histórico refaz o guardado da meta e sobrevive a um novo carregamento", async () => {
+    const storage = fakeStorage();
+    const repo = new LocalRepository(storage);
+    await repo.load();
+    await repo.addGoal({ id: "g", name: "Viagem", target: 100000, saved: 0, monthly: 0, deadline: null });
+    await repo.addGoalMovement({ id: "m1", goalId: "g", type: "contribution", date: "2026-11-01", amount: 10000 });
+    await repo.addGoalMovement({ id: "m2", goalId: "g", type: "yield", date: "2026-11-30", amount: 300 });
+    await repo.updateGoalMovement("m1", { amount: 20000 });
+    let reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.goals[0]).toMatchObject({ saved: 20300, yieldTotal: 300 });
+    expect(reloaded.goalMovements).toHaveLength(2);
+    await repo.removeGoalMovement("m1");
+    reloaded = await new LocalRepository(storage).load();
+    expect(reloaded.goals[0].saved).toBe(300);
+    await repo.removeGoal("g");
+    reloaded = await new LocalRepository(storage).load();
+    expect([reloaded.goals, reloaded.goalMovements]).toEqual([[], []]);
   });
 
   it("migra a v2 (sem categorias) sem perder metas", () => {
@@ -268,7 +354,7 @@ describe("LocalRepository", () => {
         throw new Error("bloqueado");
       },
     });
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], onboarding: {} });
     await expect(
       repo.addNote({ id: "1", content: "a", date: "d", pinned: false, month: "2026-03" }),
     ).resolves.toBeUndefined();

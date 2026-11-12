@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { formatBRL } from "@/lib/money";
-import { niceTicks, shortReais as short } from "./scale";
+import { axisPadding, niceTicks, shortReais as short } from "./scale";
 import PickPopover from "./PickPopover";
 import { TipBox } from "./ChartTooltip";
 import { useChartTip } from "./useChartTip";
@@ -15,7 +15,7 @@ export interface LineSeries {
   area?: boolean;
 }
 
-const PAD = { l: 44, r: 10, t: 10, b: 26 };
+const BASE_PAD = { l: 44, r: 10, t: 10, b: 26 };
 
 /** Linhas com grade leve e ponto final destacado (protótipo B). Valores em centavos. */
 export default function ChartLine({ labels, series, height = 230, tapDetail }: { labels: string[]; series: LineSeries[]; height?: number; /** tocar (ou clicar) em um mês abre um popover com os valores, sem precisar segurar */ tapDetail?: boolean }) {
@@ -31,14 +31,16 @@ export default function ChartLine({ labels, series, height = 230, tapDetail }: {
   const bottom = min < 0 ? -Math.ceil(Math.abs(min) / tk.step) * tk.step : 0;
   const top = tk.top;
 
+  const gridValues: number[] = [];
+  for (let v = bottom; v <= top + 1e-6; v += tk.step) gridValues.push(v);
+
+  // a margem esquerda acompanha o maior rótulo do eixo: valores grandes não saem do card
+  const PAD = { ...BASE_PAD, l: axisPadding(gridValues.map(short)) };
   const iw = width - PAD.l - PAD.r;
   const ih = height - PAD.t - PAD.b;
   const y = (v: number) => PAD.t + ih - ((v - bottom) / (top - bottom)) * ih;
   const band = iw / labels.length;
   const x = (i: number) => PAD.l + band * i + band / 2;
-
-  const gridValues: number[] = [];
-  for (let v = bottom; v <= top + 1e-6; v += tk.step) gridValues.push(v);
 
   return (
     <div ref={ref} className="relative w-full min-w-0">

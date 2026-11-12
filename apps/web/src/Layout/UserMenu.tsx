@@ -26,8 +26,8 @@ export default function UserMenu() {
   if (api && !user) return null;
 
   const exportBackup = () => {
-    const { transactions, creditTransactions, creditCards, notes, goals, extraExpenses, customCategories, distribution, seenAlerts, onboarding } = useFinanceStore.getState();
-    downloadText(BACKUP_FILENAME(), buildBackup({ transactions, creditTransactions, creditCards, notes, goals, extraExpenses, customCategories, distribution, seenAlerts, onboarding }), "application/json");
+    const { transactions, creditTransactions, creditCards, notes, goals, investments, investmentMovements, extraExpenses, customCategories, distribution, seenAlerts, onboarding } = useFinanceStore.getState();
+    downloadText(BACKUP_FILENAME(), buildBackup({ transactions, creditTransactions, creditCards, notes, goals, investments, investmentMovements, extraExpenses, customCategories, distribution, seenAlerts, onboarding }), "application/json");
   };
 
   return (

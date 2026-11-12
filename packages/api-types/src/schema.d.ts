@@ -731,6 +731,357 @@ export interface paths {
         };
         trace?: never;
     };
+    "/investments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cadastra um investimento
+         * @description Controle manual do que está investido, sem integração com banco ou corretora. Fica **separado do fluxo
+         *     de caixa**: não entra em receitas, despesas, saldo, projeção nem relatórios.
+         *     O valor atual (`currentValue`) é o informado aqui; depois, cada movimentação o refaz no servidor.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Investment"];
+                };
+            };
+            responses: {
+                /** @description Criado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Investment"];
+                    };
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/investments/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove o investimento e as movimentações dele */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Removido */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Altera só os campos enviados
+         * @description Texto vazio limpa um campo opcional. `"quantity": null` e `"avgPrice": null` limpam cotas e preço médio;
+         *     sem a chave, não mudam. Para mexer no valor por movimentação, use `/investment-movements`.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvestmentPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Investment"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
+    "/investment-movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registra uma movimentação (aporte, resgate, rendimento ou atualização de valor)
+         * @description O servidor refaz valor atual, cotas e preço médio do investimento pelas movimentações, em ordem de data,
+         *     na mesma transação, e devolve o investimento atualizado. O valor atual nunca fica negativo.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvestmentMovement"];
+                };
+            };
+            responses: {
+                /** @description Criada */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvestmentMovementResult"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/investment-movements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Exclui a movimentação e refaz o investimento */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Excluída (devolve só o investimento refeito) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvestmentMovementResult"];
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /**
+         * Corrige a movimentação e refaz o investimento
+         * @description `"quantity": null` e `"unitPrice": null` limpam os campos; sem a chave, não mudam.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvestmentMovementPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["InvestmentMovementResult"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
+    "/goal-movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registra uma movimentação de meta ou porquinho (aporte, retirada, rendimento ou ajuste)
+         * @description O servidor refaz o guardado e o total de rendimentos da meta pelas movimentações, em ordem de data, na mesma
+         *     transação, e devolve a meta atualizada. O guardado nunca fica negativo.
+         *     A `origin` é vazia (lançado à mão) ou `distribution|AAAA-MM|fonte|fatia` (enviado pela sugestão do saldo).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GoalMovement"];
+                };
+            };
+            responses: {
+                /** @description Criada */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoalMovementResult"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/goal-movements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Exclui a movimentação e refaz a meta */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Excluída (devolve só a meta refeita) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoalMovementResult"];
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Corrige a movimentação e refaz a meta */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GoalMovementPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoalMovementResult"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
     "/credits/{id}/installments/{n}/advance": {
         parameters: {
             query?: never;
@@ -1021,6 +1372,164 @@ export interface paths {
                 404: components["responses"]["Error"];
             };
         };
+        trace?: never;
+    };
+    "/credit-cards/{id}/payments/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                /** @description Mês do pagamento (AAAA-MM) */
+                month: components["parameters"]["PaymentMonth"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Marca a fatura do cartão como paga (ou edita o pagamento)
+         * @description O mês é o do vencimento da fatura. Só registro para consulta; não muda nenhum valor, resumo, projeção ou comparação. Forma, data e observação como no pagamento de despesas (só boleto pode ter data futura).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["Payment"];
+                };
+            };
+            responses: {
+                /** @description Cartão atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /** Desmarca o pagamento da fatura deste mês */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cartão atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/credit-cards/{id}/adjustments/{month}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+                /** @description Mês do pagamento (AAAA-MM) */
+                month: components["parameters"]["PaymentMonth"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Troca a lista de ajustes (descontos e acréscimos) da fatura do cartão
+         * @description O mês é o do vencimento da fatura. O corpo é a lista inteira de ajustes do mês (até 50; lista vazia remove todos). Cada ajuste tem id único, valor em centavos diferente de zero (negativo é desconto, positivo é acréscimo) e observação opcional. Só registro para a fatura bater com a do banco; não muda nenhuma despesa, projeção ou comparação.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["InvoiceAdjustment"][];
+                };
+            };
+            responses: {
+                /** @description Cartão atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        /** Remove todos os ajustes da fatura deste mês */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Cartão atualizado */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreditCard"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/transactions/{id}/payments/{month}": {
@@ -1397,6 +1906,60 @@ export interface paths {
         };
         trace?: never;
     };
+    "/settings/distribution-overrides/{month}/{group}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mês do pagamento (AAAA-MM) */
+                month: components["parameters"]["PaymentMonth"];
+                /** @description Número da distribuição (Dist 2 a 20). A Dist 1 sempre usa o padrão de /settings/distribution. */
+                group: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Define os percentuais próprios de uma distribuição (Dist 2 em diante) de um mês
+         * @description Vale só para essa distribuição e esse mês; as outras seguem o padrão. `items: null` volta ao padrão. Mesmas regras de /settings/distribution (as cinco fatias padrão e soma 100%).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                    /** @description Número da distribuição (Dist 2 a 20). A Dist 1 sempre usa o padrão de /settings/distribution. */
+                    group: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["DistributionItem"][] | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Salvo */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/categories": {
         parameters: {
             query?: never;
@@ -1475,7 +2038,39 @@ export interface paths {
         };
         options?: never;
         head?: never;
-        patch?: never;
+        /**
+         * Edita o nome e/ou a cor de uma categoria própria
+         * @description Os lançamentos guardam a categoria pelo nome, então ao trocar o nome as despesas e as compras no crédito que usavam o nome antigo passam para o novo, tudo de uma vez. Trocar só a caixa das letras é permitido; nome igual ao de outra categoria (sem diferenciar maiúsculas) é recusado e nada muda.
+         */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CustomCategoryPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomCategory"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                409: components["responses"]["Error"];
+            };
+        };
         trace?: never;
     };
     "/settings/distribution": {
@@ -1793,12 +2388,26 @@ export interface components {
             monthlyNotes?: {
                 [key: string]: string;
             };
-            /** @description Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado. */
+            /** @description Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu `monthlyValues`; na avulsa, o valor real vem de enviar um novo `amount` e `variableAmount: false`. Só muda quando vem na requisição. */
             variableAmount?: boolean;
             /** @description Pagamento por mês (AAAA-MM). Só despesas. Só registro, não entra em nenhuma conta. Na criação o servidor ignora; entra na importação. */
             payments?: {
                 [key: string]: components["schemas"]["Payment"];
             };
+            /**
+             * Format: uuid
+             * @description Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`.
+             */
+            cardId?: string;
+            /**
+             * Format: date
+             * @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido.
+             */
+            purchaseDate?: string;
+            /** @description Só fixas. Fixa encerrada: o último mês em que vale ("2026-11" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam. */
+            endMonth?: components["schemas"]["Month"];
+            /** @description Só renda não fixa (13º, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente ou 0 = soma ao saldo do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não muda nenhum valor, saldo, projeção ou relatório. */
+            distGroup?: number;
         };
         Payment: {
             /** @enum {string} */
@@ -1824,8 +2433,16 @@ export interface components {
             monthlyNotes?: {
                 [key: string]: string;
             };
-            /** @description Só fixas: `amount` é uma estimativa; o valor real de um mês é o seu `monthlyValues`. Em transação avulsa é ignorado. */
+            /** @description Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu `monthlyValues`; na avulsa, o valor real vem de enviar um novo `amount` e `variableAmount: false`. Só muda quando vem na requisição. */
             variableAmount?: boolean;
+            /** @description Despesa avulsa no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, a despesa tem que ter `purchaseDate` (no mesmo pedido ou já guardado) e não pode ser fixa. */
+            cardId?: string;
+            /** @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido. */
+            purchaseDate?: string;
+            /** @description Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa. */
+            endMonth?: string;
+            /** @description Só renda não fixa: a distribuição da sugestão do saldo (0 = Dist 1; 2 a 20 = Dist 2 em diante). Número fora disso é recusado (400); despesa ou renda fixa em distribuição própria é recusada (422). */
+            distGroup?: number;
         };
         CreditTransaction: {
             /** Format: uuid */
@@ -1859,11 +2476,140 @@ export interface components {
             name: string;
             closingDay: number;
             dueDay: number;
+            /** @description Teto mensal da fatura. Ausente ou 0 = sem teto. Só acompanhamento, não bloqueia nada. */
+            limit?: components["schemas"]["Cents"];
+            /** @description Pagamento da fatura por mês de vencimento (AAAA-MM). Só registro, não entra em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação. */
+            payments?: {
+                [key: string]: components["schemas"]["Payment"];
+            };
+            /** @description Ajustes (descontos e acréscimos) da fatura por mês de vencimento (AAAA-MM), vários por fatura. Só registro, não entram em nenhuma conta. Na criação o servidor ignora (use o endpoint próprio); entra na importação. */
+            adjustments?: {
+                [key: string]: components["schemas"]["InvoiceAdjustment"][];
+            };
+        };
+        InvoiceAdjustment: {
+            /** @description Identifica o ajuste dentro da fatura; único no mês. */
+            id: string;
+            /**
+             * Format: int64
+             * @description Centavos, diferente de zero. Negativo = desconto; positivo = acréscimo.
+             */
+            amount: number;
+            note?: string;
         };
         CreditCardPatch: {
             name?: string;
             closingDay?: number;
             dueDay?: number;
+            /** @description Teto mensal da fatura (0 tira o teto). */
+            limit?: components["schemas"]["Cents"];
+        };
+        /**
+         * @description Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos e outros.
+         * @enum {string}
+         */
+        InvestmentFamily: "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other";
+        Investment: {
+            /** Format: uuid */
+            id?: string;
+            name: string;
+            family: components["schemas"]["InvestmentFamily"];
+            /** @description Produto dentro da família (CDB */
+            product?: string;
+            /** @description Banco */
+            institution: string;
+            /**
+             * Format: date
+             * @description Data da primeira aplicação
+             */
+            appliedAt: string;
+            /** @description Quanto vale hoje. Máximo R$ 1 bilhão. */
+            currentValue: components["schemas"]["Cents"];
+            /**
+             * Format: date
+             * @description Vencimento (vazio = não tem)
+             */
+            maturityDate?: string;
+            indexer?: string;
+            /** @description Taxa contratada, ex.: "110% do CDI" */
+            rate?: string;
+            liquidity?: string;
+            /**
+             * Format: date
+             * @description Carência até esta data
+             */
+            graceUntil?: string;
+            earlyRedeem?: boolean;
+            /** @description Cotas (fracionário */
+            quantity?: number;
+            /** @description Preço médio por cota */
+            avgPrice?: components["schemas"]["Cents"];
+            redeemDays?: number;
+            ticker?: string;
+            fees?: string;
+            notes?: string;
+        };
+        InvestmentPatch: {
+            name?: string;
+            family?: components["schemas"]["InvestmentFamily"];
+            product?: string;
+            institution?: string;
+            /** Format: date */
+            appliedAt?: string;
+            currentValue?: components["schemas"]["Cents"];
+            maturityDate?: string;
+            indexer?: string;
+            rate?: string;
+            liquidity?: string;
+            graceUntil?: string;
+            earlyRedeem?: boolean;
+            quantity?: number | null;
+            /** Format: int64 */
+            avgPrice?: number | null;
+            redeemDays?: number;
+            ticker?: string;
+            fees?: string;
+            notes?: string;
+        };
+        /**
+         * @description `contribution` (aporte) e `redemption` (resgate) mexem no dinheiro que entra e sai; `yield` (rendimento)
+         *     soma ao valor atual sem ser aporte; `adjustment` (atualização de valor) define o novo valor atual.
+         * @enum {string}
+         */
+        InvestmentMovementType: "contribution" | "redemption" | "yield" | "adjustment";
+        InvestmentMovement: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            investmentId: string;
+            type: components["schemas"]["InvestmentMovementType"];
+            /** Format: date */
+            date: string;
+            /** @description Valor total da movimentação (no ajuste */
+            amount: components["schemas"]["Cents"];
+            /** @description Cotas compradas (aporte) ou vendidas (resgate) */
+            quantity?: number;
+            /** @description Preço por cota nesta movimentação */
+            unitPrice?: components["schemas"]["Cents"];
+            /** @description Observação livre */
+            note?: string;
+            /** @description Vazio = lançado à mão; `distribution|AAAA-MM|fonte|fatia` = enviado pela sugestão do saldo */
+            origin?: string;
+        };
+        InvestmentMovementPatch: {
+            type?: components["schemas"]["InvestmentMovementType"];
+            /** Format: date */
+            date?: string;
+            amount?: components["schemas"]["Cents"];
+            quantity?: number | null;
+            /** Format: int64 */
+            unitPrice?: number | null;
+            note?: string;
+            origin?: string;
+        };
+        InvestmentMovementResult: {
+            movement?: components["schemas"]["InvestmentMovement"];
+            investment: components["schemas"]["Investment"];
         };
         InstallmentAdjustment: {
             /** @description Valor só desta parcela */
@@ -1903,6 +2649,10 @@ export interface components {
             /** @description Porquinho. Não exige valor de meta (target pode ser 0); meta comum exige target maior que zero. Não muda depois de criado. */
             piggy?: boolean;
         };
+        /**
+         * @description `saved` (clientes antigos) vira um ajuste no histórico da meta; `yieldTotal` é ignorado, porque o total de
+         *     rendimentos é derivado das movimentações (use `/goal-movements`).
+         */
         GoalPatch: {
             name?: string;
             target?: components["schemas"]["Cents"];
@@ -1910,6 +2660,36 @@ export interface components {
             monthly?: components["schemas"]["Cents"];
             yieldTotal?: components["schemas"]["Cents"];
             deadline?: components["schemas"]["Month"] | null;
+        };
+        /**
+         * @description Aporte soma; retirada subtrai (nunca abaixo de zero); rendimento soma ao guardado e ao total de rendimentos; ajuste define o novo guardado (`amount` é o valor, não a diferença).
+         * @enum {string}
+         */
+        GoalMovementType: "contribution" | "withdrawal" | "yield" | "adjustment";
+        GoalMovement: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            goalId: string;
+            type: components["schemas"]["GoalMovementType"];
+            /** Format: date */
+            date: string;
+            amount: components["schemas"]["Cents"];
+            note?: string;
+            /** @description Vazio = lançado à mão; `distribution|AAAA-MM|fonte|fatia` = enviado pela sugestão do saldo */
+            origin?: string;
+        };
+        GoalMovementPatch: {
+            type?: components["schemas"]["GoalMovementType"];
+            /** Format: date */
+            date?: string;
+            amount?: components["schemas"]["Cents"];
+            note?: string;
+            origin?: string;
+        };
+        GoalMovementResult: {
+            movement?: components["schemas"]["GoalMovement"];
+            goal: components["schemas"]["Goal"];
         };
         ExtraExpense: {
             /** Format: uuid */
@@ -1919,11 +2699,25 @@ export interface components {
             month: components["schemas"]["Month"];
             /** @description Pagamento da despesa (só registro). Na criação o servidor ignora; entra na importação. */
             payment?: components["schemas"]["Payment"];
+            /**
+             * Format: uuid
+             * @description Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`.
+             */
+            cardId?: string;
+            /**
+             * Format: date
+             * @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido.
+             */
+            purchaseDate?: string;
         };
         ExtraExpensePatch: {
             name?: string;
             amount?: components["schemas"]["Cents"];
             month?: components["schemas"]["Month"];
+            /** @description Despesa extra no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, tem que ter `purchaseDate`. */
+            cardId?: string;
+            /** @description Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido. */
+            purchaseDate?: string;
         };
         Note: {
             /** Format: uuid */
@@ -1945,6 +2739,10 @@ export interface components {
             name: string;
             color: string;
         };
+        CustomCategoryPatch: {
+            name?: string;
+            color?: string;
+        };
         DistributionItem: {
             id: string;
             label: string;
@@ -1962,6 +2760,13 @@ export interface components {
             creditCards?: components["schemas"]["CreditCard"][];
             notes: components["schemas"]["Note"][];
             goals: components["schemas"]["Goal"][];
+            investments?: components["schemas"]["Investment"][];
+            goalMovements?: components["schemas"]["GoalMovement"][];
+            /** @description Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave `AAAA-MM|n`. Sem a chave, vale `distribution` (o padrão). */
+            distributionOverrides?: {
+                [key: string]: components["schemas"]["DistributionItem"][];
+            };
+            investmentMovements?: components["schemas"]["InvestmentMovement"][];
             extraExpenses: components["schemas"]["ExtraExpense"][];
             customCategories: components["schemas"]["CustomCategory"][];
             /** @description Percentuais escolhidos; null = padrão */

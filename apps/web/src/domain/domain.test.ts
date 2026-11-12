@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getAvailableMonths,
+  getCategoryDetail,
   getCreditByMonth,
   getDistribution,
   getExpensesByCategory,
@@ -200,10 +201,33 @@ describe("getMonthSummary", () => {
     expect(s.balance).toBe(500000 - 175000);
   });
 
-  it("agrupa por categoria e põe o crédito na própria categoria", () => {
+  it("agrupa por categoria e põe cada parcela do crédito na categoria da própria compra", () => {
     const s = getMonthSummary(data, "2026-03");
     expect(s.byCategory.Moradia).toBe(120000);
-    expect(s.byCategory["Crédito/Parcelado"]).toBe(25000);
+    // a compra do crédito é "Outros": o gráfico não tem mais um balde "Crédito/Parcelado"
+    expect(s.byCategory.Outros).toBe(25000);
+    expect(s.byCategory["Crédito/Parcelado"]).toBeUndefined();
+    expect(Object.values(s.byCategory).reduce<number>((a, b) => a + (b ?? 0), 0)).toBe(s.totalExpense);
+  });
+
+  it("trocar a categoria de uma compra do crédito muda o gráfico por categoria", () => {
+    const base = { transactions: [], extraExpenses: [] };
+    const before = getMonthSummary({ ...base, creditTransactions: [credit({ category: "Lazer" })] }, "2026-03");
+    expect(before.byCategory).toEqual({ Lazer: 25000 });
+    const after = getMonthSummary({ ...base, creditTransactions: [credit({ category: "Moradia" })] }, "2026-03");
+    expect(after.byCategory).toEqual({ Moradia: 25000 });
+    expect(after.totalExpense).toBe(before.totalExpense);
+    // compra antiga sem categoria cai na reserva "Crédito/Parcelado"
+    const legacy = getMonthSummary({ ...base, creditTransactions: [credit({ category: "" })] }, "2026-03");
+    expect(legacy.byCategory).toEqual({ "Crédito/Parcelado": 25000 });
+  });
+
+  it("o detalhe da categoria lista as parcelas dela e soma igual ao gráfico", () => {
+    const d = { transactions: [tx({ id: "d1", amount: 120000, category: "Moradia" })], creditTransactions: [credit({ category: "Moradia" })], extraExpenses: [] };
+    const lines = getCategoryDetail(d, "2026-03", "Moradia");
+    expect(lines.map((l) => l.kind).sort()).toEqual(["credit", "fixed"]);
+    expect(lines.reduce((s, l) => s + l.amount, 0)).toBe(getMonthSummary(d, "2026-03").byCategory.Moradia);
+    expect(getCategoryDetail(d, "2026-03", "Outros")).toEqual([]);
   });
 
   it("mês sem a transação comum não conta ela, mas conta a fixa", () => {
@@ -223,7 +247,7 @@ describe("getMonthSummary", () => {
     expect(getExpensesByCategory(s).map((c) => c.category)).toEqual([
       "Moradia",
       "Lazer",
-      "Crédito/Parcelado",
+      "Outros",
     ]);
   });
 });
@@ -343,6 +367,28 @@ describe("observação de despesa fixa", () => {
   });
 });
 
+describe("avulsa de valor variável (estimado)", () => {
+  it("renda ou despesa de um mês só fica marcada como estimada até confirmar o valor real", () => {
+    const freela = tx({ id: "f", type: "income", category: "Renda", month: "2026-03", amount: 120000, variableAmount: true });
+    const mercado = tx({ id: "m", month: "2026-03", amount: 50000 });
+    const [a, b] = getTransactionsByMonth([freela, mercado], "2026-03");
+    expect(a.estimated).toBe(true);
+    expect(a.amount).toBe(120000);
+    expect(b.estimated).toBeUndefined();
+    // confirmado o valor real (estimativa desligada), deixa de ser estimada
+    expect(getTransactionsByMonth([{ ...freela, variableAmount: false, amount: 98000 }], "2026-03")[0]).toMatchObject({ amount: 98000 });
+    expect(getTransactionsByMonth([{ ...freela, variableAmount: false }], "2026-03")[0].estimated).toBeUndefined();
+    // só vale no mês dela
+    expect(getTransactionsByMonth([freela], "2026-04")).toEqual([]);
+  });
+
+  it("não muda os totais: o valor estimado conta como qualquer outro", () => {
+    const base = { transactions: [tx({ month: "2026-03", amount: 50000 })], creditTransactions: [] as CreditTransaction[] };
+    const est = { transactions: [tx({ month: "2026-03", amount: 50000, variableAmount: true })], creditTransactions: [] as CreditTransaction[] };
+    expect(getMonthSummary(est, "2026-03")).toEqual(getMonthSummary(base, "2026-03"));
+  });
+});
+
 describe("fixa de valor variável (estimado)", () => {
   const luz = tx({ fixed: true, variableAmount: true, amount: 18000, month: "2026-01", monthlyValues: { "2026-02": 21050 } });
 
@@ -366,6 +412,8 @@ describe("fixa de valor variável (estimado)", () => {
   });
 
   it("deixar de ser fixa desliga o valor variável", () => {
-    expect(patchToggleFixed(luz)).toMatchObject({ fixed: false, variableAmount: undefined });
+    // deixar de ser fixa tira os valores por mês, mas o valor segue sendo uma estimativa
+    expect(patchToggleFixed(luz)).toMatchObject({ fixed: false, monthlyValues: undefined });
+    expect(patchToggleFixed(luz)).not.toHaveProperty("variableAmount");
   });
 });

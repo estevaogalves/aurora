@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   centsToInput,
   formatBRL,
+  formatBRLShort,
+  MAX_MONEY_CHARS,
   parseBRL,
   sanitizeAmountInput,
   splitInstallments,
@@ -106,5 +108,32 @@ describe("splitInstallments", () => {
 
   it("protege contra quantidade inválida", () => {
     expect(splitInstallments(500, 0)).toEqual([500]);
+  });
+});
+
+describe("valores gigantes", () => {
+  const nbsp = " ";
+
+  it("valores normais saem por inteiro, até quase R$ 1 trilhão", () => {
+    expect(formatBRL(123456)).toBe(`R$${nbsp}1.234,56`);
+    expect(formatBRL(0)).toBe(`R$${nbsp}0,00`);
+    const big = formatBRL(99_999_999_999_999); // R$ 999.999.999.999,99
+    expect(big).toBe(`R$${nbsp}999.999.999.999,99`);
+    expect(big.length).toBe(MAX_MONEY_CHARS);
+    expect(formatBRLShort(99_999_999_999_999)).not.toContain("…");
+  });
+
+  it("acima disso o texto é cortado com reticências e nunca passa do limite", () => {
+    const huge = Number("1e57"); // o valor que quebrava o layout
+    for (const text of [formatBRL(huge), formatBRLShort(huge), formatBRL(1e20), formatBRLShort(1e20)]) {
+      expect(text.endsWith("…")).toBe(true);
+      expect(text.length).toBe(MAX_MONEY_CHARS);
+      expect(text.startsWith(`R$${nbsp}`)).toBe(true);
+    }
+  });
+
+  it("o corte não mexe em valores negativos nem em zero", () => {
+    expect(formatBRL(-123456)).toContain("1.234,56");
+    expect(formatBRL(-1e57).length).toBeLessThanOrEqual(MAX_MONEY_CHARS);
   });
 });

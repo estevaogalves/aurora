@@ -4,6 +4,9 @@ import { uuid } from "@/lib/uuid";
 import MonthPicker from "@/components/shared/MonthPicker";
 import { useEffect, useState } from "react";
 import { CardSelect, InvoiceInfo } from "./CardField";
+import DistGroupField from "./DistGroupField";
+import CardPurchaseField from "./CardPurchaseField";
+import { isISODate } from "./isoDate";
 import TourHelpButton from "@/components/tour/TourHelpButton";
 import { btnClass } from "@/components/shared/styles";
 import CategorySelect from "@/components/shared/CategorySelect";
@@ -29,10 +32,10 @@ const LAUNCH_TABS: LaunchTab[] = ["expense", "income", "credit", "card", "extra"
 
 /** Mini tour do modal: o que cada aba representa. */
 const TAB_HELP: Record<LaunchTab, { title: string; text: string }> = {
-  expense: { title: "Despesa", text: "Um gasto do mês, como aluguel, mercado ou internet. Marque “Despesa fixa” para repetir todo mês; sem marcar, vale só neste mês." },
+  expense: { title: "Despesa", text: "Um gasto do mês, como aluguel, mercado ou internet. Marque “Despesa fixa” para repetir todo mês; sem marcar, vale só neste mês. Se foi no cartão, escolha o cartão e o dia da compra: o valor entra na fatura e o pagamento é marcado na fatura, em Lançamentos." },
   income: { title: "Renda", text: "Dinheiro que entra, como salário ou freelance. A renda fixa repete todo mês; a variável vale só no mês em que foi lançada." },
   credit: { title: "Crédito parcelado", text: "Compra no cartão em várias vezes. Informe o valor total e o número de parcelas: o app divide e lança uma parcela por mês, a partir deste. Marque “Compra recorrente” para uma assinatura: um valor único, cobrado todo mês até você cancelar." },
-  card: { title: "Cartão", text: "Cadastre um cartão de crédito com o dia de fechamento e o de vencimento. Ao escolhê-lo em uma compra, o valor entra no mês em que a fatura vence. Para ver, editar ou excluir seus cartões, use o ícone de perfil no topo (ou a aba Cartões, no uso local)." },
+  card: { title: "Cartão", text: "Cadastre um cartão de crédito com o dia de fechamento e o de vencimento e, se quiser, um teto mensal para acompanhar a fatura. Ao escolhê-lo em uma compra, o valor entra no mês em que a fatura vence. Para ver, editar ou excluir seus cartões, use o ícone de perfil no topo (ou a aba Cartões, no uso local)." },
   extra: { title: "Despesa extra", text: "Gasto que não se repete todo mês e que você quer planejar, como IPVA ou uma viagem. Escolha o mês futuro; ela aparece na aba Projeção." },
   goal: { title: "Meta", text: "Um objetivo para juntar dinheiro, como a reserva de emergência. Informe o valor, o aporte mensal e o prazo (opcionais) e acompanhe na aba Metas. Marque “Porquinho” para guardar sem valor de meta: só nome, já guardado, aporte e prazo; ele fica abaixo das metas principais." },
 };
@@ -205,6 +208,7 @@ const LABELS = {
 function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName: boolean; onClose: () => void }) {
   const currentMonth = useFinanceStore((s) => s.currentMonth);
   const addTransaction = useFinanceStore((s) => s.addTransaction);
+  const transactions = useFinanceStore((s) => s.transactions);
   const addCreditTransaction = useFinanceStore((s) => s.addCreditTransaction);
   const addExtraExpense = useFinanceStore((s) => s.addExtraExpense);
   const addGoal = useFinanceStore((s) => s.addGoal);
@@ -218,7 +222,12 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [installments, setInstallments] = useState(2);
   const [recurring, setRecurring] = useState(false);
   const [variable, setVariable] = useState(false);
+  // renda variável: em qual distribuição da sugestão do saldo entra (1 = Dist 1, o saldo do mês)
+  const [distGroup, setDistGroup] = useState(1);
   const [cardId, setCardId] = useState("");
+  // dia da compra (despesa avulsa ou extra no cartão) e teto mensal (cadastro do cartão)
+  const [purchaseDate, setPurchaseDate] = useState(() => defaultStartDate(currentMonth));
+  const [limit, setLimit] = useState("");
   // data de início da cobrança (crédito parcelado e recorrente): dá o mês inicial e o dia das cobranças seguintes
   const [startDate, setStartDate] = useState(() => defaultStartDate(currentMonth));
   const [closingDay, setClosingDay] = useState("");
@@ -250,9 +259,13 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setInstallments(2);
     setRecurring(false);
     setVariable(false);
+    setDistGroup(1);
     setStartDate(defaultStartDate(currentMonth));
     setClosingDay("");
     setDueDay("");
+    setCardId("");
+    setPurchaseDate(defaultStartDate(currentMonth));
+    setLimit("");
     setPiggy(false);
     setMonthly("");
     setSaved("");
@@ -269,7 +282,9 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     if (kind === "card") {
       const card = { name: trimmed, closingDay: Number(closingDay), dueDay: Number(dueDay) };
       if (!isValidCard(card)) return showToast({ type: "error", text: "Informe os dias de fechamento e vencimento (1 a 31)" });
-      addCreditCard({ id: uuid(), ...card });
+      const cap = limit.trim() ? parseBRL(limit) : 0;
+      if (cap === null) return showToast({ type: "error", text: "Informe um teto válido ou deixe em branco" });
+      addCreditCard({ id: uuid(), ...card, ...(cap > 0 && { limit: cap }) });
       showToast({ type: "success", text: `Cartão "${trimmed}" cadastrado` });
       reset();
       return;
@@ -308,14 +323,26 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       });
       showToast({ type: "success", text: recurring ? `Compra recorrente "${trimmed}" adicionada` : `Compra parcelada "${trimmed}" adicionada` });
     } else if (kind === "income") {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: launchMonth, ...(fixed && variable && { variableAmount: true }) });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "income", category: "Renda", notes: notes.trim(), fixed, month: launchMonth, ...(variable && { variableAmount: true }), ...(!fixed && distGroup >= 2 && { distGroup }) });
       showToast({ type: "success", text: `Renda "${trimmed}" adicionada${inFuture ? ` a partir de ${formatMonthTitle(launchMonth)}` : ""}` });
     } else if (kind === "extra") {
-      if (!extraMonth) return showToast({ type: "error", text: "Escolha o mês da despesa extra" });
-      addExtraExpense({ id: uuid(), name: trimmed, amount: cents, month: extraMonth });
-      showToast({ type: "success", text: `Despesa extra "${trimmed}" adicionada` });
+      if (cardId) {
+        if (!isISODate(purchaseDate)) return showToast({ type: "error", text: "Informe a data da compra" });
+        // no cartão, a despesa vale no mês da fatura, que sai do dia da compra
+        addExtraExpense({ id: uuid(), name: trimmed, amount: cents, month: purchaseDate.slice(0, 7), cardId, purchaseDate });
+        showToast({ type: "success", text: `Despesa extra "${trimmed}" adicionada no cartão` });
+      } else {
+        if (!extraMonth) return showToast({ type: "error", text: "Escolha o mês da despesa extra" });
+        addExtraExpense({ id: uuid(), name: trimmed, amount: cents, month: extraMonth });
+        showToast({ type: "success", text: `Despesa extra "${trimmed}" adicionada` });
+      }
+    } else if (cardId && !fixed) {
+      if (!isISODate(purchaseDate)) return showToast({ type: "error", text: "Informe a data da compra" });
+      // no cartão, o valor vale no mês da fatura (que sai do dia da compra); aqui guarda o mês da compra
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed: false, month: purchaseDate.slice(0, 7), cardId, purchaseDate });
+      showToast({ type: "success", text: `Despesa "${trimmed}" adicionada no cartão` });
     } else {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(fixed && variable && { variableAmount: true }) });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(variable && { variableAmount: true }) });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada${inFuture ? ` a partir de ${formatMonthTitle(launchMonth)}` : ""}` });
     }
 
@@ -368,7 +395,13 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
           <Field label="Dia de vencimento" htmlFor="launch-card-due">
             <input id="launch-card-due" type="number" inputMode="numeric" min={1} max={31} value={dueDay} onChange={(e) => setDueDay(e.target.value)} placeholder="Ex.: 9" className={inputClass} />
           </Field>
-          <p className="text-xs text-muted-foreground sm:col-span-2">Não informe número do cartão, CVV nem CPF: só o nome e os dias. Para ver, editar ou excluir, use o ícone de perfil no topo.</p>
+          <div className="sm:col-span-2">
+            <Field label="Teto mensal da fatura" hint="(opcional)" htmlFor="launch-card-limit">
+              <MoneyInput id="launch-card-limit" value={limit} onChange={setLimit} placeholder="300,00" />
+            </Field>
+            <p className="mt-1 text-xs text-muted-foreground">Só para acompanhar: a fatura mostra quanto do teto já foi usado. Não bloqueia nada.</p>
+          </div>
+          <p className="text-xs text-muted-foreground sm:col-span-2">Não informe número do cartão, CVV nem CPF: só o nome, os dias e o teto. Para ver, editar ou excluir, use o ícone de perfil no topo.</p>
         </div>
       )}
 
@@ -438,11 +471,13 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         </>
       )}
 
-      {kind === "extra" && (
+      {kind === "extra" && !cardId && (
         <Field label="Mês da despesa" htmlFor="launch-extra-month" hint="(aparece na Projeção)">
           <MonthPicker id="launch-extra-month" value={extraMonth} min={changeMonth(currentMonth, 1)} onChange={setExtraMonth} />
         </Field>
       )}
+
+      {kind === "extra" && <CardPurchaseField idPrefix="launch-extra" cardId={cardId} onCardChange={setCardId} date={purchaseDate} onDateChange={setPurchaseDate} onNavigate={onClose} />}
 
       {(kind === "expense" || kind === "credit") && (
         <Field label="Categoria" htmlFor="launch-category">
@@ -450,7 +485,9 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         </Field>
       )}
 
-      {(kind === "expense" || kind === "income") && (
+      {kind === "expense" && !fixed && <CardPurchaseField idPrefix="launch-expense" cardId={cardId} onCardChange={setCardId} date={purchaseDate} onDateChange={setPurchaseDate} onNavigate={onClose} />}
+
+      {(kind === "expense" || kind === "income") && !(kind === "expense" && !fixed && cardId) && (
         <Field label={fixed ? "Vale a partir de" : "Mês do lançamento"} htmlFor="launch-month" hint="(pode ser um mês futuro)">
           <MonthPicker id="launch-month" value={launchMonth} min={currentMonth} onChange={setTxMonth} />
           {inFuture && <p className="mt-1 text-xs text-muted-foreground">Aparece em Lançamentos ao navegar até {formatMonthTitle(launchMonth)}{fixed ? ", e se repete nos meses seguintes" : ""}.</p>}
@@ -464,23 +501,30 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
         </Field>
       )}
 
-      {(kind === "expense" || kind === "income") && (
+      {/* despesa no cartão não fixa nem tem valor variável: fixa no cartão é recorrência (Crédito parcelado) */}
+      {(kind === "income" || (kind === "expense" && !cardId)) && (
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
-            <Checkbox checked={fixed} onCheckedChange={(c) => { setFixed(Boolean(c)); if (!c) setVariable(false); }} className="mt-0.5" />
+            <Checkbox checked={fixed} onCheckedChange={(c) => { setFixed(Boolean(c)); if (c) { setCardId(""); setDistGroup(1); } }} className="mt-0.5" />
             <span>
               <span className="block text-sm font-medium text-foreground">{kind === "income" ? "Renda fixa" : "Despesa fixa"}</span>
               <span className="block text-xs text-muted-foreground">Repete todo mês a partir deste. Dá para ajustar o valor de cada mês depois.</span>
             </span>
           </label>
-          <label className={`flex items-start gap-3 rounded-md border border-border bg-secondary p-3 ${fixed ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
-            <Checkbox checked={variable} disabled={!fixed} onCheckedChange={(c) => setVariable(Boolean(c))} className="mt-0.5" />
+          <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
+            <Checkbox checked={variable} onCheckedChange={(c) => setVariable(Boolean(c))} className="mt-0.5" />
             <span>
               <span className="block text-sm font-medium text-foreground">Valor variável (estimado)</span>
-              <span className="block text-xs text-muted-foreground">O valor é uma estimativa; cada mês aceita o valor real.</span>
+              <span className="block text-xs text-muted-foreground">
+                {fixed ? "O valor é uma estimativa; cada mês aceita o valor real." : "O valor é uma estimativa. Ao saber o valor real, edite e desmarque a estimativa."}
+              </span>
             </span>
           </label>
         </div>
+      )}
+
+      {kind === "income" && !fixed && (
+        <DistGroupField id="launch-dist-group" month={launchMonth} transactions={transactions} value={distGroup} onChange={setDistGroup} />
       )}
 
       <div className="flex justify-end gap-2 pt-1">

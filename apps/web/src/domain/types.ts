@@ -32,16 +32,35 @@ export interface Transaction {
   month: Month;
   /** Fixas: meses em que foi ocultada. */
   hiddenMonths?: Month[];
+  /** Fixas encerradas: último mês em que vale (o seguinte em diante não vale mais). Ausente = segue valendo. */
+  endMonth?: Month;
   /** Fixas: valor (em centavos) específico de um mês. */
   monthlyValues?: Record<Month, number>;
   /** Fixas: observação de um mês. A observação é só do mês: `notes` vale apenas no mês de criação e não se repete nos seguintes. */
   monthlyNotes?: Record<Month, string>;
-  /** Fixas de valor variável: `amount` é uma estimativa e o valor real de um mês é o seu `monthlyValues`. */
+  /**
+   * Valor variável (estimado), em fixa ou avulsa: `amount` é uma estimativa. Na fixa, o valor real de um mês é o seu
+   * `monthlyValues`; na avulsa (renda ou despesa de um mês só), o valor real vem de editar `amount` e desmarcar a estimativa.
+   */
   variableAmount?: boolean;
-  /** Só em `getTransactionsByMonth` (não é salvo): fixa variável deste mês ainda sem o valor real. */
+  /** Só em `getTransactionsByMonth` (não é salvo): valor variável deste mês ainda sem o valor real (fixa sem `monthlyValues`, ou avulsa estimada). */
   estimated?: boolean;
   /** Despesas: pagamento por mês (fixa pode estar paga em um mês e não em outro). Só registro. */
   payments?: Record<Month, Payment>;
+  /**
+   * Despesa avulsa paga no cartão. Com `cardId` e `purchaseDate`, o valor entra no mês do vencimento da
+   * fatura (veja `resolveCardExpenses`); `month` e `purchaseDate` ficam como foram lançados. Só despesas
+   * avulsas: fixa não tem cartão. Ausente = despesa comum, no próprio mês.
+   */
+  cardId?: string;
+  /** Dia da compra no cartão, "YYYY-MM-DD". Vem junto com `cardId`. */
+  purchaseDate?: string;
+  /**
+   * Renda variável (13º salário, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente = soma ao saldo
+   * do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais
+   * no Painel. Só marca: não muda nenhum valor. Só renda não fixa.
+   */
+  distGroup?: number;
 }
 
 /** Parcela adiantada: o valor com desconto é cobrado em `month` (o mês de hoje no momento do adiantamento). */
@@ -92,6 +111,20 @@ export interface CreditCard {
   name: string;
   closingDay: number;
   dueDay: number;
+  /** Teto mensal da fatura, em centavos. Ausente = sem teto. Só acompanhamento: não bloqueia nada. */
+  limit?: number;
+  /** Pagamento da fatura por mês de vencimento ("2026-12"). Só registro, não entra em nenhuma conta. */
+  payments?: Record<Month, Payment>;
+  /** Ajustes da fatura (descontos e acréscimos) por mês de vencimento, vários por fatura. Só registro: não entram em nenhuma despesa. */
+  adjustments?: Record<Month, InvoiceAdjustment[]>;
+}
+
+/** Um ajuste de uma fatura para ela bater com a do banco. `amount` em centavos: negativo = desconto, positivo = acréscimo. */
+export interface InvoiceAdjustment {
+  /** identifica o ajuste dentro da fatura */
+  id: string;
+  amount: number;
+  note?: string;
 }
 
 export interface Note {
@@ -132,6 +165,9 @@ export interface ExtraExpense {
   month: Month;
   /** Pagamento da despesa (só registro). */
   payment?: Payment;
+  /** Cartão e dia da compra: igual a `Transaction.cardId` e `Transaction.purchaseDate`. */
+  cardId?: string;
+  purchaseDate?: string;
 }
 
 /** Categoria criada pelo usuário, com cor própria (hex, ex.: "#FF8800"). */
@@ -159,6 +195,91 @@ export interface Goal {
   piggy?: boolean;
 }
 
+/**
+ * Histórico de metas e porquinhos, no mesmo conceito dos investimentos: o guardado é refeito pelas movimentações.
+ * Aporte soma; retirada subtrai (nunca abaixo de zero); rendimento soma ao guardado e ao total de rendimentos;
+ * ajuste define o novo guardado (`amount` é o valor, não a diferença).
+ */
+export type GoalMovementType = "contribution" | "withdrawal" | "yield" | "adjustment";
+
+export interface GoalMovement {
+  id: string;
+  goalId: string;
+  type: GoalMovementType;
+  /** "AAAA-MM-DD" */
+  date: string;
+  /** centavos */
+  amount: number;
+  /** observação livre (até 200 letras) */
+  note?: string;
+  /** vazio = lançado à mão; "distribution|AAAA-MM|fonte|fatia" = enviado pela sugestão do saldo (veja `parseDistributionOrigin`) */
+  origin?: string;
+}
+
+/** Família de investimento: define quais campos o cadastro pede. */
+export type InvestmentFamily = "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other";
+
+/** Investimento registrado à mão. Valores em centavos; datas "YYYY-MM-DD". Não entra em receitas, despesas nem saldo. */
+export interface Investment {
+  id: string;
+  name: string;
+  family: InvestmentFamily;
+  /** produto dentro da família (ex.: "CDB", "FII"), texto livre */
+  product?: string;
+  /** banco, corretora ou plataforma */
+  institution: string;
+  /** data da primeira aplicação */
+  appliedAt: string;
+  /** centavos: quanto vale hoje, atualizado pelo usuário (e pelas movimentações) */
+  currentValue: number;
+  /** vencimento (renda fixa e Tesouro) */
+  maturityDate?: string;
+  /** indexador, ex.: "CDI", "IPCA", "Pré", "Selic" */
+  indexer?: string;
+  /** taxa contratada, ex.: "110% do CDI" ou "IPCA + 6%" */
+  rate?: string;
+  /** liquidez, ex.: "Diária", "No vencimento", "D+30" */
+  liquidity?: string;
+  /** carência até esta data */
+  graceUntil?: string;
+  /** aceita resgate antes do vencimento */
+  earlyRedeem?: boolean;
+  /** cotas ou ativos (fracionário) */
+  quantity?: number;
+  /** centavos: preço médio por cota */
+  avgPrice?: number;
+  /** prazo de resgate em dias (fundos) */
+  redeemDays?: number;
+  ticker?: string;
+  /** taxas e imposto estimados, texto livre */
+  fees?: string;
+  notes?: string;
+}
+
+/**
+ * aporte e resgate mexem no dinheiro que entra e sai do investimento;
+ * rendimento soma ao valor atual sem ser aporte;
+ * ajuste define o novo valor atual (`amount` é o valor, não a diferença).
+ */
+export type InvestmentMovementType = "contribution" | "redemption" | "yield" | "adjustment";
+
+export interface InvestmentMovement {
+  id: string;
+  investmentId: string;
+  type: InvestmentMovementType;
+  date: string;
+  /** centavos (valor total da movimentação) */
+  amount: number;
+  /** cotas ou ativos comprados (aporte) ou vendidos (resgate), quando o investimento controla quantidade */
+  quantity?: number;
+  /** centavos: preço por cota nesta movimentação */
+  unitPrice?: number;
+  /** observação livre (até 200 letras) */
+  note?: string;
+  /** vazio = lançado à mão; "distribution|AAAA-MM|fonte|fatia" = enviado pela sugestão do saldo */
+  origin?: string;
+}
+
 /** Uma fatia da sugestão de distribuição do saldo. */
 export interface DistributionItem {
   id: string;
@@ -180,10 +301,20 @@ export interface FinanceData {
   creditCards?: CreditCard[];
   notes: Note[];
   goals: Goal[];
+  /** Histórico das metas e porquinhos (o guardado de cada um é refeito por ele). Ausente = nenhum. */
+  goalMovements?: GoalMovement[];
+  /** Investimentos e suas movimentações. Ausente = nenhum. */
+  investments?: Investment[];
+  investmentMovements?: InvestmentMovement[];
   extraExpenses: ExtraExpense[];
   customCategories: CustomCategory[];
   /** Percentuais escolhidos pelo usuário; null = padrão. */
   distribution: DistributionItem[] | null;
+  /**
+   * Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave "AAAA-MM|n" (veja `overrideKey`).
+   * Sem a chave, vale `distribution` (o padrão). A Dist 1 sempre usa o padrão. Ausente = nenhuma.
+   */
+  distributionOverrides?: Record<string, DistributionItem[]>;
   /** Avisos de prazo de metas que o usuário já marcou como vistos (veja `goalAlertKey`). */
   seenAlerts: string[];
   /** Resposta ao tour de cada tela, por id da tela. Tela ausente = ainda não convidada. */
@@ -200,10 +331,12 @@ export interface MonthSummary {
   creditExpense: number;
   /** centavos: despesas extras planejadas para o mês, já somadas em totalExpense */
   extraExpense: number;
+  /** centavos: ajustes (descontos negativos, acréscimos positivos) das faturas que vencem no mês, já somados em totalExpense */
+  invoiceAdjustment: number;
   balance: number;
   /** 0 a 100+ (despesas / renda). 0 se não há renda. */
   expensePercentage: number;
-  /** centavos por categoria (crédito entra em "Crédito/Parcelado") */
+  /** centavos por categoria; parcelas e recorrências do crédito entram na categoria da própria compra */
   byCategory: Partial<Record<Category, number>>;
 }
 

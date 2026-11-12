@@ -5,8 +5,8 @@ SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at, rowid;
 SELECT * FROM transactions WHERE id = ? AND user_id = ?;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -16,10 +16,19 @@ UPDATE transactions SET
     category     = COALESCE(sqlc.narg('category'), category),
     notes        = COALESCE(sqlc.narg('notes'), notes),
     fixed        = COALESCE(sqlc.narg('fixed'), fixed),
-    -- so fixa tem valor variavel: deixar de ser fixa desliga
-    variable_amount = COALESCE(sqlc.narg('fixed'), fixed) AND COALESCE(sqlc.narg('variable_amount'), variable_amount)
+    -- valor variavel (estimado): vale para fixa e para avulsa; so muda quando vem na requisicao
+    variable_amount = COALESCE(sqlc.narg('variable_amount'), variable_amount),
+    purchase_date = COALESCE(sqlc.narg('purchase_date'), purchase_date),
+    -- fixa encerrada: ultimo mes em que vale; texto vazio tira o fim
+    end_month     = COALESCE(sqlc.narg('end_month'), end_month),
+    -- renda variavel: em qual distribuicao do saldo entra (0 = Dist 1, 2 a 20 = distribuicao propria); so marca
+    dist_group    = COALESCE(sqlc.narg('dist_group'), dist_group)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
+
+-- name: SetTransactionCard :one
+-- card_id nulo solta a despesa do cartao.
+UPDATE transactions SET card_id = ? WHERE id = ? AND user_id = ? RETURNING *;
 
 -- name: DeleteTransaction :execrows
 DELETE FROM transactions WHERE id = ? AND user_id = ?;
@@ -69,15 +78,16 @@ UPDATE credit_purchases SET card_id = ? WHERE id = ? AND user_id = ? RETURNING *
 SELECT * FROM credit_cards WHERE user_id = ? ORDER BY created_at, rowid;
 
 -- name: CreateCreditCard :one
-INSERT INTO credit_cards (id, user_id, name, closing_day, due_day)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO credit_cards (id, user_id, name, closing_day, due_day, limit_cents, payments)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateCreditCard :one
 UPDATE credit_cards SET
     name        = COALESCE(sqlc.narg('name'), name),
     closing_day = COALESCE(sqlc.narg('closing_day'), closing_day),
-    due_day     = COALESCE(sqlc.narg('due_day'), due_day)
+    due_day     = COALESCE(sqlc.narg('due_day'), due_day),
+    limit_cents = COALESCE(sqlc.narg('limit_cents'), limit_cents)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
 
@@ -119,17 +129,22 @@ DELETE FROM goals WHERE id = ? AND user_id = ?;
 SELECT * FROM extra_expenses WHERE user_id = ? ORDER BY created_at, rowid;
 
 -- name: CreateExtraExpense :one
-INSERT INTO extra_expenses (id, user_id, name, amount_cents, month)
-VALUES (?, ?, ?, ?, ?)
+INSERT INTO extra_expenses (id, user_id, name, amount_cents, month, card_id, purchase_date)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateExtraExpense :one
 UPDATE extra_expenses SET
     name         = COALESCE(sqlc.narg('name'), name),
     amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
-    month        = COALESCE(sqlc.narg('month'), month)
+    month        = COALESCE(sqlc.narg('month'), month),
+    purchase_date = COALESCE(sqlc.narg('purchase_date'), purchase_date)
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
 RETURNING *;
+
+-- name: SetExtraExpenseCard :one
+-- card_id nulo solta a despesa extra do cartao.
+UPDATE extra_expenses SET card_id = ? WHERE id = ? AND user_id = ? RETURNING *;
 
 -- name: DeleteExtraExpense :execrows
 DELETE FROM extra_expenses WHERE id = ? AND user_id = ?;
@@ -211,3 +226,154 @@ SELECT * FROM extra_expenses WHERE id = ? AND user_id = ?;
 UPDATE extra_expenses SET payment = ?
 WHERE id = ? AND user_id = ?
 RETURNING *;
+
+-- name: GetCategoryForUpdate :one
+SELECT * FROM custom_categories WHERE id = ? AND user_id = ?;
+
+-- name: UpdateCategory :one
+UPDATE custom_categories SET
+  name  = COALESCE(sqlc.narg('name'), name),
+  color = COALESCE(sqlc.narg('color'), color)
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- Os lancamentos guardam a categoria pelo nome: renomear leva junto as despesas e as compras no credito.
+-- name: RenameTransactionCategory :execrows
+UPDATE transactions SET category = sqlc.arg('new_name') WHERE user_id = sqlc.arg('user_id') AND category = sqlc.arg('old_name');
+
+-- name: RenameCreditCategory :execrows
+UPDATE credit_purchases SET category = sqlc.arg('new_name') WHERE user_id = sqlc.arg('user_id') AND category = sqlc.arg('old_name');
+
+-- name: ListInvestments :many
+SELECT * FROM investments WHERE user_id = ? ORDER BY created_at, rowid;
+
+-- name: GetInvestmentForUpdate :one
+SELECT * FROM investments WHERE id = ? AND user_id = ?;
+
+-- name: CreateInvestment :one
+INSERT INTO investments (id, user_id, name, family, product, institution, applied_at, current_value_cents,
+    maturity_date, indexer, rate, liquidity, grace_until, early_redeem, quantity, avg_price_cents, redeem_days, ticker, fees, notes)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: UpdateInvestment :one
+UPDATE investments SET
+    name                = COALESCE(sqlc.narg('name'), name),
+    family              = COALESCE(sqlc.narg('family'), family),
+    product             = COALESCE(sqlc.narg('product'), product),
+    institution         = COALESCE(sqlc.narg('institution'), institution),
+    applied_at          = COALESCE(sqlc.narg('applied_at'), applied_at),
+    current_value_cents = COALESCE(sqlc.narg('current_value_cents'), current_value_cents),
+    maturity_date       = COALESCE(sqlc.narg('maturity_date'), maturity_date),
+    indexer             = COALESCE(sqlc.narg('indexer'), indexer),
+    rate                = COALESCE(sqlc.narg('rate'), rate),
+    liquidity           = COALESCE(sqlc.narg('liquidity'), liquidity),
+    grace_until         = COALESCE(sqlc.narg('grace_until'), grace_until),
+    early_redeem        = COALESCE(sqlc.narg('early_redeem'), early_redeem),
+    redeem_days         = COALESCE(sqlc.narg('redeem_days'), redeem_days),
+    ticker              = COALESCE(sqlc.narg('ticker'), ticker),
+    fees                = COALESCE(sqlc.narg('fees'), fees),
+    notes               = COALESCE(sqlc.narg('notes'), notes)
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: SetInvestmentQuantity :one
+-- Cotas: so mudam quando vieram na requisicao; valor nulo limpa.
+UPDATE investments SET quantity = ? WHERE id = ? AND user_id = ? RETURNING *;
+
+-- name: SetInvestmentAvgPrice :one
+-- Preco medio: so muda quando veio na requisicao; valor nulo limpa.
+UPDATE investments SET avg_price_cents = ? WHERE id = ? AND user_id = ? RETURNING *;
+
+-- name: SetInvestmentDerived :one
+UPDATE investments SET
+    current_value_cents = sqlc.arg('current_value_cents'),
+    quantity            = sqlc.narg('quantity'),
+    avg_price_cents     = sqlc.narg('avg_price_cents')
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: DeleteInvestment :execrows
+DELETE FROM investments WHERE id = ? AND user_id = ?;
+
+-- name: WipeInvestments :exec
+DELETE FROM investments WHERE user_id = ?;
+
+-- name: ListInvestmentMovements :many
+SELECT * FROM investment_movements WHERE user_id = ? ORDER BY created_at, rowid;
+
+-- name: ListMovementsOfInvestment :many
+SELECT * FROM investment_movements WHERE investment_id = ? AND user_id = ? ORDER BY created_at, rowid;
+
+-- name: GetInvestmentMovementForUpdate :one
+SELECT * FROM investment_movements WHERE id = ? AND user_id = ?;
+
+-- name: CreateInvestmentMovement :one
+INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, note, origin)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: UpdateInvestmentMovement :one
+UPDATE investment_movements SET
+    type         = COALESCE(sqlc.narg('type'), type),
+    date         = COALESCE(sqlc.narg('date'), date),
+    amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
+    note         = COALESCE(sqlc.narg('note'), note),
+    origin       = COALESCE(sqlc.narg('origin'), origin)
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: SetInvestmentMovementQuantity :one
+-- Cotas da movimentacao: so mudam quando vieram na requisicao; valor nulo limpa.
+UPDATE investment_movements SET quantity = ? WHERE id = ? AND user_id = ? RETURNING *;
+
+-- name: SetInvestmentMovementUnitPrice :one
+-- Preco por cota da movimentacao: so muda quando veio na requisicao; valor nulo limpa.
+UPDATE investment_movements SET unit_price_cents = ? WHERE id = ? AND user_id = ? RETURNING *;
+
+-- name: DeleteInvestmentMovement :execrows
+DELETE FROM investment_movements WHERE id = ? AND user_id = ?;
+
+-- name: GetCreditCardForUpdate :one
+SELECT * FROM credit_cards WHERE id = ? AND user_id = ?;
+
+-- name: SetCreditCardPayments :one
+UPDATE credit_cards SET payments = sqlc.arg('payments') WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id') RETURNING *;
+
+-- name: SetCreditCardAdjustments :one
+UPDATE credit_cards SET adjustments = sqlc.arg('adjustments') WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id') RETURNING *;
+
+-- name: GetGoalForUpdate :one
+SELECT * FROM goals WHERE id = ? AND user_id = ?;
+
+-- name: SetGoalDerived :one
+UPDATE goals SET saved_cents = sqlc.arg('saved_cents'), yield_total_cents = sqlc.arg('yield_total_cents')
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: ListGoalMovements :many
+SELECT * FROM goal_movements WHERE user_id = ? ORDER BY created_at, rowid;
+
+-- name: ListMovementsOfGoal :many
+SELECT * FROM goal_movements WHERE goal_id = ? AND user_id = ? ORDER BY created_at, rowid;
+
+-- name: GetGoalMovementForUpdate :one
+SELECT * FROM goal_movements WHERE id = ? AND user_id = ?;
+
+-- name: CreateGoalMovement :one
+INSERT INTO goal_movements (id, user_id, goal_id, type, date, amount_cents, note, origin)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+RETURNING *;
+
+-- name: UpdateGoalMovement :one
+UPDATE goal_movements SET
+    type         = COALESCE(sqlc.narg('type'), type),
+    date         = COALESCE(sqlc.narg('date'), date),
+    amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
+    note         = COALESCE(sqlc.narg('note'), note),
+    origin       = COALESCE(sqlc.narg('origin'), origin)
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: DeleteGoalMovement :execrows
+DELETE FROM goal_movements WHERE id = ? AND user_id = ?;

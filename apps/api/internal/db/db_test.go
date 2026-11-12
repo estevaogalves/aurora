@@ -4,6 +4,9 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+
+	"github.com/google/uuid"
+	"github.com/pressly/goose/v3"
 )
 
 func TestOpenAndMigrate(t *testing.T) {
@@ -62,5 +65,120 @@ func TestOpenAndMigrate(t *testing.T) {
 func TestOpenEmptyPath(t *testing.T) {
 	if _, err := Open(context.Background(), ""); err == nil {
 		t.Fatal("caminho vazio deveria dar erro")
+	}
+}
+
+// Quem já usa o Aurora com SQLite tem um aurora.db na versão 1 (só o 00001). Ao ligar a versão nova, as migrations
+// 00012 a 00018 têm que rodar sozinhas, sem perder nada, e as metas existentes ganham o histórico ("Saldo inicial")
+// que reproduz exatamente o valor que já estava guardado.
+func TestUpgradeFromVersion1KeepsDataAndBackfillsGoalHistory(t *testing.T) {
+	ctx := context.Background()
+	d, err := Open(ctx, filepath.Join(t.TempDir(), "antigo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+
+	// banco "antigo": só a migration 1
+	goose.SetBaseFS(migrations)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpToContext(ctx, d, "migrations", 1); err != nil {
+		t.Fatalf("migrar até a versão 1: %v", err)
+	}
+	exec := func(q string, args ...any) {
+		t.Helper()
+		if _, err := d.ExecContext(ctx, q, args...); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec("INSERT INTO users (id, email, password_hash) VALUES ('u1', 'a@b.c', 'x')")
+	exec("INSERT INTO transactions (id, user_id, name, amount_cents, type, category, month) VALUES ('t1', 'u1', 'Aluguel', 150000, 'expense', 'Moradia', '2026-11')")
+	exec("INSERT INTO credit_cards (id, user_id, name, closing_day, due_day) VALUES ('c1', 'u1', 'Nubank', 2, 9)")
+	exec("INSERT INTO goals (id, user_id, name, target_cents, saved_cents, yield_total_cents, piggy) VALUES ('g1', 'u1', 'Viagem', 500000, 10300, 300, 0)")
+	exec("INSERT INTO goals (id, user_id, name, target_cents, saved_cents, yield_total_cents, piggy) VALUES ('g2', 'u1', 'Só rendimento gasto', 100000, 100, 300, 0)")
+	exec("INSERT INTO goals (id, user_id, name, target_cents, saved_cents, yield_total_cents, piggy) VALUES ('g3', 'u1', 'Vazia', 100000, 0, 0, 0)")
+	exec("INSERT INTO goals (id, user_id, name, target_cents, saved_cents, yield_total_cents, piggy) VALUES ('g4', 'u1', 'Porquinho', 0, 2500, 0, 1)")
+
+	// ligar a versão nova: o Migrate aplica as pendentes
+	if err := Migrate(ctx, d); err != nil {
+		t.Fatalf("atualizar: %v", err)
+	}
+	var version int64
+	if err := d.QueryRowContext(ctx, "SELECT max(version_id) FROM goose_db_version").Scan(&version); err != nil || version != 18 {
+		t.Fatalf("versão depois de atualizar: %d %v", version, err)
+	}
+
+	// os dados de antes continuam, e as colunas novas ganharam os valores padrão
+	var name string
+	var cents, group int64
+	var end, purchase string
+	if err := d.QueryRowContext(ctx, "SELECT name, amount_cents, dist_group, end_month, purchase_date FROM transactions WHERE id = 't1'").Scan(&name, &cents, &group, &end, &purchase); err != nil {
+		t.Fatal(err)
+	}
+	if name != "Aluguel" || cents != 150000 || group != 0 || end != "" || purchase != "" {
+		t.Fatalf("lançamento depois de atualizar: %s %d %d %q %q", name, cents, group, end, purchase)
+	}
+	var limit int64
+	var payments, adjustments string
+	if err := d.QueryRowContext(ctx, "SELECT limit_cents, payments, adjustments FROM credit_cards WHERE id = 'c1'").Scan(&limit, &payments, &adjustments); err != nil {
+		t.Fatal(err)
+	}
+	if limit != 0 || payments != "{}" || adjustments != "{}" {
+		t.Fatalf("cartão depois de atualizar: %d %s %s", limit, payments, adjustments)
+	}
+
+	// cada meta com valor ganhou o histórico, e refazer a conta devolve exatamente o que estava guardado
+	replay := func(goal string) (saved, yield int64, rows int) {
+		t.Helper()
+		r, err := d.QueryContext(ctx, "SELECT id, type, amount_cents FROM goal_movements WHERE goal_id = ? ORDER BY created_at, rowid", goal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer r.Close()
+		for r.Next() {
+			var id, typ string
+			var amount int64
+			if err := r.Scan(&id, &typ, &amount); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := uuid.Parse(id); err != nil {
+				t.Fatalf("o id do histórico precisa ser um UUID válido: %q", id)
+			}
+			rows++
+			switch typ {
+			case "yield":
+				saved += amount
+				yield += amount
+			case "adjustment":
+				saved = amount
+			}
+		}
+		return saved, yield, rows
+	}
+	for _, c := range []struct {
+		goal         string
+		saved, yield int64
+		rows         int
+	}{
+		{"g1", 10300, 300, 2},
+		{"g2", 100, 300, 2},
+		{"g3", 0, 0, 0},
+		{"g4", 2500, 0, 1},
+	} {
+		saved, yield, rows := replay(c.goal)
+		if saved != c.saved || yield != c.yield || rows != c.rows {
+			t.Errorf("%s: guardado %d (esperado %d), rendimentos %d (esperado %d), %d movimentos (esperado %d)", c.goal, saved, c.saved, yield, c.yield, rows, c.rows)
+		}
+	}
+
+	// a atualização é segura de repetir (a API roda Migrate a cada subida)
+	if err := Migrate(ctx, d); err != nil {
+		t.Fatalf("migrar de novo: %v", err)
+	}
+	var n int
+	if err := d.QueryRowContext(ctx, "SELECT count(*) FROM goal_movements").Scan(&n); err != nil || n != 5 {
+		t.Fatalf("migrar de novo não pode duplicar o histórico: %d %v", n, err)
 	}
 }

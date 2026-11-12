@@ -1,8 +1,12 @@
 package domain
 
-import "sort"
+import (
+	"sort"
+	"strings"
+)
 
-// CreditCategory é a categoria em que as parcelas entram nos resumos.
+// CreditCategory é a categoria de reserva das parcelas sem categoria (compra antiga). Normalmente cada parcela
+// conta na categoria da própria compra.
 const CreditCategory = "Crédito/Parcelado"
 
 // SplitInstallments divide o total em N parcelas; os centavos que sobram vão
@@ -36,6 +40,10 @@ func contains(list []string, v string) bool {
 // IsFixedActiveIn: a fixa vale do mês em que foi criada em diante, menos nos ocultados.
 func IsFixedActiveIn(t Transaction, month string) bool {
 	if !t.Fixed || CompareMonths(month, t.Month) < 0 {
+		return false
+	}
+	// encerrada: não vale depois do último mês
+	if t.EndMonth != "" && CompareMonths(month, t.EndMonth) > 0 {
 		return false
 	}
 	return !contains(t.HiddenMonths, month)
@@ -151,9 +159,17 @@ func GetMonthSummary(transactions []Transaction, credits []CreditTransaction, mo
 		}
 	}
 
-	credit := creditTotal(credits, month)
-	if credit > 0 {
-		byCategory[CreditCategory] += credit
+	// cada parcela e recorrência conta na categoria da própria compra (mesma regra de getMonthSummary no front)
+	var credit int64
+	for _, c := range CreditByMonth(credits, month) {
+		credit += c.InstallmentValue
+		if c.InstallmentValue > 0 {
+			cat := strings.TrimSpace(c.Category)
+			if cat == "" {
+				cat = CreditCategory
+			}
+			byCategory[cat] += c.InstallmentValue
+		}
 	}
 
 	expense := direct + credit

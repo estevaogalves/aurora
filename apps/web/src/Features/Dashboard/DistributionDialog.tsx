@@ -4,29 +4,37 @@ import Icon from "@/components/Icon";
 import { inputClass } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { DEFAULT_DISTRIBUTION, isRequiredItem, sumPercent, validateDistribution } from "@/domain";
-import { useFinanceStore, type DistributionItem } from "@/Store/FinanceStore";
-import { useDistributionItems } from "@/Store/selectors";
+import { isRequiredItem, sumPercent, validateDistribution } from "@/domain";
+import type { DistributionItem } from "@/Store/FinanceStore";
 import { showToast } from "../Warnings/toast";
 
-export function DistributionDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+/**
+ * Edita os percentuais de uma sugestão. `current` é o que vale hoje, `base` é o padrão para onde "Restaurar padrão"
+ * volta e `onSave` recebe a lista nova, ou null quando ela ficou igual ao padrão (assim a distribuição volta a seguir o padrão).
+ */
+export function DistributionDialog({ open, onClose, title, description, current, base, onSave }: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  description: string;
+  current: DistributionItem[];
+  base: DistributionItem[];
+  onSave: (items: DistributionItem[] | null) => void;
+}) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Personalizar sugestão do saldo</DialogTitle>
-          <DialogDescription>Defina quanto do saldo vai para cada destino. As cinco categorias padrão ficam sempre, e a soma precisa ser 100%.</DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        {open && <Fields onClose={onClose} />}
+        {open && <Fields onClose={onClose} current={current} base={base} onSave={onSave} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function Fields({ onClose }: { onClose: () => void }) {
-  const current = useDistributionItems();
-  const setDistribution = useFinanceStore((s) => s.setDistribution);
-
+function Fields({ onClose, current, base, onSave }: { onClose: () => void; current: DistributionItem[]; base: DistributionItem[]; onSave: (items: DistributionItem[] | null) => void }) {
   const [items, setItems] = useState<DistributionItem[]>(() => current.map((i) => ({ ...i })));
   const [newName, setNewName] = useState("");
   const [newPercent, setNewPercent] = useState("");
@@ -53,8 +61,8 @@ function Fields({ onClose }: { onClose: () => void }) {
 
   function save() {
     if (error) return;
-    const isDefault = JSON.stringify(items.map(({ id, label, percent }) => ({ id, label, percent }))) === JSON.stringify(DEFAULT_DISTRIBUTION);
-    setDistribution(isDefault ? null : items.map((i) => ({ ...i, label: i.label.trim() })));
+    const plain = (list: DistributionItem[]) => JSON.stringify(list.map(({ id, label, percent }) => ({ id, label: label.trim(), percent })));
+    onSave(plain(items) === plain(base) ? null : items.map((i) => ({ ...i, label: i.label.trim() })));
     showToast({ type: "success", text: "Sugestão atualizada" });
     onClose();
   }
@@ -104,7 +112,7 @@ function Fields({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="flex flex-wrap justify-between gap-2">
-        <Button type="button" variant="ghost" onClick={() => setItems(DEFAULT_DISTRIBUTION.map((i) => ({ ...i })))}>Restaurar padrão</Button>
+        <Button type="button" variant="ghost" onClick={() => setItems(base.map((i) => ({ ...i })))}>Restaurar padrão</Button>
         <div className="flex gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button type="button" disabled={!!error} onClick={save}>Salvar</Button>

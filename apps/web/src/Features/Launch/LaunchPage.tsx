@@ -6,15 +6,17 @@ import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
-import { canAdvanceInstallment, chargeDay, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
+import { canAdvanceInstallment, chargeDay, dayMonth, distGroupOf, distLabel, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
-import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits } from "@/Store/selectors";
+import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits, useResolvedExtras } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 import EditExtraDialog from "../Projection/EditExtraDialog";
 import { showToast } from "../Warnings/toast";
 import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
+import { EndedList, EndFixedDialog } from "./EndedFixed";
+import InvoicesSection from "./Invoices";
 import { AdvanceDialog, CancelRecurrenceDialog, EditInstallmentDialog, ScopeDialog } from "./InstallmentDialogs";
 import PaymentDialog, { type PaymentTarget } from "./PaymentDialog";
 import { ProgressMini, Row } from "./rows";
@@ -57,10 +59,11 @@ interface PayActions {
   onClearPay: () => void;
 }
 
-function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void; pay?: PayActions }) {
+function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; onEdit: (t: Transaction) => void; onDelete: (id: string) => void; onEnd?: (t: Transaction) => void; pay?: PayActions }) {
   const toggleFixed = useFinanceStore((s) => s.toggleTransactionFixed);
   const month = useFinanceStore((s) => s.currentMonth);
   const colorOf = useCategoryColor();
+  const cardName = useFinanceStore((s) => s.creditCards.find((k) => k.id === t.cardId)?.name);
   const income = t.type === "income";
   const payment = pay ? paymentOf(t, month) : undefined;
   const note = useNotes(t.notes, payment?.notes);
@@ -73,8 +76,10 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
       unpinLabel="Desafixar"
       deleteLabel={t.fixed ? "Ocultar neste mês" : "Excluir"}
       onEdit={() => onEdit(t)}
-      onPin={() => toggleFixed(t.id)}
+      // despesa no cartão só edita e exclui: não fixa (fixa no cartão é recorrência) e não paga sozinha (entra na fatura)
+      onPin={t.cardId ? undefined : () => toggleFixed(t.id)}
       onDelete={() => onDelete(t.id)}
+      onEnd={t.fixed && onEnd ? () => onEnd(t) : undefined}
       onPay={pay?.onPay}
       paid={!!payment}
       onClearPay={payment ? pay?.onClearPay : undefined}
@@ -110,6 +115,9 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
         <>
           {!income && t.category}
           {t.fixed ? <Pill tone="fix">Fixa</Pill> : income ? <Pill>Variável</Pill> : null}
+          {t.estimated && <Pill>Estimado</Pill>}
+          {income && distGroupOf(t) >= 2 && <Pill tone="good">{distLabel(distGroupOf(t))}</Pill>}
+          {cardName && <Pill>{cardName}{t.purchaseDate ? ` · compra ${dayMonth(t.purchaseDate)}` : ""}</Pill>}
           {payment && <PaidBadge payment={payment} />}
         </>
       }
@@ -121,8 +129,9 @@ function TransactionRow({ t, onEdit, onDelete, pay }: { t: Transaction; onEdit: 
   );
 }
 
-function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraExpense; color: string; onEdit: () => void; onDelete: () => void; onPay: () => void; onClearPay?: () => void }) {
+function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraExpense; color: string; onEdit: () => void; onDelete: () => void; onPay?: () => void; onClearPay?: () => void }) {
   const note = useNotes(e.payment?.notes);
+  const cardName = useFinanceStore((s) => s.creditCards.find((k) => k.id === e.cardId)?.name);
   return (
     <Row
       color={color}
@@ -130,6 +139,7 @@ function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraE
       meta={
         <>
           <Pill>Despesa extra</Pill>
+          {cardName && <Pill>{cardName}{e.purchaseDate ? ` · compra ${dayMonth(e.purchaseDate)}` : ""}</Pill>}
           {e.payment && <PaidBadge payment={e.payment} />}
         </>
       }
@@ -194,6 +204,7 @@ function IncomesPanel() {
   const month = useFinanceStore((s) => s.currentMonth);
   const removeByMonth = useFinanceStore((s) => s.removeTransactionByMonth);
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [ending, setEnding] = useState<Transaction | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
   const target = incomes.find((i) => i.id === toDelete);
 
@@ -201,10 +212,12 @@ function IncomesPanel() {
     <Panel tour="rendas" title="Rendas" subtitle="Fontes do mês">
       {incomes.length === 0 ? <Empty>Nenhuma renda cadastrada. Use o botão Lançar.</Empty> : variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}
       {incomes.length > 0 && variable.length === 0 && <Empty>Nenhuma renda variável neste mês.</Empty>}
-      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}</FixedSection>}
+      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} />)}</FixedSection>}
       <HiddenList kind="income" />
+      <EndedList kind="income" />
       {incomes.length > 0 && <TotalFooter label="Total das rendas do mês" value={incomes.reduce((sum, t) => sum + t.amount, 0)} className="text-success" />}
       <EditTransactionDialog transaction={editing} onClose={() => setEditing(null)} />
+      <EndFixedDialog transaction={ending} month={month} onClose={() => setEnding(null)} />
       <ConfirmDeletion
         open={!!target}
         itemLabel={target?.fixed ? "renda fixa" : "renda"}
@@ -216,10 +229,14 @@ function IncomesPanel() {
   );
 }
 function ExpensesPanel() {
-  const expenses = useMonthTransactions().filter((t) => t.type === "expense");
+  // compras avulsas no cartão não aparecem aqui: ficam só na fatura (Compras parceladas)
+  const allExpenses = useMonthTransactions().filter((t) => t.type === "expense");
+  const expenses = allExpenses.filter((t) => !isCardPurchase(t));
   const month = useFinanceStore((s) => s.currentMonth);
   const removeByMonth = useFinanceStore((s) => s.removeTransactionByMonth);
-  const extras = useFinanceStore((s) => s.extraExpenses).filter((e) => e.month === month);
+  const allExtras = useResolvedExtras().filter((e) => e.month === month);
+  const extras = allExtras.filter((e) => !isCardPurchase(e));
+  const onCard = allExpenses.length - expenses.length + allExtras.length - extras.length;
   const removeExtra = useFinanceStore((s) => s.removeExtraExpense);
   const setTransactionPayment = useFinanceStore((s) => s.setTransactionPayment);
   const setExtraPayment = useFinanceStore((s) => s.setExtraPayment);
@@ -229,6 +246,7 @@ function ExpensesPanel() {
   const [editingExtra, setEditingExtra] = useState<ExtraExpense | null>(null);
   const [extraToDelete, setExtraToDelete] = useState<string | null>(null);
   const [editing, setEditing] = useState<Transaction | null>(null);
+  const [ending, setEnding] = useState<Transaction | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
   const target = expenses.find((e) => e.id === toDelete);
   const fixed = expenses.filter((t) => t.fixed).sort((a, b) => b.amount - a.amount);
@@ -250,8 +268,9 @@ function ExpensesPanel() {
   return (
     <Panel tour="despesas" title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
+      {onCard > 0 && <p className="mb-1 text-[12.5px] text-muted-foreground">{onCard === 1 ? "1 compra no cartão está" : `${onCard} compras no cartão estão`} na fatura, em Compras parceladas.</p>}
       {count > 0 && variable.length === 0 && extras.length === 0 && <Empty>Nenhuma despesa variável neste mês.</Empty>}
-      {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}
+      {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={t.cardId ? undefined : payTx(t)} />)}
       {extras.map((e) => (
         <ExtraRow
           key={e.id}
@@ -259,14 +278,17 @@ function ExpensesPanel() {
           color={colorOf("Outros")}
           onEdit={() => setEditingExtra(e)}
           onDelete={() => setExtraToDelete(e.id)}
-          onPay={() => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
-          onClearPay={e.payment ? () => setExtraPayment(e.id, null) : undefined}
+          // no cartão, o pagamento é marcado na fatura (Compras parceladas)
+          onPay={e.cardId ? undefined : () => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
+          onClearPay={e.payment && !e.cardId ? () => setExtraPayment(e.id, null) : undefined}
         />
       ))}
-      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}</FixedSection>}
+      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} pay={payTx(t)} />)}</FixedSection>}
       <HiddenList kind="expense" />
+      <EndedList kind="expense" />
       {count > 0 && <TotalFooter label="Total das despesas do mês (sem parcelas)" value={expenses.reduce((sum, t) => sum + t.amount, 0) + extras.reduce((sum, e) => sum + e.amount, 0)} />}
       <EditTransactionDialog transaction={editing} onClose={() => setEditing(null)} />
+      <EndFixedDialog transaction={ending} month={month} onClose={() => setEnding(null)} />
       <EditExtraDialog extra={editingExtra} onClose={() => setEditingExtra(null)} />
       <PaymentDialog target={paying} onConfirm={confirmPayment} onClose={() => setPaying(null)} />
       <ConfirmDeletion
@@ -404,6 +426,7 @@ function InstallmentsPanel() {
           <TotalFooter label="Total das parcelas do mês" value={total} />
         </>
       )}
+      <InvoicesSection />
 
       <ScopeDialog
         open={step === "edit-scope"}

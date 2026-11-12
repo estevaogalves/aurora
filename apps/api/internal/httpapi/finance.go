@@ -40,7 +40,6 @@ func (s *Server) createTransaction(w http.ResponseWriter, r *http.Request) {
 	in.Name = strings.TrimSpace(in.Name)
 	if !in.Fixed {
 		in.HiddenMonths, in.MonthlyValues, in.MonthlyNotes = nil, nil, nil
-		in.VariableAmount = false
 	}
 	if bad(w, s.lim.validateTransaction(in)) {
 		return
@@ -64,6 +63,13 @@ type transactionPatchReq struct {
 	MonthlyValues *map[string]int64 `json:"monthlyValues"`
 	MonthlyNotes  *map[string]string `json:"monthlyNotes"`
 	VariableAmount *bool            `json:"variableAmount"`
+	// CardID: "" solta a despesa do cartão; ausente não muda.
+	CardID       *string `json:"cardId"`
+	PurchaseDate *string `json:"purchaseDate"`
+	// DistGroup: distribuição da sugestão do saldo (0 = Dist 1, 2 a 20); ausente não muda.
+	DistGroup *int `json:"distGroup"`
+	// EndMonth: último mês em que a fixa vale; "" tira o fim; ausente não muda.
+	EndMonth *string `json:"endMonth"`
 }
 
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -84,8 +90,17 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	if in.Notes != nil {
 		msg = first(msg, checkNotes(*in.Notes))
 	}
+	if in.PurchaseDate != nil && *in.PurchaseDate != "" {
+		msg = first(msg, checkDate("Dia da compra", *in.PurchaseDate, false))
+	}
+	if in.EndMonth != nil && *in.EndMonth != "" {
+		msg = first(msg, checkMonth(*in.EndMonth))
+	}
 	var hidden []string
 	var values map[string]int64
+	if in.DistGroup != nil && *in.DistGroup != 0 && (*in.DistGroup < 2 || *in.DistGroup > domain.MaxDistGroup) {
+		msg = first(msg, "A distribuição deve ser a Dist 1 (saldo do mês) ou de 2 a 20.")
+	}
 	if in.HiddenMonths != nil {
 		hidden = *in.HiddenMonths
 	}
@@ -102,6 +117,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	out, err := s.store.UpdateTransaction(r.Context(), userID(r), chi.URLParam(r, "id"), store.TransactionPatch{
 		Name: trimmed(in.Name), Amount: in.Amount, Category: in.Category, Notes: in.Notes, Fixed: in.Fixed,
 		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes, VariableAmount: in.VariableAmount,
+		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth, DistGroup: in.DistGroup,
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -376,6 +392,9 @@ type extraPatchReq struct {
 	Name   *string `json:"name"`
 	Amount *int64  `json:"amount"`
 	Month  *string `json:"month"`
+	// CardID: "" solta a despesa do cartão; ausente não muda.
+	CardID       *string `json:"cardId"`
+	PurchaseDate *string `json:"purchaseDate"`
 }
 
 func (s *Server) updateExtra(w http.ResponseWriter, r *http.Request) {
@@ -393,11 +412,14 @@ func (s *Server) updateExtra(w http.ResponseWriter, r *http.Request) {
 	if in.Month != nil {
 		msg = first(msg, checkMonth(*in.Month))
 	}
+	if in.PurchaseDate != nil && *in.PurchaseDate != "" {
+		msg = first(msg, checkDate("Dia da compra", *in.PurchaseDate, false))
+	}
 	if bad(w, msg) {
 		return
 	}
 	out, err := s.store.UpdateExtra(r.Context(), userID(r), chi.URLParam(r, "id"),
-		store.ExtraPatch{Name: trimmed(in.Name), Amount: in.Amount, Month: in.Month})
+		store.ExtraPatch{Name: trimmed(in.Name), Amount: in.Amount, Month: in.Month, CardID: in.CardID, PurchaseDate: in.PurchaseDate})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -495,6 +517,38 @@ func (s *Server) createCategory(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusCreated, out)
 }
 
+type categoryPatchReq struct {
+	Name  *string `json:"name"`
+	Color *string `json:"color"`
+}
+
+// updateCategory troca nome e/ou cor; trocar o nome leva junto as despesas e compras que usavam o nome antigo.
+func (s *Server) updateCategory(w http.ResponseWriter, r *http.Request) {
+	var in categoryPatchReq
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	msg := ""
+	if in.Name != nil {
+		trimmedName := strings.TrimSpace(*in.Name)
+		in.Name = &trimmedName
+		msg = first(checkName(trimmedName), checkCategory(trimmedName))
+	}
+	if in.Color != nil && !colorRe.MatchString(*in.Color) {
+		msg = first(msg, "A cor deve ser um hexadecimal no formato #RRGGBB.")
+	}
+	if bad(w, msg) {
+		return
+	}
+	out, err := s.store.UpdateCategory(r.Context(), userID(r), chi.URLParam(r, "id"), store.CategoryPatch{Name: in.Name, Color: in.Color})
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
+}
+
 func (s *Server) deleteCategory(w http.ResponseWriter, r *http.Request) {
 	if err := s.store.DeleteCategory(r.Context(), userID(r), chi.URLParam(r, "id")); err != nil {
 		s.fail(w, r, err)
@@ -519,6 +573,34 @@ func (s *Server) putDistribution(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.SetDistribution(r.Context(), userID(r), in.Items); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// putDistributionOverride grava (ou, com `items: null`, limpa) os percentuais próprios de uma distribuição (Dist 2 em
+// diante) de um mês. A Dist 1 sempre usa o padrão (PUT /settings/distribution).
+func (s *Server) putDistributionOverride(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Items []domain.DistributionItem `json:"items"` // null volta ao padrão
+	}
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	key := chi.URLParam(r, "month") + "|" + chi.URLParam(r, "group")
+	if !domain.ValidOverrideKey(key) {
+		writeError(w, http.StatusBadRequest, "A distribuição deve ser de um mês válido (AAAA-MM) e de 2 a 20.")
+		return
+	}
+	if len(in.Items) > s.lim.DistributionItems {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Categorias demais na distribuição (máximo %d).", s.lim.DistributionItems))
+		return
+	}
+	if in.Items != nil && bad(w, domain.ValidateDistribution(in.Items)) {
+		return
+	}
+	if err := s.store.SetDistributionOverride(r.Context(), userID(r), key, in.Items); err != nil {
 		s.fail(w, r, err)
 		return
 	}
@@ -648,6 +730,9 @@ func (s *Server) createCreditCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.Name = strings.TrimSpace(in.Name)
+	// o pagamento e o ajuste da fatura só entram pelo endpoint próprio (ou pela importação)
+	in.Payments = nil
+	in.Adjustments = nil
 	if bad(w, validateCard(in)) {
 		return
 	}
@@ -664,6 +749,8 @@ type cardPatchReq struct {
 	Name       *string `json:"name"`
 	ClosingDay *int    `json:"closingDay"`
 	DueDay     *int    `json:"dueDay"`
+	// Limit: teto mensal da fatura em centavos (0 = sem teto).
+	Limit *int64 `json:"limit"`
 }
 
 func (s *Server) updateCreditCard(w http.ResponseWriter, r *http.Request) {
@@ -681,10 +768,13 @@ func (s *Server) updateCreditCard(w http.ResponseWriter, r *http.Request) {
 	if in.DueDay != nil {
 		msg = first(msg, checkCardDay("vencimento", *in.DueDay))
 	}
+	if in.Limit != nil {
+		msg = first(msg, checkCardLimit(*in.Limit))
+	}
 	if bad(w, msg) {
 		return
 	}
-	out, err := s.store.UpdateCreditCard(r.Context(), userID(r), chi.URLParam(r, "id"), store.CardPatch{Name: trimmed(in.Name), ClosingDay: in.ClosingDay, DueDay: in.DueDay})
+	out, err := s.store.UpdateCreditCard(r.Context(), userID(r), chi.URLParam(r, "id"), store.CardPatch{Name: trimmed(in.Name), ClosingDay: in.ClosingDay, DueDay: in.DueDay, Limit: in.Limit})
 	if err != nil {
 		s.fail(w, r, err)
 		return
@@ -706,4 +796,69 @@ func (s *Server) removeInstallment(w http.ResponseWriter, r *http.Request) {
 	s.adjustInstallment(w, r, func(c domain.CreditTransaction, n int) (map[string]domain.InstallmentAdjustment, string) {
 		return domain.RemoveInstallment(c, n)
 	})
+}
+
+/* ---------- pagamento da fatura do cartão (só registro; não muda nenhum valor) ---------- */
+
+func (s *Server) setCardPayment(w http.ResponseWriter, r *http.Request) {
+	var in domain.Payment
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	month := chi.URLParam(r, "month")
+	if bad(w, first(checkMonth(month), checkPayment(in))) {
+		return
+	}
+	s.respondCardPayment(w, r, month, &in)
+}
+
+func (s *Server) clearCardPayment(w http.ResponseWriter, r *http.Request) {
+	month := chi.URLParam(r, "month")
+	if bad(w, checkMonth(month)) {
+		return
+	}
+	s.respondCardPayment(w, r, month, nil)
+}
+
+/* ---------- ajustes da fatura do cartão (descontos e acréscimos; só registro) ---------- */
+
+// setCardAdjustments troca a lista de ajustes do mês (um array JSON; vazio remove).
+func (s *Server) setCardAdjustments(w http.ResponseWriter, r *http.Request) {
+	var in []domain.InvoiceAdjustment
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	month := chi.URLParam(r, "month")
+	if bad(w, first(checkMonth(month), checkInvoiceAdjustments(in))) {
+		return
+	}
+	s.respondCardAdjustments(w, r, month, in)
+}
+
+func (s *Server) clearCardAdjustments(w http.ResponseWriter, r *http.Request) {
+	month := chi.URLParam(r, "month")
+	if bad(w, checkMonth(month)) {
+		return
+	}
+	s.respondCardAdjustments(w, r, month, nil)
+}
+
+func (s *Server) respondCardAdjustments(w http.ResponseWriter, r *http.Request, month string, list []domain.InvoiceAdjustment) {
+	out, err := s.store.SetCardAdjustments(r.Context(), userID(r), chi.URLParam(r, "id"), month, list)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
+}
+
+func (s *Server) respondCardPayment(w http.ResponseWriter, r *http.Request, month string, p *domain.Payment) {
+	out, err := s.store.SetCardPayment(r.Context(), userID(r), chi.URLParam(r, "id"), month, p)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	s.touch(r.Context(), userID(r))
+	writeJSON(w, http.StatusOK, out)
 }

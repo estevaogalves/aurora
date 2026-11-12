@@ -17,10 +17,21 @@ type Transaction struct {
 	MonthlyValues map[string]int64 `json:"monthlyValues,omitempty"`
 	// Fixas: observação de um mês. A observação é só do mês: Notes vale no mês de criação e não se repete.
 	MonthlyNotes map[string]string `json:"monthlyNotes,omitempty"`
-	// VariableAmount: fixa de valor variável. Amount é uma estimativa; os meses com valor em MonthlyValues têm o valor real.
+	// VariableAmount: valor variável (estimado), em fixa ou avulsa. Amount é uma estimativa. Na fixa, os meses com valor
+	// em MonthlyValues têm o valor real; na avulsa, o valor real vem de editar Amount e desmarcar a estimativa.
 	VariableAmount bool `json:"variableAmount,omitempty"`
 	// Despesas: pagamento por mês ("2026-11"). Só registro, não entra em conta nenhuma.
 	Payments map[string]Payment `json:"payments,omitempty"`
+	// CardID e PurchaseDate: despesa avulsa paga no cartão. Com os dois, o valor entra no mês do vencimento da
+	// fatura (ResolveCardTransactions); Month e PurchaseDate ficam como foram lançados. Fixa não tem cartão.
+	CardID       string `json:"cardId,omitempty"`
+	PurchaseDate string `json:"purchaseDate,omitempty"`
+	// EndMonth: fixa encerrada, o último mês em que vale ("2026-11" = vale até novembro). Vazio = segue valendo.
+	EndMonth string `json:"endMonth,omitempty"`
+	// DistGroup: em qual distribuição da sugestão do saldo a renda entra. 0 (ausente) = soma ao saldo do mês (Dist 1);
+	// 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não
+	// muda nenhum valor. Só vale para renda não fixa (13º, bônus).
+	DistGroup int `json:"distGroup,omitempty"`
 }
 
 type CreditTransaction struct {
@@ -75,6 +86,9 @@ type ExtraExpense struct {
 	Month  string `json:"month"`
 	// Pagamento da despesa (única, pois ela existe em um só mês). Só registro, não entra em conta nenhuma.
 	Payment *Payment `json:"payment,omitempty"`
+	// CardID e PurchaseDate: igual a Transaction.
+	CardID       string `json:"cardId,omitempty"`
+	PurchaseDate string `json:"purchaseDate,omitempty"`
 }
 
 type CustomCategory struct {
@@ -109,9 +123,17 @@ type FinanceData struct {
 	CreditCards        []CreditCard        `json:"creditCards"`
 	Notes              []Note              `json:"notes"`
 	Goals              []Goal              `json:"goals"`
+	// Histórico de metas e porquinhos: o guardado de cada meta é refeito por estas movimentações.
+	GoalMovements []GoalMovement `json:"goalMovements"`
+	// Investimentos ficam à parte do fluxo de caixa: nenhum cálculo de saldo, projeção ou relatório os usa.
+	Investments         []Investment         `json:"investments"`
+	InvestmentMovements []InvestmentMovement `json:"investmentMovements"`
 	ExtraExpenses      []ExtraExpense      `json:"extraExpenses"`
 	CustomCategories   []CustomCategory    `json:"customCategories"`
 	Distribution       []DistributionItem  `json:"distribution"`
+	// DistributionOverrides: percentuais próprios de uma distribuição (Dist 2, 3...) de um mês, por chave "AAAA-MM|n".
+	// Sem a chave, vale Distribution (o padrão). A Dist 1 sempre usa o padrão.
+	DistributionOverrides map[string][]DistributionItem `json:"distributionOverrides"`
 	SeenAlerts         []string            `json:"seenAlerts"`
 	// Resposta ao tour de cada tela: "done" (viu até o fim) ou "dismissed" (recusou, fechou ou pulou).
 	Onboarding map[string]string `json:"onboarding"`
@@ -134,6 +156,15 @@ func (d *FinanceData) Normalize() {
 	if d.Goals == nil {
 		d.Goals = []Goal{}
 	}
+	if d.GoalMovements == nil {
+		d.GoalMovements = []GoalMovement{}
+	}
+	if d.Investments == nil {
+		d.Investments = []Investment{}
+	}
+	if d.InvestmentMovements == nil {
+		d.InvestmentMovements = []InvestmentMovement{}
+	}
 	if d.ExtraExpenses == nil {
 		d.ExtraExpenses = []ExtraExpense{}
 	}
@@ -142,6 +173,9 @@ func (d *FinanceData) Normalize() {
 	}
 	if d.SeenAlerts == nil {
 		d.SeenAlerts = []string{}
+	}
+	if d.DistributionOverrides == nil {
+		d.DistributionOverrides = map[string][]DistributionItem{}
 	}
 	if d.Onboarding == nil {
 		d.Onboarding = map[string]string{}

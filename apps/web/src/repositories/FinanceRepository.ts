@@ -1,3 +1,4 @@
+import type { CategoryPatch } from "../domain/categories";
 import type {
   CreditCard,
   CreditTransaction,
@@ -6,8 +7,12 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  GoalMovement,
+  Investment,
+  InvestmentMovement,
   Note,
   OnboardingState,
+  InvoiceAdjustment,
   Payment,
   Transaction,
 } from "../domain/types";
@@ -46,6 +51,10 @@ export interface FinanceRepository {
   setTransactionPayment(id: string, month: string, payment: Payment | null): Promise<void>;
   /** Marca (ou troca) o pagamento de uma despesa extra; null desmarca. */
   setExtraPayment(id: string, payment: Payment | null): Promise<void>;
+  /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro, não muda valores. */
+  setCardPayment(id: string, month: string, payment: Payment | null): Promise<void>;
+  /** Troca a lista de ajustes da fatura do cartão que vence em `month`; lista vazia remove. Só registro, não muda despesas. */
+  setCardAdjustments(id: string, month: string, adjustments: InvoiceAdjustment[]): Promise<void>;
 
   addNote(note: Note): Promise<void>;
   updateNote(id: string, patch: Partial<Note>): Promise<void>;
@@ -53,17 +62,34 @@ export interface FinanceRepository {
 
   addGoal(goal: Goal): Promise<void>;
   updateGoal(id: string, patch: Partial<Goal>): Promise<void>;
+  /** Apaga a meta e o histórico dela. */
   removeGoal(id: string): Promise<void>;
+  /** Histórico de metas e porquinhos: o guardado é refeito pelas movimentações (`replayGoal`). */
+  addGoalMovement(movement: GoalMovement): Promise<void>;
+  updateGoalMovement(id: string, patch: Partial<GoalMovement>): Promise<void>;
+  removeGoalMovement(id: string): Promise<void>;
+
+  addInvestment(investment: Investment): Promise<void>;
+  updateInvestment(id: string, patch: Partial<Investment>): Promise<void>;
+  /** Apaga o investimento e as movimentações dele. */
+  removeInvestment(id: string): Promise<void>;
+  addInvestmentMovement(movement: InvestmentMovement): Promise<void>;
+  updateInvestmentMovement(id: string, patch: Partial<InvestmentMovement>): Promise<void>;
+  removeInvestmentMovement(id: string): Promise<void>;
 
   addExtraExpense(extra: ExtraExpense): Promise<void>;
   updateExtraExpense(id: string, patch: Partial<ExtraExpense>): Promise<void>;
   removeExtraExpense(id: string): Promise<void>;
 
   addCategory(category: CustomCategory): Promise<void>;
+  /** Troca o nome e/ou a cor; com nome novo, os lançamentos que usavam o antigo passam para o novo. */
+  updateCategory(id: string, patch: CategoryPatch): Promise<void>;
   removeCategory(id: string): Promise<void>;
 
   /** null volta ao padrão */
   setDistribution(items: DistributionItem[] | null): Promise<void>;
+  /** Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês; null volta ao padrão. */
+  setDistributionOverride(month: string, group: number, items: DistributionItem[] | null): Promise<void>;
 
   /** Lista completa dos avisos de meta marcados como vistos. */
   setSeenAlerts(keys: string[]): Promise<void>;

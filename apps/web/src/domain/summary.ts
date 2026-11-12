@@ -1,7 +1,7 @@
 import { changeMonth, compareMonths, getMonthsBetween } from "../Utils/Date";
 import type { Category } from "../Types/Category";
 import { getCreditByMonth, getCreditTotalByMonth } from "./credit";
-import { resolveCredits } from "./invoice";
+import { cardAdjustmentsOf, getCardInvoice, resolveCardExpenses, resolveCredits, type CardInvoice } from "./invoice";
 import { getTransactionsByMonth } from "./transactions";
 import type {
   CreditTransaction,
@@ -14,15 +14,60 @@ import type {
 } from "./types";
 
 export const CREDIT_CATEGORY: Category = "Crédito/Parcelado";
+/**
+ * Categoria em que uma parcela ou recorrência do crédito conta nos totais: a que a compra tem. "Crédito/Parcelado"
+ * só serve de reserva para compra antiga sem categoria.
+ */
+export const creditCategoryOf = (c: { category?: string }): Category => c.category?.trim() || CREDIT_CATEGORY;
+
 /** Despesas extras planejadas não têm categoria própria: entram em "Outros". */
 const EXTRA_CATEGORY: Category = "Outros";
+
+/**
+ * Reparte o ajuste de uma fatura pelas categorias das compras dela, na proporção de cada uma (os centavos que
+ * sobram vão para as maiores). Assim o desconto reduz as mesmas categorias que ele desconta, nenhuma fica
+ * negativa e a soma das partes é sempre o ajuste. Fatura sem compras (só acréscimo) vai para o crédito.
+ */
+export function splitInvoiceAdjustment(invoice: CardInvoice): Partial<Record<Category, number>> {
+  const adj = invoice.adjustmentApplied;
+  if (adj === 0) return {};
+  const parts: Partial<Record<Category, number>> = {};
+  const add = (c: Category, v: number) => { parts[c] = (parts[c] ?? 0) + v; };
+  for (const c of [...invoice.installments, ...invoice.recurring]) add(creditCategoryOf(c), c.installmentValue);
+  for (const p of invoice.purchases) add(p.category as Category, p.amount);
+  const entries = (Object.entries(parts) as [Category, number][]).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  const total = entries.reduce((s, [, v]) => s + v, 0);
+  if (total === 0) return { [CREDIT_CATEGORY]: adj };
+
+  const sign = adj < 0 ? -1 : 1;
+  // BigInt: com valores gigantes, valor × parte passa dos 2^53 que um número inteiro comum representa com exatidão
+  const shares = entries.map(([c, v]) => [c, sign * Number((BigInt(Math.abs(adj)) * BigInt(v)) / BigInt(total))] as [Category, number]);
+  let rest = adj - shares.reduce((s, [, v]) => s + v, 0);
+  for (let i = 0; rest !== 0; i = (i + 1) % shares.length) {
+    shares[i][1] += sign;
+    rest -= sign;
+  }
+  return Object.fromEntries(shares.filter(([, v]) => v !== 0)) as Partial<Record<Category, number>>;
+}
+
+/** Ajustes das faturas que vencem em `month`: o cartão, a fatura e como o ajuste se reparte pelas categorias. */
+export function getInvoiceAdjustments(
+  data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses" | "creditCards">>,
+  month: Month,
+): { invoice: CardInvoice; byCategory: Partial<Record<Category, number>> }[] {
+  return (data.creditCards ?? [])
+    .filter((k) => cardAdjustmentsOf(k, month).length > 0)
+    .map((k) => getCardInvoice(data, k, month))
+    .filter((i) => i.adjustmentApplied !== 0)
+    .map((invoice) => ({ invoice, byCategory: splitInvoiceAdjustment(invoice) }));
+}
 
 /** Resumo de um mês: renda, despesas (com as parcelas do crédito), saldo e por categoria. */
 export function getMonthSummary(
   data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "extraExpenses" | "creditCards">>,
   month: Month,
 ): MonthSummary {
-  const monthTransactions = getTransactionsByMonth(data.transactions, month);
+  const monthTransactions = getTransactionsByMonth(resolveCardExpenses(data.transactions, data.creditCards), month);
   const installments = getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month);
 
   let totalIncome = 0;
@@ -38,18 +83,31 @@ export function getMonthSummary(
     }
   }
 
-  const creditExpense = installments.reduce((s, c) => s + c.installmentValue, 0);
-  if (creditExpense > 0) {
-    byCategory[CREDIT_CATEGORY] = (byCategory[CREDIT_CATEGORY] ?? 0) + creditExpense;
+  // cada parcela e recorrência conta na categoria da própria compra (trocar a categoria muda o gráfico)
+  let creditExpense = 0;
+  for (const c of installments) {
+    creditExpense += c.installmentValue;
+    if (c.installmentValue > 0) {
+      const cat = creditCategoryOf(c);
+      byCategory[cat] = (byCategory[cat] ?? 0) + c.installmentValue;
+    }
   }
 
   // despesas extras planejadas para o mês (as mesmas que a Projeção usa)
-  const extraExpense = (data.extraExpenses ?? []).filter((e) => e.month === month).reduce((sum, e) => sum + e.amount, 0);
+  const extraExpense = resolveCardExpenses(data.extraExpenses ?? [], data.creditCards).filter((e) => e.month === month).reduce((sum, e) => sum + e.amount, 0);
   if (extraExpense > 0) {
     byCategory[EXTRA_CATEGORY] = (byCategory[EXTRA_CATEGORY] ?? 0) + extraExpense;
   }
 
-  const totalExpense = directExpense + creditExpense + extraExpense;
+  // ajuste (desconto ou acréscimo) das faturas do mês: reduz ou aumenta as categorias da própria fatura
+  let invoiceAdjustment = 0;
+  for (const a of getInvoiceAdjustments(data, month)) {
+    invoiceAdjustment += a.invoice.adjustmentApplied;
+    for (const [c, v] of Object.entries(a.byCategory) as [Category, number][]) byCategory[c] = (byCategory[c] ?? 0) + v;
+  }
+  for (const c of Object.keys(byCategory) as Category[]) if (byCategory[c] === 0) delete byCategory[c];
+
+  const totalExpense = directExpense + creditExpense + extraExpense + invoiceAdjustment;
 
   return {
     month,
@@ -57,6 +115,7 @@ export function getMonthSummary(
     totalExpense,
     creditExpense,
     extraExpense,
+    invoiceAdjustment,
     balance: totalIncome - totalExpense,
     expensePercentage: totalIncome === 0 ? 0 : (totalExpense / totalIncome) * 100,
     byCategory,
@@ -121,7 +180,7 @@ export function getAvailableMonths(
 ): Month[] {
   const credits = resolveCredits(data.creditTransactions, data.creditCards);
   const points: Month[] = [
-    ...data.transactions.map((t) => t.month),
+    ...resolveCardExpenses(data.transactions, data.creditCards).map((t) => t.month),
     ...credits.map((c) => c.startMonth),
     ...credits.map(creditEndMonth),
   ];
@@ -164,7 +223,7 @@ export interface ProjectionLine {
   /** centavos */
   amount: number;
   /** de onde vem a linha: fixa do mês, parcela do crédito ou despesa extra planejada */
-  kind: "fixed" | "credit" | "extra";
+  kind: "fixed" | "credit" | "extra" | "adjustment";
 }
 
 /** Os lançamentos que formam uma categoria nas despesas do mês (soma igual a `byCategory[category]` de `getMonthSummary`). */
@@ -173,17 +232,20 @@ export function getCategoryDetail(
   month: Month,
   category: Category,
 ): ProjectionLine[] {
-  const lines: ProjectionLine[] = getTransactionsByMonth(data.transactions, month)
+  const lines: ProjectionLine[] = getTransactionsByMonth(resolveCardExpenses(data.transactions, data.creditCards), month)
     .filter((t) => t.type === "expense" && t.category === category)
     .map((t) => ({ name: t.name, amount: t.amount, kind: "fixed" as const }));
 
-  if (category === CREDIT_CATEGORY) {
-    for (const c of getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month)) {
-      lines.push({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" });
-    }
+  // as parcelas e recorrências entram na categoria da própria compra (a mesma regra de `getMonthSummary`)
+  for (const c of getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month).filter((x) => creditCategoryOf(x) === category)) {
+    lines.push({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" });
+  }
+  for (const a of getInvoiceAdjustments(data, month)) {
+    const share = a.byCategory[category];
+    if (share) lines.push({ name: `${a.invoice.adjustmentApplied < 0 ? "Desconto" : "Acréscimo"} da fatura ${a.invoice.card.name}`, amount: share, kind: "adjustment" });
   }
   if (category === EXTRA_CATEGORY) {
-    for (const e of (data.extraExpenses ?? []).filter((x) => x.month === month)) lines.push({ name: e.name, amount: e.amount, kind: "extra" });
+    for (const e of resolveCardExpenses(data.extraExpenses ?? [], data.creditCards).filter((x) => x.month === month)) lines.push({ name: e.name, amount: e.amount, kind: "extra" });
   }
   return lines.sort((a, b) => b.amount - a.amount);
 }
@@ -201,7 +263,7 @@ export function getProjectionDetail(
     expenses: [
       ...fixed.filter((t) => t.type === "expense").map(line),
       ...getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month).map((c): ProjectionLine => ({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" })),
-      ...extras.filter((e) => e.month === month).map((e): ProjectionLine => ({ name: e.name, amount: e.amount, kind: "extra" })),
+      ...resolveCardExpenses(extras, data.creditCards).filter((e) => e.month === month).map((e): ProjectionLine => ({ name: e.name, amount: e.amount, kind: "extra" })),
     ],
   };
 }
@@ -219,6 +281,7 @@ export function getProjection(
 ): ProjectionMonth[] {
   const result: ProjectionMonth[] = [];
   let accumulated = 0;
+  const plannedExtras = resolveCardExpenses(extras, data.creditCards);
 
   for (let i = 0; i < count; i++) {
     const month = changeMonth(startMonth, i);
@@ -226,7 +289,7 @@ export function getProjection(
     const income = fixedTotal(data.transactions, month, "income");
     const fixedExpense = fixedTotal(data.transactions, month, "expense");
     const creditExpense = getCreditTotalByMonth(resolveCredits(data.creditTransactions, data.creditCards), month);
-    const extraExpense = extras
+    const extraExpense = plannedExtras
       .filter((e) => e.month === month)
       .reduce((s, e) => s + e.amount, 0);
 
@@ -280,9 +343,9 @@ export function getAdjacentMonth(data: NavigationData, from: Month, today: Month
 
   if (compareMonths(next, today) >= 0) return next;
   const oldest = [
-    ...data.transactions.map((t) => t.month),
+    ...resolveCardExpenses(data.transactions, data.creditCards).map((t) => t.month),
     ...resolveCredits(data.creditTransactions, data.creditCards).map((c) => c.startMonth),
-    ...data.extraExpenses.map((e) => e.month),
+    ...resolveCardExpenses(data.extraExpenses, data.creditCards).map((e) => e.month),
     ...data.notes.map((n) => n.month),
     ...data.goals.flatMap((g) => (g.deadline ? [g.deadline] : [])),
   ].sort(compareMonths)[0];

@@ -23,6 +23,7 @@ export function getDemoSummaries(): MonthSummary[] {
       totalExpense,
       creditExpense: credit,
       extraExpense: 0,
+      invoiceAdjustment: 0,
       balance: income - totalExpense,
       expensePercentage: (totalExpense / income) * 100,
       byCategory,

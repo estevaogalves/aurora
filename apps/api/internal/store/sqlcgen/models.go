@@ -13,12 +13,15 @@ import (
 )
 
 type CreditCard struct {
-	ID         uuid.UUID
-	UserID     uuid.UUID
-	Name       string
-	ClosingDay int64
-	DueDay     int64
-	CreatedAt  time.Time
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	Name        string
+	ClosingDay  int64
+	DueDay      int64
+	CreatedAt   time.Time
+	LimitCents  int64
+	Payments    sqlitetypes.JSON
+	Adjustments sqlitetypes.JSON
 }
 
 type CreditPurchase struct {
@@ -46,13 +49,15 @@ type CustomCategory struct {
 }
 
 type ExtraExpense struct {
-	ID          uuid.UUID
-	UserID      uuid.UUID
-	Name        string
-	AmountCents int64
-	Month       string
-	Payment     sqlitetypes.JSON
-	CreatedAt   time.Time
+	ID           uuid.UUID
+	UserID       uuid.UUID
+	Name         string
+	AmountCents  int64
+	Month        string
+	Payment      sqlitetypes.JSON
+	CreatedAt    time.Time
+	CardID       uuid.NullUUID
+	PurchaseDate string
 }
 
 type FixedOverride struct {
@@ -73,6 +78,56 @@ type Goal struct {
 	YieldTotalCents int64
 	Piggy           bool
 	CreatedAt       time.Time
+}
+
+type GoalMovement struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	GoalID      uuid.UUID
+	Type        string
+	Date        string
+	AmountCents int64
+	Note        string
+	Origin      string
+	CreatedAt   time.Time
+}
+
+type Investment struct {
+	ID                uuid.UUID
+	UserID            uuid.UUID
+	Name              string
+	Family            string
+	Product           string
+	Institution       string
+	AppliedAt         string
+	CurrentValueCents int64
+	MaturityDate      string
+	Indexer           string
+	Rate              string
+	Liquidity         string
+	GraceUntil        string
+	EarlyRedeem       bool
+	Quantity          *float64
+	AvgPriceCents     sql.NullInt64
+	RedeemDays        int64
+	Ticker            string
+	Fees              string
+	Notes             string
+	CreatedAt         time.Time
+}
+
+type InvestmentMovement struct {
+	ID             uuid.UUID
+	UserID         uuid.UUID
+	InvestmentID   uuid.UUID
+	Type           string
+	Date           string
+	AmountCents    int64
+	Quantity       *float64
+	UnitPriceCents sql.NullInt64
+	CreatedAt      time.Time
+	Note           string
+	Origin         string
 }
 
 type Note struct {
@@ -108,6 +163,10 @@ type Transaction struct {
 	MonthlyNotes   sqlitetypes.JSON
 	VariableAmount bool
 	CreatedAt      time.Time
+	CardID         uuid.NullUUID
+	PurchaseDate   string
+	EndMonth       string
+	DistGroup      int64
 }
 
 type User struct {
@@ -120,8 +179,9 @@ type User struct {
 }
 
 type UserSetting struct {
-	UserID       uuid.UUID
-	Distribution sqlitetypes.JSON
-	SeenAlerts   sqlitetypes.TextList
-	Onboarding   sqlitetypes.JSON
+	UserID                uuid.UUID
+	Distribution          sqlitetypes.JSON
+	SeenAlerts            sqlitetypes.TextList
+	Onboarding            sqlitetypes.JSON
+	DistributionOverrides sqlitetypes.JSON
 }

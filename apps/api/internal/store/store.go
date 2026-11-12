@@ -173,6 +173,30 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 		d.Goals = append(d.Goals, goalFrom(r))
 	}
 
+	goalMovements, err := s.q.ListGoalMovements(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	for _, r := range goalMovements {
+		d.GoalMovements = append(d.GoalMovements, goalMovementFrom(r))
+	}
+
+	investments, err := s.q.ListInvestments(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	for _, r := range investments {
+		d.Investments = append(d.Investments, investmentFrom(r))
+	}
+
+	movements, err := s.q.ListInvestmentMovements(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	for _, r := range movements {
+		d.InvestmentMovements = append(d.InvestmentMovements, movementFrom(r))
+	}
+
 	extras, err := s.q.ListExtraExpenses(ctx, userID)
 	if err != nil {
 		return d, err
@@ -200,6 +224,11 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 				return d, err
 			}
 		}
+		if len(settings.DistributionOverrides) > 0 {
+			if err := json.Unmarshal(settings.DistributionOverrides, &d.DistributionOverrides); err != nil {
+				return d, err
+			}
+		}
 		if len(settings.Distribution) > 0 {
 			if err := json.Unmarshal(settings.Distribution, &d.Distribution); err != nil {
 				return d, err
@@ -218,7 +247,7 @@ func (s *Store) IsEmpty(ctx context.Context, userID uuid.UUID) (bool, error) {
 		return false, err
 	}
 	return len(d.Transactions)+len(d.CreditTransactions)+len(d.Notes)+len(d.Goals)+
-		len(d.ExtraExpenses)+len(d.CustomCategories) == 0, nil
+		len(d.ExtraExpenses)+len(d.CustomCategories)+len(d.Investments) == 0, nil
 }
 
 /* ---------- linhas -> domínio ---------- */
@@ -227,6 +256,10 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 	t := domain.Transaction{
 		ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Type: r.Type,
 		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month, VariableAmount: r.VariableAmount,
+		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, DistGroup: int(r.DistGroup),
+	}
+	if r.CardID.Valid {
+		t.CardID = r.CardID.UUID.String()
 	}
 	if len(r.Payments) > 0 {
 		_ = json.Unmarshal(r.Payments, &t.Payments)
@@ -274,13 +307,68 @@ func creditFrom(r sqlcgen.CreditPurchase) domain.CreditTransaction {
 	return c
 }
 
+// checkCardState confere o resultado de uma alteração: despesa com cartão tem que ser avulsa, ser despesa e ter o
+// dia da compra (sem ele não dá para saber em que fatura cai). Sem cartão, nada a conferir.
+func checkCardState(fixed bool, typ string, cardID uuid.NullUUID, purchaseDate string) error {
+	if !cardID.Valid {
+		return nil
+	}
+	switch {
+	case typ == "income":
+		return &ValidationError{"Só despesas podem ser pagas no cartão."}
+	case fixed:
+		return &ValidationError{"Despesa fixa não pode ser paga no cartão."}
+	case !domain.IsValidDate(purchaseDate):
+		return &ValidationError{"Informe o dia da compra no cartão."}
+	}
+	return nil
+}
+
+// checkDistGroupState confere o resultado de uma alteração: só renda não fixa pode entrar numa distribuição própria
+// (Dist 2 em diante); 0 é a Dist 1, o saldo do mês, e vale para qualquer lançamento.
+func checkDistGroupState(fixed bool, typ string, group int) error {
+	switch {
+	case group == 0:
+		return nil
+	case typ != "income":
+		return &ValidationError{"Só rendas entram numa distribuição do saldo."}
+	case fixed:
+		return &ValidationError{"Renda fixa não pode ter distribuição própria: use uma renda variável (13º, bônus)."}
+	}
+	return nil
+}
+
+// checkEndState confere o resultado de uma alteração: só fixa pode ser encerrada, e o fim não pode ser antes do
+// mês em que ela começa.
+func checkEndState(fixed bool, month, endMonth string) error {
+	switch {
+	case endMonth == "":
+		return nil
+	case !fixed:
+		return &ValidationError{"Só despesas e rendas fixas podem ser encerradas."}
+	case domain.CompareMonths(endMonth, month) < 0:
+		return &ValidationError{"O mês final não pode ser antes do mês em que a fixa começa."}
+	}
+	return nil
+}
+
 // ValidationError: a operação foi recusada por uma regra de negócio (a mensagem é segura para mostrar ao usuário).
 type ValidationError struct{ Msg string }
 
 func (e *ValidationError) Error() string { return e.Msg }
 
 func cardFrom(r sqlcgen.CreditCard) domain.CreditCard {
-	return domain.CreditCard{ID: r.ID.String(), Name: r.Name, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay)}
+	k := domain.CreditCard{ID: r.ID.String(), Name: r.Name, ClosingDay: int(r.ClosingDay), DueDay: int(r.DueDay), Limit: r.LimitCents}
+	if len(r.Payments) > 0 {
+		_ = json.Unmarshal(r.Payments, &k.Payments)
+	}
+	if len(k.Payments) == 0 {
+		k.Payments = nil
+	}
+	if adj := parseCardAdjustments(r.Adjustments); len(adj) > 0 {
+		k.Adjustments = adj
+	}
+	return k
 }
 
 func noteFrom(r sqlcgen.Note) domain.Note {
@@ -300,7 +388,10 @@ func goalFrom(r sqlcgen.Goal) domain.Goal {
 }
 
 func extraFrom(r sqlcgen.ExtraExpense) domain.ExtraExpense {
-	e := domain.ExtraExpense{ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Month: r.Month}
+	e := domain.ExtraExpense{ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Month: r.Month, PurchaseDate: r.PurchaseDate}
+	if r.CardID.Valid {
+		e.CardID = r.CardID.UUID.String()
+	}
 	if len(r.Payment) > 0 && string(r.Payment) != "null" {
 		var p domain.Payment
 		if json.Unmarshal(r.Payment, &p) == nil {

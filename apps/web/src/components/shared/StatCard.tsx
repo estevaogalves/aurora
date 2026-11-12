@@ -26,7 +26,7 @@ export default function StatCard({ label, value, hint, highlight, tone = "defaul
       )}
     >
       <span className={cn("text-xs font-semibold uppercase tracking-[0.07em]", highlight ? "opacity-80" : "text-muted-foreground")}>{label}</span>
-      <b className={cn("num text-[26px] font-semibold tracking-[-0.01em]", !highlight && tone === "good" && "text-success", !highlight && tone === "bad" && "text-destructive")}>{value}</b>
+      <b className={cn("num block min-w-0 truncate text-[26px] font-semibold tracking-[-0.01em]", !highlight && tone === "good" && "text-success", !highlight && tone === "bad" && "text-destructive")}>{value}</b>
       {hint && <span className={cn("text-[12.5px]", highlight ? "opacity-80" : "text-muted-foreground")}>{hint}</span>}
     </div>
   );

@@ -24,14 +24,43 @@ export function toReais(cents: number): number {
   return cents / 100;
 }
 
-/** 123456 -> "R$ 1.234,56" */
-export function formatBRL(cents: number): string {
-  return brl.format((cents ?? 0) / 100);
+/**
+ * Maior texto de valor que a tela mostra por inteiro: "R$ 999.999.999.999,99" (21 caracteres, quase R$ 1 trilhão).
+ * Acima disso o texto é cortado com "…", para um valor absurdo não empurrar o layout de nenhuma tela.
+ */
+export const MAX_MONEY_CHARS = 21;
+
+/**
+ * Textos cortados -> valor original. O tooltip lê o texto da tela, e um valor cortado com "…" perderia a grandeza;
+ * este registro devolve o número inteiro. Fica limitado para não crescer sem fim.
+ */
+const truncated = new Map<string, number>();
+const MAX_TRUNCATED = 500;
+
+/** O valor (centavos) de um texto que `formatBRL` cortou com "…", se ele ainda estiver no registro. */
+export function truncatedMoneyCents(text: string): number | undefined {
+  return truncated.get(text);
 }
 
-/** 123456 -> "R$ 1.235" (para rótulos compactos) */
+/** Corta um texto de valor grande demais, terminando em "…". Com `cents`, guarda o valor original no registro. */
+export function ellipsizeMoney(text: string, cents?: number): string {
+  if (text.length <= MAX_MONEY_CHARS) return text;
+  const cut = `${text.slice(0, MAX_MONEY_CHARS - 1)}…`;
+  if (cents !== undefined) {
+    if (truncated.size >= MAX_TRUNCATED) truncated.clear();
+    truncated.set(cut, cents);
+  }
+  return cut;
+}
+
+/** 123456 -> "R$ 1.234,56" (valores gigantes saem cortados com "…", veja `MAX_MONEY_CHARS`) */
+export function formatBRL(cents: number): string {
+  return ellipsizeMoney(brl.format((cents ?? 0) / 100), cents ?? 0);
+}
+
+/** 123456 -> "R$ 1.235" (para rótulos compactos; valores gigantes saem cortados com "…") */
 export function formatBRLShort(cents: number): string {
-  return brlNoDecimals.format((cents ?? 0) / 100);
+  return ellipsizeMoney(brlNoDecimals.format((cents ?? 0) / 100), cents ?? 0);
 }
 
 /** 123456 -> "1234,56" (valor para preencher um input, sem símbolo nem milhar) */

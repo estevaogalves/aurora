@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import Icon from "../components/Icon";
+import MoneyTooltip from "../components/shared/MoneyTooltip";
 import { btnClass } from "../components/shared/styles";
 import TransactionForm from "../Features/Launch/TransactionForm";
 import { ToastContainer } from "../Features/Warnings/ToastContainer";
@@ -78,6 +79,8 @@ export default function AppShell() {
       <TransactionForm />
       <CardsDialog />
       <FloatingCalculator />
+      {/* ao manter o mouse sobre um valor, diz quanto é por extenso */}
+      <MoneyTooltip />
 
       <main className={`${CONTAINER} pb-[70px] pt-[26px] max-[700px]:pb-[104px] max-[700px]:pt-3.5`}>
         <Outlet />

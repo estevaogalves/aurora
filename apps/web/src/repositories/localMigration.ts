@@ -1,3 +1,5 @@
+import { goalOpeningMovements } from "../domain/goals";
+import { todayISO } from "../domain/payment";
 import { toCents } from "../lib/money";
 import type {
   CreditCard,
@@ -7,13 +9,16 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  GoalMovement,
+  Investment,
+  InvestmentMovement,
   Note,
   OnboardingState,
   Transaction,
 } from "../domain/types";
 
 /** Versão atual do formato salvo. Aumente ao mudar o formato e trate em `migrateStored`. */
-export const CURRENT_VERSION = 7;
+export const CURRENT_VERSION = 9;
 
 /** Onde os dados vivem hoje. */
 export const STORAGE_KEY = "aurora:finance";
@@ -32,9 +37,13 @@ export const emptyData = (): FinanceData => ({
   creditCards: [],
   notes: [],
   goals: [],
+  goalMovements: [],
+  investments: [],
+  investmentMovements: [],
   extraExpenses: [],
   customCategories: [],
   distribution: null,
+  distributionOverrides: {},
   seenAlerts: [],
   onboarding: {},
 });
@@ -74,7 +83,7 @@ export function migrateLegacy(raw: unknown): FinanceData | null {
 
   const notes = asArray<Note>(state.notes);
 
-  return { transactions, creditTransactions, creditCards: [], notes, goals: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} };
+  return { transactions, creditTransactions, creditCards: [], notes, goals: [], goalMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], onboarding: {} };
 }
 
 /** Só aceita respostas válidas; qualquer outra coisa é ignorada. */
@@ -93,19 +102,27 @@ export function migrateStored(raw: unknown): FinanceData | null {
     return null;
   }
 
-  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`; v3 -> v4: `distribution`; v4 -> v5: `seenAlerts`; v5 -> v6: `onboarding`; v6 -> v7: `creditCards`.
+  // v1 -> v2: entram `goals` e `extraExpenses`; v2 -> v3: `customCategories`; v3 -> v4: `distribution`; v4 -> v5: `seenAlerts`; v5 -> v6: `onboarding`; v6 -> v7: `creditCards`; v7 -> v8: `investments` e `investmentMovements`; v8 -> v9: `goalMovements` (metas com valor ganham o "Saldo inicial").
   // Quem não tem esses campos recebe listas vazias abaixo.
   if (raw.version > CURRENT_VERSION) return null;
+
+  const goals = asArray<Goal>(raw.data.goals);
+  const goalMovements = asArray<GoalMovement>(raw.data.goalMovements);
 
   return {
     transactions: asArray<Transaction>(raw.data.transactions),
     creditTransactions: asArray<CreditTransaction>(raw.data.creditTransactions),
     creditCards: asArray<CreditCard>(raw.data.creditCards),
     notes: asArray<Note>(raw.data.notes),
-    goals: asArray<Goal>(raw.data.goals),
+    goals,
+    // v8 -> v9: metas que já tinham valor guardado ganham o começo do histórico (nada muda de valor)
+    goalMovements: [...goalMovements, ...goalOpeningMovements(goals, goalMovements, todayISO())],
+    investments: asArray<Investment>(raw.data.investments),
+    investmentMovements: asArray<InvestmentMovement>(raw.data.investmentMovements),
     extraExpenses: asArray<ExtraExpense>(raw.data.extraExpenses),
     customCategories: asArray<CustomCategory>(raw.data.customCategories),
     distribution: Array.isArray(raw.data.distribution) ? (raw.data.distribution as DistributionItem[]) : null,
+    distributionOverrides: isRecord(raw.data.distributionOverrides) ? (raw.data.distributionOverrides as Record<string, DistributionItem[]>) : {},
     seenAlerts: asArray<string>(raw.data.seenAlerts).filter((k) => typeof k === "string"),
     onboarding: parseOnboarding(raw.data.onboarding),
   };

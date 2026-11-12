@@ -83,6 +83,19 @@ func (s *Store) SetDistribution(ctx context.Context, userID uuid.UUID, items []d
 	return s.q.SetDistribution(ctx, sqlcgen.SetDistributionParams{UserID: userID, Distribution: raw})
 }
 
+// SetDistributionOverride grava (items != nil) ou limpa (items == nil) os percentuais próprios de uma distribuição
+// de um mês, pela chave "AAAA-MM|n". Mexe só nessa chave: dois dispositivos não apagam os percentuais um do outro.
+func (s *Store) SetDistributionOverride(ctx context.Context, userID uuid.UUID, key string, items []domain.DistributionItem) error {
+	if items == nil {
+		return s.q.ClearDistributionOverride(ctx, sqlcgen.ClearDistributionOverrideParams{UserID: userID, Key: key})
+	}
+	raw, err := jsonMarshal(items)
+	if err != nil {
+		return err
+	}
+	return s.q.SetDistributionOverride(ctx, sqlcgen.SetDistributionOverrideParams{UserID: userID, Key: key, Items: string(raw)})
+}
+
 func (s *Store) SetSeenAlerts(ctx context.Context, userID uuid.UUID, keys []string) error {
 	if keys == nil {
 		keys = []string{}

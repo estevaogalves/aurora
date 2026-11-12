@@ -463,12 +463,14 @@ func TestOtherEntities(t *testing.T) {
 		Saved    int64
 	}
 	r.json(t, &goal)
-	r = e.do(t, "PATCH", "/api/v1/goals/"+goal.ID, tk, map[string]any{"saved": 10000, "yieldTotal": 300})
+	r = e.do(t, "PATCH", "/api/v1/goals/"+goal.ID, tk, map[string]any{"saved": 10000, "yieldTotal": 999})
 	want(t, r, 200)
 	r.json(t, &goal)
 	if goal.Deadline == nil || *goal.Deadline != "2027-06" || goal.Saved != 10000 {
 		t.Errorf("prazo não deveria mudar: %s", r.Body)
 	}
+	// o total de rendimentos é derivado do histórico: vem dos movimentos de rendimento, não do PATCH
+	want(t, e.do(t, "POST", "/api/v1/goal-movements", tk, map[string]any{"goalId": goal.ID, "type": "yield", "date": "2026-11-30", "amount": 300}), 201)
 	r = e.do(t, "PATCH", "/api/v1/goals/"+goal.ID, tk, map[string]any{"deadline": nil})
 	want(t, r, 200)
 	goal.Deadline = new(string)
@@ -572,7 +574,8 @@ func TestSummaryCacheAndReports(t *testing.T) {
 	if cache != "MISS" || s.TotalIncome != 500000 || s.TotalExpense != 150000+30000+33333 || s.CreditExpense != 33333 {
 		t.Errorf("resumo: %+v (%s)", s, cache)
 	}
-	if s.ByCategory["Crédito/Parcelado"] != 33333 {
+	// a TV é "Lazer": a parcela conta na categoria da compra, não num balde "Crédito/Parcelado"
+	if s.ByCategory["Lazer"] != 33333 || s.ByCategory["Crédito/Parcelado"] != 0 {
 		t.Errorf("categorias: %v", s.ByCategory)
 	}
 	if _, cache := get("2026-02"); cache != "HIT" {

@@ -99,21 +99,52 @@ func TestFixedMonthlyNotes(t *testing.T) {
 	}
 }
 
-// Despesa/renda fixa de valor variável: o valor da fixa é a estimativa e o valor real de um mês é um monthlyValues.
+// Valor variável (estimado): na fixa o valor é a estimativa e o valor real de um mês é um monthlyValues; na avulsa o valor é a estimativa até ser confirmado.
 func TestFixedTransactionVariableAmount(t *testing.T) {
 	e := setup(t)
 	tk := e.register(t, "").AccessToken
 
-	// só fixa tem valor variável: numa lançada avulsa a marca é ignorada
+	// avulsa (renda ou despesa de um mês só) também pode ter valor variável: o valor é a estimativa
 	r := e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{
 		"name": "Avulsa", "amount": 5000, "type": "expense", "category": "Outros", "month": "2026-11", "variableAmount": true,
 	})
 	want(t, r, http.StatusCreated)
 	var plain domain.Transaction
 	r.json(t, &plain)
-	if plain.VariableAmount {
-		t.Fatalf("avulsa não pode ser variável: %+v", plain)
+	if !plain.VariableAmount || plain.Fixed {
+		t.Fatalf("avulsa variável: %+v", plain)
 	}
+	// confirmar o valor real: novo valor e estimativa desligada (os dois só mudam quando vêm na requisição)
+	want(t, e.do(t, "PATCH", "/api/v1/transactions/"+plain.ID, tk, map[string]any{"amount": 5230}), 200)
+	if d := loadData(t, e, tk); !d.Transactions[0].VariableAmount || d.Transactions[0].Amount != 5230 {
+		t.Fatalf("editar o valor não desliga a estimativa sozinho: %+v", d.Transactions[0])
+	}
+	r = e.do(t, "PATCH", "/api/v1/transactions/"+plain.ID, tk, map[string]any{"variableAmount": false})
+	want(t, r, 200)
+	var confirmed domain.Transaction
+	r.json(t, &confirmed)
+	if confirmed.VariableAmount || confirmed.Amount != 5230 {
+		t.Fatalf("valor real confirmado: %+v", confirmed)
+	}
+	// renda avulsa variável, e a marca sobrevive à importação e à exportação
+	r = e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{
+		"name": "Freela", "amount": 120000, "type": "income", "category": "Renda", "month": "2026-11", "variableAmount": true,
+	})
+	want(t, r, http.StatusCreated)
+	var freela domain.Transaction
+	r.json(t, &freela)
+	if !freela.VariableAmount {
+		t.Fatalf("renda avulsa variável: %+v", freela)
+	}
+	pack := map[string]any{"transactions": []map[string]any{{"id": "x", "name": "Bico", "amount": 1000, "type": "income", "category": "Renda", "month": "2026-11", "variableAmount": true}}}
+	r = e.do(t, "POST", "/api/v1/import?replace=true", tk, pack)
+	want(t, r, http.StatusCreated)
+	var imp domain.FinanceData
+	r.json(t, &imp)
+	if len(imp.Transactions) != 1 || !imp.Transactions[0].VariableAmount {
+		t.Fatalf("importação perdeu a marca: %+v", imp.Transactions)
+	}
+	want(t, e.do(t, "DELETE", "/api/v1/transactions/"+imp.Transactions[0].ID, tk, nil), 204)
 
 	r = e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{
 		"name": "Luz", "amount": 18000, "type": "expense", "category": "Moradia", "month": "2026-11", "fixed": true, "variableAmount": true,
@@ -141,7 +172,7 @@ func TestFixedTransactionVariableAmount(t *testing.T) {
 		t.Fatalf("de volta ao estimado: %+v", back)
 	}
 
-	// desligar o variável sem mexer no resto, e deixar de ser fixa também desliga
+	// desligar o variável sem mexer no resto; deixar de ser fixa não mexe na estimativa (o valor segue sendo a estimativa)
 	r = e.do(t, "PATCH", "/api/v1/transactions/"+luz.ID, tk, map[string]any{"variableAmount": false})
 	want(t, r, 200)
 	var off domain.Transaction
@@ -154,7 +185,7 @@ func TestFixedTransactionVariableAmount(t *testing.T) {
 	want(t, r, 200)
 	var unfixed domain.Transaction
 	r.json(t, &unfixed)
-	if unfixed.VariableAmount {
-		t.Fatalf("deixou de ser fixa e continua variável: %+v", unfixed)
+	if !unfixed.VariableAmount || unfixed.Fixed {
+		t.Fatalf("deixou de ser fixa e a estimativa deveria continuar: %+v", unfixed)
 	}
 }

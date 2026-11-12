@@ -6,12 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
-import { chargeDate, patchEditAll } from "@/domain";
+import DistGroupField from "./DistGroupField";
+import { chargeDate, distGroupOf, patchEditAll } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type Transaction } from "@/Store/FinanceStore";
 import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 import CardField from "./CardField";
+import CardPurchaseField from "./CardPurchaseField";
+import { isISODate } from "./isoDate";
 
 function Shell({ open, title, description, onClose, children }: { open: boolean; title: string; description: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -39,7 +42,7 @@ export function EditTransactionDialog({ transaction, onClose }: { transaction: T
 
 function TransactionFields({ transaction, onClose }: { transaction: Transaction; onClose: () => void }) {
   const month = useFinanceStore((s) => s.currentMonth);
-  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, clearTransactionActualValue } = useFinanceStore();
+  const { updateTransactionName, updateTransactionCategory, updateTransactionNotes, updateTransactionAmountForMonth, updateTransactionAmountFromMonth, setTransactionVariable, setTransactionDistGroup, clearTransactionActualValue, setTransactionCard } = useFinanceStore();
   const income = transaction.type === "income";
 
   const [name, setName] = useState(transaction.name);
@@ -49,6 +52,13 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
   // fixa: o valor vale só para o mês visto ou também para os seguintes
   const [scope, setScope] = useState<"month" | "following">("month");
   const [variable, setVariable] = useState(!!transaction.variableAmount);
+  // renda variável: em qual distribuição da sugestão do saldo entra (1 = Dist 1, o saldo do mês)
+  const [distGroup, setDistGroup] = useState(distGroupOf(transaction));
+  const allTransactions = useFinanceStore((s) => s.transactions);
+  // despesa avulsa (não fixa): cartão e dia da compra
+  const canHaveCard = !income && !transaction.fixed;
+  const [cardId, setCardId] = useState(transaction.cardId ?? "");
+  const [purchaseDate, setPurchaseDate] = useState(transaction.purchaseDate ?? `${transaction.month}-01`);
   // fixa variável com valor real neste mês (o `estimated` vem de getTransactionsByMonth)
   const hasActual = !!transaction.variableAmount && !transaction.estimated;
 
@@ -58,9 +68,12 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
     const cents = parseBRL(amount);
     if (!trimmed) return showToast({ type: "error", text: "Preencha o nome" });
     if (cents === null) return showToast({ type: "error", text: "Informe um valor válido" });
+    if (canHaveCard && cardId && !isISODate(purchaseDate)) return showToast({ type: "error", text: "Informe a data da compra" });
 
     if (trimmed !== transaction.name) updateTransactionName(transaction.id, trimmed);
-    if (transaction.fixed && variable !== !!transaction.variableAmount) setTransactionVariable(transaction.id, variable);
+    if (canHaveCard && (cardId !== (transaction.cardId ?? "") || (cardId && purchaseDate !== transaction.purchaseDate))) setTransactionCard(transaction.id, cardId, purchaseDate);
+    if (variable !== !!transaction.variableAmount) setTransactionVariable(transaction.id, variable);
+    if (income && !transaction.fixed && distGroup !== distGroupOf(transaction)) setTransactionDistGroup(transaction.id, distGroup);
     if (cents !== transaction.amount) {
       if (transaction.fixed && scope === "following") updateTransactionAmountFromMonth(transaction.id, month, cents);
       else updateTransactionAmountForMonth(transaction.id, month, cents);
@@ -94,20 +107,27 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
           ))}
         </fieldset>
       )}
-      {transaction.fixed && (
+      {/* compra no cartão tem a sua própria regra (fatura); o resto, fixa ou avulsa, pode ter valor estimado */}
+      {!cardId && (
         <label className="flex cursor-pointer items-start gap-3 rounded-md border border-border bg-secondary p-3">
           <Checkbox checked={variable} onCheckedChange={(c) => setVariable(Boolean(c))} className="mt-0.5" />
           <span>
             <span className="block text-sm font-medium text-foreground">Valor variável (estimado)</span>
-            <span className="block text-xs text-muted-foreground">O valor é uma estimativa; cada mês pode ter o valor real.</span>
+            <span className="block text-xs text-muted-foreground">
+              {transaction.fixed ? "O valor é uma estimativa; cada mês pode ter o valor real." : "O valor é uma estimativa. Ao saber o valor real, informe-o acima e desmarque esta opção."}
+            </span>
           </span>
         </label>
+      )}
+      {income && !transaction.fixed && (
+        <DistGroupField id="edit-dist-group" month={transaction.month} transactions={allTransactions} exceptId={transaction.id} value={distGroup} onChange={setDistGroup} />
       )}
       {!income && (
         <Field label="Categoria" htmlFor="edit-category">
           <CategorySelect id="edit-category" value={category} onChange={setCategory} />
         </Field>
       )}
+      {canHaveCard && <CardPurchaseField idPrefix="edit-expense" cardId={cardId} onCardChange={setCardId} date={purchaseDate} onDateChange={setPurchaseDate} onNavigate={onClose} />}
       <Field label="Observação" hint="(opcional)" htmlFor="edit-notes">
         <p className="-mt-1 text-xs text-muted-foreground">{FREE_TEXT_WARNING}</p>
         <Textarea id="edit-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[64px] rounded-md border-border-strong bg-secondary" />

@@ -25,6 +25,9 @@ export default function ChartDonut({ slices, renderDetail }: { slices: DonutSlic
   const r = size / 2 - 14;
   const c = size / 2;
   const circ = 2 * Math.PI * r;
+  // o total no centro tem que caber dentro do anel: valores muito longos diminuem a letra (até um mínimo)
+  const centerText = formatBRLShort(total);
+  const centerFontSize = Math.max(9, Math.min(17, (17 * 124) / (centerText.length * 10.3)));
 
   const visible = slices.filter((s) => s.value > 0);
   const arcs = visible.map((s, i) => ({
@@ -76,7 +79,7 @@ export default function ChartDonut({ slices, renderDetail }: { slices: DonutSlic
           />
         ))}
         <text x={c} y={c - 2} textAnchor="middle" className="fill-muted-foreground text-xs">Total</text>
-        <text x={c} y={c + 18} textAnchor="middle" className="fill-foreground text-[17px] font-bold">{formatBRLShort(total)}</text>
+        <text x={c} y={c + 18} textAnchor="middle" fontSize={centerFontSize} className="fill-foreground font-bold">{centerText}</text>
       </svg>
       {renderDetail && pickedArc && (
         <PickPopover container={box} onClose={closePick} left={c + (r + 11) * Math.cos(angle)} top={c + (r + 11) * Math.sin(angle)}>

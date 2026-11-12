@@ -157,11 +157,30 @@ func (s *Server) Router() http.Handler {
 				r.Post("/", s.createCreditCard)
 				r.Patch("/{id}", s.updateCreditCard)
 				r.Delete("/{id}", s.deleteCreditCard)
+				r.Put("/{id}/payments/{month}", s.setCardPayment)
+				r.Delete("/{id}/payments/{month}", s.clearCardPayment)
+				r.Put("/{id}/adjustments/{month}", s.setCardAdjustments)
+				r.Delete("/{id}/adjustments/{month}", s.clearCardAdjustments)
+			})
+			r.Route("/goal-movements", func(r chi.Router) {
+				r.Post("/", s.createGoalMovement)
+				r.Patch("/{id}", s.updateGoalMovement)
+				r.Delete("/{id}", s.deleteGoalMovement)
 			})
 			r.Route("/goals", func(r chi.Router) {
 				r.Post("/", s.createGoal)
 				r.Patch("/{id}", s.updateGoal)
 				r.Delete("/{id}", s.deleteGoal)
+			})
+			r.Route("/investments", func(r chi.Router) {
+				r.Post("/", s.createInvestment)
+				r.Patch("/{id}", s.updateInvestment)
+				r.Delete("/{id}", s.deleteInvestment)
+			})
+			r.Route("/investment-movements", func(r chi.Router) {
+				r.Post("/", s.createInvestmentMovement)
+				r.Patch("/{id}", s.updateInvestmentMovement)
+				r.Delete("/{id}", s.deleteInvestmentMovement)
 			})
 			r.Route("/extra-expenses", func(r chi.Router) {
 				r.Post("/", s.createExtra)
@@ -177,9 +196,11 @@ func (s *Server) Router() http.Handler {
 			})
 			r.Route("/categories", func(r chi.Router) {
 				r.Post("/", s.createCategory)
+				r.Patch("/{id}", s.updateCategory)
 				r.Delete("/{id}", s.deleteCategory)
 			})
 			r.Put("/settings/distribution", s.putDistribution)
+			r.Put("/settings/distribution-overrides/{month}/{group}", s.putDistributionOverride)
 			r.Put("/settings/seen-alerts", s.putSeenAlerts)
 			r.Put("/settings/onboarding/{screen}", s.putOnboarding)
 

@@ -3,26 +3,23 @@ import Icon from "@/components/Icon";
 import Panel, { PageHeader } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { buildCsv, buildTxt, getPeriodTotals } from "@/domain";
+import { buildCsv, buildTxt, formatPeriodLabel, getPeriodTotals, periodFileName, sortMonths } from "@/domain";
 import { formatBRLShort } from "@/lib/money";
 import { downloadText } from "@/Services/download";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import { changeMonth, formatMonth, formatMonthShort, getCurrentMonth, getMonthsBetween, monthsDifference } from "@/Utils/Date";
-import { Field } from "@/components/shared/FormFields";
-import MonthPicker from "@/components/shared/MonthPicker";
+import { changeMonth, formatMonth, formatMonthAbbr, formatMonthShort, getCurrentMonth, getMonthsBetween, monthsDifference } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
+import { loadReportPrefs, sameReportPrefs, saveReportPrefs, type ReportFormat } from "./prefs";
 import { RELATORIOS_TOUR } from "./tour";
-
-type Format = "PDF" | "CSV" | "TXT";
 
 const CONTENT = [
   { key: "summary", label: "Resumo de renda, despesas e saldo" },
   { key: "entries", label: "Lista de lançamentos" },
-  { key: "credit", label: "Parcelas do crédito" },
+  { key: "invoices", label: "Faturas dos cartões (parcelas, recorrências, compras avulsas e ajustes de cada uma)" },
   { key: "distribution", label: "Sugestão de distribuição do saldo (só no PDF; com vários meses usa o saldo somado)" },
 ] as const;
 
-const MAX_MONTHS = 6;
+const MAX_MONTHS = 12;
 
 export default function ReportsPage() {
   const current = useFinanceStore((s) => s.currentMonth);
@@ -31,50 +28,60 @@ export default function ReportsPage() {
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
 
-  // null = acompanha o seletor do cabeçalho (os 6 meses que terminam nele)
-  const [custom, setCustom] = useState<{ start: string; end: string } | null>(null);
-  const [format, setFormat] = useState<Format>("PDF");
-  const [content, setContent] = useState({ summary: true, entries: true, credit: true, distribution: false });
+  // null = só o mês do seletor do cabeçalho (o padrão); a lista aparece quando o usuário escolhe meses
+  const [picked, setPicked] = useState<string[] | null>(null);
+  // o que vem marcado ao abrir a tela é o que foi salvo com "Salvar alterações" (ou o padrão)
+  const [saved, setSaved] = useState(loadReportPrefs);
+  const [format, setFormat] = useState<ReportFormat>(saved.format);
+  const [content, setContent] = useState(saved.content);
+  const unsaved = !sameReportPrefs({ format, content }, saved);
+
+  function savePrefs() {
+    const prefs = { format, content };
+    if (!saveReportPrefs(prefs)) {
+      showToast({ type: "error", text: "Não foi possível salvar: o navegador não deixou guardar a preferência" });
+      return;
+    }
+    setSaved(prefs);
+    showToast({ type: "success", text: "Preferências do relatório salvas: a tela abre assim da próxima vez" });
+  }
 
   const data = useMemo(() => ({ transactions, creditTransactions, creditCards, extraExpenses }), [transactions, creditTransactions, creditCards, extraExpenses]);
   const maxMonth = getCurrentMonth();
-  const range = custom ?? { start: changeMonth(current, -(MAX_MONTHS - 1)), end: current };
-  const months = useMemo(() => getMonthsBetween(range.start, range.end), [range.start, range.end]);
+  const months = useMemo(() => sortMonths(picked ?? [current]), [picked, current]);
+  // os 12 meses até o atual (ou até o mês do seletor, se ele for mais novo), mais qualquer mês já escolhido fora dessa janela
+  const options = useMemo(() => {
+    const end = monthsDifference(current, maxMonth) > 0 ? current : maxMonth;
+    return sortMonths([...getMonthsBetween(changeMonth(end, -(MAX_MONTHS - 1)), end), ...months]);
+  }, [current, maxMonth, months]);
   const total = useMemo(() => getPeriodTotals(data, months), [data, months]);
   const count = months.length;
   const avg = (v: number) => formatBRLShort(Math.round(v / count));
 
-  /** Ao mudar o início, o fim acompanha para manter no máximo 6 meses (e não passar do mês atual). */
-  function setStart(start: string) {
-    if (!start || monthsDifference(start, maxMonth) > 0) return;
-    let end = range.end;
-    if (monthsDifference(end, start) < 0) end = start;
-    if (monthsDifference(end, start) > MAX_MONTHS - 1) end = changeMonth(start, MAX_MONTHS - 1);
-    if (monthsDifference(end, maxMonth) > 0) end = maxMonth;
-    setCustom({ start, end });
+  /** Marca ou desmarca um mês. Fica sempre ao menos um, e no máximo MAX_MONTHS. */
+  function toggle(month: string) {
+    if (months.includes(month)) {
+      if (months.length > 1) setPicked(months.filter((m) => m !== month));
+    } else if (months.length < MAX_MONTHS) {
+      setPicked([...months, month]);
+    }
   }
 
-  /** Ao mudar o fim, o início acompanha pelo mesmo motivo. */
-  function setEnd(end: string) {
-    if (!end || monthsDifference(end, maxMonth) > 0) return;
-    let start = range.start;
-    if (monthsDifference(end, start) < 0) start = end;
-    if (monthsDifference(end, start) > MAX_MONTHS - 1) start = changeMonth(end, -(MAX_MONTHS - 1));
-    setCustom({ start, end });
-  }
+  /** Os `n` meses que terminam no mês do seletor do topo. */
+  const lastN = (n: number) => getMonthsBetween(changeMonth(current, -(n - 1)), current);
 
   async function doExport() {
     if (total.income === 0 && total.expense === 0) {
       showToast({ type: "error", text: "Não há lançamentos no período escolhido" });
       return;
     }
-    if (!content.summary && !content.entries && !content.credit && !(format === "PDF" && content.distribution)) {
+    if (!content.summary && !content.entries && !content.invoices && !(format === "PDF" && content.distribution)) {
       showToast({ type: "error", text: "Marque ao menos um conteúdo para exportar" });
       return;
     }
 
-    const options = { summary: content.summary, entries: content.entries, credit: content.credit };
-    const name = `relatorio-${months[0]}${months.length > 1 ? `_a_${months[months.length - 1]}` : ""}`;
+    const options = { summary: content.summary, entries: content.entries, invoices: content.invoices };
+    const name = periodFileName(months);
 
     // o gerador de PDF é pesado: só é carregado quando alguém pede um PDF
     if (format === "PDF") {
@@ -89,26 +96,29 @@ export default function ReportsPage() {
 
   return (
     <>
-      <PageHeader tour={RELATORIOS_TOUR} title="Relatórios" subtitle="Resumo de até 6 meses, à sua escolha, e exportação em PDF, CSV ou TXT." />
+      <PageHeader tour={RELATORIOS_TOUR} title="Relatórios" subtitle="Escolha os meses que quer ver (começa só com o mês atual) e exporte em PDF, CSV ou TXT." />
 
-      <Panel tour="periodo" title="Período" subtitle={`${formatMonth(range.start)} a ${formatMonth(range.end)} · ${count} ${count === 1 ? "mês" : "meses"}`}>
-        <div className="flex flex-wrap items-end gap-3.5">
-          <div className="w-full sm:w-48">
-            <Field label="Início" htmlFor="report-start">
-              <MonthPicker id="report-start" value={range.start} max={maxMonth} onChange={setStart} />
-            </Field>
-          </div>
-          <div className="w-full sm:w-48">
-            <Field label="Fim" htmlFor="report-end">
-              <MonthPicker id="report-end" value={range.end} max={maxMonth} onChange={setEnd} />
-            </Field>
-          </div>
-          {custom && (
-            <button type="button" onClick={() => setCustom(null)} className={btnClass.base}>Usar o mês do seletor</button>
-          )}
+      <Panel tour="periodo" title="Período" subtitle={`${formatPeriodLabel(months)} · ${count} ${count === 1 ? "mês" : "meses"}`}>
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Meses do relatório">
+          {options.map((m) => (
+            <button
+              key={m}
+              type="button"
+              aria-pressed={months.includes(m)}
+              onClick={() => toggle(m)}
+              className="rounded-full max-sm:min-h-10 border border-border-strong bg-card px-3.5 py-[7px] text-[13px] font-semibold text-ink2 aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:shadow-[0_6px_18px_color-mix(in_srgb,hsl(var(--primary))_35%,transparent)]"
+            >
+              {`${formatMonthAbbr(m)}/${m.slice(2, 4)}`}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setPicked(null)} className={btnClass.base}>Mês atual</button>
+          <button type="button" onClick={() => setPicked(lastN(3))} className={btnClass.base}>Últimos 3 meses</button>
+          <button type="button" onClick={() => setPicked(lastN(6))} className={btnClass.base}>Últimos 6 meses</button>
         </div>
         <p className="mt-2.5 text-[12.5px] text-muted-foreground">
-          {custom ? "Período escolhido por você." : "Acompanha o mês do seletor do topo (ele é o último mês)."} O intervalo vai de 1 a {MAX_MONTHS} meses, e os cartões, a tabela e a exportação usam este período.
+          {picked ? "Meses escolhidos por você." : "Só o mês do seletor do topo."} Marque ou desmarque os meses (de 1 a {MAX_MONTHS}); os cartões, a tabela e a exportação usam só eles.
         </p>
       </Panel>
 
@@ -116,7 +126,7 @@ export default function ReportsPage() {
         <StatCard tour="renda" label="Renda no período" value={formatBRLShort(total.income)} hint={`média de ${avg(total.income)} por mês`} />
         <StatCard tour="despesas" label="Despesas no período" value={formatBRLShort(total.expense)} hint={`média de ${avg(total.expense)} por mês`} />
         <StatCard tour="economia" label="Economia acumulada" value={formatBRLShort(total.balance)} hint={total.income > 0 ? `${Math.round((total.balance / total.income) * 100)}% da renda` : "Sem renda no período"} highlight />
-        <StatCard tour="categoria" label="Maior categoria" value={total.topCategory ? total.topCategory.category.replace("/Parcelado", "") : "—"} hint={total.topCategory ? `${formatBRLShort(total.topCategory.value)} no período` : "Sem despesas no período"} />
+        <StatCard tour="categoria" label="Maior categoria" value={total.topCategory ? total.topCategory.category : "—"} hint={total.topCategory ? `${formatBRLShort(total.topCategory.value)} no período` : "Sem despesas no período"} />
       </div>
 
       <div className="mt-3.5 grid grid-cols-12 items-start gap-3.5">
@@ -148,10 +158,10 @@ export default function ReportsPage() {
         </div>
 
         <div className="col-span-12 lg:col-span-5">
-          <Panel tour="exportar" title="Exportar relatório" subtitle={`${formatMonth(range.start)} a ${formatMonth(range.end)}`}>
+          <Panel tour="exportar" title="Exportar relatório" subtitle={formatPeriodLabel(months)}>
             <p className="mb-2 text-[11px] uppercase tracking-[0.08em] text-muted-foreground">Formato</p>
             <div className="flex flex-wrap gap-2">
-              {(["PDF", "CSV", "TXT"] as Format[]).map((f) => (
+              {(["PDF", "CSV", "TXT"] as ReportFormat[]).map((f) => (
                 <button
                   key={f}
                   type="button"
@@ -184,12 +194,19 @@ export default function ReportsPage() {
               })}
             </div>
 
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap items-center gap-2.5">
               <button type="button" onClick={doExport} className={btnClass.primary}>
                 <Icon name="down" size={16} />
                 Exportar {format}
               </button>
+              <button type="button" onClick={savePrefs} disabled={!unsaved} className={`${btnClass.base} disabled:cursor-not-allowed disabled:opacity-50`}>
+                <Icon name="check" size={16} />
+                Salvar alterações
+              </button>
             </div>
+            <p className="mt-2 text-[12.5px] text-muted-foreground" role="status">
+              {unsaved ? "Você mudou o formato ou o conteúdo. Salve para a tela abrir assim da próxima vez." : "O formato e o conteúdo marcados acima são o seu padrão salvo neste navegador."}
+            </p>
           </Panel>
         </div>
       </div>

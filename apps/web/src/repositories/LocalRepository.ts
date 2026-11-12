@@ -6,11 +6,19 @@ import type {
   ExtraExpense,
   FinanceData,
   Goal,
+  GoalMovement,
+  Investment,
+  InvestmentMovement,
   Note,
   OnboardingState,
+  InvoiceAdjustment,
   Payment,
   Transaction,
 } from "../domain/types";
+import { renameCategoryIn, type CategoryPatch } from "../domain/categories";
+import { overrideKey } from "../domain/distribution";
+import { replayGoal } from "../domain/goals";
+import { patchCardAdjustments, patchCardPayment } from "../domain/invoice";
 import { patchClearPayment, patchSetPayment } from "../domain/payment";
 import { patchAdvanceInstallment, patchClearActualValue,
   patchEditInstallment, patchRemoveInstallment, type PatchResult } from "../domain/credit";
@@ -144,6 +152,16 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async setCardPayment(id: string, month: string, payment: Payment | null) {
+    this.data.creditCards = (this.data.creditCards ?? []).map((k) => (k.id === id ? { ...k, ...patchCardPayment(k, month, payment) } : k));
+    this.persist();
+  }
+
+  async setCardAdjustments(id: string, month: string, adjustments: InvoiceAdjustment[]) {
+    this.data.creditCards = (this.data.creditCards ?? []).map((k) => (k.id === id ? { ...k, ...patchCardAdjustments(k, month, adjustments) } : k));
+    this.persist();
+  }
+
   async setExtraPayment(id: string, payment: Payment | null) {
     this.data.extraExpenses = this.data.extraExpenses.map((e) => (e.id === id ? { ...e, payment: payment ?? undefined } : e));
     this.persist();
@@ -178,6 +196,65 @@ export class LocalRepository implements FinanceRepository {
 
   async removeGoal(id: string) {
     this.data.goals = this.data.goals.filter((g) => g.id !== id);
+    this.data.goalMovements = (this.data.goalMovements ?? []).filter((m) => m.goalId !== id);
+    this.persist();
+  }
+
+  /** Refaz o guardado e os rendimentos da meta pelo histórico (a mesma conta do servidor). */
+  private refreshGoal(goalId: string) {
+    this.data.goals = this.data.goals.map((g) => (g.id === goalId ? replayGoal(g, this.data.goalMovements ?? []) : g));
+  }
+
+  async addGoalMovement(movement: GoalMovement) {
+    this.data.goalMovements = [...(this.data.goalMovements ?? []), movement];
+    this.refreshGoal(movement.goalId);
+    this.persist();
+  }
+
+  async updateGoalMovement(id: string, patch: Partial<GoalMovement>) {
+    const current = (this.data.goalMovements ?? []).find((m) => m.id === id);
+    if (!current) return;
+    this.data.goalMovements = (this.data.goalMovements ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m));
+    this.refreshGoal(current.goalId);
+    this.persist();
+  }
+
+  async removeGoalMovement(id: string) {
+    const current = (this.data.goalMovements ?? []).find((m) => m.id === id);
+    if (!current) return;
+    this.data.goalMovements = (this.data.goalMovements ?? []).filter((m) => m.id !== id);
+    this.refreshGoal(current.goalId);
+    this.persist();
+  }
+
+  async addInvestment(investment: Investment) {
+    this.data.investments = [...(this.data.investments ?? []), investment];
+    this.persist();
+  }
+
+  async updateInvestment(id: string, patch: Partial<Investment>) {
+    this.data.investments = (this.data.investments ?? []).map((i) => (i.id === id ? { ...i, ...patch } : i));
+    this.persist();
+  }
+
+  async removeInvestment(id: string) {
+    this.data.investments = (this.data.investments ?? []).filter((i) => i.id !== id);
+    this.data.investmentMovements = (this.data.investmentMovements ?? []).filter((m) => m.investmentId !== id);
+    this.persist();
+  }
+
+  async addInvestmentMovement(movement: InvestmentMovement) {
+    this.data.investmentMovements = [...(this.data.investmentMovements ?? []), movement];
+    this.persist();
+  }
+
+  async updateInvestmentMovement(id: string, patch: Partial<InvestmentMovement>) {
+    this.data.investmentMovements = (this.data.investmentMovements ?? []).map((m) => (m.id === id ? { ...m, ...patch } : m));
+    this.persist();
+  }
+
+  async removeInvestmentMovement(id: string) {
+    this.data.investmentMovements = (this.data.investmentMovements ?? []).filter((m) => m.id !== id);
     this.persist();
   }
 
@@ -201,8 +278,27 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async updateCategory(id: string, patch: CategoryPatch) {
+    const current = this.data.customCategories.find((c) => c.id === id);
+    if (!current) return;
+    this.data.customCategories = this.data.customCategories.map((c) => (c.id === id ? { ...c, ...patch } : c));
+    if (patch.name !== undefined && patch.name !== current.name) {
+      this.data.transactions = renameCategoryIn(this.data.transactions, current.name, patch.name);
+      this.data.creditTransactions = renameCategoryIn(this.data.creditTransactions, current.name, patch.name);
+    }
+    this.persist();
+  }
+
   async removeCategory(id: string) {
     this.data.customCategories = this.data.customCategories.filter((c) => c.id !== id);
+    this.persist();
+  }
+
+  async setDistributionOverride(month: string, group: number, items: DistributionItem[] | null) {
+    const rest = { ...(this.data.distributionOverrides ?? {}) };
+    if (items) rest[overrideKey(month, group)] = items;
+    else delete rest[overrideKey(month, group)];
+    this.data.distributionOverrides = rest;
     this.persist();
   }
 
@@ -230,9 +326,13 @@ export class LocalRepository implements FinanceRepository {
       creditCards: this.data.creditCards ?? [],
       notes: this.data.notes,
       goals: this.data.goals,
+      goalMovements: this.data.goalMovements ?? [],
+      investments: this.data.investments ?? [],
+      investmentMovements: this.data.investmentMovements ?? [],
       extraExpenses: this.data.extraExpenses,
       customCategories: this.data.customCategories,
       distribution: this.data.distribution,
+      distributionOverrides: this.data.distributionOverrides ?? {},
       seenAlerts: this.data.seenAlerts,
       onboarding: this.data.onboarding,
     };
