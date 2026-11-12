@@ -12,6 +12,8 @@ import { useUiStore } from "@/Store/UiStore";
 import { formatMonthShort, getCurrentMonth } from "@/Utils/Date";
 import InvestmentsView from "../Investments/InvestmentsView";
 import SimulatorView from "../Investments/SimulatorView";
+import DebtsView from "../Debts/DebtsView";
+import { DIVIDAS_TOUR } from "../Debts/tour";
 import { INVESTIMENTOS_TOUR, SIMULADOR_TOUR } from "../Investments/tour";
 import { getDemoGoals } from "./demo";
 import { GoalDialog, GoalHistoryDialog, GoalMovementDialog } from "./GoalDialogs";
@@ -255,7 +257,7 @@ function GoalsView() {
   );
 }
 
-type View = "metas" | "investimentos" | "simulador";
+type View = "metas" | "investimentos" | "simulador" | "dividas";
 
 /** Tela Metas e Investimentos: o seletor no topo alterna entre as duas visões, sem ocupar uma aba nova. */
 export default function GoalsPage() {
@@ -263,7 +265,7 @@ export default function GoalsPage() {
   // mesmo já estando na tela). Sem o parâmetro, a visão escolhida no seletor fica como está.
   const { key, search } = useLocation();
   const aba = new URLSearchParams(search).get("aba");
-  const requested: View | null = aba === "investimentos" ? "investimentos" : aba === "simulador" ? "simulador" : aba === "metas" ? "metas" : null;
+  const requested: View | null = aba === "investimentos" ? "investimentos" : aba === "simulador" ? "simulador" : aba === "dividas" ? "dividas" : aba === "metas" ? "metas" : null;
   const [view, setView] = useState<View>(requested ?? "metas");
   const [lastNav, setLastNav] = useState(key);
   if (key !== lastNav) {
@@ -273,12 +275,13 @@ export default function GoalsPage() {
   const options: { id: View; label: string }[] = [
     { id: "metas", label: "Metas" },
     { id: "investimentos", label: "Investimentos" },
+    { id: "dividas", label: "Dívidas" },
     { id: "simulador", label: "Simulador" },
   ];
 
   return (
     <>
-      <div role="tablist" aria-label="Metas, investimentos ou simulador" className="mb-4 inline-flex rounded-full border border-border bg-card p-1">
+      <div role="tablist" aria-label="Metas, investimentos, dívidas ou simulador" className="mb-4 inline-flex rounded-full border border-border bg-card p-1">
         {options.map((o) => (
           <button
             key={o.id}
@@ -294,6 +297,11 @@ export default function GoalsPage() {
       </div>
       {view === "metas" ? (
         <GoalsView />
+      ) : view === "dividas" ? (
+        <>
+          <PageHeader tour={DIVIDAS_TOUR} title="Dívidas e consórcios" subtitle="Parcelas fixas: quanto falta pagar, quando quita e quando a despesa fixa vinculada cai. Só acompanhamento." />
+          <DebtsView />
+        </>
       ) : view === "simulador" ? (
         <>
           <PageHeader tour={SIMULADOR_TOUR} title="Simulador" subtitle="Veja como um aporte mensal cresce com juros compostos e quanto poderia render em dividendos, com a taxa que você escolher." />

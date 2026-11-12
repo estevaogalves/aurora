@@ -6,7 +6,7 @@ import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import RowMenu from "@/components/shared/RowMenu";
 import StatCard from "@/components/shared/StatCard";
-import { SCENARIOS, basisLabel, estimateVariableIncome, getCreditByMonth, getCreditProgress, getProjection, getProjectionDetail, type ProjectionLine } from "@/domain";
+import { SCENARIOS, basisLabel, estimateVariableIncome, getDebtRelief, getCreditByMonth, getCreditProgress, getProjection, getProjectionDetail, type ProjectionLine } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { usePrefsStore } from "@/lib/preferences";
 import { useFinanceStore, type ExtraExpense } from "@/Store/FinanceStore";
@@ -100,6 +100,9 @@ export default function ProjectionPage() {
     );
   };
 
+  // dívidas vinculadas a uma despesa fixa: a partir de quando essa despesa fixa cai (só informação: a Projeção não muda)
+  const debts = useFinanceStore((s) => s.debts);
+  const relief = useMemo(() => getDebtRelief(debts), [debts]);
   const extrasInWindow = extras.filter((e) => months.includes(e.month)).sort((a, b) => a.month.localeCompare(b.month));
   // compras que ainda cobram parcela em algum mês da janela
   const activeCredits = resolvedCredits.filter((c) => months.some((m) => getCreditByMonth([c], m).some((i) => !i.advanced)));
@@ -188,6 +191,22 @@ export default function ProjectionPage() {
             <p className="mt-3 text-[12.5px] text-muted-foreground">Só entram rendas e despesas marcadas como fixas, parcelas do crédito e despesas extras{scenario !== "conservative" && variable.perMonth > 0 ? ", mais a renda variável estimada do cenário escolhido" : ""}.</p>
           </Panel>
         </div>
+
+        {relief.length > 0 && (
+          <div className="col-span-12">
+            <Panel tour="dividas-fim" title="Quando as dívidas terminam" subtitle="Dívidas vinculadas a uma despesa fixa: a partir do mês seguinte à última parcela, a despesa fixa cai">
+              <ul className="flex flex-col divide-y divide-border">
+                {relief.map((r) => (
+                  <li key={r.debt.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2 text-[13.5px] first:pt-0 last:pb-0">
+                    <span className="min-w-0 break-words font-semibold">{r.debt.name}</span>
+                    <span className="text-ink2">A partir de <b className="text-foreground">{cap(formatMonthTitle(r.from))}</b> sua despesa fixa cai <b className="num text-success">{formatBRL(r.amount)}</b> por mês.</span>
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-2 text-[12.5px] text-muted-foreground">É só uma informação: a projeção acima segue o que está cadastrado como fixo.</p>
+            </Panel>
+          </div>
+        )}
 
         <div className="col-span-12 lg:col-span-4">
           <Panel tour="acumulado" title="Saldo acumulado" subtitle="Quanto sobra somando os meses">

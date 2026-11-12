@@ -3,6 +3,7 @@ export * from "./budgets";
 export * from "./credit";
 export * from "./csvImport";
 export * from "./distribution";
+export * from "./debts";
 export * from "./dues";
 export * from "./goals";
 export * from "./insights";

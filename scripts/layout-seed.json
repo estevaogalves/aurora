@@ -151,5 +151,32 @@
     "Saúde": {
       "2026-10": 100000
     }
-  }
+  },
+  "debts": [
+    {
+      "id": "c1",
+      "name": "Consórcio moto",
+      "installmentValue": 69700,
+      "totalInstallments": 60,
+      "paidInstallments": 12,
+      "nextMonth": "2026-12",
+      "linkedTransactionId": "net"
+    },
+    {
+      "id": "c2",
+      "name": "Celular",
+      "installmentValue": 20000,
+      "totalInstallments": 10,
+      "paidInstallments": 10,
+      "nextMonth": "2026-11"
+    },
+    {
+      "id": "c3",
+      "name": "Notebook",
+      "installmentValue": 30000,
+      "totalInstallments": 12,
+      "paidInstallments": 9,
+      "nextMonth": "2026-11"
+    }
+  ]
 }
