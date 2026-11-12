@@ -1197,7 +1197,7 @@ components:
           description: Meses fechados, por `AAAA-MM`.
           additionalProperties: { $ref: "#/components/schemas/MonthClosing" }
         dividendAssets: { type: array, items: { $ref: "#/components/schemas/DividendAsset" } }
-        receipts: { type: array, items: { $ref: "#/components/schemas/ReceiptMeta" }, description: Dados dos comprovantes anexados (sem o conteúdo, que sai por GET /receipts/{id}). Não entram na importação. }
+        receipts: { type: array, items: { $ref: "#/components/schemas/ReceiptMeta" }, description: "Dados dos comprovantes anexados (sem o conteúdo, que sai por GET /receipts/{id}). Não entram na importação." }
         onboarding:
           type: object
           description: Resposta ao tour de cada tela (chave = tela). Tela ausente = ainda não convidado.

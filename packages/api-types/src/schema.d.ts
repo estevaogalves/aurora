@@ -2158,6 +2158,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/transactions/{id}/receipts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Anexa um comprovante (imagem ou PDF) a um lançamento
+         * @description O arquivo vai em base64. O tipo é conferido pelos primeiros bytes (PNG, JPEG, WebP ou PDF; SVG e HTML são recusados). Até 300 KiB e 5 comprovantes por lançamento. Só anexos: nada muda valores.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        name: string;
+                        /** @description Só informativo; o servidor decide pelos bytes. */
+                        mime?: string;
+                        /**
+                         * Format: byte
+                         * @description O arquivo em base64.
+                         */
+                        data: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Anexado */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReceiptMeta"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+                413: components["responses"]["Error"];
+                415: components["responses"]["Error"];
+                422: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/receipts/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Conteúdo de um comprovante (em base64) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description O comprovante */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ReceiptMeta"] & {
+                            /** Format: byte */
+                            data: string;
+                        };
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Apaga um comprovante */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Apagado */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/settings/planning": {
         parameters: {
             query?: never;
@@ -2831,10 +2953,25 @@ export interface components {
                 [key: string]: components["schemas"]["MonthClosing"];
             };
             dividendAssets?: components["schemas"]["DividendAsset"][];
+            /** @description Dados dos comprovantes anexados (sem o conteúdo, que sai por GET /receipts/{id}). Não entram na importação. */
+            receipts?: components["schemas"]["ReceiptMeta"][];
             /** @description Resposta ao tour de cada tela (chave = tela). Tela ausente = ainda não convidado. */
             onboarding: {
                 [key: string]: components["schemas"]["OnboardingState"];
             };
+        };
+        ReceiptMeta: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            transactionId: string;
+            name: string;
+            /** @enum {string} */
+            mime: "image/png" | "image/jpeg" | "image/webp" | "application/pdf";
+            /** @description Tamanho em bytes. */
+            size: number;
+            /** @description AAAA-MM-DD */
+            createdAt: string;
         };
         /** @description Orçamento por categoria. Categoria -> mês (`AAAA-MM`) -> limite mensal em centavos. Cada par é uma mudança de limite, e o limite herda para os meses seguintes até a próxima mudança. 0 = sem limite desde o mês. */
         Budgets: {
