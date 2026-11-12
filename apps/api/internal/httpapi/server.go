@@ -162,6 +162,11 @@ func (s *Server) Router() http.Handler {
 				r.Put("/{id}/adjustments/{month}", s.setCardAdjustments)
 				r.Delete("/{id}/adjustments/{month}", s.clearCardAdjustments)
 			})
+			r.Route("/goal-movements", func(r chi.Router) {
+				r.Post("/", s.createGoalMovement)
+				r.Patch("/{id}", s.updateGoalMovement)
+				r.Delete("/{id}", s.deleteGoalMovement)
+			})
 			r.Route("/goals", func(r chi.Router) {
 				r.Post("/", s.createGoal)
 				r.Patch("/{id}", s.updateGoal)

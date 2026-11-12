@@ -58,6 +58,10 @@ type InvestmentMovement struct {
 	// Quantity e UnitPrice: cotas e preço por cota (centavos), quando o investimento controla quantidade.
 	Quantity  *float64 `json:"quantity,omitempty"`
 	UnitPrice *int64   `json:"unitPrice,omitempty"`
+	// Note: observação livre. Origin: vazio = lançado à mão; "distribution|AAAA-MM|fonte|fatia" = enviado pela
+	// sugestão do saldo (veja ValidOrigin).
+	Note   string `json:"note,omitempty"`
+	Origin string `json:"origin,omitempty"`
 }
 
 // IsInvestmentFamily diz se f é uma família conhecida.

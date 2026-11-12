@@ -180,6 +180,8 @@ type movementPatchReq struct {
 	Type   *string `json:"type"`
 	Date   *string `json:"date"`
 	Amount *int64  `json:"amount"`
+	Note   *string `json:"note"`
+	Origin *string `json:"origin"`
 	// RawMessage distingue "não veio" (não muda) de "veio null" (limpa).
 	Quantity  json.RawMessage `json:"quantity"`
 	UnitPrice json.RawMessage `json:"unitPrice"`
@@ -190,7 +192,7 @@ func (s *Server) updateInvestmentMovement(w http.ResponseWriter, r *http.Request
 	if !decode(w, r, &in, s.lim.Body) {
 		return
 	}
-	patch := store.MovementPatch{Type: in.Type, Date: in.Date, Amount: in.Amount}
+	patch := store.MovementPatch{Type: in.Type, Date: in.Date, Amount: in.Amount, Note: in.Note, Origin: in.Origin}
 
 	msg := ""
 	if in.Type != nil {
@@ -201,6 +203,12 @@ func (s *Server) updateInvestmentMovement(w http.ResponseWriter, r *http.Request
 	}
 	if in.Amount != nil {
 		msg = first(msg, checkInvestmentCents("O valor", *in.Amount))
+	}
+	if in.Note != nil {
+		msg = first(msg, checkMovementNote(*in.Note))
+	}
+	if in.Origin != nil {
+		msg = first(msg, checkOrigin(*in.Origin))
 	}
 	var ok bool
 	patch.SetQuantity, patch.Quantity, ok = nullable[float64](in.Quantity)

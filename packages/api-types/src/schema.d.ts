@@ -966,6 +966,122 @@ export interface paths {
         };
         trace?: never;
     };
+    "/goal-movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Registra uma movimentação de meta ou porquinho (aporte, retirada, rendimento ou ajuste)
+         * @description O servidor refaz o guardado e o total de rendimentos da meta pelas movimentações, em ordem de data, na mesma
+         *     transação, e devolve a meta atualizada. O guardado nunca fica negativo.
+         *     A `origin` é vazia (lançado à mão) ou `distribution|AAAA-MM|fonte|fatia` (enviado pela sugestão do saldo).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GoalMovement"];
+                };
+            };
+            responses: {
+                /** @description Criada */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoalMovementResult"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/goal-movements/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: components["parameters"]["Id"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Exclui a movimentação e refaz a meta */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Excluída (devolve só a meta refeita) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoalMovementResult"];
+                    };
+                };
+                404: components["responses"]["Error"];
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Corrige a movimentação e refaz a meta */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: components["parameters"]["Id"];
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["GoalMovementPatch"];
+                };
+            };
+            responses: {
+                /** @description Atualizada */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoalMovementResult"];
+                    };
+                };
+                400: components["responses"]["Error"];
+                404: components["responses"]["Error"];
+            };
+        };
+        trace?: never;
+    };
     "/credits/{id}/installments/{n}/advance": {
         parameters: {
             query?: never;
@@ -2417,6 +2533,10 @@ export interface components {
             quantity?: number;
             /** @description Preço por cota nesta movimentação */
             unitPrice?: components["schemas"]["Cents"];
+            /** @description Observação livre */
+            note?: string;
+            /** @description Vazio = lançado à mão; `distribution|AAAA-MM|fonte|fatia` = enviado pela sugestão do saldo */
+            origin?: string;
         };
         InvestmentMovementPatch: {
             type?: components["schemas"]["InvestmentMovementType"];
@@ -2426,6 +2546,8 @@ export interface components {
             quantity?: number | null;
             /** Format: int64 */
             unitPrice?: number | null;
+            note?: string;
+            origin?: string;
         };
         InvestmentMovementResult: {
             movement?: components["schemas"]["InvestmentMovement"];
@@ -2469,6 +2591,10 @@ export interface components {
             /** @description Porquinho. Não exige valor de meta (target pode ser 0); meta comum exige target maior que zero. Não muda depois de criado. */
             piggy?: boolean;
         };
+        /**
+         * @description `saved` (clientes antigos) vira um ajuste no histórico da meta; `yieldTotal` é ignorado, porque o total de
+         *     rendimentos é derivado das movimentações (use `/goal-movements`).
+         */
         GoalPatch: {
             name?: string;
             target?: components["schemas"]["Cents"];
@@ -2476,6 +2602,36 @@ export interface components {
             monthly?: components["schemas"]["Cents"];
             yieldTotal?: components["schemas"]["Cents"];
             deadline?: components["schemas"]["Month"] | null;
+        };
+        /**
+         * @description Aporte soma; retirada subtrai (nunca abaixo de zero); rendimento soma ao guardado e ao total de rendimentos; ajuste define o novo guardado (`amount` é o valor, não a diferença).
+         * @enum {string}
+         */
+        GoalMovementType: "contribution" | "withdrawal" | "yield" | "adjustment";
+        GoalMovement: {
+            /** Format: uuid */
+            id?: string;
+            /** Format: uuid */
+            goalId: string;
+            type: components["schemas"]["GoalMovementType"];
+            /** Format: date */
+            date: string;
+            amount: components["schemas"]["Cents"];
+            note?: string;
+            /** @description Vazio = lançado à mão; `distribution|AAAA-MM|fonte|fatia` = enviado pela sugestão do saldo */
+            origin?: string;
+        };
+        GoalMovementPatch: {
+            type?: components["schemas"]["GoalMovementType"];
+            /** Format: date */
+            date?: string;
+            amount?: components["schemas"]["Cents"];
+            note?: string;
+            origin?: string;
+        };
+        GoalMovementResult: {
+            movement?: components["schemas"]["GoalMovement"];
+            goal: components["schemas"]["Goal"];
         };
         ExtraExpense: {
             /** Format: uuid */
@@ -2547,6 +2703,7 @@ export interface components {
             notes: components["schemas"]["Note"][];
             goals: components["schemas"]["Goal"][];
             investments?: components["schemas"]["Investment"][];
+            goalMovements?: components["schemas"]["GoalMovement"][];
             investmentMovements?: components["schemas"]["InvestmentMovement"][];
             extraExpenses: components["schemas"]["ExtraExpense"][];
             customCategories: components["schemas"]["CustomCategory"][];

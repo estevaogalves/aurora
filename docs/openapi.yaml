@@ -282,6 +282,40 @@ paths:
         "200": { description: Excluída (devolve só o investimento refeito), content: { application/json: { schema: { $ref: "#/components/schemas/InvestmentMovementResult" } } } }
         "404": { $ref: "#/components/responses/Error" }
 
+  /goal-movements:
+    post:
+      tags: [metas]
+      summary: Registra uma movimentação de meta ou porquinho (aporte, retirada, rendimento ou ajuste)
+      description: |
+        O servidor refaz o guardado e o total de rendimentos da meta pelas movimentações, em ordem de data, na mesma
+        transação, e devolve a meta atualizada. O guardado nunca fica negativo.
+        A `origin` é vazia (lançado à mão) ou `distribution|AAAA-MM|fonte|fatia` (enviado pela sugestão do saldo).
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovement" } } }
+      responses:
+        "201": { description: Criada, content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovementResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+  /goal-movements/{id}:
+    parameters: [{ $ref: "#/components/parameters/Id" }]
+    patch:
+      tags: [metas]
+      summary: Corrige a movimentação e refaz a meta
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovementPatch" } } }
+      responses:
+        "200": { description: Atualizada, content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovementResult" } } } }
+        "400": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
+    delete:
+      tags: [metas]
+      summary: Exclui a movimentação e refaz a meta
+      responses:
+        "200": { description: Excluída (devolve só a meta refeita), content: { application/json: { schema: { $ref: "#/components/schemas/GoalMovementResult" } } } }
+        "404": { $ref: "#/components/responses/Error" }
+
   /credits/{id}/installments/{n}/advance:
     parameters:
       - { $ref: "#/components/parameters/Id" }
@@ -865,6 +899,8 @@ components:
         amount: { $ref: "#/components/schemas/Cents", description: Valor total da movimentação (no ajuste, o novo valor atual) }
         quantity: { type: number, minimum: 0, description: Cotas compradas (aporte) ou vendidas (resgate) }
         unitPrice: { $ref: "#/components/schemas/Cents", description: Preço por cota nesta movimentação }
+        note: { type: string, maxLength: 200, description: Observação livre }
+        origin: { type: string, description: "Vazio = lançado à mão; `distribution|AAAA-MM|fonte|fatia` = enviado pela sugestão do saldo" }
     InvestmentMovementPatch:
       type: object
       properties:
@@ -873,6 +909,8 @@ components:
         amount: { $ref: "#/components/schemas/Cents" }
         quantity: { type: number, nullable: true, minimum: 0 }
         unitPrice: { type: integer, format: int64, nullable: true, minimum: 0 }
+        note: { type: string, maxLength: 200 }
+        origin: { type: string }
     InvestmentMovementResult:
       type: object
       required: [investment]
@@ -922,6 +960,9 @@ components:
           description: Porquinho. Não exige valor de meta (target pode ser 0); meta comum exige target maior que zero. Não muda depois de criado.
     GoalPatch:
       type: object
+      description: |
+        `saved` (clientes antigos) vira um ajuste no histórico da meta; `yieldTotal` é ignorado, porque o total de
+        rendimentos é derivado das movimentações (use `/goal-movements`).
       properties:
         name: { type: string }
         target: { $ref: "#/components/schemas/Cents" }
@@ -929,6 +970,35 @@ components:
         monthly: { $ref: "#/components/schemas/Cents" }
         yieldTotal: { $ref: "#/components/schemas/Cents" }
         deadline: { allOf: [{ $ref: "#/components/schemas/Month" }], nullable: true }
+    GoalMovementType:
+      type: string
+      enum: [contribution, withdrawal, yield, adjustment]
+      description: Aporte soma; retirada subtrai (nunca abaixo de zero); rendimento soma ao guardado e ao total de rendimentos; ajuste define o novo guardado (`amount` é o valor, não a diferença).
+    GoalMovement:
+      type: object
+      required: [goalId, type, date, amount]
+      properties:
+        id: { type: string, format: uuid }
+        goalId: { type: string, format: uuid }
+        type: { $ref: "#/components/schemas/GoalMovementType" }
+        date: { type: string, format: date }
+        amount: { $ref: "#/components/schemas/Cents" }
+        note: { type: string, maxLength: 200 }
+        origin: { type: string, description: "Vazio = lançado à mão; `distribution|AAAA-MM|fonte|fatia` = enviado pela sugestão do saldo" }
+    GoalMovementPatch:
+      type: object
+      properties:
+        type: { $ref: "#/components/schemas/GoalMovementType" }
+        date: { type: string, format: date }
+        amount: { $ref: "#/components/schemas/Cents" }
+        note: { type: string, maxLength: 200 }
+        origin: { type: string }
+    GoalMovementResult:
+      type: object
+      required: [goal]
+      properties:
+        movement: { $ref: "#/components/schemas/GoalMovement" }
+        goal: { $ref: "#/components/schemas/Goal" }
 
     ExtraExpense:
       type: object
@@ -1003,6 +1073,7 @@ components:
         notes: { type: array, items: { $ref: "#/components/schemas/Note" } }
         goals: { type: array, items: { $ref: "#/components/schemas/Goal" } }
         investments: { type: array, items: { $ref: "#/components/schemas/Investment" } }
+        goalMovements: { type: array, items: { $ref: "#/components/schemas/GoalMovement" } }
         investmentMovements: { type: array, items: { $ref: "#/components/schemas/InvestmentMovement" } }
         extraExpenses: { type: array, items: { $ref: "#/components/schemas/ExtraExpense" } }
         customCategories: { type: array, items: { $ref: "#/components/schemas/CustomCategory" } }

@@ -401,6 +401,37 @@ func validateMovement(m domain.InvestmentMovement) string {
 	return first(
 		checkMovementType(m.Type), checkDate("Data", m.Date, false),
 		checkInvestmentCents("O valor", m.Amount), checkQuantity(m.Quantity), checkOptionalCents("O preço por cota", m.UnitPrice),
+		checkMovementNote(m.Note), checkOrigin(m.Origin),
+	)
+}
+
+// checkMovementNote: observação curta de uma movimentação (investimento ou meta).
+func checkMovementNote(n string) string {
+	if len([]rune(n)) > 200 {
+		return "A observação é grande demais."
+	}
+	return ""
+}
+
+// checkOrigin: vazia ou "distribution|AAAA-MM|fonte|fatia".
+func checkOrigin(o string) string {
+	if !domain.ValidOrigin(o) {
+		return "Origem da movimentação inválida."
+	}
+	return ""
+}
+
+func checkGoalMovementType(t string) string {
+	if !domain.IsGoalMovementType(t) {
+		return "Tipo de movimentação inválido."
+	}
+	return ""
+}
+
+func validateGoalMovement(m domain.GoalMovement) string {
+	return first(
+		checkGoalMovementType(m.Type), checkDate("Data", m.Date, false), checkInvestmentCents("O valor", m.Amount),
+		checkMovementNote(m.Note), checkOrigin(m.Origin),
 	)
 }
 
@@ -433,6 +464,7 @@ func (l Limits) validateData(d domain.FinanceData) string {
 		{"cartões", len(d.CreditCards), l.CustomCategories},
 		{"anotações", len(d.Notes), l.ImportItems},
 		{"metas", len(d.Goals), l.ImportItems},
+		{"movimentações de metas", len(d.GoalMovements), l.ImportItems},
 		{"investimentos", len(d.Investments), l.ImportItems},
 		{"movimentações de investimentos", len(d.InvestmentMovements), l.ImportItems},
 		{"despesas extras", len(d.ExtraExpenses), l.ImportItems},
@@ -468,6 +500,18 @@ func (l Limits) validateData(d domain.FinanceData) string {
 	for _, g := range d.Goals {
 		if m := validateGoal(g); m != "" {
 			return "Meta " + quote(g.Name) + ": " + m
+		}
+	}
+	ownedGoals := map[string]bool{}
+	for _, g := range d.Goals {
+		ownedGoals[g.ID] = true
+	}
+	for _, m := range d.GoalMovements {
+		if msg := validateGoalMovement(m); msg != "" {
+			return "Movimentação de meta: " + msg
+		}
+		if !ownedGoals[m.GoalID] {
+			return "Movimentação de meta: a meta não está no pacote."
 		}
 	}
 	owned := map[string]bool{}

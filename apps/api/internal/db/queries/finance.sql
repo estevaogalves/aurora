@@ -293,8 +293,8 @@ SELECT * FROM investment_movements WHERE investment_id = $1 AND user_id = $2 ORD
 SELECT * FROM investment_movements WHERE id = $1 AND user_id = $2 FOR UPDATE;
 
 -- name: CreateInvestmentMovement :one
-INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents)
-VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8)
+INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents, quantity, unit_price_cents, note, origin)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
 
 -- name: UpdateInvestmentMovement :one
@@ -302,6 +302,8 @@ UPDATE investment_movements SET
     type         = COALESCE(sqlc.narg('type'), type),
     date         = COALESCE(sqlc.narg('date'), date),
     amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
+    note         = COALESCE(sqlc.narg('note'), note),
+    origin       = COALESCE(sqlc.narg('origin'), origin),
     quantity         = CASE WHEN sqlc.arg('set_quantity')::boolean THEN sqlc.narg('quantity')::numeric ELSE quantity END,
     unit_price_cents = CASE WHEN sqlc.arg('set_unit_price')::boolean THEN sqlc.narg('unit_price_cents')::bigint ELSE unit_price_cents END
 WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
@@ -322,3 +324,38 @@ RETURNING *;
 UPDATE credit_cards SET adjustments = $3::jsonb
 WHERE id = $1 AND user_id = $2
 RETURNING *;
+
+-- name: GetGoalForUpdate :one
+SELECT * FROM goals WHERE id = $1 AND user_id = $2 FOR UPDATE;
+
+-- name: SetGoalDerived :one
+UPDATE goals SET saved_cents = $3, yield_total_cents = $4
+WHERE id = $1 AND user_id = $2
+RETURNING *;
+
+-- name: ListGoalMovements :many
+SELECT * FROM goal_movements WHERE user_id = $1 ORDER BY created_at, id;
+
+-- name: ListMovementsOfGoal :many
+SELECT * FROM goal_movements WHERE goal_id = $1 AND user_id = $2 ORDER BY created_at, id;
+
+-- name: GetGoalMovementForUpdate :one
+SELECT * FROM goal_movements WHERE id = $1 AND user_id = $2 FOR UPDATE;
+
+-- name: CreateGoalMovement :one
+INSERT INTO goal_movements (id, user_id, goal_id, type, date, amount_cents, note, origin)
+VALUES (COALESCE(NULLIF($1::uuid, '00000000-0000-0000-0000-000000000000'), gen_random_uuid()), $2, $3, $4, $5, $6, $7, $8)
+RETURNING *;
+
+-- name: UpdateGoalMovement :one
+UPDATE goal_movements SET
+    type         = COALESCE(sqlc.narg('type'), type),
+    date         = COALESCE(sqlc.narg('date'), date),
+    amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
+    note         = COALESCE(sqlc.narg('note'), note),
+    origin       = COALESCE(sqlc.narg('origin'), origin)
+WHERE id = sqlc.arg('id') AND user_id = sqlc.arg('user_id')
+RETURNING *;
+
+-- name: DeleteGoalMovement :execrows
+DELETE FROM goal_movements WHERE id = $1 AND user_id = $2;

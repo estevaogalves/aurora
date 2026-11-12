@@ -170,6 +170,14 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 		d.Goals = append(d.Goals, goalFrom(r))
 	}
 
+	goalMovements, err := s.q.ListGoalMovements(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	for _, r := range goalMovements {
+		d.GoalMovements = append(d.GoalMovements, goalMovementFrom(r))
+	}
+
 	investments, err := s.q.ListInvestments(ctx, userID)
 	if err != nil {
 		return d, err

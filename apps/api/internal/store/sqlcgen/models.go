@@ -77,6 +77,18 @@ type Goal struct {
 	Piggy           bool
 }
 
+type GoalMovement struct {
+	ID          uuid.UUID
+	UserID      uuid.UUID
+	GoalID      uuid.UUID
+	Type        string
+	Date        string
+	AmountCents int64
+	Note        string
+	Origin      string
+	CreatedAt   pgtype.Timestamptz
+}
+
 type Investment struct {
 	ID                uuid.UUID
 	UserID            uuid.UUID
@@ -111,6 +123,8 @@ type InvestmentMovement struct {
 	Quantity       *float64
 	UnitPriceCents pgtype.Int8
 	CreatedAt      pgtype.Timestamptz
+	Note           string
+	Origin         string
 }
 
 type Note struct {

@@ -30,6 +30,7 @@ type InvestmentPatch struct {
 // MovementPatch: Type, Date e Amount só mudam se vierem; Quantity e UnitPrice podem ser limpos (veja InvestmentPatch).
 type MovementPatch struct {
 	Type, Date   *string
+	Note, Origin *string
 	Amount       *int64
 	SetQuantity  bool
 	Quantity     *float64
@@ -57,7 +58,7 @@ func investmentFrom(r sqlcgen.Investment) domain.Investment {
 func movementFrom(r sqlcgen.InvestmentMovement) domain.InvestmentMovement {
 	m := domain.InvestmentMovement{
 		ID: r.ID.String(), InvestmentID: r.InvestmentID.String(), Type: r.Type, Date: r.Date,
-		Amount: r.AmountCents, Quantity: r.Quantity,
+		Amount: r.AmountCents, Quantity: r.Quantity, Note: r.Note, Origin: r.Origin,
 	}
 	if r.UnitPriceCents.Valid {
 		v := r.UnitPriceCents.Int64
@@ -152,7 +153,7 @@ func (s *Store) CreateInvestmentMovement(ctx context.Context, userID uuid.UUID, 
 		}
 		row, err := q.CreateInvestmentMovement(ctx, sqlcgen.CreateInvestmentMovementParams{
 			Column1: clientID(m.ID), UserID: userID, InvestmentID: iid, Type: m.Type, Date: m.Date,
-			AmountCents: m.Amount, Quantity: m.Quantity, UnitPriceCents: nullInt8(m.UnitPrice),
+			AmountCents: m.Amount, Quantity: m.Quantity, UnitPriceCents: nullInt8(m.UnitPrice), Note: m.Note, Origin: m.Origin,
 		})
 		if err != nil {
 			return err
@@ -183,7 +184,7 @@ func (s *Store) UpdateInvestmentMovement(ctx context.Context, userID uuid.UUID, 
 			return err
 		}
 		row, err := q.UpdateInvestmentMovement(ctx, sqlcgen.UpdateInvestmentMovementParams{
-			Type: text(p.Type), Date: text(p.Date), AmountCents: int8v(p.Amount),
+			Type: text(p.Type), Date: text(p.Date), AmountCents: int8v(p.Amount), Note: text(p.Note), Origin: text(p.Origin),
 			SetQuantity: p.SetQuantity, Quantity: p.Quantity, SetUnitPrice: p.SetUnitPrice, UnitPriceCents: nullInt8(p.UnitPrice),
 			ID: mid, UserID: userID,
 		})

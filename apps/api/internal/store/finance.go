@@ -578,15 +578,33 @@ type GoalPatch struct {
 	Deadline    *string
 }
 
+// CreateGoal cria a meta. O guardado e os rendimentos são derivados do histórico: se a meta já chega com valor
+// (clientes antigos e importações antigas), ele vira o começo do histórico ("Saldo inicial") na mesma transação.
 func (s *Store) CreateGoal(ctx context.Context, userID uuid.UUID, g domain.Goal) (domain.Goal, error) {
-	row, err := s.q.CreateGoal(ctx, goalParams(userID, g))
-	return goalFrom(row), mapErr(err)
+	var out domain.Goal
+	err := s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		created, err := q.CreateGoal(ctx, goalParams(userID, g))
+		if err != nil {
+			return err
+		}
+		out = goalFrom(created)
+		if g.Saved <= 0 && g.YieldTotal <= 0 {
+			return nil
+		}
+		if err := insertGoalOpening(ctx, q, userID, created.ID, g.Saved, g.YieldTotal, today()); err != nil {
+			return err
+		}
+		out, err = refreshGoal(ctx, q, userID, created.ID)
+		return err
+	})
+	return out, mapErr(err)
 }
 
+// goalParams: o guardado e os rendimentos entram zerados; quem os define é o histórico (refreshGoal).
 func goalParams(userID uuid.UUID, g domain.Goal) sqlcgen.CreateGoalParams {
 	return sqlcgen.CreateGoalParams{
-		Column1: clientID(g.ID), UserID: userID, Name: g.Name, TargetCents: g.Target, SavedCents: g.Saved,
-		MonthlyCents: g.Monthly, Deadline: text(g.Deadline), YieldTotalCents: g.YieldTotal, Piggy: g.Piggy,
+		Column1: clientID(g.ID), UserID: userID, Name: g.Name, TargetCents: g.Target,
+		MonthlyCents: g.Monthly, Deadline: text(g.Deadline), Piggy: g.Piggy,
 	}
 }
 
@@ -595,12 +613,33 @@ func (s *Store) UpdateGoal(ctx context.Context, userID uuid.UUID, id string, p G
 	if err != nil {
 		return domain.Goal{}, err
 	}
-	row, err := s.q.UpdateGoal(ctx, sqlcgen.UpdateGoalParams{
-		Name: text(p.Name), TargetCents: int8v(p.Target), SavedCents: int8v(p.Saved),
-		MonthlyCents: int8v(p.Monthly), YieldTotalCents: int8v(p.YieldTotal),
-		SetDeadline: p.SetDeadline, Deadline: text(p.Deadline), ID: gid, UserID: userID,
+	// Saved vira um ajuste no histórico (clientes antigos que ainda mandam o guardado no PATCH); YieldTotal é
+	// derivado dos rendimentos do histórico e não pode ser escrito direto.
+	var out domain.Goal
+	err = s.inTx(ctx, func(q *sqlcgen.Queries) error {
+		cur, err := q.GetGoalForUpdate(ctx, sqlcgen.GetGoalForUpdateParams{ID: gid, UserID: userID})
+		if err != nil {
+			return mapErr(err)
+		}
+		row, err := q.UpdateGoal(ctx, sqlcgen.UpdateGoalParams{
+			Name: text(p.Name), TargetCents: int8v(p.Target), MonthlyCents: int8v(p.Monthly),
+			SetDeadline: p.SetDeadline, Deadline: text(p.Deadline), ID: gid, UserID: userID,
+		})
+		if err != nil {
+			return err
+		}
+		out = goalFrom(row)
+		if p.Saved != nil && *p.Saved != cur.SavedCents {
+			if _, err := q.CreateGoalMovement(ctx, sqlcgen.CreateGoalMovementParams{
+				UserID: userID, GoalID: gid, Type: domain.GoalAdjustment, Date: today(), AmountCents: *p.Saved, Note: "Ajuste do valor guardado",
+			}); err != nil {
+				return err
+			}
+			out, err = refreshGoal(ctx, q, userID, gid)
+		}
+		return err
 	})
-	return goalFrom(row), mapErr(err)
+	return out, mapErr(err)
 }
 
 func (s *Store) DeleteGoal(ctx context.Context, userID uuid.UUID, id string) error {
@@ -843,8 +882,38 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 				return err
 			}
 		}
+		// metas: ganham o id do banco e as movimentações do pacote passam a apontar para elas. O guardado vem do
+		// histórico; uma meta de pacote antigo (sem histórico) ganha o "Saldo inicial" com o que tinha guardado.
+		newGoal := map[string]uuid.UUID{}
+		withHistory := map[string]bool{}
+		for _, m := range d.GoalMovements {
+			withHistory[m.GoalID] = true
+		}
 		for _, g := range d.Goals {
-			if _, err := q.CreateGoal(ctx, goalParams(userID, g)); err != nil {
+			created, err := q.CreateGoal(ctx, goalParams(userID, g))
+			if err != nil {
+				return err
+			}
+			newGoal[g.ID] = created.ID
+			if !withHistory[g.ID] {
+				if err := insertGoalOpening(ctx, q, userID, created.ID, g.Saved, g.YieldTotal, today()); err != nil {
+					return err
+				}
+			}
+		}
+		for _, m := range d.GoalMovements {
+			gid, ok := newGoal[m.GoalID]
+			if !ok {
+				return &ValidationError{"Movimentação de uma meta que não está no pacote."}
+			}
+			if _, err := q.CreateGoalMovement(ctx, sqlcgen.CreateGoalMovementParams{
+				UserID: userID, GoalID: gid, Type: m.Type, Date: m.Date, AmountCents: m.Amount, Note: m.Note, Origin: m.Origin,
+			}); err != nil {
+				return err
+			}
+		}
+		for _, id := range newGoal {
+			if _, err := refreshGoal(ctx, q, userID, id); err != nil {
 				return err
 			}
 		}
@@ -865,7 +934,7 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 			if _, err := q.CreateInvestmentMovement(ctx, sqlcgen.CreateInvestmentMovementParams{
 				UserID: userID, InvestmentID: iid, Type: m.Type, Date: m.Date, AmountCents: m.Amount,
-				Quantity: m.Quantity, UnitPriceCents: nullInt8(m.UnitPrice),
+				Quantity: m.Quantity, UnitPriceCents: nullInt8(m.UnitPrice), Note: m.Note, Origin: m.Origin,
 			}); err != nil {
 				return err
 			}

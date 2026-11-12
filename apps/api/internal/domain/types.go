@@ -118,6 +118,8 @@ type FinanceData struct {
 	CreditCards        []CreditCard        `json:"creditCards"`
 	Notes              []Note              `json:"notes"`
 	Goals              []Goal              `json:"goals"`
+	// Histórico de metas e porquinhos: o guardado de cada meta é refeito por estas movimentações.
+	GoalMovements []GoalMovement `json:"goalMovements"`
 	// Investimentos ficam à parte do fluxo de caixa: nenhum cálculo de saldo, projeção ou relatório os usa.
 	Investments         []Investment         `json:"investments"`
 	InvestmentMovements []InvestmentMovement `json:"investmentMovements"`
@@ -145,6 +147,9 @@ func (d *FinanceData) Normalize() {
 	}
 	if d.Goals == nil {
 		d.Goals = []Goal{}
+	}
+	if d.GoalMovements == nil {
+		d.GoalMovements = []GoalMovement{}
 	}
 	if d.Investments == nil {
 		d.Investments = []Investment{}
