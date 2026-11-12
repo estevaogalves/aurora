@@ -29,8 +29,18 @@ export default function UserMenu() {
   if (api && !user) return null;
 
   const exportBackup = () => {
-    const { transactions, creditTransactions, creditCards, notes, goals, investments, investmentMovements, extraExpenses, customCategories, distribution, seenAlerts, onboarding } = useFinanceStore.getState();
-    downloadText(BACKUP_FILENAME(), buildBackup({ transactions, creditTransactions, creditCards, notes, goals, investments, investmentMovements, extraExpenses, customCategories, distribution, seenAlerts, onboarding }), "application/json");
+    const s = useFinanceStore.getState();
+    // tudo o que o app guarda, inclusive o histórico das metas, as distribuições próprias e o planejamento
+    downloadText(
+      BACKUP_FILENAME(),
+      buildBackup({
+        transactions: s.transactions, creditTransactions: s.creditTransactions, creditCards: s.creditCards, notes: s.notes, goals: s.goals,
+        goalMovements: s.goalMovements, investments: s.investments, investmentMovements: s.investmentMovements, extraExpenses: s.extraExpenses,
+        customCategories: s.customCategories, distribution: s.distribution, distributionOverrides: s.distributionOverrides, seenAlerts: s.seenAlerts,
+        budgets: s.budgets, debts: s.debts, closings: s.closings, dividendAssets: s.dividendAssets, onboarding: s.onboarding,
+      }),
+      "application/json",
+    );
   };
 
   return (

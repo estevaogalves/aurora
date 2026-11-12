@@ -15,6 +15,7 @@ import type {
   InvoiceAdjustment,
   Payment,
   Transaction,
+  Planning,
 } from "../domain/types";
 
 /**
@@ -93,6 +94,8 @@ export interface FinanceRepository {
 
   /** Lista completa dos avisos de meta marcados como vistos. */
   setSeenAlerts(keys: string[]): Promise<void>;
+  /** Troca o planejamento inteiro (orçamentos, dívidas, fechamentos e carteira de dividendos). */
+  setPlanning(planning: Planning): Promise<void>;
 
   /** Grava a resposta ao tour de uma tela, sem mexer nas outras. */
   setOnboarding(screen: string, state: OnboardingState): Promise<void>;

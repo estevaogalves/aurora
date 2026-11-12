@@ -304,6 +304,57 @@ export interface DistributionItem {
 /** Resposta ao tour de uma tela: viu até o fim (done) ou recusou, fechou ou pulou (dismissed). */
 export type OnboardingState = "done" | "dismissed";
 
+/**
+ * Orçamento por categoria: categoria -> mês -> limite mensal (centavos). Cada par é uma mudança de limite: o limite de
+ * um mês é o da última mudança até ele (herda para os meses seguintes até o usuário mudar). 0 = sem limite desde o mês.
+ */
+export type Budgets = Record<string, Record<Month, number>>;
+
+/** Dívida ou consórcio em parcelas fixas. Só um acompanhamento: não cria nem muda despesas. */
+export interface Debt {
+  id: string;
+  name: string;
+  /** centavos */
+  installmentValue: number;
+  totalInstallments: number;
+  paidInstallments: number;
+  /** mês da próxima parcela a pagar; a quitação é este mês + (restantes − 1) */
+  nextMonth: Month;
+  /** despesa fixa que já traz esta parcela no orçamento (para não somar duas vezes) */
+  linkedTransactionId?: string;
+  note?: string;
+}
+
+/** Retrato de um mês fechado. */
+export interface MonthClosing {
+  /** "AAAA-MM-DD" */
+  closedAt: string;
+  income: number;
+  expense: number;
+  balance: number;
+  byCategory: Record<string, number>;
+  /** anotação de aprendizado do mês */
+  note?: string;
+}
+
+/** Ativo da carteira manual de dividendos (sem integração com corretora). */
+export interface DividendAsset {
+  id: string;
+  name: string;
+  /** centavos */
+  invested: number;
+  /** proventos recebidos por mês (média), centavos */
+  monthlyDividends: number;
+}
+
+/** O planejamento inteiro, como a API o guarda (`PUT /settings/planning`). */
+export interface Planning {
+  budgets: Budgets;
+  debts: Debt[];
+  closings: Record<Month, MonthClosing>;
+  dividendAssets: DividendAsset[];
+}
+
 /** Tudo o que o app guarda. É o que o repositório carrega e salva. */
 export interface FinanceData {
   transactions: Transaction[];
@@ -326,6 +377,10 @@ export interface FinanceData {
    * Sem a chave, vale `distribution` (o padrão). A Dist 1 sempre usa o padrão. Ausente = nenhuma.
    */
   distributionOverrides?: Record<string, DistributionItem[]>;
+  budgets?: Budgets;
+  debts?: Debt[];
+  closings?: Record<Month, MonthClosing>;
+  dividendAssets?: DividendAsset[];
   /** Avisos de prazo de metas que o usuário já marcou como vistos (veja `goalAlertKey`). */
   seenAlerts: string[];
   /** Resposta ao tour de cada tela, por id da tela. Tela ausente = ainda não convidada. */

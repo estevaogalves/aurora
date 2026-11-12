@@ -140,5 +140,16 @@
   "seenAlerts": [],
   "onboarding": {
     "geral": "dismissed"
+  },
+  "budgets": {
+    "Alimentação": {
+      "2026-10": 80000
+    },
+    "Moradia": {
+      "2026-10": 150000
+    },
+    "Saúde": {
+      "2026-10": 100000
+    }
   }
 }

@@ -16,6 +16,7 @@ import type {
   InvoiceAdjustment,
   Payment,
   Transaction,
+  Planning,
 } from "../domain/types";
 import type { FinanceRepository } from "./FinanceRepository";
 
@@ -119,6 +120,10 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
     distribution: raw.distribution ?? null,
     distributionOverrides: raw.distributionOverrides ?? {},
     seenAlerts: raw.seenAlerts ?? [],
+    budgets: raw.budgets ?? {},
+    debts: raw.debts ?? [],
+    closings: raw.closings ?? {},
+    dividendAssets: raw.dividendAssets ?? [],
     onboarding: raw.onboarding ?? {},
   };
 }
@@ -208,6 +213,7 @@ export class ApiRepository implements FinanceRepository {
   setDistributionOverride = (month: string, group: number, items: DistributionItem[] | null) =>
     this.enqueue(() => api.put(`/settings/distribution-overrides/${month}/${group}`, { items }));
   setSeenAlerts = (keys: string[]) => this.enqueue(() => api.put("/settings/seen-alerts", { keys }));
+  setPlanning = (planning: Planning) => this.enqueue(() => api.put("/settings/planning", planning));
   setOnboarding = (screen: string, state: OnboardingState) =>
     this.enqueue(() => api.put(`/settings/onboarding/${encodeURIComponent(screen)}`, { state }));
 }

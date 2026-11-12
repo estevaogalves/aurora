@@ -109,13 +109,13 @@ export function getDueAlerts(data: DuesData, today: string): DueItem[] {
 }
 
 /**
- * Tira de `seenAlerts` as chaves de vencimento de meses já antigos (mais de 3 meses atrás), para a lista não crescer
+ * Tira de `seenAlerts` as chaves de vencimento e de orçamento de meses já antigos (mais de 3 meses atrás), para a lista não crescer
  * sem fim (a API aceita até 1000 chaves). As chaves de metas e investimentos ficam como estão.
  */
 export function pruneSeenAlerts(keys: string[], today: string): string[] {
   const oldest = changeMonth(monthOf(today), -3);
   return keys.filter((k) => {
-    if (!k.startsWith(DUE_ALERT_PREFIX)) return true;
+    if (!k.startsWith(DUE_ALERT_PREFIX) && !k.startsWith("budget:")) return true;
     const month = k.match(/:(\d{4}-\d{2}):/)?.[1];
     return !month || month >= oldest;
   });

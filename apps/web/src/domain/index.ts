@@ -1,4 +1,5 @@
 export * from "./categories";
+export * from "./budgets";
 export * from "./credit";
 export * from "./csvImport";
 export * from "./distribution";

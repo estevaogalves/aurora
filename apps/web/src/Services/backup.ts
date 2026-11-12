@@ -38,5 +38,9 @@ export function describeBackup(d: FinanceData): [string, number][] {
     ["Despesas extras", d.extraExpenses.length],
     ["Anotações", d.notes.length],
     ["Categorias próprias", d.customCategories.length],
+    ["Categorias com orçamento", Object.keys(d.budgets ?? {}).length],
+    ["Dívidas e consórcios", d.debts?.length ?? 0],
+    ["Meses fechados", Object.keys(d.closings ?? {}).length],
+    ["Ativos de dividendos", d.dividendAssets?.length ?? 0],
   ] as [string, number][]).filter(([, n]) => n > 0);
 }

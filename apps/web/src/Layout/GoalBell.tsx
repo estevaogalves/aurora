@@ -4,8 +4,9 @@ import Icon from "@/components/Icon";
 import { Pill } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { dueLabel, formatPaymentDay, goalPercent, type DueItem, type GoalAlert, type MaturityAlert } from "@/domain";
+import { dueLabel, formatPaymentDay, goalPercent, type BudgetAlert, type DueItem, type GoalAlert, type MaturityAlert } from "@/domain";
 import { formatBRL } from "@/lib/money";
+import { useBudgetAlerts } from "@/Store/budgets";
 import { useDueAlerts } from "@/Store/dues";
 import { deadlineStatus, paceHint, useGoalAlerts } from "@/Features/Goals/goalAlerts";
 import { maturityHint, maturityStatus, useMaturityAlerts } from "@/Features/Investments/maturityAlerts";
@@ -79,6 +80,28 @@ function DueAlertItem({ item, seen, onToggle }: { item: DueItem; seen: boolean; 
   );
 }
 
+function BudgetAlertItem({ item, seen, onToggle }: { item: BudgetAlert; seen: boolean; onToggle: () => void }) {
+  return (
+    <li className={`rounded-md border border-border bg-secondary p-3 ${seen ? "opacity-70" : ""}`}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="min-w-0 break-words text-[13.5px] font-semibold">{item.category}</span>
+        <Pill tone={item.level === "over" ? "bad" : "warn"}>{item.level === "over" ? "Estourou o limite" : "Perto do limite"}</Pill>
+      </div>
+      <p className="mt-2 text-[12.5px] text-ink2">{formatBRL(item.spent)} de {formatBRL(item.limit)} ({Math.round(item.percent)}%) neste mês. É só uma referência: nada é bloqueado.</p>
+      <button type="button" onClick={onToggle} className="mt-2 inline-flex items-center gap-1.5 text-[12.5px] font-bold text-primary hover:underline">
+        {seen ? (
+          "Voltar a avisar"
+        ) : (
+          <>
+            <Icon name="check" size={14} />
+            Marcar como visto
+          </>
+        )}
+      </button>
+    </li>
+  );
+}
+
 /**
  * Sino do cabeçalho: avisos de prazo das metas, de vencimento dos investimentos e de contas a vencer (despesas com dia
  * de vencimento e faturas de cartão: atrasadas ou vencendo em até 3 dias).
@@ -88,14 +111,16 @@ export default function GoalBell() {
   const goals = useGoalAlerts();
   const maturities = useMaturityAlerts();
   const dues = useDueAlerts();
-  const count = goals.unseen.length + maturities.unseen.length + dues.unseen.length;
-  const urgent = goals.unseen.some((a) => a.level !== "soon") || maturities.unseen.some((a) => a.level !== "soon") || dues.unseen.some((d) => d.level === "overdue" || d.level === "today");
-  const none = count === 0 && goals.seen.length + maturities.seen.length + dues.seen.length === 0;
+  const budgets = useBudgetAlerts();
+  const count = goals.unseen.length + maturities.unseen.length + dues.unseen.length + budgets.unseen.length;
+  const urgent = goals.unseen.some((a) => a.level !== "soon") || maturities.unseen.some((a) => a.level !== "soon") || dues.unseen.some((d) => d.level === "overdue" || d.level === "today") || budgets.unseen.some((b) => b.level === "over");
+  const none = count === 0 && goals.seen.length + maturities.seen.length + dues.seen.length + budgets.seen.length === 0;
   const [open, setOpen] = useState(false);
   const markAllSeen = () => {
     goals.markSeen(goals.unseen);
     maturities.markSeen(maturities.unseen);
     dues.markSeen(dues.unseen);
+    budgets.markSeen(budgets.unseen);
   };
 
   return (
@@ -103,7 +128,7 @@ export default function GoalBell() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          aria-label={count ? `Avisos de metas, investimentos e vencimentos: ${count} novos` : "Avisos de metas, investimentos e vencimentos: nenhum novo"}
+          aria-label={count ? `Avisos de metas, investimentos, vencimentos e orçamento: ${count} novos` : "Avisos de metas, investimentos, vencimentos e orçamento: nenhum novo"}
           className="relative grid h-10 w-10 place-items-center sm:h-9 sm:w-9 rounded-md border border-border-strong bg-card text-foreground transition-colors hover:bg-secondary data-[state=open]:bg-secondary"
         >
           <Icon name="bell" size={16} />
@@ -125,7 +150,7 @@ export default function GoalBell() {
           )}
         </div>
 
-        {none && <p className="mt-2 text-[13px] text-muted-foreground">Nenhuma meta com prazo vencido ou chegando nos próximos 3 meses, nenhum investimento vencendo nos próximos 30 dias e nenhuma conta atrasada ou vencendo nos próximos 3 dias.</p>}
+        {none && <p className="mt-2 text-[13px] text-muted-foreground">Nenhuma meta com prazo vencido ou chegando nos próximos 3 meses, nenhum investimento vencendo nos próximos 30 dias nenhuma conta atrasada ou vencendo nos próximos 3 dias e nenhuma categoria perto do limite do orçamento.</p>}
         {!none && count === 0 && <p className="mt-2 text-[13px] text-muted-foreground">Tudo visto. Nenhum aviso novo.</p>}
 
         <div className="mt-3 flex max-h-[60vh] flex-col gap-4 overflow-y-auto">
@@ -145,6 +170,14 @@ export default function GoalBell() {
               </ul>
             </section>
           )}
+          {budgets.unseen.length > 0 && (
+            <section aria-label="Orçamento por categoria">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Orçamento por categoria</p>
+              <ul className="flex flex-col gap-3">
+                {budgets.unseen.map((b) => <BudgetAlertItem key={`${b.category}-${b.level}`} item={b} seen={false} onToggle={() => budgets.markSeen([b])} />)}
+              </ul>
+            </section>
+          )}
           {maturities.unseen.length > 0 && (
             <section aria-label="Vencimentos de investimentos">
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Vencimentos de investimentos</p>
@@ -153,13 +186,14 @@ export default function GoalBell() {
               </ul>
             </section>
           )}
-          {goals.seen.length + maturities.seen.length + dues.seen.length > 0 && (
+          {goals.seen.length + maturities.seen.length + dues.seen.length + budgets.seen.length > 0 && (
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Já vistos</p>
               <ul className="flex flex-col gap-3">
                 {goals.seen.map((a) => <AlertItem key={a.goal.id} alert={a} seen onToggle={() => goals.markUnseen(a)} />)}
                 {maturities.seen.map((a) => <MaturityItem key={a.investment.id} alert={a} seen onToggle={() => maturities.markUnseen(a)} />)}
                 {dues.seen.map((d) => <DueAlertItem key={d.key} item={d} seen onToggle={() => dues.markUnseen(d)} />)}
+                {budgets.seen.map((b) => <BudgetAlertItem key={`${b.category}-${b.level}`} item={b} seen onToggle={() => budgets.markUnseen(b)} />)}
               </ul>
             </div>
           )}

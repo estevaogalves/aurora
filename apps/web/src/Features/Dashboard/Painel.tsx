@@ -27,6 +27,7 @@ import { showToast } from "../Warnings/toast";
 import { PAINEL_TOUR } from "./tour";
 import TimeSettings from "./TimeSettings";
 import DuesCard from "./DuesCard";
+import BudgetBars from "./BudgetBars";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
 const sliceColor = (items: { id: string }[], id: string) => `hsl(var(--k${(items.findIndex((i) => i.id === id) % 9) + 1}))`;
@@ -141,6 +142,7 @@ function Categories() {
       ) : (
         <ChartDonut renderDetail={detailOf} slices={totals.map((t) => ({ label: t.category, value: t.value, color: colorOf(t.category) }))} />
       )}
+      <BudgetBars />
     </Panel>
   );
 }

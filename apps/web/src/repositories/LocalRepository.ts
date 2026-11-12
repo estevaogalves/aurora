@@ -14,6 +14,7 @@ import type {
   InvoiceAdjustment,
   Payment,
   Transaction,
+  Planning,
 } from "../domain/types";
 import { renameCategoryIn, type CategoryPatch } from "../domain/categories";
 import { overrideKey } from "../domain/distribution";
@@ -307,6 +308,14 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async setPlanning(planning: Planning) {
+    this.data.budgets = planning.budgets;
+    this.data.debts = planning.debts;
+    this.data.closings = planning.closings;
+    this.data.dividendAssets = planning.dividendAssets;
+    this.persist();
+  }
+
   async setSeenAlerts(keys: string[]) {
     this.data.seenAlerts = keys;
     this.persist();
@@ -334,6 +343,10 @@ export class LocalRepository implements FinanceRepository {
       distribution: this.data.distribution,
       distributionOverrides: this.data.distributionOverrides ?? {},
       seenAlerts: this.data.seenAlerts,
+      budgets: this.data.budgets ?? {},
+      debts: this.data.debts ?? [],
+      closings: this.data.closings ?? {},
+      dividendAssets: this.data.dividendAssets ?? [],
       onboarding: this.data.onboarding,
     };
   }

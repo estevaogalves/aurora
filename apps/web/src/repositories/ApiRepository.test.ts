@@ -240,3 +240,13 @@ describe("ApiRepository", () => {
     await expect(repo.removeGoal("b")).resolves.toBeUndefined();
   });
 });
+
+describe("ApiRepository: planejamento", () => {
+  it("manda o planejamento inteiro em PUT /settings/planning", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 204 }));
+    const planning = { budgets: { Lazer: { "2026-11": 50000 } }, debts: [], closings: {}, dividendAssets: [] };
+    await new ApiRepository().setPlanning(planning);
+    expect(calls[0]).toMatchObject({ url: "/api/v1/settings/planning", method: "PUT", body: planning });
+  });
+});
