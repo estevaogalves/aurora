@@ -94,6 +94,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="break-words">{t.name}</span>
             {t.estimated && <Pill>Estimado</Pill>}
+            {t.type === "expense" && t.dueDay ? <Pill>Vence dia {t.dueDay}</Pill> : null}
             {payment && <PaidBadge payment={payment} />}
           </span>
           {note.text}
@@ -116,6 +117,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
           {!income && t.category}
           {t.fixed ? <Pill tone="fix">Fixa</Pill> : income ? <Pill>Variável</Pill> : null}
           {t.estimated && <Pill>Estimado</Pill>}
+          {!income && t.dueDay ? <Pill>Vence dia {t.dueDay}</Pill> : null}
           {income && distGroupOf(t) >= 2 && <Pill tone="good">{distLabel(distGroupOf(t))}</Pill>}
           {cardName && <Pill>{cardName}{t.purchaseDate ? ` · compra ${dayMonth(t.purchaseDate)}` : ""}</Pill>}
           {payment && <PaidBadge payment={payment} />}

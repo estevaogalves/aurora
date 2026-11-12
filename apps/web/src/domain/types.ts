@@ -61,6 +61,12 @@ export interface Transaction {
    * no Painel. Só marca: não muda nenhum valor. Só renda não fixa.
    */
   distGroup?: number;
+  /**
+   * Despesas: dia do vencimento (1 a 31), para o card "Próximos vencimentos" do Painel. Ausente = sem dia (a despesa
+   * não aparece lá). Em despesa fixa vale para todos os meses; em meses curtos, o dia vira o último dia do mês.
+   * Só marca: não muda nenhum valor.
+   */
+  dueDay?: number;
 }
 
 /** Parcela adiantada: o valor com desconto é cobrado em `month` (o mês de hoje no momento do adiantamento). */

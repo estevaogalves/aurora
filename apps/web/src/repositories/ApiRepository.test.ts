@@ -70,6 +70,17 @@ describe("ApiRepository: despesas no cartão", () => {
   });
 });
 
+describe("ApiRepository: dia do vencimento", () => {
+  it("manda o dia e, ao tirar, 0 (sem 0 a API entenderia \"não mudou\")", async () => {
+    setAccessToken("t");
+    const calls = mockFetch(() => new Response(null, { status: 200 }));
+    const repo = new ApiRepository();
+    await repo.updateTransaction("e", { dueDay: 15 });
+    await repo.updateTransaction("e", { dueDay: undefined });
+    expect(calls.map((c) => c.body)).toEqual([{ dueDay: 15 }, { dueDay: 0 }]);
+  });
+});
+
 describe("ApiRepository: encerrar despesa fixa", () => {
   it("manda o último mês em que vale e, ao reativar, \"\" para tirar o fim", async () => {
     setAccessToken("t");

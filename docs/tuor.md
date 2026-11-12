@@ -79,13 +79,16 @@ Os textos estão em `Features/*/tour.ts`. Quando um card depende de dados (por e
 - [ ok ] 1. Botão **Lançar**: todo cadastro começa aqui; o Painel só mostra os números
 - [ ok ] 2. **Seletor de mês**: troca o período; não passa do mês atual
 - [ ok ] 3. **Aviso de prazo das metas** (só aparece se houver meta com prazo próximo ou vencido)
-- [ ok ] 4. Card **Saldo do mês**: renda menos despesas (com as parcelas do crédito) e % da renda comprometida
-- [ ok ] 5. Card **Últimos 6 meses**: gráfico de renda e despesas
-- [ ok ] 6. Card **Despesas por categoria**: onde o dinheiro do mês foi
-- [ ok ] 7. Card **Sugestão do saldo**: como dividir o que sobrou; menu ⋮ ajusta os percentuais
-- [ ok ] 8. Card **Metas**: progresso geral dos objetivos
-- [ ok ] 9. Card **Despesas do mês**: as 5 mais recentes
-- [ ok ] 10. Card **Anotações**: lembretes do mês (somente leitura aqui)
+- [ ok ] 4. **Tempo e fôlego** (botão): horas de trabalho e card Dias de fôlego, desligados por padrão
+- [ ok ] 5. **Em destaque neste mês**: insights por regras locais, dispensáveis (só com 2+ meses de movimento)
+- [ ok ] 6. Card **Saldo do mês**: renda menos despesas (com as parcelas do crédito) e % da renda comprometida
+- [ ok ] 7. Card **Últimos 6 meses**: gráfico de renda e despesas
+- [ ok ] 8. Card **Próximos vencimentos**: despesas com "Dia do vencimento" e faturas de cartão não pagas; atrasados primeiro; "Marcar como paga" só registra; janela de 7, 14 ou 30 dias. Sem vencimentos, usa exemplos fictícios durante o tour. Os atrasados e os que vencem em até 3 dias também avisam no sino
+- [ ok ] 9. Card **Despesas por categoria**: onde o dinheiro do mês foi
+- [ ok ] 10. Card **Sugestão do saldo**: como dividir o que sobrou; menu ⋮ ajusta os percentuais
+- [ ok ] 11. Card **Metas**: progresso geral dos objetivos
+- [ ok ] 12. Card **Despesas do mês**: as 5 mais recentes
+- [ ok ] 13. Card **Anotações**: lembretes do mês (somente leitura aqui)
 
 ### Lançamentos (`lancamentos`)
 

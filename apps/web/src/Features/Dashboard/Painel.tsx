@@ -26,6 +26,7 @@ import UndoSendDialog, { type UndoRequest } from "./UndoSendDialog";
 import { showToast } from "../Warnings/toast";
 import { PAINEL_TOUR } from "./tour";
 import TimeSettings from "./TimeSettings";
+import DuesCard from "./DuesCard";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
 const sliceColor = (items: { id: string }[], id: string) => `hsl(var(--k${(items.findIndex((i) => i.id === id) % 9) + 1}))`;
@@ -587,6 +588,7 @@ export default function Painel() {
       <div className="grid grid-cols-12 items-stretch gap-3.5 [&>div>*]:h-full">
         <div className="col-span-12 lg:col-span-4"><Hero /></div>
         <div className="col-span-12 lg:col-span-8"><Trend /></div>
+        <div className="col-span-12"><DuesCard /></div>
         <div className="col-span-12 lg:col-span-4"><Categories /></div>
         <div className="col-span-12 lg:col-span-4"><Suggestion /></div>
         <div className="col-span-12 lg:col-span-4"><GoalsMini /></div>

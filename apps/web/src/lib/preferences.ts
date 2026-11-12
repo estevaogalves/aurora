@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { DEFAULT_DUE_WINDOW, DUE_WINDOWS } from "@/domain/dues";
 import { DEFAULT_HOURS_PER_MONTH } from "@/domain/workTime";
 
 /**
@@ -18,12 +19,14 @@ export interface Preferences {
   showBreathing: boolean;
   /** ids dos insights do Painel que o usuário dispensou */
   dismissedInsights: string[];
+  /** janela do card "Próximos vencimentos", em dias (7, 14 ou 30) */
+  dueWindow: number;
 }
 
 /** Quantos insights dispensados ficam guardados (os mais antigos saem primeiro). */
 export const MAX_DISMISSED = 200;
 
-export const DEFAULT_PREFS: Preferences = { showHours: false, hoursPerMonth: DEFAULT_HOURS_PER_MONTH, netIncome: null, showBreathing: false, dismissedInsights: [] };
+export const DEFAULT_PREFS: Preferences = { showHours: false, hoursPerMonth: DEFAULT_HOURS_PER_MONTH, netIncome: null, showBreathing: false, dismissedInsights: [], dueWindow: DEFAULT_DUE_WINDOW };
 
 /** Lê o que foi salvo, aceitando só campos do tipo certo (o resto volta ao padrão). */
 export function parsePrefs(raw: string | null): Preferences {
@@ -35,6 +38,7 @@ export function parsePrefs(raw: string | null): Preferences {
       hoursPerMonth: typeof d.hoursPerMonth === "number" && d.hoursPerMonth > 0 && d.hoursPerMonth <= 744 ? d.hoursPerMonth : DEFAULT_PREFS.hoursPerMonth,
       netIncome: typeof d.netIncome === "number" && d.netIncome > 0 ? d.netIncome : null,
       showBreathing: d.showBreathing === true,
+      dueWindow: (DUE_WINDOWS as readonly number[]).includes(d.dueWindow as number) ? (d.dueWindow as number) : DEFAULT_DUE_WINDOW,
       dismissedInsights: Array.isArray(d.dismissedInsights) ? d.dismissedInsights.filter((x): x is string => typeof x === "string").slice(-MAX_DISMISSED) : [],
     };
   } catch {
@@ -58,9 +62,9 @@ export const usePrefsStore = create<PrefsState>((set, get) => ({
   ...read(),
   setPrefs: (patch) => {
     set(patch);
-    const { showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights } = get();
+    const { showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow } = get();
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow }));
     } catch {
       // sem persistência, vale só para a sessão
     }
