@@ -861,8 +861,8 @@ components:
         limit: { $ref: "#/components/schemas/Cents", description: "Teto mensal da fatura (0 tira o teto)." }
     InvestmentFamily:
       type: string
-      enum: [fixed, treasury, liquid, equity, fund, other]
-      description: Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos e outros.
+      enum: [fixed, treasury, liquid, equity, fund, other, business]
+      description: Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos, outros e negócio próprio (`business`).
     Investment:
       type: object
       required: [name, family, institution, appliedAt, currentValue]
@@ -909,10 +909,12 @@ components:
         notes: { type: string }
     InvestmentMovementType:
       type: string
-      enum: [contribution, redemption, yield, adjustment]
+      enum: [contribution, redemption, yield, adjustment, income]
       description: |
         `contribution` (aporte) e `redemption` (resgate) mexem no dinheiro que entra e sai; `yield` (rendimento)
         soma ao valor atual sem ser aporte; `adjustment` (atualização de valor) define o novo valor atual.
+        No negócio próprio (`business`): `contribution` é o investimento feito (não altera o valor atual), `income`
+        (recebimento) é o dinheiro das vendas, que entra no saldo a sacar, e `redemption` é o saque.
     InvestmentMovement:
       type: object
       required: [investmentId, type, date, amount]

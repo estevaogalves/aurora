@@ -7,7 +7,7 @@ import (
 )
 
 // Famílias de investimento aceitas (as mesmas do front).
-var investmentFamilies = map[string]bool{"fixed": true, "treasury": true, "liquid": true, "equity": true, "fund": true, "other": true}
+var investmentFamilies = map[string]bool{"fixed": true, "treasury": true, "liquid": true, "equity": true, "fund": true, "other": true, "business": true}
 
 // Tipos de movimentação: aporte e resgate mexem no dinheiro que entra e sai; rendimento soma ao valor atual
 // sem ser aporte; ajuste define o novo valor atual (Amount é o valor, não a diferença).
@@ -16,6 +16,11 @@ const (
 	MovementRedemption   = "redemption"
 	MovementYield        = "yield"
 	MovementAdjustment   = "adjustment"
+	// MovementIncome: só no negócio próprio, dinheiro recebido das vendas (entra no saldo a sacar).
+	MovementIncome = "income"
+	// FamilyBusiness: negócio próprio (revenda etc.). Aporte = investimento feito (não mexe no valor atual),
+	// income = recebimento e resgate = saque; o valor atual é o saldo a sacar (recebido − sacado).
+	FamilyBusiness = "business"
 )
 
 // MaxInvestmentCents é o maior valor aceito num campo de dinheiro de investimento: R$ 1 bilhão.
@@ -70,7 +75,7 @@ func IsInvestmentFamily(f string) bool { return investmentFamilies[f] }
 // IsMovementType diz se t é um tipo de movimentação conhecido.
 func IsMovementType(t string) bool {
 	switch t {
-	case MovementContribution, MovementRedemption, MovementYield, MovementAdjustment:
+	case MovementContribution, MovementRedemption, MovementYield, MovementAdjustment, MovementIncome:
 		return true
 	}
 	return false
@@ -111,7 +116,17 @@ func ReplayInvestment(inv Investment, movements []InvestmentMovement) Investment
 	var qty, cost float64
 	hasQty := false
 
+	business := inv.Family == FamilyBusiness
 	for _, m := range SortMovements(own) {
+		if business {
+			switch m.Type {
+			case MovementIncome:
+				value += m.Amount
+			case MovementRedemption:
+				value = max(0, value-m.Amount)
+			}
+			continue
+		}
 		q := 0.0
 		if m.Quantity != nil {
 			q = *m.Quantity
@@ -145,7 +160,7 @@ func ReplayInvestment(inv Investment, movements []InvestmentMovement) Investment
 			}
 		case MovementYield:
 			value += m.Amount
-		default: // ajuste: define o valor atual
+		case MovementAdjustment: // define o valor atual
 			value = m.Amount
 		}
 	}
@@ -171,7 +186,9 @@ func ReplayInvestment(inv Investment, movements []InvestmentMovement) Investment
 type InvestmentTotals struct {
 	Contributed int64
 	Redeemed    int64
-	// Profit: valor atual + resgates − aportes.
+	// Received: recebimentos do negócio próprio.
+	Received int64
+	// Profit: valor atual + resgates − aportes (no negócio: recebido − investido).
 	Profit int64
 }
 
@@ -187,7 +204,13 @@ func GetInvestmentTotals(inv Investment, movements []InvestmentMovement) Investm
 			t.Contributed += m.Amount
 		case MovementRedemption:
 			t.Redeemed += m.Amount
+		case MovementIncome:
+			t.Received += m.Amount
 		}
+	}
+	if inv.Family == FamilyBusiness {
+		t.Profit = t.Received - t.Contributed
+		return t
 	}
 	t.Profit = inv.CurrentValue + t.Redeemed - t.Contributed
 	return t

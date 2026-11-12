@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getBusinessSummary,
   getFields,
   getInvestmentTotals,
   getMaturityAlerts,
@@ -176,5 +177,33 @@ describe("investimentos: avisos de vencimento", () => {
     expect(splitSeenMaturities(early, seen)).toMatchObject({ unseen: [], seen: [{ level: "soon" }] });
     const later = getMaturityAlerts([due("x", "2026-11-25")], "2026-11-20");
     expect(splitSeenMaturities(later, seen).unseen).toHaveLength(1);
+  });
+});
+
+describe("negócio próprio", () => {
+  const biz: Investment = { id: "b1", name: "Revenda", family: "business", institution: "Negócio próprio", appliedAt: "2026-01-01", currentValue: 0 };
+
+  it("investimentos consecutivos, vendas e saque: lucro = recebido − investido, valor atual = saldo a sacar", () => {
+    const movs = [
+      mov("b1", "contribution", 100000, "2026-01-01"), mov("b1", "contribution", 50000, "2026-02-01"),
+      mov("b1", "income", 80000, "2026-02-10"), mov("b1", "income", 100000, "2026-03-10"), mov("b1", "redemption", 30000, "2026-03-15"),
+    ];
+    const inv = replayInvestment(biz, movs);
+    expect(inv.currentValue).toBe(150000);
+    expect(getInvestmentTotals(inv, movs)).toMatchObject({ contributed: 150000, received: 180000, redeemed: 30000, profit: 30000 });
+  });
+
+  it("em prejuízo enquanto recebeu menos do que investiu; saque maior que o saldo não fica negativo", () => {
+    const movs = [mov("b1", "contribution", 100000), mov("b1", "income", 40000, "2026-03-02")];
+    const inv = replayInvestment(biz, movs);
+    expect(getInvestmentTotals(inv, movs).profit).toBe(-60000);
+    expect(replayInvestment(biz, [...movs, mov("b1", "redemption", 999999, "2026-03-03")]).currentValue).toBe(0);
+  });
+
+  it("não entra no resumo da carteira; tem resumo próprio", () => {
+    const movs = [mov("b1", "contribution", 100000), mov("b1", "income", 130000, "2026-03-02"), mov("b1", "redemption", 50000, "2026-03-03"), mov("i1", "contribution", 70000)];
+    const invs = [replayInvestment(biz, movs), replayInvestment(cdb, movs)];
+    expect(getPortfolioSummary(invs, movs)).toMatchObject({ netWorth: 70000, contributed: 70000 });
+    expect(getBusinessSummary(invs, movs)).toMatchObject({ count: 1, invested: 100000, received: 130000, withdrawn: 50000, available: 80000, profit: 30000 });
   });
 });

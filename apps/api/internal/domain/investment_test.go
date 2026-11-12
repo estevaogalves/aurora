@@ -168,3 +168,36 @@ func TestIsValidDate(t *testing.T) {
 		}
 	}
 }
+
+func TestBusinessReplayAndTotals(t *testing.T) {
+	biz := Investment{ID: "b1", Name: "Revenda", Family: FamilyBusiness, Institution: "Negócio próprio", AppliedAt: "2026-01-01"}
+	// investimentos consecutivos, vendas e um saque: o investimento não entra no saldo a sacar
+	movs := []InvestmentMovement{
+		mov("b1", MovementContribution, 100000, "2026-01-01"),
+		mov("b1", MovementContribution, 50000, "2026-02-01"),
+		mov("b1", MovementIncome, 80000, "2026-02-10"),
+		mov("b1", MovementIncome, 100000, "2026-03-10"),
+		mov("b1", MovementRedemption, 30000, "2026-03-15"),
+	}
+	inv := ReplayInvestment(biz, movs)
+	tot := GetInvestmentTotals(inv, movs)
+	if inv.CurrentValue != 150000 || tot.Contributed != 150000 || tot.Received != 180000 || tot.Redeemed != 30000 || tot.Profit != 30000 {
+		t.Fatalf("saldo=%d totais=%+v", inv.CurrentValue, tot)
+	}
+
+	// ainda em prejuízo: recebeu menos do que investiu
+	loss := movs[:3]
+	li := ReplayInvestment(biz, loss)
+	if lt := GetInvestmentTotals(li, loss); li.CurrentValue != 80000 || lt.Profit != -70000 {
+		t.Fatalf("prejuízo: saldo=%d totais=%+v", li.CurrentValue, lt)
+	}
+
+	// saque maior que o saldo nunca deixa o valor negativo
+	over := append(append([]InvestmentMovement{}, loss...), mov("b1", MovementRedemption, 999999, "2026-03-20"))
+	if v := ReplayInvestment(biz, over).CurrentValue; v != 0 {
+		t.Fatalf("valor negativo: %d", v)
+	}
+	if !IsMovementType(MovementIncome) || !IsInvestmentFamily(FamilyBusiness) {
+		t.Fatal("business/income não reconhecidos")
+	}
+}
