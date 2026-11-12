@@ -1,3 +1,4 @@
+import { fromBase64, toBase64 } from "../lib/base64";
 import { api } from "../api/http";
 import type { CategoryPatch } from "../domain/categories";
 import type {
@@ -17,6 +18,7 @@ import type {
   Payment,
   Transaction,
   Planning,
+  ReceiptMeta,
 } from "../domain/types";
 import type { FinanceRepository } from "./FinanceRepository";
 
@@ -126,6 +128,7 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
     debts: raw.debts ?? [],
     closings: raw.closings ?? {},
     dividendAssets: raw.dividendAssets ?? [],
+    receipts: raw.receipts ?? [],
     onboarding: raw.onboarding ?? {},
   };
 }
@@ -215,6 +218,14 @@ export class ApiRepository implements FinanceRepository {
   setDistributionOverride = (month: string, group: number, items: DistributionItem[] | null) =>
     this.enqueue(() => api.put(`/settings/distribution-overrides/${month}/${group}`, { items }));
   setSeenAlerts = (keys: string[]) => this.enqueue(() => api.put("/settings/seen-alerts", { keys }));
+  // comprovantes: o arquivo vai e volta em base64; o servidor decide o tipo pelos bytes e aplica os limites
+  addReceipt = (transactionId: string, file: { name: string; data: ArrayBuffer }) =>
+    this.enqueue(() => api.post<ReceiptMeta>(`/transactions/${transactionId}/receipts`, { name: file.name, data: toBase64(file.data) }));
+  getReceipt = async (id: string) => {
+    const { data, ...meta } = await api.get<ReceiptMeta & { data: string }>(`/receipts/${id}`);
+    return { meta, data: fromBase64(data) };
+  };
+  removeReceipt = (id: string) => this.enqueue(() => api.delete(`/receipts/${id}`));
   setPlanning = (planning: Planning) => this.enqueue(() => api.put("/settings/planning", planning));
   setOnboarding = (screen: string, state: OnboardingState) =>
     this.enqueue(() => api.put(`/settings/onboarding/${encodeURIComponent(screen)}`, { state }));

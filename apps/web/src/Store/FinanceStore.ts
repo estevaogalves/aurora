@@ -43,6 +43,7 @@ import {
   type Debt,
   type DividendAsset,
   type MonthClosing,
+  type ReceiptMeta,
   type CustomCategory,
   type DistributionItem,
   type ExtraExpense,
@@ -177,6 +178,13 @@ interface FinanceState {
   addExtraExpense: (extra: ExtraExpense) => void;
   updateExtraExpense: (id: string, patch: Partial<ExtraExpense>) => void;
   setDistribution: (items: DistributionItem[] | null) => void;
+  /** Comprovantes anexados (só os dados; o conteúdo é baixado à parte). */
+  receipts: ReceiptMeta[];
+  /** Anexa um comprovante a um lançamento; devolve uma mensagem de erro pronta, ou null se deu certo. */
+  attachReceipt: (transactionId: string, file: { name: string; data: ArrayBuffer }) => Promise<string | null>;
+  removeReceipt: (id: string) => void;
+  /** O conteúdo de um comprovante, para baixar. */
+  loadReceipt: (id: string) => Promise<{ meta: ReceiptMeta; data: ArrayBuffer }>;
   /** Muda o limite mensal de uma categoria a partir de um mês (0 tira o limite desde o mês). Herda para os meses seguintes. */
   setBudget: (category: string, month: string, limit: number) => void;
   /** Tira o orçamento de uma categoria. */
@@ -301,7 +309,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     hydrate: async () => {
       const data = await repository.load();
-      set({ ...data, goalMovements: data.goalMovements ?? [], distributionOverrides: data.distributionOverrides ?? {}, budgets: data.budgets ?? {}, debts: data.debts ?? [], closings: data.closings ?? {}, dividendAssets: data.dividendAssets ?? [], hydrated: true });
+      set({ ...data, goalMovements: data.goalMovements ?? [], distributionOverrides: data.distributionOverrides ?? {}, budgets: data.budgets ?? {}, debts: data.debts ?? [], closings: data.closings ?? {}, dividendAssets: data.dividendAssets ?? [], receipts: data.receipts ?? [], hydrated: true });
     },
 
     reset: () =>
@@ -323,6 +331,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         debts: [],
         closings: {},
         dividendAssets: [],
+        receipts: [],
         seenAlerts: [],
         onboarding: {},
       }),
@@ -346,6 +355,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     debts: [],
     closings: {},
     dividendAssets: [],
+    receipts: [],
     seenAlerts: [],
     onboarding: {},
 
@@ -362,6 +372,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     removeTransaction: (id) => {
       set((state) => ({
         transactions: state.transactions.filter((t) => t.id !== id),
+        // os comprovantes do lançamento vão junto (o repositório apaga os arquivos)
+        receipts: state.receipts.filter((r) => r.transactionId !== id),
       }));
       sync(repository.removeTransaction(id));
     },
@@ -690,6 +702,21 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       for (const m of found.investmentMovements) get().removeInvestmentMovement(m.id);
       return found.goalMovements.length + found.investmentMovements.length;
     },
+
+    attachReceipt: async (transactionId, file) => {
+      try {
+        const meta = await repository.addReceipt(transactionId, file);
+        set((s) => ({ receipts: [...s.receipts, meta] }));
+        return null;
+      } catch (error) {
+        return error instanceof Error && error.message ? error.message : "Não foi possível anexar o comprovante.";
+      }
+    },
+    removeReceipt: (id) => {
+      set((s) => ({ receipts: s.receipts.filter((r) => r.id !== id) }));
+      sync(repository.removeReceipt(id));
+    },
+    loadReceipt: (id) => repository.getReceipt(id),
 
     setBudget: (category, month, limit) => {
       const valid = Number.isInteger(limit) && limit >= 0 && limit <= MAX_PLANNING_CENTS;

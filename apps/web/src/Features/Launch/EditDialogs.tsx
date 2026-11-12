@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Textarea } from "@/components/ui/textarea";
 import DistGroupField from "./DistGroupField";
 import TagsField from "@/components/shared/TagsField";
+import ReceiptsField from "@/components/shared/ReceiptsField";
 import { chargeDate, distGroupOf, patchEditAll } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type Transaction } from "@/Store/FinanceStore";
@@ -136,6 +137,7 @@ function TransactionFields({ transaction, onClose }: { transaction: Transaction;
         </Field>
       )}
       <TagsField id="edit-tags" value={tags} onChange={setTags} />
+      <ReceiptsField transactionId={transaction.id} />
       {!income && !cardId && (
         <Field label="Dia do vencimento" hint="(opcional)" htmlFor="edit-due-day">
           <input id="edit-due-day" inputMode="numeric" value={dueDayText} onChange={(e) => setDueDayText(e.target.value.replace(/\D/g, "").slice(0, 2))} placeholder="Ex.: 10" className={inputClass} />

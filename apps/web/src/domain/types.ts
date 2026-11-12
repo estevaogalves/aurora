@@ -349,6 +349,18 @@ export interface DividendAsset {
   monthlyDividends: number;
 }
 
+/** Dados de um comprovante anexado (o conteúdo fica à parte e só sai ao baixar). */
+export interface ReceiptMeta {
+  id: string;
+  transactionId: string;
+  name: string;
+  mime: "image/png" | "image/jpeg" | "image/webp" | "application/pdf";
+  /** bytes */
+  size: number;
+  /** "AAAA-MM-DD" */
+  createdAt: string;
+}
+
 /** O planejamento inteiro, como a API o guarda (`PUT /settings/planning`). */
 export interface Planning {
   budgets: Budgets;
@@ -383,6 +395,8 @@ export interface FinanceData {
   debts?: Debt[];
   closings?: Record<Month, MonthClosing>;
   dividendAssets?: DividendAsset[];
+  /** comprovantes anexados (só os dados; o conteúdo é baixado à parte). Não entram em backup nem em importação. */
+  receipts?: ReceiptMeta[];
   /** Avisos de prazo de metas que o usuário já marcou como vistos (veja `goalAlertKey`). */
   seenAlerts: string[];
   /** Resposta ao tour de cada tela, por id da tela. Tela ausente = ainda não convidada. */

@@ -68,6 +68,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
   const colorOf = useCategoryColor();
   const cardName = useFinanceStore((s) => s.creditCards.find((k) => k.id === t.cardId)?.name);
   const income = t.type === "income";
+  const receiptCount = useFinanceStore((s) => s.receipts.filter((r) => r.transactionId === t.id).length);
   const payment = pay ? paymentOf(t, month) : undefined;
   const note = useNotes(t.notes, payment?.notes);
 
@@ -99,6 +100,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
             {t.estimated && <Pill>Estimado</Pill>}
             {t.type === "expense" && t.dueDay ? <Pill>Vence dia {t.dueDay}</Pill> : null}
             {t.tags?.map((tag) => <Pill key={tag}>#{tag}</Pill>)}
+            {receiptCount > 0 && <Pill>{receiptCount === 1 ? "1 comprovante" : `${receiptCount} comprovantes`}</Pill>}
             {payment && <PaidBadge payment={payment} />}
           </span>
           {note.text}
@@ -123,6 +125,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
           {t.estimated && <Pill>Estimado</Pill>}
           {!income && t.dueDay ? <Pill>Vence dia {t.dueDay}</Pill> : null}
           {t.tags?.map((tag) => <Pill key={tag}>#{tag}</Pill>)}
+          {receiptCount > 0 && <Pill>{receiptCount === 1 ? "1 comprovante" : `${receiptCount} comprovantes`}</Pill>}
           {income && distGroupOf(t) >= 2 && <Pill tone="good">{distLabel(distGroupOf(t))}</Pill>}
           {cardName && <Pill>{cardName}{t.purchaseDate ? ` · compra ${dayMonth(t.purchaseDate)}` : ""}</Pill>}
           {payment && <PaidBadge payment={payment} />}

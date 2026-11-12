@@ -19,6 +19,7 @@ import type {
   Debt,
   DividendAsset,
   MonthClosing,
+  ReceiptMeta,
 } from "../domain/types";
 
 /** Versão atual do formato salvo. Aumente ao mudar o formato e trate em `migrateStored`. */
@@ -53,6 +54,7 @@ export const emptyData = (): FinanceData => ({
   debts: [],
   closings: {},
   dividendAssets: [],
+  receipts: [],
   onboarding: {},
 });
 
@@ -137,6 +139,7 @@ export function migrateStored(raw: unknown): FinanceData | null {
     debts: asArray<Debt>(raw.data.debts),
     closings: isRecord(raw.data.closings) ? (raw.data.closings as Record<string, MonthClosing>) : {},
     dividendAssets: asArray<DividendAsset>(raw.data.dividendAssets),
+    receipts: asArray<ReceiptMeta>(raw.data.receipts),
     onboarding: parseOnboarding(raw.data.onboarding),
   };
 }

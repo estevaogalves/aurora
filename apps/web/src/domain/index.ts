@@ -14,6 +14,7 @@ export * from "./origin";
 export * from "./invoice";
 export * from "./payment";
 export * from "./simulator";
+export * from "./receipts";
 export * from "./report";
 export * from "./scenarios";
 export * from "./summary";

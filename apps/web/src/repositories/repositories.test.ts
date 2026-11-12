@@ -68,7 +68,7 @@ describe("migrateLegacy", () => {
 describe("migrateStored", () => {
   it("aceita o envelope atual", () => {
     const data = migrateStored({ version: 6, data: { transactions: [], creditTransactions: [], notes: [], goals: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [] } });
-    expect(data).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], budgets: {}, debts: [], closings: {}, dividendAssets: [], onboarding: {} });
+    expect(data).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], budgets: {}, debts: [], closings: {}, dividendAssets: [], receipts: [], onboarding: {} });
   });
 
   it("recusa versão futura e lixo", () => {
@@ -96,6 +96,7 @@ describe("migrateStored", () => {
       debts: [],
       closings: {},
       dividendAssets: [],
+      receipts: [],
       onboarding: {},
     });
   });
@@ -139,7 +140,7 @@ describe("investimentos no LocalRepository", () => {
 describe("LocalRepository", () => {
   it("começa vazio sem nenhum dado salvo", async () => {
     const repo = new LocalRepository(fakeStorage());
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], budgets: {}, debts: [], closings: {}, dividendAssets: [], onboarding: {} });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], budgets: {}, debts: [], closings: {}, dividendAssets: [], receipts: [], onboarding: {} });
   });
 
   it("importa o formato antigo uma vez e mantém o backup intacto", async () => {
@@ -217,6 +218,7 @@ describe("LocalRepository", () => {
       debts: [],
       closings: {},
       dividendAssets: [],
+      receipts: [],
       onboarding: {},
     });
   });
@@ -362,7 +364,7 @@ describe("LocalRepository", () => {
         throw new Error("bloqueado");
       },
     });
-    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], budgets: {}, debts: [], closings: {}, dividendAssets: [], onboarding: {} });
+    expect(await repo.load()).toEqual({ transactions: [], creditTransactions: [], creditCards: [], notes: [], goals: [], goalMovements: [], investments: [], investmentMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], budgets: {}, debts: [], closings: {}, dividendAssets: [], receipts: [], onboarding: {} });
     await expect(
       repo.addNote({ id: "1", content: "a", date: "d", pinned: false, month: "2026-03" }),
     ).resolves.toBeUndefined();
