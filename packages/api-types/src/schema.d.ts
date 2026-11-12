@@ -2408,6 +2408,8 @@ export interface components {
             endMonth?: components["schemas"]["Month"];
             /** @description Só renda não fixa (13º, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente ou 0 = soma ao saldo do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não muda nenhum valor, saldo, projeção ou relatório. */
             distGroup?: number;
+            /** @description Só despesas: dia do vencimento (1 a 31). Ausente ou 0 = sem dia, e a despesa não aparece no card Próximos vencimentos. Em despesa fixa vale para todos os meses; em meses curtos, o dia vira o último dia do mês. Só marca: não muda nenhum valor. */
+            dueDay?: number;
         };
         Payment: {
             /** @enum {string} */
@@ -2443,6 +2445,8 @@ export interface components {
             endMonth?: string;
             /** @description Só renda não fixa: a distribuição da sugestão do saldo (0 = Dist 1; 2 a 20 = Dist 2 em diante). Número fora disso é recusado (400); despesa ou renda fixa em distribuição própria é recusada (422). */
             distGroup?: number;
+            /** @description Só despesas: dia do vencimento (1 a 31); 0 tira o dia. Sem a chave, não muda. */
+            dueDay?: number;
         };
         CreditTransaction: {
             /** Format: uuid */
@@ -2574,6 +2578,8 @@ export interface components {
         /**
          * @description `contribution` (aporte) e `redemption` (resgate) mexem no dinheiro que entra e sai; `yield` (rendimento)
          *     soma ao valor atual sem ser aporte; `adjustment` (atualização de valor) define o novo valor atual.
+         *     No negócio próprio (`business`): `contribution` é o investimento feito (não altera o valor atual), `income`
+         *     (recebimento) é o dinheiro das vendas, que entra no saldo a sacar, e `redemption` é o saque.
          * @enum {string}
          */
         InvestmentMovementType: "contribution" | "redemption" | "yield" | "adjustment" | "income";

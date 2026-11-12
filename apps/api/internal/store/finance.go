@@ -31,6 +31,8 @@ type TransactionPatch struct {
 	EndMonth *string
 	// DistGroup: distribuição da sugestão do saldo (0 = Dist 1, 2 a 20). nil não muda.
 	DistGroup *int
+	// DueDay: dia do vencimento (1 a 31; 0 tira o dia). nil não muda.
+	DueDay *int
 }
 
 func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
@@ -50,7 +52,7 @@ func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.VariableAmount,
-		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int32(t.DistGroup),
+		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int32(t.DistGroup), DueDay: int32(t.DueDay),
 	})
 	if err != nil {
 		return domain.Transaction{}, err
@@ -109,6 +111,9 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		}
 		if p.DistGroup != nil {
 			arg.DistGroup.Int32, arg.DistGroup.Valid = int32(*p.DistGroup), true
+		}
+		if p.DueDay != nil {
+			arg.DueDay.Int32, arg.DueDay.Valid = int32(*p.DueDay), true
 		}
 		if p.CardID != nil {
 			if err := ownsCard(ctx, q, userID, *p.CardID); err != nil {

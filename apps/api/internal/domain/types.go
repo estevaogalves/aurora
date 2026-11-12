@@ -32,6 +32,8 @@ type Transaction struct {
 	// 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não
 	// muda nenhum valor. Só vale para renda não fixa (13º, bônus).
 	DistGroup int `json:"distGroup,omitempty"`
+	// DueDay: dia do vencimento da despesa (1 a 31); 0 (ausente) = sem dia. Só aparece no card "Próximos vencimentos".
+	DueDay int `json:"dueDay,omitempty"`
 }
 
 type CreditTransaction struct {

@@ -253,7 +253,7 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 	t := domain.Transaction{
 		ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Type: r.Type,
 		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month, VariableAmount: r.VariableAmount,
-		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, DistGroup: int(r.DistGroup),
+		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, DistGroup: int(r.DistGroup), DueDay: int(r.DueDay),
 	}
 	if r.CardID.Valid {
 		t.CardID = r.CardID.UUID.String()

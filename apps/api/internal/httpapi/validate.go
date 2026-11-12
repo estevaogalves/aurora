@@ -109,7 +109,7 @@ func (l Limits) validateTransaction(t domain.Transaction) string {
 		return "Pagamentos demais em um lançamento."
 	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkDistGroup(t.Fixed, t.Type, t.DistGroup), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
+		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkDistGroup(t.Fixed, t.Type, t.DistGroup), checkDueDayOf(t.Type, t.DueDay), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
 }
 
 func checkCategory(c string) string {
@@ -209,6 +209,22 @@ func checkDistGroup(fixed bool, typ string, group int) string {
 		return "Renda fixa não pode ter distribuição própria: use uma renda variável (13º, bônus)."
 	}
 	return ""
+}
+
+// checkDueDay: dia do vencimento de 1 a 31; 0 é "sem dia".
+func checkDueDay(day int) string {
+	if day < 0 || day > 31 {
+		return "O dia do vencimento deve ficar entre 1 e 31."
+	}
+	return ""
+}
+
+// checkDueDayOf: só despesa tem dia de vencimento.
+func checkDueDayOf(typ string, day int) string {
+	if day != 0 && typ != "expense" {
+		return "Só despesas têm dia de vencimento."
+	}
+	return checkDueDay(day)
 }
 
 // checkEndMonth confere o fim de uma fixa: só fixa, mês válido e não antes do mês em que ela começa.

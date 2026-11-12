@@ -164,6 +164,7 @@ type Transaction struct {
 	PurchaseDate   string
 	EndMonth       string
 	DistGroup      int32
+	DueDay         int32
 }
 
 type User struct {

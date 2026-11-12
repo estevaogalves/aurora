@@ -68,6 +68,8 @@ type transactionPatchReq struct {
 	PurchaseDate *string `json:"purchaseDate"`
 	// DistGroup: distribuição da sugestão do saldo (0 = Dist 1, 2 a 20); ausente não muda.
 	DistGroup *int `json:"distGroup"`
+	// DueDay: dia do vencimento (1 a 31; 0 tira o dia); ausente não muda.
+	DueDay *int `json:"dueDay"`
 	// EndMonth: último mês em que a fixa vale; "" tira o fim; ausente não muda.
 	EndMonth *string `json:"endMonth"`
 }
@@ -101,6 +103,9 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	if in.DistGroup != nil && *in.DistGroup != 0 && (*in.DistGroup < 2 || *in.DistGroup > domain.MaxDistGroup) {
 		msg = first(msg, "A distribuição deve ser a Dist 1 (saldo do mês) ou de 2 a 20.")
 	}
+	if in.DueDay != nil {
+		msg = first(msg, checkDueDay(*in.DueDay))
+	}
 	if in.HiddenMonths != nil {
 		hidden = *in.HiddenMonths
 	}
@@ -117,7 +122,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	out, err := s.store.UpdateTransaction(r.Context(), userID(r), chi.URLParam(r, "id"), store.TransactionPatch{
 		Name: trimmed(in.Name), Amount: in.Amount, Category: in.Category, Notes: in.Notes, Fixed: in.Fixed,
 		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes, VariableAmount: in.VariableAmount,
-		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth, DistGroup: in.DistGroup,
+		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth, DistGroup: in.DistGroup, DueDay: in.DueDay,
 	})
 	if err != nil {
 		s.fail(w, r, err)
