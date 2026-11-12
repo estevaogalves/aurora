@@ -2,6 +2,7 @@ import type { TourStep } from "@/components/tour/types";
 
 export const PROJECAO_TOUR: TourStep[] = [
   { target: "periodo", title: "Quantos meses projetar", text: "Use as setas ← e → para diminuir ou aumentar a quantidade de meses da projeção; “Voltar ao padrão” retorna aos 6 meses. Tudo nesta tela acompanha esse período.", placement: ["bottom", "left"] },
+  { target: "cenario", title: "Cenário da renda variável", text: "A Projeção só conta renda fixa. Aqui você escolhe como estimar a renda variável dos meses futuros: Conservador (nenhuma, como sempre foi), Médio (média dos últimos 3 meses) ou Otimista (o maior valor dos últimos 3 meses). Só meses futuros recebem estimativa, e a sua escolha fica salva neste navegador.", placement: ["bottom"] },
   { target: "fixa", title: "Despesa fixa mensal", text: "A soma das despesas marcadas como fixas. É o gasto que você já sabe que vai se repetir todo mês.", placement: ["bottom"] },
   { target: "parcelas-total", title: "Parcelas do crédito", text: "Quanto ainda vai cair em parcelas de compras no crédito até o fim do período projetado.", placement: ["bottom"] },
   { target: "pior", title: "Pior mês", text: "O mês com o menor saldo na projeção. Vermelho indica que a conta fecha no negativo.", placement: ["bottom"] },

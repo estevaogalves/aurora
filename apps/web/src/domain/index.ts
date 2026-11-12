@@ -11,6 +11,7 @@ export * from "./invoice";
 export * from "./payment";
 export * from "./simulator";
 export * from "./report";
+export * from "./scenarios";
 export * from "./summary";
 export * from "./transactions";
 export * from "./types";

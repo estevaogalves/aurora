@@ -228,7 +228,7 @@ export interface ProjectionLine {
   /** centavos */
   amount: number;
   /** de onde vem a linha: fixa do mês, parcela do crédito ou despesa extra planejada */
-  kind: "fixed" | "credit" | "extra" | "adjustment";
+  kind: "fixed" | "credit" | "extra" | "adjustment" | "estimate";
 }
 
 /** Os lançamentos que formam uma categoria nas despesas do mês (soma igual a `byCategory[category]` de `getMonthSummary`). */
@@ -255,16 +255,26 @@ export function getCategoryDetail(
   return lines.sort((a, b) => b.amount - a.amount);
 }
 
+/** Renda variável estimada (cenário) que a Projeção soma nos meses depois de `after`. */
+export interface ProjectionEstimate {
+  /** centavos por mês */
+  perMonth: number;
+  /** último mês que NÃO recebe estimativa (o mês atual de verdade) */
+  after: Month;
+}
+
 /** O que compõe a renda e a despesa projetadas de um mês, linha a linha (soma igual à de `getProjection`). */
 export function getProjectionDetail(
   data: Pick<FinanceData, "transactions" | "creditTransactions"> & Partial<Pick<FinanceData, "creditCards">>,
   extras: ExtraExpense[],
   month: Month,
+  estimate?: ProjectionEstimate,
 ): { incomes: ProjectionLine[]; expenses: ProjectionLine[] } {
   const fixed = getTransactionsByMonth(data.transactions, month).filter((t) => t.fixed);
   const line = (t: Transaction): ProjectionLine => ({ name: t.name, amount: t.amount, kind: "fixed" });
+  const estimated = estimate && estimate.perMonth > 0 && compareMonths(month, estimate.after) > 0 ? [{ name: "Renda variável estimada", amount: estimate.perMonth, kind: "estimate" as const }] : [];
   return {
-    incomes: fixed.filter((t) => t.type === "income").map(line),
+    incomes: [...fixed.filter((t) => t.type === "income").map(line), ...estimated],
     expenses: [
       ...fixed.filter((t) => t.type === "expense").map(line),
       ...getCreditByMonth(resolveCredits(data.creditTransactions, data.creditCards), month).map((c): ProjectionLine => ({ name: c.recurring ? `${c.name} (recorrente)` : `${c.name} (${c.currentInstallment}/${c.installments}${c.advanced ? ", adiantada" : ""})`, amount: c.installmentValue, kind: "credit" })),
@@ -283,6 +293,7 @@ export function getProjection(
   extras: ExtraExpense[],
   startMonth: Month,
   count: number,
+  estimate?: ProjectionEstimate,
 ): ProjectionMonth[] {
   const result: ProjectionMonth[] = [];
   let accumulated = 0;
@@ -291,7 +302,9 @@ export function getProjection(
   for (let i = 0; i < count; i++) {
     const month = changeMonth(startMonth, i);
 
-    const income = fixedTotal(data.transactions, month, "income");
+    // cenário: a renda variável estimada entra só em meses depois de `estimate.after` (o mês atual); nunca em mês passado
+    const variable = estimate && compareMonths(month, estimate.after) > 0 ? estimate.perMonth : 0;
+    const income = fixedTotal(data.transactions, month, "income") + variable;
     const fixedExpense = fixedTotal(data.transactions, month, "expense");
     const creditExpense = getCreditTotalByMonth(resolveCredits(data.creditTransactions, data.creditCards), month);
     const extraExpense = plannedExtras

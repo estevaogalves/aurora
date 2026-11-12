@@ -69,6 +69,22 @@
       "category": "Moradia",
       "month": "2026-11",
       "dueDay": 20
+    },
+    {
+      "id": "bonus10",
+      "name": "Freela",
+      "amount": 150000,
+      "type": "income",
+      "category": "Renda",
+      "month": "2026-10"
+    },
+    {
+      "id": "bonus11",
+      "name": "Bônus",
+      "amount": 100000,
+      "type": "income",
+      "category": "Renda",
+      "month": "2026-11"
     }
   ],
   "creditTransactions": [],
