@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import HoursHint from "@/components/shared/HoursHint";
 import { Pill } from "@/components/shared/Panel";
 import { formatBRL } from "@/lib/money";
 import type { Category } from "@/Types/Category";
@@ -13,6 +14,7 @@ export function Row({
   amountClass = "",
   actions,
   below,
+  hoursOf,
 }: {
   color: string;
   name: ReactNode;
@@ -21,6 +23,8 @@ export function Row({
   amountClass?: string;
   actions?: ReactNode;
   below?: ReactNode;
+  /** valor da despesa (centavos) para mostrar "≈ X h de trabalho" embaixo, se o usuário ligar essa opção */
+  hoursOf?: number;
 }) {
   return (
     <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border py-[11px] first:border-t-0 first:pt-0">
@@ -31,7 +35,10 @@ export function Row({
         {below}
       </div>
       <div className="flex items-center gap-2">
-        <span className={`num text-right font-bold ${amountClass}`}>{amount}</span>
+        <span className={`num text-right font-bold ${amountClass}`}>
+          {amount}
+          {hoursOf !== undefined && <HoursHint cents={hoursOf} />}
+        </span>
         {actions}
       </div>
     </div>
@@ -78,6 +85,7 @@ export function ExpenseStaticRow({ line }: { line: ExpenseLine }) {
         </>
       }
       amount={formatBRL(line.amount)}
+      hoursOf={line.amount}
       below={line.progress && <ProgressMini {...line.progress} />}
     />
   );

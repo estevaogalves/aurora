@@ -4,9 +4,12 @@ import ChartDonut, { type DonutSlice } from "@/components/charts/ChartDonut";
 import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
+import { btnClass } from "@/components/shared/styles";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
+import { breathingDays, freedomDay, reserveTotal, DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
+import HoursHint from "@/components/shared/HoursHint";
 import { formatBRL, formatBRLShort } from "@/lib/money";
+import { usePrefsStore } from "@/lib/preferences";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { useCategoryTotals, useDistributionItemsFor, useMonthCredit, useMonthDistributions, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution } from "@/Store/selectors";
@@ -20,6 +23,7 @@ import SendDistributionDialog, { type SendRequest } from "./SendDistributionDial
 import UndoSendDialog, { type UndoRequest } from "./UndoSendDialog";
 import { showToast } from "../Warnings/toast";
 import { PAINEL_TOUR } from "./tour";
+import TimeSettings from "./TimeSettings";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
 const sliceColor = (items: { id: string }[], id: string) => `hsl(var(--k${(items.findIndex((i) => i.id === id) % 9) + 1}))`;
@@ -50,6 +54,7 @@ function Hero() {
           <div key={label} className="min-w-0 rounded-md bg-background/40 px-3 py-2.5">
             <small className="block text-[11.5px] uppercase tracking-[0.06em] text-muted-foreground">{label}</small>
             <b className="num block truncate text-base">{formatBRLShort(value as number)}</b>
+            {label === "Despesas" && <HoursHint cents={value as number} />}
           </div>
         ))}
       </div>
@@ -453,13 +458,52 @@ function GoalDeadlines() {
   );
 }
 
+/** Dias de fôlego: quanto tempo a reserva sustenta a despesa média diária do mês. Só aparece se o usuário ligar e tiver reserva. */
+function Breathing() {
+  const show = usePrefsStore((s) => s.showBreathing);
+  const goals = useFinanceStore((s) => s.goals);
+  const investments = useFinanceStore((s) => s.investments);
+  const month = useFinanceStore((s) => s.currentMonth);
+  const { totalIncome, totalExpense } = useMonthSummary();
+  const monthTransactions = useMonthTransactions();
+  if (!show) return null;
+
+  const reserve = reserveTotal(goals, investments);
+  const [y, m] = month.split("-").map(Number);
+  const days = new Date(y, m, 0).getDate();
+  const result = breathingDays(reserve, totalExpense, days);
+  if (result === null) return null;
+  const fixed = monthTransactions.filter((t) => t.type === "expense" && t.fixed).reduce((sum, t) => sum + t.amount, 0);
+  const free = freedomDay(totalIncome, fixed, days);
+
+  return (
+    <Panel title="Dias de fôlego" subtitle="Quanto tempo a sua reserva sustenta">
+      <p className="font-display text-[28px] font-semibold leading-tight">{result} {result === 1 ? "dia" : "dias"}</p>
+      <p className="mt-1 text-[13px] text-muted-foreground">
+        Reserva de {formatBRL(reserve)} (metas com “reserva” ou “emergência” no nome e investimentos de liquidez diária) ÷ despesa média de {formatBRL(Math.round(totalExpense / days))} por dia.
+      </p>
+      {free !== null && <p className="mt-2 text-[13px] text-ink2">Dia da liberdade de gastos: a partir do dia <b>{free}</b> a renda do mês cobre as despesas fixas.</p>}
+    </Panel>
+  );
+}
+
 /** Painel: só leitura, com um atalho de escrita (enviar uma fatia da sugestão do saldo para metas, porquinhos e investimentos). Tudo o que se edita fica em Lançamentos. */
 export default function Painel() {
   const month = useFinanceStore((s) => s.currentMonth);
+  const [timeOpen, setTimeOpen] = useState(false);
+  const showHours = usePrefsStore((s) => s.showHours);
 
   return (
     <>
-      <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui é só leitura (exceto enviar o saldo para as metas); cadastre pelo botão “Lançar”.`} />
+      <PageHeader tour={PAINEL_TOUR} title="Painel" subtitle={`${formatMonthTitle(month)}. Aqui é só leitura (exceto enviar o saldo para as metas); cadastre pelo botão “Lançar”.`}
+        action={
+          <button type="button" data-tour="tempo" onClick={() => setTimeOpen(true)} aria-pressed={showHours} className={`${btnClass.base} ${btnClass.sm} ${showHours ? "!border-primary !text-primary" : ""}`}>
+            <Icon name="clock" size={14} />
+            Tempo e fôlego
+          </button>
+        }
+      />
+      <TimeSettings open={timeOpen} onClose={() => setTimeOpen(false)} />
       <GoalDeadlines />
       <div className="grid grid-cols-12 items-stretch gap-3.5 [&>div>*]:h-full">
         <div className="col-span-12 lg:col-span-4"><Hero /></div>
@@ -469,6 +513,7 @@ export default function Painel() {
         <div className="col-span-12 lg:col-span-4"><GoalsMini /></div>
         <div className="col-span-12 lg:col-span-8"><RecentExpenses /></div>
         <div className="col-span-12 lg:col-span-4"><NotesReadOnly /></div>
+        <Breathing />
       </div>
     </>
   );

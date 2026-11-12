@@ -123,6 +123,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
       }
       amount={formatBRL(t.amount)}
       amountClass={income ? "text-success" : ""}
+      hoursOf={income ? undefined : t.amount}
       below={note.text}
       actions={<>{note.button}{menu}</>}
     />
@@ -145,6 +146,7 @@ function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraE
       }
       below={note.text}
       amount={formatBRL(e.amount)}
+      hoursOf={e.amount}
       actions={
         <>
           {note.button}
@@ -341,6 +343,7 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, 
           </>
         }
         amount={formatBRL(c.installmentValue)}
+        hoursOf={c.installmentValue}
         actions={<RowMenu label={c.name} onEdit={onEdit} onDelete={onDelete} onCancelRecurrence={credit && !ending ? onCancelRecurrence : undefined} />}
       />
     );
@@ -370,6 +373,7 @@ function InstallmentRow({ c, credit, month, today, onEdit, onDelete, onAdvance, 
       }
       below={<ProgressMini value={c.currentInstallment} max={c.installments} />}
       amount={formatBRL(c.installmentValue)}
+        hoursOf={c.installmentValue}
       actions={<RowMenu label={c.name} onEdit={onEdit} onDelete={onDelete} onAdvance={canAdvance ? onAdvance : undefined} />}
     />
   );
