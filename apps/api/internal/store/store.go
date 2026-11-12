@@ -240,6 +240,12 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 		}
 	}
 
+	receipts, err := s.ListReceipts(ctx, userID)
+	if err != nil {
+		return d, err
+	}
+	d.Receipts = receipts
+
 	d.Normalize()
 	return d, nil
 }

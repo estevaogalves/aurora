@@ -144,6 +144,8 @@ type FinanceData struct {
 	Debts          []Debt                  `json:"debts"`
 	Closings       map[string]MonthClosing `json:"closings"`
 	DividendAssets []DividendAsset         `json:"dividendAssets"`
+	// Receipts: dados dos comprovantes anexados (sem o conteúdo). O conteúdo sai por GET /receipts/{id}.
+	Receipts []ReceiptMeta `json:"receipts"`
 	// Resposta ao tour de cada tela: "done" (viu até o fim) ou "dismissed" (recusou, fechou ou pulou).
 	Onboarding map[string]string `json:"onboarding"`
 }
@@ -188,6 +190,9 @@ func (d *FinanceData) Normalize() {
 	}
 	if d.Onboarding == nil {
 		d.Onboarding = map[string]string{}
+	}
+	if d.Receipts == nil {
+		d.Receipts = []ReceiptMeta{}
 	}
 	p := Planning{Budgets: d.Budgets, Debts: d.Debts, Closings: d.Closings, DividendAssets: d.DividendAssets}
 	p.Normalize()

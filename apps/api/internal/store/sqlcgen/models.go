@@ -168,6 +168,17 @@ type Transaction struct {
 	Tags           []byte
 }
 
+type TransactionReceipt struct {
+	ID            uuid.UUID
+	UserID        uuid.UUID
+	TransactionID uuid.UUID
+	Name          string
+	Mime          string
+	SizeBytes     int32
+	Data          []byte
+	CreatedAt     pgtype.Timestamptz
+}
+
 type User struct {
 	ID           uuid.UUID
 	Email        string

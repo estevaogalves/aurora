@@ -141,6 +141,11 @@ func (s *Server) Router() http.Handler {
 				r.Delete("/{id}", s.deleteTransaction)
 				r.Put("/{id}/payments/{month}", s.setTransactionPayment)
 				r.Delete("/{id}/payments/{month}", s.clearTransactionPayment)
+				r.Post("/{id}/receipts", s.createReceipt)
+			})
+			r.Route("/receipts", func(r chi.Router) {
+				r.Get("/{id}", s.getReceipt)
+				r.Delete("/{id}", s.deleteReceipt)
 			})
 			r.Route("/credits", func(r chi.Router) {
 				r.Post("/", s.createCredit)
