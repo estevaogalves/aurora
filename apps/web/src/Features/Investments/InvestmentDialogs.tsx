@@ -4,6 +4,8 @@ import OriginBadge from "@/components/shared/OriginBadge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  BUSINESS_MOVEMENT_DONE,
+  BUSINESS_MOVEMENT_TYPES,
   FAMILY_LABEL,
   MAX_CENTS,
   MOVEMENT_DONE,
@@ -11,6 +13,8 @@ import {
   PRODUCT_SUGGESTIONS,
   formatDateBR,
   getFields,
+  isBusiness,
+  movementLabel,
   namePlaceholder,
   ratePlaceholder,
   sortMovements,
@@ -39,7 +43,7 @@ function FormMessage({ children, tone = "error" }: { children: React.ReactNode; 
   );
 }
 
-const NEGATIVE_MSG = "Não use sinal negativo. Para tirar dinheiro, escolha Resgate.";
+const NEGATIVE_MSG = "Não use sinal negativo. Para tirar dinheiro, escolha Resgate (ou Saque, no negócio próprio).";
 const NEGATIVE_MSG_FORM = "Não use sinal negativo: apague o \"-\" do campo.";
 
 /**
@@ -81,7 +85,7 @@ export function InvestmentDialog({ open, investment, onClose }: { open: boolean;
         <DialogHeader>
           <DialogTitle>{investment ? "Editar investimento" : "Novo investimento"}</DialogTitle>
           <DialogDescription>
-            {investment ? "Ajuste os dados. Para mudar o valor, use Movimentar." : "Registro manual, sem ligação com o banco ou a corretora. O valor atual você atualiza depois, em Movimentar."}
+            {investment ? "Ajuste os dados. Para mudar o valor, use Movimentar." : "Registro manual, sem ligação com o banco ou a corretora. O valor atual você atualiza depois, em Movimentar. Para vendas e revenda, escolha “Negócio próprio”."}
           </DialogDescription>
         </DialogHeader>
         {open && <InvestmentFields key={investment?.id ?? "new"} investment={investment} onClose={onClose} />}
@@ -129,6 +133,7 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
 
   const [family, product] = typeKey.split("|") as [InvestmentFamily, string];
   const f = getFields(family, product);
+  const business = family === "business";
   // ação, FII e ETF: o valor investido é cotas × preço, então o cadastro pede cotas e preço
   const byQuantity = !investment && family === "equity";
   const qty = parseQuantity(quantity);
@@ -144,14 +149,14 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
     if (negative) return;
     const trimmed = name.trim();
     if (!trimmed) return setError("Dê um nome ao investimento.");
-    if (!institution.trim()) return setError("Informe o banco, a corretora ou a plataforma.");
+    if (!business && !institution.trim()) return setError("Informe o banco, a corretora ou a plataforma.");
     if (!appliedAt) return setError("Informe a data da aplicação.");
     if (maturityDate && f.maturity && maturityDate < appliedAt) return setError(`O vencimento (${formatDateBR(maturityDate)}) não pode ser anterior à aplicação (${formatDateBR(appliedAt)}).`);
     if (graceUntil && f.liquidity && graceUntil < appliedAt) return setError("A carência não pode terminar antes da aplicação.");
     if (!investment) {
       if (byQuantity && !qty) return setError("Informe a quantidade de cotas, maior que zero.");
       if (byQuantity && !price) return setError("Informe o preço por cota, maior que zero.");
-      if (investedCents <= 0) return setError("Informe o valor investido, maior que zero.");
+      if (investedCents <= 0) return setError(business ? "Informe quanto você investiu, maior que zero." : "Informe o valor investido, maior que zero.");
       if (investedCents > MAX_CENTS) return setError(`O valor investido passa do limite de ${MAX_LABEL}.`);
     }
     if (f.quantity && quantity.trim() && !qty) return setError("A quantidade precisa ser um número maior que zero.");
@@ -161,7 +166,7 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
       name: trimmed,
       family,
       product,
-      institution: institution.trim(),
+      institution: business ? institution.trim() || "Negócio próprio" : institution.trim(),
       appliedAt,
       maturityDate: f.maturity && maturityDate ? maturityDate : undefined,
       indexer: family === "treasury" ? treasuryIndexer(product) : f.indexer && indexer.trim() ? indexer.trim() : undefined,
@@ -171,7 +176,7 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
       earlyRedeem: f.liquidity && earlyRedeem ? true : undefined,
       redeemDays: f.redeemDays && redeemDays.trim() ? Number(redeemDays) : undefined,
       ticker: f.ticker && ticker.trim() ? ticker.trim() : undefined,
-      fees: fees.trim() || undefined,
+      fees: !business && fees.trim() ? fees.trim() : undefined,
       notes: notes.trim() || undefined,
     };
 
@@ -185,10 +190,11 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
       const unitPrice = qty ? (price ?? Math.round(investedCents / qty)) : undefined;
       // o valor atual começa igual ao investido; depois se atualiza em Movimentar
       addInvestment(
-        { id: uuid(), currentValue: investedCents, ...shared, quantity: f.quantity ? qty : undefined, avgPrice: f.quantity ? unitPrice : undefined },
+        // no negócio, o valor atual é o saldo a sacar: começa em zero, o investimento não entra nele
+        { id: uuid(), currentValue: business ? 0 : investedCents, ...shared, quantity: f.quantity ? qty : undefined, avgPrice: f.quantity ? unitPrice : undefined },
         { amount: investedCents, ...(f.quantity && qty ? { quantity: qty, unitPrice } : {}) },
       );
-      showToast({ type: "success", text: `Investimento "${trimmed}" registrado` });
+      showToast({ type: "success", text: `${business ? "Negócio" : "Investimento"} "${trimmed}" registrado` });
     }
     onClose();
   }
@@ -211,9 +217,11 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
         <input id="inv-name" autoFocus={canAutoFocus()} value={name} onChange={(e) => setName(e.target.value)} placeholder={namePlaceholder(product)} className={inputClass} />
       </Field>
 
-      <Field label="Banco, corretora ou plataforma" htmlFor="inv-institution">
-        <input id="inv-institution" value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Ex.: Banco A" className={inputClass} />
-      </Field>
+      {!business && (
+        <Field label="Banco, corretora ou plataforma" htmlFor="inv-institution">
+          <input id="inv-institution" value={institution} onChange={(e) => setInstitution(e.target.value)} placeholder="Ex.: Banco A" className={inputClass} />
+        </Field>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         {byQuantity ? (
@@ -227,12 +235,12 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
           </>
         ) : (
           !investment && (
-            <Field label="Valor investido" htmlFor="inv-invested">
+            <Field label={business ? "Primeiro investimento" : "Valor investido"} hint={business ? "(novos investimentos entram depois, em Movimentar)" : undefined} htmlFor="inv-invested">
               <MoneyInput id="inv-invested" value={invested} onChange={setInvested} keepSign placeholder="5.000,00" />
             </Field>
           )
         )}
-        <Field label="Data da aplicação" htmlFor="inv-applied">
+        <Field label={business ? "Data do investimento" : "Data da aplicação"} htmlFor="inv-applied">
           <input id="inv-applied" type="date" value={appliedAt} onChange={(e) => setAppliedAt(e.target.value)} className={inputClass} />
         </Field>
         {f.maturity && (
@@ -310,9 +318,9 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
           {f.quantity && derivedQty && (
             <p className="text-[12.5px] text-muted-foreground">As cotas e o preço médio são calculados pelas movimentações. Para mudar, registre ou edite um aporte ou resgate.</p>
           )}
-          <Field label="Taxas e imposto" htmlFor="inv-fees">
+          {!business && <Field label="Taxas e imposto" htmlFor="inv-fees">
             <input id="inv-fees" value={fees} onChange={(e) => setFees(e.target.value)} placeholder="Ex.: IR regressivo, taxa de adm. 0,5%" className={inputClass} />
-          </Field>
+          </Field>}
           <Field label="Observações" htmlFor="inv-notes">
             <input id="inv-notes" value={notes} onChange={(e) => setNotes(e.target.value)} className={inputClass} />
           </Field>
@@ -335,7 +343,7 @@ export function MovementDialog({ investment, movement, open, onClose }: { invest
       <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>{movement ? "Editar movimentação" : "Movimentar"} “{investment?.name}”</DialogTitle>
-          <DialogDescription>Valor atual: {investment ? formatBRL(investment.currentValue) : ""}.</DialogDescription>
+          <DialogDescription>{investment && isBusiness(investment) ? "Saldo a sacar" : "Valor atual"}: {investment ? formatBRL(investment.currentValue) : ""}.</DialogDescription>
         </DialogHeader>
         {investment && <MovementFields key={movement?.id ?? investment.id} investment={investment} movement={movement ?? null} onClose={onClose} />}
       </DialogContent>
@@ -348,12 +356,20 @@ const MOVEMENT_HINT: Record<InvestmentMovementType, string> = {
   redemption: "Dinheiro retirado (total ou parcial).",
   yield: "Ganho que se soma ao valor atual, sem ser aporte.",
   adjustment: "Informe quanto o investimento vale hoje; o lucro é recalculado.",
+  income: "Dinheiro que entrou das vendas.",
+};
+
+const BUSINESS_HINT: Partial<Record<InvestmentMovementType, string>> = {
+  contribution: "Dinheiro que você colocou no negócio (compra de mercadoria, material, etc.). Pode registrar quantas vezes precisar.",
+  income: "Dinheiro que entrou das vendas. Soma ao saldo que você ainda pode sacar.",
+  redemption: "Dinheiro que você tirou do negócio para você. Sai do saldo a sacar.",
 };
 
 function MovementFields({ investment, movement, onClose }: { investment: Investment; movement: InvestmentMovement | null; onClose: () => void }) {
   const addMovement = useFinanceStore((s) => s.addInvestmentMovement);
   const updateMovement = useFinanceStore((s) => s.updateInvestmentMovement);
   const [type, setType] = useState<InvestmentMovementType>(movement?.type ?? "contribution");
+  const typeKeys: InvestmentMovementType[] = isBusiness(investment) ? [...BUSINESS_MOVEMENT_TYPES] : ["contribution", "redemption", "yield", "adjustment"];
   const [amount, setAmount] = useState(movement ? centsToInput(movement.amount) : "");
   const [quantity, setQuantity] = useState(movement?.quantity ? qtyText(movement.quantity) : "");
   const [price, setPrice] = useState(movement?.unitPrice ? centsToInput(movement.unitPrice) : "");
@@ -364,10 +380,11 @@ function MovementFields({ investment, movement, onClose }: { investment: Investm
   const negative = [amount, quantity, price].some((v) => v.includes("-"));
 
   // ação, FII, ETF e investimentos que controlam cotas: aporte e resgate pedem quantidade e preço
-  const trackQty = investment.family === "equity" || investment.quantity != null;
+  const trackQty = !isBusiness(investment) && (investment.family === "equity" || investment.quantity != null);
   const byQuantity = trackQty && (type === "contribution" || type === "redemption");
   const qty = parseQuantity(quantity);
   const unit = parseBRL(price);
+  const business = isBusiness(investment);
   const total = byQuantity ? (qty && unit ? Math.round(qty * unit) : 0) : (parseBRL(amount) ?? 0);
 
   function submit(e: React.FormEvent) {
@@ -385,20 +402,22 @@ function MovementFields({ investment, movement, onClose }: { investment: Investm
       return setError("O valor precisa ser maior que zero.");
     }
     if (total > MAX_CENTS) return setError(`O valor passa do limite de ${MAX_LABEL}.`);
-    if (type === "redemption" && !movement && total > investment.currentValue) return setError(`O resgate (${formatBRL(total)}) é maior que o valor atual (${formatBRL(investment.currentValue)}).`);
+    if (type === "redemption" && !movement && total > investment.currentValue) {
+      return setError(business ? `O saque (${formatBRL(total)}) é maior que o saldo a sacar (${formatBRL(investment.currentValue)}).` : `O resgate (${formatBRL(total)}) é maior que o valor atual (${formatBRL(investment.currentValue)}).`);
+    }
 
     const fields = { type, date, amount: total, quantity: byQuantity ? qty : undefined, unitPrice: byQuantity ? (unit ?? undefined) : undefined, note: note.trim() || undefined };
     if (movement) updateMovement(movement.id, fields);
     else addMovement({ id: uuid(), investmentId: investment.id, ...fields });
-    showToast({ type: "success", text: `${MOVEMENT_DONE[type]} em "${investment.name}"` });
+    showToast({ type: "success", text: `${business && type in BUSINESS_MOVEMENT_DONE ? BUSINESS_MOVEMENT_DONE[type as keyof typeof BUSINESS_MOVEMENT_DONE] : MOVEMENT_DONE[type]} em "${investment.name}"` });
     onClose();
   }
 
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
-      <Field label="O que aconteceu" htmlFor="mov-type" hint={MOVEMENT_HINT[type]}>
+      <Field label="O que aconteceu" htmlFor="mov-type" hint={(business ? BUSINESS_HINT[type] : undefined) ?? MOVEMENT_HINT[type]}>
         <select id="mov-type" value={type} onChange={(e) => setType(e.target.value as InvestmentMovementType)} className={inputClass}>
-          {(Object.keys(MOVEMENT_LABEL) as InvestmentMovementType[]).map((k) => <option key={k} value={k}>{MOVEMENT_LABEL[k]}</option>)}
+          {typeKeys.map((k) => <option key={k} value={k}>{movementLabel(investment, k)}</option>)}
         </select>
       </Field>
       {byQuantity ? (
@@ -432,7 +451,7 @@ function MovementFields({ investment, movement, onClose }: { investment: Investm
         <input id="mov-date" type="date" min={investment.appliedAt} value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
       </Field>
       <Field label="Observação" hint="(opcional)" htmlFor="mov-note">
-        <input id="mov-note" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder="Ex.: sobra do mês" className={inputClass} />
+        <input id="mov-note" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} placeholder={business ? "Ex.: venda de 3 produtos" : "Ex.: sobra do mês"} className={inputClass} />
       </Field>
       <FormMessage>{negative ? NEGATIVE_MSG : error}</FormMessage>
       <div className="flex justify-end gap-2 pt-1">
@@ -455,7 +474,7 @@ export function HistoryDialog({ investment, open, onClose, onEdit }: { investmen
       <DialogContent className="max-h-[90vh] max-w-md overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Histórico de “{investment?.name}”</DialogTitle>
-          <DialogDescription>Aportes, resgates, rendimentos e atualizações de valor. Ao corrigir ou excluir, o valor atual é recalculado.</DialogDescription>
+          <DialogDescription>{investment && isBusiness(investment) ? "Investimentos, recebimentos e saques. Ao corrigir ou excluir, o saldo a sacar é recalculado." : "Aportes, resgates, rendimentos e atualizações de valor. Ao corrigir ou excluir, o valor atual é recalculado."}</DialogDescription>
         </DialogHeader>
         {list.length === 0 ? (
           <p className="text-[13px] text-muted-foreground">Nenhuma movimentação registrada.</p>
@@ -465,7 +484,7 @@ export function HistoryDialog({ investment, open, onClose, onEdit }: { investmen
               <li key={m.id} className="flex flex-col gap-1.5 py-2.5 text-[13px]">
                 <div className="flex items-baseline justify-between gap-3">
                   <span>
-                    <b>{MOVEMENT_LABEL[m.type]}</b>
+                    <b>{investment ? movementLabel(investment, m.type) : MOVEMENT_LABEL[m.type]}</b>
                     <span className="text-muted-foreground"> · {formatDateBR(m.date)}</span>
                   </span>
                   <span className={`num font-semibold ${m.type === "redemption" ? "text-destructive" : ""}`}>

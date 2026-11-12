@@ -216,8 +216,11 @@ export interface GoalMovement {
   origin?: string;
 }
 
-/** Família de investimento: define quais campos o cadastro pede. */
-export type InvestmentFamily = "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other";
+/**
+ * Família de investimento: define quais campos o cadastro pede. "business" é o negócio próprio (revenda, por
+ * exemplo): aporte = dinheiro investido, recebimento = venda que entrou, resgate = saque feito para você.
+ */
+export type InvestmentFamily = "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other" | "business";
 
 /** Investimento registrado à mão. Valores em centavos; datas "YYYY-MM-DD". Não entra em receitas, despesas nem saldo. */
 export interface Investment {
@@ -260,8 +263,10 @@ export interface Investment {
  * aporte e resgate mexem no dinheiro que entra e sai do investimento;
  * rendimento soma ao valor atual sem ser aporte;
  * ajuste define o novo valor atual (`amount` é o valor, não a diferença).
+ * Só no negócio próprio: aporte é o investimento feito (não mexe no valor atual), "income" é o dinheiro recebido
+ * das vendas (entra no saldo a sacar) e resgate é o saque (sai desse saldo).
  */
-export type InvestmentMovementType = "contribution" | "redemption" | "yield" | "adjustment";
+export type InvestmentMovementType = "contribution" | "redemption" | "yield" | "adjustment" | "income";
 
 export interface InvestmentMovement {
   id: string;

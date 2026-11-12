@@ -1,4 +1,4 @@
-import type { Investment, InvestmentFamily, InvestmentMovement } from "./types";
+import type { Investment, InvestmentFamily, InvestmentMovement, InvestmentMovementType } from "./types";
 
 export const FAMILY_LABEL: Record<InvestmentFamily, string> = {
   fixed: "Renda fixa",
@@ -7,15 +7,21 @@ export const FAMILY_LABEL: Record<InvestmentFamily, string> = {
   equity: "Ações, FIIs e ETFs",
   fund: "Fundos",
   other: "Outros",
+  business: "Negócio próprio",
 };
+
+/** Negócio próprio (revenda etc.): tem regras e vocabulário à parte do investimento financeiro. */
+export const isBusiness = (inv: Pick<Investment, "family">) => inv.family === "business";
 
 /** Totais de um investimento, calculados a partir das movimentações. */
 export interface InvestmentTotals {
-  /** soma dos aportes (centavos) */
+  /** soma dos aportes (centavos); no negócio, o que foi investido */
   contributed: number;
-  /** soma dos resgates (centavos) */
+  /** soma dos resgates (centavos); no negócio, o que já foi sacado */
   redeemed: number;
-  /** lucro (ou prejuízo): valor atual + resgates − aportes */
+  /** negócio: soma dos recebimentos (vendas) */
+  received: number;
+  /** lucro (ou prejuízo): valor atual + resgates − aportes; no negócio, recebido − investido */
   profit: number;
   /** lucro ÷ aportes, ou null se nunca houve aporte */
   returnRate: number | null;
@@ -24,13 +30,15 @@ export interface InvestmentTotals {
 export function getInvestmentTotals(inv: Investment, movements: InvestmentMovement[]): InvestmentTotals {
   let contributed = 0;
   let redeemed = 0;
+  let received = 0;
   for (const m of movements) {
     if (m.investmentId !== inv.id) continue;
     if (m.type === "contribution") contributed += m.amount;
     else if (m.type === "redemption") redeemed += m.amount;
+    else if (m.type === "income") received += m.amount;
   }
-  const profit = inv.currentValue + redeemed - contributed;
-  return { contributed, redeemed, profit, returnRate: contributed > 0 ? profit / contributed : null };
+  const profit = isBusiness(inv) ? received - contributed : inv.currentValue + redeemed - contributed;
+  return { contributed, redeemed, received, profit, returnRate: contributed > 0 ? profit / contributed : null };
 }
 
 /** Movimentações de um investimento em ordem cronológica (mesma data: a registrada primeiro vem antes). */
@@ -49,7 +57,14 @@ export function replayInvestment(inv: Investment, movements: InvestmentMovement[
   let cost = 0;
   let hasQty = false;
 
+  const business = isBusiness(inv);
   for (const m of own) {
+    if (business) {
+      // negócio: o valor atual é o saldo a sacar (recebido − sacado); o investimento em si não entra nele
+      if (m.type === "income") value += m.amount;
+      else if (m.type === "redemption") value = Math.max(0, value - m.amount);
+      continue;
+    }
     if (m.type === "contribution") {
       value += m.amount;
       if (m.quantity) {
@@ -67,7 +82,7 @@ export function replayInvestment(inv: Investment, movements: InvestmentMovement[
       }
     } else if (m.type === "yield") {
       value += m.amount;
-    } else {
+    } else if (m.type === "adjustment") {
       value = m.amount;
     }
   }
@@ -111,6 +126,7 @@ export function getPortfolioSummary(investments: Investment[], movements: Invest
   let profit = 0;
 
   for (const inv of investments) {
+    if (isBusiness(inv)) continue; // negócio próprio tem resumo à parte (getBusinessSummary)
     const t = getInvestmentTotals(inv, movements);
     netWorth += inv.currentValue;
     contributed += t.contributed;
@@ -131,6 +147,36 @@ export function getPortfolioSummary(investments: Investment[], movements: Invest
     byFamily: toSortedList(family),
     byInstitution: toSortedList(institution),
   };
+}
+
+export interface BusinessSummary {
+  count: number;
+  invested: number;
+  received: number;
+  withdrawn: number;
+  /** recebido − sacado: o que ainda dá para sacar */
+  available: number;
+  /** recebido − investido: lucro (ou prejuízo) */
+  profit: number;
+  returnRate: number | null;
+}
+
+/** Resumo de todos os negócios próprios juntos. */
+export function getBusinessSummary(investments: Investment[], movements: InvestmentMovement[]): BusinessSummary {
+  let invested = 0;
+  let received = 0;
+  let withdrawn = 0;
+  let count = 0;
+  for (const inv of investments) {
+    if (!isBusiness(inv)) continue;
+    count++;
+    const t = getInvestmentTotals(inv, movements);
+    invested += t.contributed;
+    received += t.received;
+    withdrawn += t.redeemed;
+  }
+  const profit = received - invested;
+  return { count, invested, received, withdrawn, available: Math.max(0, received - withdrawn), profit, returnRate: invested > 0 ? profit / invested : null };
 }
 
 const DAY_MS = 86_400_000;
@@ -213,13 +259,37 @@ export const MOVEMENT_DONE = {
   redemption: "Resgate registrado",
   yield: "Rendimento registrado",
   adjustment: "Valor atualizado",
+  income: "Recebimento registrado",
 } as const;
+
+/** Nomes das movimentações no negócio próprio. */
+export const BUSINESS_MOVEMENT_LABEL = {
+  contribution: "Investimento",
+  income: "Recebimento",
+  redemption: "Saque",
+} as const;
+
+export const BUSINESS_MOVEMENT_DONE = {
+  contribution: "Investimento registrado",
+  income: "Recebimento registrado",
+  redemption: "Saque registrado",
+} as const;
+
+/** Tipos de movimentação que o negócio próprio aceita, na ordem do select. */
+export const BUSINESS_MOVEMENT_TYPES = ["contribution", "income", "redemption"] as const;
+
+/** Rótulo da movimentação conforme o investimento (financeiro ou negócio). */
+export function movementLabel(inv: Pick<Investment, "family">, type: InvestmentMovementType): string {
+  if (isBusiness(inv) && type in BUSINESS_MOVEMENT_LABEL) return BUSINESS_MOVEMENT_LABEL[type as keyof typeof BUSINESS_MOVEMENT_LABEL];
+  return MOVEMENT_LABEL[type];
+}
 
 export const MOVEMENT_LABEL = {
   contribution: "Aporte",
   redemption: "Resgate",
   yield: "Rendimento",
   adjustment: "Atualização de valor",
+  income: "Recebimento",
 } as const;
 
 /** Os produtos mais usados de cada família, que aparecem no select de tipo. */
@@ -230,6 +300,7 @@ export const PRODUCT_SUGGESTIONS: Record<InvestmentFamily, string[]> = {
   equity: ["Ação", "FII", "ETF"],
   fund: ["Fundo de renda fixa", "Fundo multimercado", "Fundo de ações"],
   other: ["Criptomoeda", "Outro"],
+  business: ["Revenda de produtos", "Outro negócio"],
 };
 
 export interface FamilyFields {
@@ -250,6 +321,7 @@ const FAMILY_FIELDS: Record<InvestmentFamily, FamilyFields> = {
   equity: { maturity: false, indexer: false, rate: false, liquidity: false, quantity: true, ticker: true, redeemDays: false },
   fund: { maturity: false, indexer: false, rate: false, liquidity: false, quantity: true, ticker: true, redeemDays: true },
   other: { maturity: true, indexer: false, rate: false, liquidity: false, quantity: true, ticker: true, redeemDays: false },
+  business: { maturity: false, indexer: false, rate: false, liquidity: false, quantity: false, ticker: false, redeemDays: false },
 };
 
 /** Quais campos o cadastro mostra para o tipo escolhido. A poupança tem regra própria: sem taxa nem indexador. */
@@ -277,6 +349,8 @@ const NAME_PLACEHOLDER: Record<string, string> = {
   FII: "HGLG11",
   ETF: "IVVB11",
   Criptomoeda: "Bitcoin",
+  "Revenda de produtos": "Revenda de cosméticos",
+  "Outro negócio": "Meu negócio",
 };
 
 export const namePlaceholder = (product?: string) => `Ex.: ${(product && NAME_PLACEHOLDER[product]) || "Nome do investimento"}`;

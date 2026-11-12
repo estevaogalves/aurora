@@ -2505,10 +2505,10 @@ export interface components {
             limit?: components["schemas"]["Cents"];
         };
         /**
-         * @description Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos e outros.
+         * @description Renda fixa, Tesouro, liquidez diária, ações/FIIs/ETFs, fundos, outros e negócio próprio (`business`).
          * @enum {string}
          */
-        InvestmentFamily: "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other";
+        InvestmentFamily: "fixed" | "treasury" | "liquid" | "equity" | "fund" | "other" | "business";
         Investment: {
             /** Format: uuid */
             id?: string;
@@ -2576,7 +2576,7 @@ export interface components {
          *     soma ao valor atual sem ser aporte; `adjustment` (atualização de valor) define o novo valor atual.
          * @enum {string}
          */
-        InvestmentMovementType: "contribution" | "redemption" | "yield" | "adjustment";
+        InvestmentMovementType: "contribution" | "redemption" | "yield" | "adjustment" | "income";
         InvestmentMovement: {
             /** Format: uuid */
             id?: string;

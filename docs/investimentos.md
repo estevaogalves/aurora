@@ -248,3 +248,15 @@ O PDF não continua mais uma informação na página seguinte. Cada seção abre
 5. **Faturas dos cartões**: cada fatura inteira (título, total e gastos), várias por página.
 
 Se um bloco não cabe no espaço que sobra, ele vai para a página seguinte. Se ainda for maior que uma página, a letra é reduzida até caber. Só quando nem isso resolve (mais de ~60 linhas num único mês) o bloco continua na página seguinte. Todas as páginas têm "Página n de N", e da segunda em diante um cabeçalho fino.
+
+## Negócio próprio (revenda e similares)
+
+Tipo "Negócio próprio" no cadastro, para acompanhar um negócio seu em vez de um investimento financeiro.
+Movimentações: **Investimento** (aporte; pode ser feito várias vezes, não entra no saldo a sacar),
+**Recebimento** (venda que entrou, tipo `income`) e **Saque** (resgate; sai do saldo a sacar).
+
+- Valor atual do card = saldo a sacar = recebido − sacado (nunca negativo).
+- Lucro = recebido − investido. Negativo = "em prejuízo" (ainda falta recuperar o investido).
+- Não entra no patrimônio, nos gráficos por tipo/instituição nem nos avisos de vencimento; tem o painel "Meus negócios".
+- Banco: migration `00019_investment_business.sql` (só afrouxa os CHECK de `family` e `type`). Na `local-sqlite`
+  é preciso uma migration 00019 equivalente em SQLite.

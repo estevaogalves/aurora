@@ -280,3 +280,26 @@ func TestInvestmentsImportAndExport(t *testing.T) {
 		t.Fatalf("exportação: %+v", exp.Data)
 	}
 }
+
+// Negócio próprio: investimentos consecutivos, recebimentos e saques. O valor atual é o saldo a sacar e o
+// lucro é recebido − investido (a migration 00019 libera a família "business" e o tipo "income").
+func TestBusinessInvestment(t *testing.T) {
+	e := setup(t)
+	tk := e.register(t, "").AccessToken
+	biz := newInvestment(t, e, tk, map[string]any{"name": "Revenda", "family": "business", "institution": "Negócio próprio", "appliedAt": "2026-01-01", "currentValue": 0})
+
+	mv := func(typ string, amount int, date string) movementResult {
+		return addMovement(t, e, tk, map[string]any{"investmentId": biz.ID, "type": typ, "date": date, "amount": amount})
+	}
+	mv("contribution", 100000, "2026-01-01")
+	if r := mv("contribution", 50000, "2026-02-01"); r.Investment.CurrentValue != 0 {
+		t.Fatalf("investimento não pode entrar no saldo a sacar: %d", r.Investment.CurrentValue)
+	}
+	mv("income", 80000, "2026-02-10")
+	if r := mv("income", 100000, "2026-03-10"); r.Investment.CurrentValue != 180000 {
+		t.Fatalf("saldo após recebimentos: %d", r.Investment.CurrentValue)
+	}
+	if r := mv("redemption", 30000, "2026-03-15"); r.Investment.CurrentValue != 150000 {
+		t.Fatalf("saldo após saque: %d", r.Investment.CurrentValue)
+	}
+}
