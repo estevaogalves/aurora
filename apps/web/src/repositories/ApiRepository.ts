@@ -26,7 +26,7 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
   return out;
 }
 
-const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "separate"] as const;
+const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "distGroup"] as const;
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
 const CARD_PATCH = ["name", "closingDay", "dueDay", "limit"] as const;
 // guardado e rendimentos não vão aqui: são refeitos pelo histórico (`/goal-movements`)
@@ -63,8 +63,8 @@ export function cardExpensePatchBody<T extends { cardId?: string }>(patch: Parti
   if ("cardId" in body && body.cardId === undefined) body.cardId = "";
   // fixa reativada: `endMonth` limpo (undefined) vira "", que tira o fim
   if ("endMonth" in body && body.endMonth === undefined) body.endMonth = "";
-  // "distribuir separado" desmarcado (undefined) vira false, que tira a marca
-  if ("separate" in body && body.separate === undefined) body.separate = false;
+  // volta para a Dist 1 (undefined) vira 0, que tira a distribuição própria; sem a chave a API entenderia "não mudou"
+  if ("distGroup" in body && body.distGroup === undefined) body.distGroup = 0;
   return body;
 }
 
@@ -115,6 +115,7 @@ export function normalizeFinanceData(raw: Partial<FinanceData>): FinanceData {
     extraExpenses: raw.extraExpenses ?? [],
     customCategories: raw.customCategories ?? [],
     distribution: raw.distribution ?? null,
+    distributionOverrides: raw.distributionOverrides ?? {},
     seenAlerts: raw.seenAlerts ?? [],
     onboarding: raw.onboarding ?? {},
   };
@@ -202,6 +203,8 @@ export class ApiRepository implements FinanceRepository {
   removeCategory = (id: string) => this.enqueue(() => api.delete(`/categories/${id}`));
 
   setDistribution = (items: DistributionItem[] | null) => this.enqueue(() => api.put("/settings/distribution", { items }));
+  setDistributionOverride = (month: string, group: number, items: DistributionItem[] | null) =>
+    this.enqueue(() => api.put(`/settings/distribution-overrides/${month}/${group}`, { items }));
   setSeenAlerts = (keys: string[]) => this.enqueue(() => api.put("/settings/seen-alerts", { keys }));
   setOnboarding = (screen: string, state: OnboardingState) =>
     this.enqueue(() => api.put(`/settings/onboarding/${encodeURIComponent(screen)}`, { state }));

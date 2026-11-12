@@ -3,6 +3,7 @@ package domain
 import (
 	"fmt"
 	"strings"
+	"time"
 )
 
 // RequiredDistributionIDs são as cinco fatias padrão, que não podem faltar.
@@ -44,4 +45,25 @@ func ValidateDistribution(items []DistributionItem) string {
 		return fmt.Sprintf("Os percentuais somam %d%%. A soma precisa ser exatamente 100%%.", total)
 	}
 	return ""
+}
+
+// MaxDistGroup é o maior número de distribuição própria (Dist 20) que uma renda pode ter.
+const MaxDistGroup = 20
+
+// ValidOverrideKey confere a chave dos percentuais próprios de uma distribuição: "AAAA-MM|n" com n de 2 a 20.
+func ValidOverrideKey(key string) bool {
+	if len(key) < 9 || key[7] != '|' {
+		return false
+	}
+	if _, err := time.Parse("2006-01", key[:7]); err != nil {
+		return false
+	}
+	n := 0
+	for _, r := range key[8:] {
+		if r < '0' || r > '9' || n > MaxDistGroup {
+			return false
+		}
+		n = n*10 + int(r-'0')
+	}
+	return n >= 2 && n <= MaxDistGroup
 }

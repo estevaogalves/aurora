@@ -27,9 +27,10 @@ type Transaction struct {
 	PurchaseDate string `json:"purchaseDate,omitempty"`
 	// EndMonth: fixa encerrada, o último mês em que vale ("2026-11" = vale até novembro). Vazio = segue valendo.
 	EndMonth string `json:"endMonth,omitempty"`
-	// Separate: renda variável "distribuir separado" (13º salário, bônus). A sugestão do saldo ganha uma fonte
-	// própria para ela. Só marca: não muda nenhum valor. Só vale para renda não fixa.
-	Separate bool `json:"separate,omitempty"`
+	// DistGroup: em qual distribuição da sugestão do saldo a renda entra. 0 (ausente) = soma ao saldo do mês (Dist 1);
+	// 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não
+	// muda nenhum valor. Só vale para renda não fixa (13º, bônus).
+	DistGroup int `json:"distGroup,omitempty"`
 }
 
 type CreditTransaction struct {
@@ -129,6 +130,9 @@ type FinanceData struct {
 	ExtraExpenses      []ExtraExpense      `json:"extraExpenses"`
 	CustomCategories   []CustomCategory    `json:"customCategories"`
 	Distribution       []DistributionItem  `json:"distribution"`
+	// DistributionOverrides: percentuais próprios de uma distribuição (Dist 2, 3...) de um mês, por chave "AAAA-MM|n".
+	// Sem a chave, vale Distribution (o padrão). A Dist 1 sempre usa o padrão.
+	DistributionOverrides map[string][]DistributionItem `json:"distributionOverrides"`
 	SeenAlerts         []string            `json:"seenAlerts"`
 	// Resposta ao tour de cada tela: "done" (viu até o fim) ou "dismissed" (recusou, fechou ou pulou).
 	Onboarding map[string]string `json:"onboarding"`
@@ -168,6 +172,9 @@ func (d *FinanceData) Normalize() {
 	}
 	if d.SeenAlerts == nil {
 		d.SeenAlerts = []string{}
+	}
+	if d.DistributionOverrides == nil {
+		d.DistributionOverrides = map[string][]DistributionItem{}
 	}
 	if d.Onboarding == nil {
 		d.Onboarding = map[string]string{}

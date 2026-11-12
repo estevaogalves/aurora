@@ -16,6 +16,7 @@ import type {
   Transaction,
 } from "../domain/types";
 import { renameCategoryIn, type CategoryPatch } from "../domain/categories";
+import { overrideKey } from "../domain/distribution";
 import { replayGoal } from "../domain/goals";
 import { patchCardAdjustments, patchCardPayment } from "../domain/invoice";
 import { patchClearPayment, patchSetPayment } from "../domain/payment";
@@ -293,6 +294,14 @@ export class LocalRepository implements FinanceRepository {
     this.persist();
   }
 
+  async setDistributionOverride(month: string, group: number, items: DistributionItem[] | null) {
+    const rest = { ...(this.data.distributionOverrides ?? {}) };
+    if (items) rest[overrideKey(month, group)] = items;
+    else delete rest[overrideKey(month, group)];
+    this.data.distributionOverrides = rest;
+    this.persist();
+  }
+
   async setDistribution(items: DistributionItem[] | null) {
     this.data.distribution = items;
     this.persist();
@@ -323,6 +332,7 @@ export class LocalRepository implements FinanceRepository {
       extraExpenses: this.data.extraExpenses,
       customCategories: this.data.customCategories,
       distribution: this.data.distribution,
+      distributionOverrides: this.data.distributionOverrides ?? {},
       seenAlerts: this.data.seenAlerts,
       onboarding: this.data.onboarding,
     };

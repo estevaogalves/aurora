@@ -88,6 +88,8 @@ export interface FinanceRepository {
 
   /** null volta ao padrão */
   setDistribution(items: DistributionItem[] | null): Promise<void>;
+  /** Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês; null volta ao padrão. */
+  setDistributionOverride(month: string, group: number, items: DistributionItem[] | null): Promise<void>;
 
   /** Lista completa dos avisos de meta marcados como vistos. */
   setSeenAlerts(keys: string[]): Promise<void>;

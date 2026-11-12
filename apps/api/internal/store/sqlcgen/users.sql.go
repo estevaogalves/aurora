@@ -12,6 +12,20 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const clearDistributionOverride = `-- name: ClearDistributionOverride :exec
+UPDATE user_settings SET distribution_overrides = distribution_overrides - $1::text WHERE user_id = $2
+`
+
+type ClearDistributionOverrideParams struct {
+	Key    string
+	UserID uuid.UUID
+}
+
+func (q *Queries) ClearDistributionOverride(ctx context.Context, arg ClearDistributionOverrideParams) error {
+	_, err := q.db.Exec(ctx, clearDistributionOverride, arg.Key, arg.UserID)
+	return err
+}
+
 const countUsers = `-- name: CountUsers :one
 SELECT count(*) FROM users
 `
@@ -120,7 +134,7 @@ func (q *Queries) GetRefreshToken(ctx context.Context, tokenHash string) (Refres
 }
 
 const getSettings = `-- name: GetSettings :one
-SELECT user_id, distribution, seen_alerts, onboarding FROM user_settings WHERE user_id = $1
+SELECT user_id, distribution, seen_alerts, onboarding, distribution_overrides FROM user_settings WHERE user_id = $1
 `
 
 func (q *Queries) GetSettings(ctx context.Context, userID uuid.UUID) (UserSetting, error) {
@@ -131,6 +145,7 @@ func (q *Queries) GetSettings(ctx context.Context, userID uuid.UUID) (UserSettin
 		&i.Distribution,
 		&i.SeenAlerts,
 		&i.Onboarding,
+		&i.DistributionOverrides,
 	)
 	return i, err
 }
@@ -289,6 +304,40 @@ type SetDistributionParams struct {
 
 func (q *Queries) SetDistribution(ctx context.Context, arg SetDistributionParams) error {
 	_, err := q.db.Exec(ctx, setDistribution, arg.UserID, arg.Distribution)
+	return err
+}
+
+const setDistributionOverride = `-- name: SetDistributionOverride :exec
+INSERT INTO user_settings (user_id, distribution_overrides)
+VALUES ($1, jsonb_build_object($2::text, $3::jsonb))
+ON CONFLICT (user_id) DO UPDATE
+SET distribution_overrides = user_settings.distribution_overrides || jsonb_build_object($2::text, $3::jsonb)
+`
+
+type SetDistributionOverrideParams struct {
+	UserID uuid.UUID
+	Key    string
+	Items  []byte
+}
+
+// Muda só a chave da distribuição, para dois dispositivos não apagarem os percentuais um do outro.
+func (q *Queries) SetDistributionOverride(ctx context.Context, arg SetDistributionOverrideParams) error {
+	_, err := q.db.Exec(ctx, setDistributionOverride, arg.UserID, arg.Key, arg.Items)
+	return err
+}
+
+const setDistributionOverrides = `-- name: SetDistributionOverrides :exec
+INSERT INTO user_settings (user_id, distribution_overrides) VALUES ($1, $2::jsonb)
+ON CONFLICT (user_id) DO UPDATE SET distribution_overrides = EXCLUDED.distribution_overrides
+`
+
+type SetDistributionOverridesParams struct {
+	UserID  uuid.UUID
+	Column2 []byte
+}
+
+func (q *Queries) SetDistributionOverrides(ctx context.Context, arg SetDistributionOverridesParams) error {
+	_, err := q.db.Exec(ctx, setDistributionOverrides, arg.UserID, arg.Column2)
 	return err
 }
 

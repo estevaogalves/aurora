@@ -163,7 +163,7 @@ type Transaction struct {
 	CardID         uuid.NullUUID
 	PurchaseDate   string
 	EndMonth       string
-	Separate       bool
+	DistGroup      int32
 }
 
 type User struct {
@@ -176,8 +176,9 @@ type User struct {
 }
 
 type UserSetting struct {
-	UserID       uuid.UUID
-	Distribution []byte
-	SeenAlerts   []string
-	Onboarding   []byte
+	UserID                uuid.UUID
+	Distribution          []byte
+	SeenAlerts            []string
+	Onboarding            []byte
+	DistributionOverrides []byte
 }

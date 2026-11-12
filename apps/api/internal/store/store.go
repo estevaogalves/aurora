@@ -221,6 +221,11 @@ func (s *Store) LoadData(ctx context.Context, userID uuid.UUID) (domain.FinanceD
 				return d, err
 			}
 		}
+		if len(settings.DistributionOverrides) > 0 {
+			if err := json.Unmarshal(settings.DistributionOverrides, &d.DistributionOverrides); err != nil {
+				return d, err
+			}
+		}
 		if len(settings.Distribution) > 0 {
 			if err := json.Unmarshal(settings.Distribution, &d.Distribution); err != nil {
 				return d, err
@@ -248,7 +253,7 @@ func transactionFrom(r sqlcgen.Transaction, ov []sqlcgen.FixedOverride) domain.T
 	t := domain.Transaction{
 		ID: r.ID.String(), Name: r.Name, Amount: r.AmountCents, Type: r.Type,
 		Category: r.Category, Notes: r.Notes, Fixed: r.Fixed, Month: r.Month, VariableAmount: r.VariableAmount,
-		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, Separate: r.Separate,
+		PurchaseDate: r.PurchaseDate, EndMonth: r.EndMonth, DistGroup: int(r.DistGroup),
 	}
 	if r.CardID.Valid {
 		t.CardID = r.CardID.UUID.String()
@@ -316,15 +321,16 @@ func checkCardState(fixed bool, typ string, cardID uuid.NullUUID, purchaseDate s
 	return nil
 }
 
-// checkSeparateState confere o resultado de uma alteração: só renda não fixa pode ser "distribuir separado".
-func checkSeparateState(fixed bool, typ string, separate bool) error {
+// checkDistGroupState confere o resultado de uma alteração: só renda não fixa pode entrar numa distribuição própria
+// (Dist 2 em diante); 0 é a Dist 1, o saldo do mês, e vale para qualquer lançamento.
+func checkDistGroupState(fixed bool, typ string, group int) error {
 	switch {
-	case !separate:
+	case group == 0:
 		return nil
 	case typ != "income":
-		return &ValidationError{"Só rendas podem ser distribuídas separado."}
+		return &ValidationError{"Só rendas entram numa distribuição do saldo."}
 	case fixed:
-		return &ValidationError{"Renda fixa não pode ser distribuída separado: use uma renda variável (13º, bônus)."}
+		return &ValidationError{"Renda fixa não pode ter distribuição própria: use uma renda variável (13º, bônus)."}
 	}
 	return nil
 }

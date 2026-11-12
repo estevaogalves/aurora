@@ -555,6 +555,29 @@ paths:
         "204": { description: Removida }
         "404": { $ref: "#/components/responses/Error" }
 
+  /settings/distribution-overrides/{month}/{group}:
+    parameters:
+      - { $ref: "#/components/parameters/PaymentMonth" }
+      - { name: group, in: path, required: true, schema: { type: integer, minimum: 2, maximum: 20 }, description: "Número da distribuição (Dist 2 a 20). A Dist 1 sempre usa o padrão de /settings/distribution." }
+    put:
+      tags: [configurações]
+      summary: Define os percentuais próprios de uma distribuição (Dist 2 em diante) de um mês
+      description: "Vale só para essa distribuição e esse mês; as outras seguem o padrão. `items: null` volta ao padrão. Mesmas regras de /settings/distribution (as cinco fatias padrão e soma 100%)."
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  nullable: true
+                  items: { $ref: "#/components/schemas/DistributionItem" }
+      responses:
+        "204": { description: Salvo }
+        "400": { $ref: "#/components/responses/Error" }
   /categories:
     post:
       tags: [configurações]
@@ -752,7 +775,7 @@ components:
         cardId: { type: string, format: uuid, description: "Cartão da despesa. Só despesa avulsa (não fixa, não renda). Com cartão, o valor entra no mês do vencimento da fatura, a partir de `purchaseDate`; `month` e `purchaseDate` ficam como foram lançados. Exige `purchaseDate`." }
         purchaseDate: { type: string, format: date, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
         endMonth: { $ref: "#/components/schemas/Month", description: "Só fixas. Fixa encerrada: o último mês em que vale (\"2026-11\" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam." }
-        separate: { type: boolean, description: "Só renda não fixa (13º, bônus): a sugestão do saldo ganha uma fonte própria para ela. Só marca: não muda nenhum valor, saldo, projeção ou relatório." }
+        distGroup: { type: integer, minimum: 0, maximum: 20, description: "Só renda não fixa (13º, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente ou 0 = soma ao saldo do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não muda nenhum valor, saldo, projeção ou relatório." }
     Payment:
       type: object
       required: [method, date]
@@ -775,7 +798,7 @@ components:
         cardId: { type: string, description: 'Despesa avulsa no cartão. `""` solta a despesa do cartão; sem a chave, não muda. Com cartão, a despesa tem que ter `purchaseDate` (no mesmo pedido ou já guardado) e não pode ser fixa.' }
         purchaseDate: { type: string, description: "Dia da compra no cartão (AAAA-MM-DD). Fica no histórico mesmo depois que o cartão é removido." }
         endMonth: { type: string, description: 'Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa.' }
-        separate: { type: boolean, description: "Só renda não fixa: marca ou desmarca \"distribuir separado\" (13º, bônus). Despesa ou renda fixa marcada é recusada (422)." }
+        distGroup: { type: integer, minimum: 0, maximum: 20, description: "Só renda não fixa: a distribuição da sugestão do saldo (0 = Dist 1; 2 a 20 = Dist 2 em diante). Número fora disso é recusado (400); despesa ou renda fixa em distribuição própria é recusada (422)." }
 
     CreditTransaction:
       type: object
@@ -1076,6 +1099,10 @@ components:
         goals: { type: array, items: { $ref: "#/components/schemas/Goal" } }
         investments: { type: array, items: { $ref: "#/components/schemas/Investment" } }
         goalMovements: { type: array, items: { $ref: "#/components/schemas/GoalMovement" } }
+        distributionOverrides:
+          type: object
+          description: Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave `AAAA-MM|n`. Sem a chave, vale `distribution` (o padrão).
+          additionalProperties: { type: array, items: { $ref: "#/components/schemas/DistributionItem" } }
         investmentMovements: { type: array, items: { $ref: "#/components/schemas/InvestmentMovement" } }
         extraExpenses: { type: array, items: { $ref: "#/components/schemas/ExtraExpense" } }
         customCategories: { type: array, items: { $ref: "#/components/schemas/CustomCategory" } }

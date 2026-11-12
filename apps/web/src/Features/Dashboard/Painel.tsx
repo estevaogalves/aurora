@@ -5,11 +5,11 @@ import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, sentKey, type DistributionItem, type DistributionSource, type SentSummary, type SentTarget } from "@/domain";
+import { DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
-import { useCategoryTotals, useDistributionItems, useDistributionSources, useMonthCredit, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution } from "@/Store/selectors";
+import { useCategoryTotals, useDistributionItemsFor, useMonthCredit, useMonthDistributions, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
@@ -17,6 +17,8 @@ import { deadlineStatus, paceHint, useGoalAlerts } from "../Goals/goalAlerts";
 import { getDemoGoals } from "../Goals/demo";
 import { DistributionDialog } from "./DistributionDialog";
 import SendDistributionDialog, { type SendRequest } from "./SendDistributionDialog";
+import UndoSendDialog, { type UndoRequest } from "./UndoSendDialog";
+import { showToast } from "../Warnings/toast";
 import { PAINEL_TOUR } from "./tour";
 
 /** Cor da fatia pela posição na lista (repete depois de 9). */
@@ -137,57 +139,83 @@ function Categories() {
 
 const SENT_KIND: Record<SentTarget["kind"], string> = { piggy: "porquinho", goal: "meta", investment: "investimento" };
 
-/** "Enviado R$ 300,00 para o porquinho Reserva" (e mais um, se houver). */
+/** Texto curto de um envio, para a dica da linha: "Enviado R$ 300,00 para o porquinho “Reserva” e mais 1". */
 function sentText(sent: SentSummary): string {
   const first = sent.targets[0];
   const rest = sent.targets.length - 1;
   return `Enviado ${formatBRL(sent.total)} para ${SENT_KIND[first.kind]} “${first.name}”${rest > 0 ? ` e mais ${rest}` : ""}`;
 }
 
-/** Uma fonte da sugestão (o saldo do mês ou uma renda separada): a barra, as fatias e o atalho de enviar cada uma. */
-function SuggestionSource({ source, items, sent, onSend }: { source: DistributionSource; items: DistributionItem[]; sent: Record<string, SentSummary>; onSend: (slice: DistributionItem, remaining: number) => void }) {
+/** Uma página do card: a barra e as fatias de uma distribuição, cada uma com Enviar e, depois de enviada, a seta de desfazer. */
+function DistributionPage({ dist, items, sent, onSend, onUndo }: {
+  dist: MonthDistribution;
+  items: DistributionItem[];
+  sent: Record<string, SentSummary>;
+  onSend: (slice: DistributionItem, remaining: number) => void;
+  onUndo: (slice: DistributionItem, done: SentSummary) => void;
+}) {
   // categorias com 0% continuam cadastradas, mas não aparecem na apresentação
-  const parts = useMemo(() => distributeBalance(source.amount, items).filter((p) => p.item.percent > 0), [source.amount, items]);
+  const parts = useMemo(() => distributeBalance(dist.amount, items).filter((p) => p.item.percent > 0), [dist.amount, items]);
 
-  if (source.amount <= 0) {
+  if (dist.amount <= 0) {
     return (
       <div className="rounded-md bg-bad-bg px-3 py-2.5 text-[13px] font-semibold text-destructive">
-        {source.amount === 0 ? "Seu saldo está zerado. Não há o que distribuir." : "Seu saldo está negativo. Revise despesas variáveis antes de investir."}
+        {dist.amount === 0 ? "Seu saldo está zerado. Não há o que distribuir." : "Seu saldo está negativo. Revise despesas variáveis antes de investir."}
       </div>
     );
   }
 
+  const sentTotal = parts.reduce((sum, p) => sum + (sent[sentKey(dist.id, p.item.id)]?.total ?? 0), 0);
+
   return (
     <>
-      <div className="mb-3.5 flex h-3.5 gap-0.5 overflow-hidden rounded-full">
+      <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+        <span className="min-w-0 break-words text-[13px]">
+          <b>{dist.label}</b>
+          <span className="text-muted-foreground"> · {dist.group === 1 ? "saldo do mês" : dist.incomes.map((i) => i.name).join(", ")}</span>
+        </span>
+        <b className="num flex-none text-[13px]">{formatBRL(dist.amount)}</b>
+      </div>
+      <div className="mb-1 flex h-3 gap-0.5 overflow-hidden rounded-full">
         {parts.map((p) => (
           <i key={p.item.id} className="block min-w-1" style={{ flex: p.item.percent, background: sliceColor(items, p.item.id) }} title={`${p.item.label}: ${formatBRL(p.value)}`} />
         ))}
       </div>
+      {sentTotal > 0 && <p className="mb-1 text-[12px] text-success">{formatBRL(sentTotal)} de {formatBRL(dist.amount)} enviados</p>}
       {parts.map((p) => {
-        const done = sent[sentKey(source.id, p.item.id)];
+        const done = sent[sentKey(dist.id, p.item.id)];
         const remaining = Math.max(0, p.value - (done?.total ?? 0));
+        const fraction = done ? Math.min(100, (done.total / p.value) * 100) : 0;
         return (
-          <div key={p.item.id} className="flex flex-col gap-1 border-t border-border py-2 text-[13.5px] first:border-t-0">
-            <div className="flex items-center gap-2.5">
-              <i className="h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: sliceColor(items, p.item.id) }} />
-              <span className="min-w-0 break-words">{p.item.label}</span> <small className="text-muted-foreground">{p.item.percent}%</small>
-              <b className="num ml-auto">{formatBRL(p.value)}</b>
+          <div
+            key={p.item.id}
+            title={done ? `${sentText(done)}${remaining > 0 ? `; falta ${formatBRL(remaining)}` : "; tudo enviado"}` : undefined}
+            className="relative flex items-center gap-2 border-t border-border py-2 text-[13.5px] first:border-t-0"
+          >
+            <i className="h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: sliceColor(items, p.item.id) }} />
+            <span className="min-w-0 flex-1 break-words">{p.item.label} <small className="text-muted-foreground">{p.item.percent}%</small></span>
+            <b className="num flex-none">{formatBRL(p.value)}</b>
+            {done && (
               <button
                 type="button"
-                disabled={remaining <= 0}
-                onClick={() => onSend(p.item, remaining)}
-                aria-label={`Enviar ${p.item.label} para metas`}
-                className="rounded-md border border-border-strong px-2.5 py-1 text-xs font-bold text-primary transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+                onClick={() => onUndo(p.item, done)}
+                aria-label={`Desfazer o envio de ${p.item.label}`}
+                title="Desfazer o envio"
+                className="grid h-7 w-7 flex-none place-items-center rounded-md border border-border-strong text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
               >
-                Enviar
+                <Icon name="restore" size={14} />
               </button>
-            </div>
-            {done && (
-              <p className="pl-5 text-[12px] text-success">
-                {sentText(done)}{remaining > 0 ? ` · falta ${formatBRL(remaining)}` : " · tudo enviado"}
-              </p>
             )}
+            <button
+              type="button"
+              disabled={remaining <= 0}
+              onClick={() => onSend(p.item, remaining)}
+              aria-label={`Enviar ${p.item.label} para metas`}
+              className="w-[74px] flex-none whitespace-nowrap rounded-md border border-border-strong px-2 py-1 text-xs font-bold text-primary transition-colors hover:bg-secondary disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-transparent"
+            >
+              {done && remaining <= 0 ? "Enviado ✓" : "Enviar"}
+            </button>
+            {done && <i className="absolute bottom-0 left-0 block h-[2px] rounded-full bg-success" style={{ width: `${fraction}%` }} />}
           </div>
         );
       })}
@@ -197,15 +225,26 @@ function SuggestionSource({ source, items, sent, onSend }: { source: Distributio
 
 function Suggestion() {
   const month = useFinanceStore((s) => s.currentMonth);
-  const sources = useDistributionSources();
+  const dists = useMonthDistributions();
   const sent = useSentByDistribution();
-  const items = useDistributionItems();
   const setDistribution = useFinanceStore((s) => s.setDistribution);
-  const customized = useFinanceStore((s) => s.distribution) !== null;
+  const setOverride = useFinanceStore((s) => s.setDistributionOverride);
+  const undoSend = useFinanceStore((s) => s.undoDistributionSend);
+  const globalItems = useFinanceStore((s) => s.distribution);
+  const overrides = useFinanceStore((s) => s.distributionOverrides);
+  const [selected, setSelected] = useState(1);
   const [editing, setEditing] = useState(false);
   const [sending, setSending] = useState<SendRequest | null>(null);
-  const separated = sources.length > 1;
-  const sentTotal = Object.values(sent).reduce((s, x) => s + x.total, 0);
+  const [undoing, setUndoing] = useState<UndoRequest | null>(null);
+
+  // a página aberta some se a distribuição deixou de existir (ex.: a renda dela foi apagada)
+  const dist = dists.find((d) => d.group === selected) ?? dists[0];
+  const items = useDistributionItemsFor(dist.group);
+  const base = globalItems ?? DEFAULT_DISTRIBUTION;
+  const first = dist.group === 1;
+  const hasOwn = !first && !!overrides[overrideKey(month, dist.group)];
+  const canRestore = first ? globalItems !== null : hasOwn;
+  const multiple = dists.length > 1;
 
   const menu = (
     <DropdownMenu modal={false}>
@@ -217,43 +256,77 @@ function Suggestion() {
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => setEditing(true)}>
           <Icon name="edit" size={15} />
-          Personalizar percentuais
+          {first ? "Personalizar o padrão" : `Personalizar a ${dist.label}`}
         </DropdownMenuItem>
-        {customized && (
-          <DropdownMenuItem onSelect={() => setDistribution(null)}>
+        {canRestore && (
+          <DropdownMenuItem onSelect={() => (first ? setDistribution(null) : setOverride(month, dist.group, null))}>
             <Icon name="restore" size={15} />
-            Restaurar padrão
+            {first ? "Restaurar padrão" : "Voltar ao padrão"}
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
 
-  const positive = sources.filter((s) => s.amount > 0);
-  const subtitle = separated ? "Separada por origem" : positive.length === 1 ? `Como dividir ${formatBRLShort(positive[0].amount)}` : undefined;
-
   return (
     <>
-      <Panel tour="sugestao" title={separated || positive.length > 0 ? "Sugestão para o saldo" : "Sugestão do saldo"} subtitle={subtitle} action={menu}>
-        {sources.map((src, i) => (
-          <div key={src.id} className={i > 0 ? "mt-4 border-t border-border-strong pt-3" : ""}>
-            {separated && (
-              <div className="mb-2 flex items-baseline justify-between gap-3">
-                <span className="min-w-0 break-words text-[13px] font-bold">{src.label}{src.separate && <span className="font-normal text-muted-foreground"> · distribui separado</span>}</span>
-                <b className="num flex-none text-[13px]">{formatBRL(src.amount)}</b>
-              </div>
-            )}
-            <SuggestionSource source={src} items={items} sent={sent} onSend={(slice, remaining) => setSending({ month, sourceId: src.id, sourceLabel: src.label, slice, remaining })} />
+      <Panel tour="sugestao" title="Sugestão para o saldo" subtitle={!multiple && dist.amount > 0 ? `Como dividir ${formatBRLShort(dist.amount)}` : undefined} action={menu}>
+        {multiple && (
+          <div role="tablist" aria-label="Distribuições do mês" className="mb-3 flex flex-wrap gap-1.5">
+            {dists.map((d) => (
+              <button
+                key={d.group}
+                type="button"
+                role="tab"
+                aria-selected={d.group === dist.group}
+                onClick={() => setSelected(d.group)}
+                className="rounded-full border border-border-strong bg-card px-3 py-1 text-[12.5px] font-semibold text-ink2 transition-colors aria-selected:border-primary aria-selected:bg-primary aria-selected:text-primary-foreground"
+              >
+                {d.label}
+              </button>
+            ))}
           </div>
-        ))}
-        {sentTotal > 0 && (
-          <p className="mt-3 rounded-md bg-secondary px-3 py-2 text-[12.5px] text-ink2">
-            O saldo continua aqui: {formatBRL(sentTotal)} já foram enviados para metas, porquinhos e investimentos (veja o Histórico de cada um).
-          </p>
         )}
+        {!first && (
+          <p className="mb-2 text-[12px] text-muted-foreground">{hasOwn ? "Percentuais só desta distribuição, neste mês." : "Segue os percentuais padrão. Se você alterar, muda só esta distribuição, neste mês."}</p>
+        )}
+        <DistributionPage
+          key={`${month}-${dist.group}`}
+          dist={dist}
+          items={items}
+          sent={sent}
+          onSend={(slice, remaining) => setSending({ month, sourceId: dist.id, sourceLabel: dist.label, slice, remaining })}
+          onUndo={(slice, done) => setUndoing({ month, sourceId: dist.id, distLabel: dist.label, sliceId: slice.id, sliceLabel: slice.label, sent: done })}
+        />
       </Panel>
-      <DistributionDialog open={editing} onClose={() => setEditing(false)} />
+      <DistributionDialog
+        key={`${month}-${dist.group}`}
+        open={editing}
+        onClose={() => setEditing(false)}
+        title={first ? "Personalizar o padrão da sugestão" : `Personalizar a ${dist.label}`}
+        description={
+          first
+            ? "O padrão vale para a Dist 1 de todos os meses e é o ponto de partida das outras distribuições. As cinco categorias padrão ficam sempre, e a soma precisa ser 100%."
+            : `Muda só a ${dist.label}, neste mês: as outras distribuições e os outros meses não mudam. A soma precisa ser 100%.`
+        }
+        current={items}
+        base={base}
+        onSave={(next) => {
+          if (first) setDistribution(next);
+          else setOverride(month, dist.group, next);
+          showToast({ type: "success", text: first ? "Padrão da sugestão atualizado" : `${dist.label} atualizada` });
+        }}
+      />
       <SendDistributionDialog request={sending} onClose={() => setSending(null)} />
+      <UndoSendDialog
+        request={undoing}
+        onClose={() => setUndoing(null)}
+        onConfirm={(r) => {
+          const removed = undoSend(r.month, r.sourceId, r.sliceId);
+          showToast({ type: "success", text: removed > 0 ? `Envio desfeito: ${formatBRL(r.sent.total)} voltaram para “${r.sliceLabel}”` : "Nenhum envio para desfazer" });
+          setUndoing(null);
+        }}
+      />
     </>
   );
 }

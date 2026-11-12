@@ -109,7 +109,7 @@ func (l Limits) validateTransaction(t domain.Transaction) string {
 		return "Pagamentos demais em um lançamento."
 	}
 	return first(checkName(t.Name), checkAmount(t.Amount), checkMonth(t.Month), checkNotes(t.Notes),
-		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkSeparate(t.Fixed, t.Type, t.Separate), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
+		checkCardFields(t.Fixed, t.Type, t.CardID, t.PurchaseDate), checkEndMonth(t.Fixed, t.Month, t.EndMonth), checkDistGroup(t.Fixed, t.Type, t.DistGroup), checkCategory(t.Category), checkMonthMap(t.HiddenMonths, t.MonthlyValues, l.MonthOverrides), checkMonthlyNotes(t.MonthlyNotes, l.MonthOverrides), checkPayments(t))
 }
 
 func checkCategory(c string) string {
@@ -196,15 +196,17 @@ func checkCardAdjustments(adjustments map[string][]domain.InvoiceAdjustment) str
 	return ""
 }
 
-// checkSeparate: só renda não fixa pode ser "distribuir separado" (13º, bônus).
-func checkSeparate(fixed bool, typ string, separate bool) string {
+// checkDistGroup: 0 é a Dist 1 (o saldo do mês); 2 a 20 é uma distribuição própria, só para renda não fixa (13º, bônus).
+func checkDistGroup(fixed bool, typ string, group int) string {
 	switch {
-	case !separate:
+	case group == 0:
 		return ""
+	case group < 2 || group > domain.MaxDistGroup:
+		return "A distribuição deve ser a Dist 1 (saldo do mês) ou de 2 a 20."
 	case typ != "income":
-		return "Só rendas podem ser distribuídas separado."
+		return "Só rendas entram numa distribuição do saldo."
 	case fixed:
-		return "Renda fixa não pode ser distribuída separado: use uma renda variável (13º, bônus)."
+		return "Renda fixa não pode ter distribuição própria: use uma renda variável (13º, bônus)."
 	}
 	return ""
 }
@@ -540,6 +542,20 @@ func (l Limits) validateData(d domain.FinanceData) string {
 		}
 		if !owned[m.InvestmentID] {
 			return "Movimentação de investimento: o investimento não está no pacote."
+		}
+	}
+	if len(d.DistributionOverrides) > 600 {
+		return "Distribuições demais com percentuais próprios."
+	}
+	for key, items := range d.DistributionOverrides {
+		if !domain.ValidOverrideKey(key) {
+			return "Distribuição " + quote(key) + ": a chave deve ser AAAA-MM|n, com n de 2 a 20."
+		}
+		if len(items) > l.DistributionItems {
+			return "Distribuição " + quote(key) + ": categorias demais."
+		}
+		if m := domain.ValidateDistribution(items); m != "" {
+			return "Distribuição " + quote(key) + ": " + m
 		}
 	}
 	for _, e := range d.ExtraExpenses {

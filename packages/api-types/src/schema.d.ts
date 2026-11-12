@@ -1906,6 +1906,60 @@ export interface paths {
         };
         trace?: never;
     };
+    "/settings/distribution-overrides/{month}/{group}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Mês do pagamento (AAAA-MM) */
+                month: components["parameters"]["PaymentMonth"];
+                /** @description Número da distribuição (Dist 2 a 20). A Dist 1 sempre usa o padrão de /settings/distribution. */
+                group: number;
+            };
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Define os percentuais próprios de uma distribuição (Dist 2 em diante) de um mês
+         * @description Vale só para essa distribuição e esse mês; as outras seguem o padrão. `items: null` volta ao padrão. Mesmas regras de /settings/distribution (as cinco fatias padrão e soma 100%).
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description Mês do pagamento (AAAA-MM) */
+                    month: components["parameters"]["PaymentMonth"];
+                    /** @description Número da distribuição (Dist 2 a 20). A Dist 1 sempre usa o padrão de /settings/distribution. */
+                    group: number;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        items: components["schemas"]["DistributionItem"][] | null;
+                    };
+                };
+            };
+            responses: {
+                /** @description Salvo */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                400: components["responses"]["Error"];
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/categories": {
         parameters: {
             query?: never;
@@ -2352,8 +2406,8 @@ export interface components {
             purchaseDate?: string;
             /** @description Só fixas. Fixa encerrada: o último mês em que vale ("2026-11" = vale até novembro). Ausente = segue valendo. Os meses anteriores, os valores por mês e os pagamentos não mudam. */
             endMonth?: components["schemas"]["Month"];
-            /** @description Só renda não fixa (13º, bônus): a sugestão do saldo ganha uma fonte própria para ela. Só marca: não muda nenhum valor, saldo, projeção ou relatório. */
-            separate?: boolean;
+            /** @description Só renda não fixa (13º, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente ou 0 = soma ao saldo do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não muda nenhum valor, saldo, projeção ou relatório. */
+            distGroup?: number;
         };
         Payment: {
             /** @enum {string} */
@@ -2387,8 +2441,8 @@ export interface components {
             purchaseDate?: string;
             /** @description Só fixas: último mês em que vale (encerrar a partir do mês seguinte). `""` tira o fim (reativa); sem a chave, não muda. Não pode ser antes do mês em que a fixa começa. */
             endMonth?: string;
-            /** @description Só renda não fixa: marca ou desmarca "distribuir separado" (13º, bônus). Despesa ou renda fixa marcada é recusada (422). */
-            separate?: boolean;
+            /** @description Só renda não fixa: a distribuição da sugestão do saldo (0 = Dist 1; 2 a 20 = Dist 2 em diante). Número fora disso é recusado (400); despesa ou renda fixa em distribuição própria é recusada (422). */
+            distGroup?: number;
         };
         CreditTransaction: {
             /** Format: uuid */
@@ -2708,6 +2762,10 @@ export interface components {
             goals: components["schemas"]["Goal"][];
             investments?: components["schemas"]["Investment"][];
             goalMovements?: components["schemas"]["GoalMovement"][];
+            /** @description Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave `AAAA-MM|n`. Sem a chave, vale `distribution` (o padrão). */
+            distributionOverrides?: {
+                [key: string]: components["schemas"]["DistributionItem"][];
+            };
             investmentMovements?: components["schemas"]["InvestmentMovement"][];
             extraExpenses: components["schemas"]["ExtraExpense"][];
             customCategories: components["schemas"]["CustomCategory"][];

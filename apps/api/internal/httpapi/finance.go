@@ -67,8 +67,8 @@ type transactionPatchReq struct {
 	// CardID: "" solta a despesa do cartão; ausente não muda.
 	CardID       *string `json:"cardId"`
 	PurchaseDate *string `json:"purchaseDate"`
-	// Separate: renda "distribuir separado" (13º, bônus); ausente não muda.
-	Separate *bool `json:"separate"`
+	// DistGroup: distribuição da sugestão do saldo (0 = Dist 1, 2 a 20); ausente não muda.
+	DistGroup *int `json:"distGroup"`
 	// EndMonth: último mês em que a fixa vale; "" tira o fim; ausente não muda.
 	EndMonth *string `json:"endMonth"`
 }
@@ -99,6 +99,9 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	}
 	var hidden []string
 	var values map[string]int64
+	if in.DistGroup != nil && *in.DistGroup != 0 && (*in.DistGroup < 2 || *in.DistGroup > domain.MaxDistGroup) {
+		msg = first(msg, "A distribuição deve ser a Dist 1 (saldo do mês) ou de 2 a 20.")
+	}
 	if in.HiddenMonths != nil {
 		hidden = *in.HiddenMonths
 	}
@@ -115,7 +118,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	out, err := s.store.UpdateTransaction(r.Context(), userID(r), chi.URLParam(r, "id"), store.TransactionPatch{
 		Name: trimmed(in.Name), Amount: in.Amount, Category: in.Category, Notes: in.Notes, Fixed: in.Fixed,
 		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes, VariableAmount: in.VariableAmount,
-		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth, Separate: in.Separate,
+		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth, DistGroup: in.DistGroup,
 	})
 	if err != nil {
 		s.fail(w, r, err)
@@ -571,6 +574,34 @@ func (s *Server) putDistribution(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.store.SetDistribution(r.Context(), userID(r), in.Items); err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// putDistributionOverride grava (ou, com `items: null`, limpa) os percentuais próprios de uma distribuição (Dist 2 em
+// diante) de um mês. A Dist 1 sempre usa o padrão (PUT /settings/distribution).
+func (s *Server) putDistributionOverride(w http.ResponseWriter, r *http.Request) {
+	var in struct {
+		Items []domain.DistributionItem `json:"items"` // null volta ao padrão
+	}
+	if !decode(w, r, &in, s.lim.Body) {
+		return
+	}
+	key := chi.URLParam(r, "month") + "|" + chi.URLParam(r, "group")
+	if !domain.ValidOverrideKey(key) {
+		writeError(w, http.StatusBadRequest, "A distribuição deve ser de um mês válido (AAAA-MM) e de 2 a 20.")
+		return
+	}
+	if len(in.Items) > s.lim.DistributionItems {
+		writeError(w, http.StatusBadRequest, fmt.Sprintf("Categorias demais na distribuição (máximo %d).", s.lim.DistributionItems))
+		return
+	}
+	if in.Items != nil && bad(w, domain.ValidateDistribution(in.Items)) {
+		return
+	}
+	if err := s.store.SetDistributionOverride(r.Context(), userID(r), key, in.Items); err != nil {
 		s.fail(w, r, err)
 		return
 	}

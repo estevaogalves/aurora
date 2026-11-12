@@ -3,7 +3,8 @@ import {
   getCreditByMonth,
   DEFAULT_DISTRIBUTION,
   distributeBalance,
-  getDistributionSources,
+  distributionItemsFor,
+  getMonthDistributions,
   getSentByDistribution,
   getExpensesByCategory,
   getEndedTransactionsByMonth,
@@ -104,14 +105,22 @@ export function useDistribution(month?: string) {
   return useMemo(() => distributeBalance(balance, items), [balance, items]);
 }
 
-/** Fontes da sugestão do mês visto: o saldo do mês e as rendas "distribuir separado" (13º, bônus). */
-export function useDistributionSources(month?: string) {
+/** As distribuições do saldo do mês visto: a Dist 1 (o saldo) e as próprias (Dist 2, 3...). */
+export function useMonthDistributions(month?: string) {
   const m = useMonth(month);
   const transactions = useFinanceStore((s) => s.transactions);
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
-  return useMemo(() => getDistributionSources({ transactions, creditTransactions, creditCards, extraExpenses }, m), [transactions, creditTransactions, creditCards, extraExpenses, m]);
+  return useMemo(() => getMonthDistributions({ transactions, creditTransactions, creditCards, extraExpenses }, m), [transactions, creditTransactions, creditCards, extraExpenses, m]);
+}
+
+/** Percentuais de uma distribuição do mês visto: os próprios (Dist 2 em diante), senão o padrão do usuário, senão o do app. */
+export function useDistributionItemsFor(group: number, month?: string) {
+  const m = useMonth(month);
+  const distribution = useFinanceStore((s) => s.distribution);
+  const distributionOverrides = useFinanceStore((s) => s.distributionOverrides);
+  return useMemo(() => distributionItemsFor({ distribution, distributionOverrides }, m, group), [distribution, distributionOverrides, m, group]);
 }
 
 /** O que já foi enviado de cada fatia das sugestões do mês visto (para metas, porquinhos e investimentos). */

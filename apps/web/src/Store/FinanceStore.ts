@@ -19,7 +19,9 @@ import {
   patchToggleFixed,
   patchClearMonthValue,
   type CreditInstallment,
+  findSentMovements,
   goalOpeningMovements,
+  overrideKey,
   replayGoal,
   todayISO,
   type GoalMovement,
@@ -84,6 +86,8 @@ interface FinanceState {
   customCategories: CustomCategory[];
   /** null = percentuais padrão */
   distribution: DistributionItem[] | null;
+  /** percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave "AAAA-MM|n" */
+  distributionOverrides: Record<string, DistributionItem[]>;
   /** chaves dos avisos de meta já vistos */
   seenAlerts: string[];
   /** resposta ao tour de cada tela */
@@ -163,6 +167,13 @@ interface FinanceState {
   addExtraExpense: (extra: ExtraExpense) => void;
   updateExtraExpense: (id: string, patch: Partial<ExtraExpense>) => void;
   setDistribution: (items: DistributionItem[] | null) => void;
+  /** Percentuais próprios de uma distribuição (Dist 2 em diante) deste mês; null volta ao padrão. Mexe só nela. */
+  setDistributionOverride: (month: string, group: number, items: DistributionItem[] | null) => void;
+  /**
+   * Desfaz o envio de uma fatia: apaga os aportes (em metas, porquinhos e investimentos) que nasceram dela, e os
+   * destinos voltam ao valor de antes. Devolve quantos aportes saíram.
+   */
+  undoDistributionSend: (month: string, source: string, slice: string) => number;
   markAlertsSeen: (keys: string[]) => void;
   markAlertUnseen: (key: string) => void;
   removeExtraExpense: (id: string) => void;
@@ -170,8 +181,8 @@ interface FinanceState {
   setTransactionPayment: (id: string, month: string, payment: Payment | null) => void;
   /** Liga a despesa avulsa a um cartão (com o dia da compra) ou a solta (`cardId` vazio). O dia da compra fica no histórico. */
   setTransactionCard: (id: string, cardId: string, purchaseDate?: string) => void;
-  /** Renda variável: marca ou desmarca "distribuir separado" (13º, bônus). Só marca: não muda nenhum valor. */
-  setTransactionSeparate: (id: string, separate: boolean) => void;
+  /** Renda variável: em qual distribuição do saldo entra (1 = Dist 1, o saldo do mês; 2 a 20 = própria). Só marca: não muda nenhum valor. */
+  setTransactionDistGroup: (id: string, group: number) => void;
   /** Marca (ou troca) o pagamento da fatura do cartão que vence em `month`; null desmarca. Só registro. */
   setCardPayment: (cardId: string, month: string, payment: Payment | null) => void;
   /** Troca a lista de ajustes (descontos e acréscimos) da fatura que vence em `month`; lista vazia remove. */
@@ -251,7 +262,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     hydrate: async () => {
       const data = await repository.load();
-      set({ ...data, goalMovements: data.goalMovements ?? [], hydrated: true });
+      set({ ...data, goalMovements: data.goalMovements ?? [], distributionOverrides: data.distributionOverrides ?? {}, hydrated: true });
     },
 
     reset: () =>
@@ -268,6 +279,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
         extraExpenses: [],
         customCategories: [],
         distribution: null,
+        distributionOverrides: {},
         seenAlerts: [],
         onboarding: {},
       }),
@@ -286,6 +298,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     extraExpenses: [],
     customCategories: [],
     distribution: null,
+    distributionOverrides: {},
     seenAlerts: [],
     onboarding: {},
 
@@ -612,6 +625,25 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       sync(repository.setSeenAlerts(next));
     },
 
+    setDistributionOverride: (month, group, items) => {
+      if (group < 2) return;
+      const key = overrideKey(month, group);
+      set((state) => {
+        const rest = { ...state.distributionOverrides };
+        if (items) rest[key] = items;
+        else delete rest[key];
+        return { distributionOverrides: rest };
+      });
+      sync(repository.setDistributionOverride(month, group, items));
+    },
+
+    undoDistributionSend: (month, source, slice) => {
+      const found = findSentMovements(get(), month, source, slice);
+      for (const m of found.goalMovements) get().removeGoalMovement(m.id);
+      for (const m of found.investmentMovements) get().removeInvestmentMovement(m.id);
+      return found.goalMovements.length + found.investmentMovements.length;
+    },
+
     setDistribution: (items) => {
       set({ distribution: items });
       sync(repository.setDistribution(items));
@@ -626,11 +658,11 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       sync(repository.setTransactionPayment(id, month, payment));
     },
 
-    setTransactionSeparate: (id, separate) => {
+    setTransactionDistGroup: (id, group) => {
       const t = findTransaction(id);
-      // só renda não fixa pode ser distribuída separado (o servidor também recusa o resto)
+      // só renda não fixa pode ter distribuição própria (o servidor também recusa o resto)
       if (!t || t.type !== "income" || t.fixed) return;
-      patchTransaction(id, { separate: separate || undefined });
+      patchTransaction(id, { distGroup: group >= 2 ? group : undefined });
     },
 
     setTransactionCard: (id, cardId, purchaseDate) => {

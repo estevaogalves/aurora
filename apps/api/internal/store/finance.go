@@ -29,8 +29,8 @@ type TransactionPatch struct {
 	PurchaseDate *string
 	// EndMonth: último mês em que a fixa vale. nil não muda; ponteiro para "" tira o fim.
 	EndMonth *string
-	// Separate: renda "distribuir separado". nil não muda.
-	Separate *bool
+	// DistGroup: distribuição da sugestão do saldo (0 = Dist 1, 2 a 20). nil não muda.
+	DistGroup *int
 }
 
 func (s *Store) CreateTransaction(ctx context.Context, userID uuid.UUID, t domain.Transaction) (domain.Transaction, error) {
@@ -50,7 +50,7 @@ func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.Fixed && t.VariableAmount,
-		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, Separate: t.Separate,
+		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int32(t.DistGroup),
 	})
 	if err != nil {
 		return domain.Transaction{}, err
@@ -105,7 +105,10 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		arg := sqlcgen.UpdateTransactionParams{
 			Name: text(p.Name), AmountCents: int8v(p.Amount), Category: text(p.Category),
 			Notes: text(p.Notes), Fixed: boolv(p.Fixed), VariableAmount: boolv(p.VariableAmount),
-			PurchaseDate: text(p.PurchaseDate), EndMonth: text(p.EndMonth), Separate: boolv(p.Separate), ID: tid, UserID: userID,
+			PurchaseDate: text(p.PurchaseDate), EndMonth: text(p.EndMonth), ID: tid, UserID: userID,
+		}
+		if p.DistGroup != nil {
+			arg.DistGroup.Int32, arg.DistGroup.Valid = int32(*p.DistGroup), true
 		}
 		if p.CardID != nil {
 			if err := ownsCard(ctx, q, userID, *p.CardID); err != nil {
@@ -124,7 +127,7 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		if err := checkEndState(row.Fixed, row.Month, row.EndMonth); err != nil {
 			return err
 		}
-		if err := checkSeparateState(row.Fixed, row.Type, row.Separate); err != nil {
+		if err := checkDistGroupState(row.Fixed, row.Type, int(row.DistGroup)); err != nil {
 			return err
 		}
 
@@ -973,6 +976,17 @@ func (s *Store) Import(ctx context.Context, userID uuid.UUID, d domain.FinanceDa
 			}
 		}
 		if err := q.SetDistribution(ctx, sqlcgen.SetDistributionParams{UserID: userID, Distribution: raw}); err != nil {
+			return err
+		}
+		overrides := d.DistributionOverrides
+		if overrides == nil {
+			overrides = map[string][]domain.DistributionItem{}
+		}
+		rawOverrides, err := jsonMarshal(overrides)
+		if err != nil {
+			return err
+		}
+		if err := q.SetDistributionOverrides(ctx, sqlcgen.SetDistributionOverridesParams{UserID: userID, Column2: rawOverrides}); err != nil {
 			return err
 		}
 		seen := d.SeenAlerts

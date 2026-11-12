@@ -53,10 +53,11 @@ export interface Transaction {
   /** Dia da compra no cartão, "YYYY-MM-DD". Vem junto com `cardId`. */
   purchaseDate?: string;
   /**
-   * Renda variável "distribuir separado" (13º salário, bônus): a sugestão do saldo ganha uma fonte própria para ela,
-   * com o valor cheio, em vez de somar tudo num saldo só. Só marca: não muda nenhum valor. Só renda não fixa.
+   * Renda variável (13º salário, bônus): em qual distribuição da sugestão do saldo ela entra. Ausente = soma ao saldo
+   * do mês (Dist 1); de 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais
+   * no Painel. Só marca: não muda nenhum valor. Só renda não fixa.
    */
-  separate?: boolean;
+  distGroup?: number;
 }
 
 /** Parcela adiantada: o valor com desconto é cobrado em `month` (o mês de hoje no momento do adiantamento). */
@@ -306,6 +307,11 @@ export interface FinanceData {
   customCategories: CustomCategory[];
   /** Percentuais escolhidos pelo usuário; null = padrão. */
   distribution: DistributionItem[] | null;
+  /**
+   * Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave "AAAA-MM|n" (veja `overrideKey`).
+   * Sem a chave, vale `distribution` (o padrão). A Dist 1 sempre usa o padrão. Ausente = nenhuma.
+   */
+  distributionOverrides?: Record<string, DistributionItem[]>;
   /** Avisos de prazo de metas que o usuário já marcou como vistos (veja `goalAlertKey`). */
   seenAlerts: string[];
   /** Resposta ao tour de cada tela, por id da tela. Tela ausente = ainda não convidada. */

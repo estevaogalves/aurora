@@ -43,6 +43,7 @@ export const emptyData = (): FinanceData => ({
   extraExpenses: [],
   customCategories: [],
   distribution: null,
+  distributionOverrides: {},
   seenAlerts: [],
   onboarding: {},
 });
@@ -82,7 +83,7 @@ export function migrateLegacy(raw: unknown): FinanceData | null {
 
   const notes = asArray<Note>(state.notes);
 
-  return { transactions, creditTransactions, creditCards: [], notes, goals: [], goalMovements: [], extraExpenses: [], customCategories: [], distribution: null, seenAlerts: [], onboarding: {} };
+  return { transactions, creditTransactions, creditCards: [], notes, goals: [], goalMovements: [], extraExpenses: [], customCategories: [], distribution: null, distributionOverrides: {}, seenAlerts: [], onboarding: {} };
 }
 
 /** Só aceita respostas válidas; qualquer outra coisa é ignorada. */
@@ -121,6 +122,7 @@ export function migrateStored(raw: unknown): FinanceData | null {
     extraExpenses: asArray<ExtraExpense>(raw.data.extraExpenses),
     customCategories: asArray<CustomCategory>(raw.data.customCategories),
     distribution: Array.isArray(raw.data.distribution) ? (raw.data.distribution as DistributionItem[]) : null,
+    distributionOverrides: isRecord(raw.data.distributionOverrides) ? (raw.data.distributionOverrides as Record<string, DistributionItem[]>) : {},
     seenAlerts: asArray<string>(raw.data.seenAlerts).filter((k) => typeof k === "string"),
     onboarding: parseOnboarding(raw.data.onboarding),
   };

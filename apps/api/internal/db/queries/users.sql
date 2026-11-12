@@ -42,6 +42,20 @@ SELECT * FROM user_settings WHERE user_id = $1;
 INSERT INTO user_settings (user_id, distribution) VALUES ($1, $2)
 ON CONFLICT (user_id) DO UPDATE SET distribution = EXCLUDED.distribution;
 
+-- name: SetDistributionOverride :exec
+-- Muda só a chave da distribuição, para dois dispositivos não apagarem os percentuais um do outro.
+INSERT INTO user_settings (user_id, distribution_overrides)
+VALUES ($1, jsonb_build_object(sqlc.arg(key)::text, sqlc.arg(items)::jsonb))
+ON CONFLICT (user_id) DO UPDATE
+SET distribution_overrides = user_settings.distribution_overrides || jsonb_build_object(sqlc.arg(key)::text, sqlc.arg(items)::jsonb);
+
+-- name: ClearDistributionOverride :exec
+UPDATE user_settings SET distribution_overrides = distribution_overrides - sqlc.arg(key)::text WHERE user_id = sqlc.arg(user_id);
+
+-- name: SetDistributionOverrides :exec
+INSERT INTO user_settings (user_id, distribution_overrides) VALUES ($1, $2::jsonb)
+ON CONFLICT (user_id) DO UPDATE SET distribution_overrides = EXCLUDED.distribution_overrides;
+
 -- name: SetSeenAlerts :exec
 INSERT INTO user_settings (user_id, seen_alerts) VALUES ($1, $2)
 ON CONFLICT (user_id) DO UPDATE SET seen_alerts = EXCLUDED.seen_alerts;
