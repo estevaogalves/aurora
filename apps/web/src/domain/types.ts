@@ -67,6 +67,8 @@ export interface Transaction {
    * Só marca: não muda nenhum valor.
    */
   dueDay?: number;
+  /** Etiquetas livres (ex.: "viagem"), para buscar e filtrar em Lançamentos. Só marcas: não mudam valor nenhum. */
+  tags?: string[];
 }
 
 /** Parcela adiantada: o valor com desconto é cobrado em `month` (o mês de hoje no momento do adiantamento). */

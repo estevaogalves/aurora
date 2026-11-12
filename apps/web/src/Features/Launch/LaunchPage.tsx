@@ -10,6 +10,8 @@ import { useUiStore } from "@/Store/UiStore";
 import { canAdvanceInstallment, chargeDay, dayMonth, distGroupOf, distLabel, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
+import { useLaunchFiltering } from "./filtering";
+import FilterBar from "./FilterBar";
 import { useHiddenTransactions, useMonthCredit, useMonthTransactions, useResolvedCredits, useResolvedExtras } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { formatMonthAbbr, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
@@ -204,8 +206,10 @@ function HiddenList({ kind }: { kind: "income" | "expense" }) {
 
 function IncomesPanel() {
   const incomes = useMonthTransactions().filter((t) => t.type === "income");
-  const variable = incomes.filter((t) => !t.fixed);
-  const fixed = incomes.filter((t) => t.fixed);
+  // a busca e os filtros só escondem linhas: o total do rodapé continua sendo o do mês inteiro
+  const view = useLaunchFiltering();
+  const variable = incomes.filter((t) => !t.fixed && view.income(t));
+  const fixed = incomes.filter((t) => t.fixed && view.income(t));
   const month = useFinanceStore((s) => s.currentMonth);
   const removeByMonth = useFinanceStore((s) => s.removeTransactionByMonth);
   const [editing, setEditing] = useState<Transaction | null>(null);
@@ -216,7 +220,8 @@ function IncomesPanel() {
   return (
     <Panel tour="rendas" title="Rendas" subtitle="Fontes do mês">
       {incomes.length === 0 ? <Empty>Nenhuma renda cadastrada. Use o botão Lançar.</Empty> : variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}
-      {incomes.length > 0 && variable.length === 0 && <Empty>Nenhuma renda variável neste mês.</Empty>}
+      {incomes.length > 0 && variable.length === 0 && fixed.length === 0 && view.active && <Empty>Nenhuma renda com estes filtros.</Empty>}
+      {incomes.length > 0 && variable.length === 0 && !view.active && <Empty>Nenhuma renda variável neste mês.</Empty>}
       {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} />)}</FixedSection>}
       <HiddenList kind="income" />
       <EndedList kind="income" />
@@ -254,8 +259,10 @@ function ExpensesPanel() {
   const [ending, setEnding] = useState<Transaction | null>(null);
   const [toDelete, setToDelete] = useState<string | null>(null);
   const target = expenses.find((e) => e.id === toDelete);
-  const fixed = expenses.filter((t) => t.fixed).sort((a, b) => b.amount - a.amount);
-  const variable = expenses.filter((t) => !t.fixed).sort((a, b) => b.amount - a.amount);
+  const view = useLaunchFiltering();
+  const fixed = expenses.filter((t) => t.fixed && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  const variable = expenses.filter((t) => !t.fixed && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  const shownExtras = extras.filter((e) => view.extra(e));
   const count = expenses.length + extras.length;
 
   const payTx = (t: Transaction) => ({
@@ -274,9 +281,10 @@ function ExpensesPanel() {
     <Panel tour="despesas" title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
       {onCard > 0 && <p className="mb-1 text-[12.5px] text-muted-foreground">{onCard === 1 ? "1 compra no cartão está" : `${onCard} compras no cartão estão`} na fatura, em Compras parceladas.</p>}
-      {count > 0 && variable.length === 0 && extras.length === 0 && <Empty>Nenhuma despesa variável neste mês.</Empty>}
+      {count > 0 && variable.length === 0 && shownExtras.length === 0 && fixed.length === 0 && view.active && <Empty>Nenhuma despesa com estes filtros.</Empty>}
+      {count > 0 && variable.length === 0 && extras.length === 0 && !view.active && <Empty>Nenhuma despesa variável neste mês.</Empty>}
       {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={t.cardId ? undefined : payTx(t)} />)}
-      {extras.map((e) => (
+      {shownExtras.map((e) => (
         <ExtraRow
           key={e.id}
           e={e}
@@ -629,6 +637,7 @@ export default function LaunchPage() {
           </button>
         }
       />
+      <FilterBar />
       <div className="grid grid-cols-12 items-start gap-3.5">
         {/* no celular o wrapper some (contents) e os cards seguem a ordem: rendas, despesas, anotações */}
         <div className="col-span-12 flex min-w-0 flex-col gap-3.5 max-lg:contents lg:col-span-4">

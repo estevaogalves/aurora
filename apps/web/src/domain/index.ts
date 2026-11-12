@@ -8,6 +8,7 @@ export * from "./debts";
 export * from "./dues";
 export * from "./goals";
 export * from "./insights";
+export * from "./launchFilter";
 export * from "./investments";
 export * from "./origin";
 export * from "./invoice";
