@@ -29,7 +29,7 @@ const EMPTY: Stored = { mappings: [], rules: [], imported: [] };
 
 const isMapping = (m: unknown): m is ColumnMapping => {
   const x = m as ColumnMapping;
-  return !!x && [x.date, x.description, x.amount].every((n) => Number.isInteger(n) && n >= 0 && n < 200) && typeof x.hasHeader === "boolean" && ["auto", "expense", "income"].includes(x.signMode);
+  return !!x && [x.date, x.description, x.amount].every((n) => Number.isInteger(n) && n >= 0 && n < 200) && (x.credit === undefined || (Number.isInteger(x.credit) && x.credit >= 0 && x.credit < 200)) && typeof x.hasHeader === "boolean" && ["auto", "expense", "income"].includes(x.signMode);
 };
 
 /** Lê o que foi salvo, aceitando só o formato certo. */

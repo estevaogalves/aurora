@@ -184,7 +184,10 @@ export type SignMode = "auto" | "expense" | "income";
 export interface ColumnMapping {
   date: number;
   description: number;
+  /** coluna do valor; com `credit`, é a coluna de DÉBITO (saídas) */
   amount: number;
+  /** extratos com Débito e Crédito em colunas separadas: a coluna de crédito (entradas). Ausente = uma coluna só. */
+  credit?: number;
   hasHeader: boolean;
   signMode: SignMode;
 }
@@ -194,6 +197,8 @@ const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerC
 const DATE_NAMES = ["data", "date", "dt", "vencimento"];
 const DESC_NAMES = ["descricao", "descri", "historico", "lancamento", "estabelecimento", "titulo", "title", "merchant", "memo", "detalhe", "description", "nome"];
 const AMOUNT_NAMES = ["valor", "amount", "quantia", "montante", "value"];
+const DEBIT_NAMES = ["debito", "saida", "saidas", "debit", "pagamento"];
+const CREDIT_NAMES = ["credito", "entrada", "entradas", "credit", "deposito"];
 
 /** Sugere o mapeamento pelo cabeçalho (ou pelo conteúdo, sem cabeçalho). null se não achar data e valor. */
 export function guessMapping(rows: string[][]): ColumnMapping | null {
@@ -206,6 +211,11 @@ export function guessMapping(rows: string[][]): ColumnMapping | null {
 
   let date = hasHeader ? find(DATE_NAMES) : -1;
   let amount = hasHeader ? find(AMOUNT_NAMES) : -1;
+  // Débito e Crédito em colunas separadas (sem uma coluna "Valor")
+  const debitCol = hasHeader && amount < 0 ? header.findIndex((h) => DEBIT_NAMES.some((n) => h === n || h.startsWith(n))) : -1;
+  const creditCol = hasHeader && amount < 0 ? header.findIndex((h) => CREDIT_NAMES.some((n) => h === n || h.startsWith(n))) : -1;
+  const split = debitCol >= 0 && creditCol >= 0 && debitCol !== creditCol;
+  if (split) amount = debitCol;
   let description = hasHeader ? find(DESC_NAMES) : -1;
   const width = Math.max(...rows.map((r) => r.length));
   const share = (col: number, ok: (s: string) => boolean) => {
@@ -216,7 +226,7 @@ export function guessMapping(rows: string[][]): ColumnMapping | null {
   if (amount < 0) for (let c = width - 1; c >= 0; c--) if (c !== date && share(c, (s) => parseAmount(s) !== null) >= 0.8) { amount = c; break; }
   if (description < 0) for (let c = 0; c < width; c++) if (c !== date && c !== amount && share(c, (s) => parseAmount(s) === null && parseDate(s) === null) >= 0.8) { description = c; break; }
   if (date < 0 || amount < 0 || description < 0) return null;
-  return { date, description, amount, hasHeader, signMode: "auto" };
+  return { date, description, amount, ...(split && { credit: creditCol }), hasHeader, signMode: "auto" };
 }
 
 /* ---------- categorias por regras ---------- */
@@ -271,16 +281,25 @@ export function buildImportRows(rows: string[][], mapping: ColumnMapping, rules:
     const r = rows[i];
     const line = i + 1;
     const date = parseDate(r[mapping.date] ?? "");
-    const signed = parseAmount(r[mapping.amount] ?? "");
+    // Débito e Crédito separados: a coluna preenchida diz o tipo (débito = despesa, crédito = renda)
+    let split: ImportRow["type"] | null = null;
+    let signed: number | null;
+    if (mapping.credit !== undefined) {
+      const debit = parseAmount(r[mapping.amount] ?? "");
+      const credit = parseAmount(r[mapping.credit] ?? "");
+      if (debit !== null && debit !== 0) { split = "expense"; signed = Math.abs(debit); }
+      else if (credit !== null && credit !== 0) { split = "income"; signed = Math.abs(credit); }
+      else signed = debit === null && credit === null ? null : 0;
+    } else signed = parseAmount(r[mapping.amount] ?? "");
     const description = maskSensitive((r[mapping.description] ?? "").replace(/\s+/g, " ").trim()).slice(0, 60);
     if (!date) { skipped.push({ line, reason: "data inválida" }); continue; }
-    if (signed === null) { skipped.push({ line, reason: "valor inválido" }); continue; }
+    if (signed === null) { skipped.push({ line, reason: mapping.credit !== undefined ? "sem valor" : "valor inválido" }); continue; }
     if (signed === 0) { skipped.push({ line, reason: "valor zero" }); continue; }
     // fatura (tudo é despesa): valor negativo é pagamento da fatura ou estorno, não é compra
     if (mapping.signMode === "expense" && signed < 0) { skipped.push({ line, reason: "crédito ou pagamento, não é compra" }); continue; }
     if (!description) { skipped.push({ line, reason: "sem descrição" }); continue; }
 
-    const type: ImportRow["type"] = mapping.signMode === "expense" ? "expense" : mapping.signMode === "income" ? "income" : signed < 0 ? "expense" : "income";
+    const type: ImportRow["type"] = split ?? (mapping.signMode === "expense" ? "expense" : mapping.signMode === "income" ? "income" : signed < 0 ? "expense" : "income");
     const amount = Math.abs(signed);
     const fp = rowFingerprint(date, amount, description);
     const n = (seen.get(fp) ?? 0) + 1;

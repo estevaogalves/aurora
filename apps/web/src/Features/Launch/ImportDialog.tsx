@@ -114,8 +114,9 @@ function Wizard({ onClose }: { onClose: () => void }) {
 
   function toPreview() {
     if (!mapping) return;
-    const m: ColumnMapping = destination ? { ...mapping, signMode: "expense" } : mapping;
-    if (new Set([m.date, m.description, m.amount]).size < 3) return setError("Escolha três colunas diferentes para data, descrição e valor.");
+    // fatura de cartão: tudo é compra (despesa); a coluna de crédito não se aplica
+    const m: ColumnMapping = destination ? { ...mapping, credit: undefined, signMode: "expense" } : mapping;
+    if (new Set([m.date, m.description, m.amount, ...(m.credit !== undefined ? [m.credit] : [])]).size < (m.credit !== undefined ? 4 : 3)) return setError("Escolha colunas diferentes para data, descrição e valor (e para débito e crédito, se usar as duas).");
     const built = buildImportRows(rows, m, prefs.rules);
     if (built.rows.length === 0) return setError("Nenhuma linha pôde ser lida com essas colunas. Confira a data e o valor.");
     const marked = markDuplicates(built.rows, transactions, new Set(prefs.imported));
@@ -249,9 +250,25 @@ function Wizard({ onClose }: { onClose: () => void }) {
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Coluna da data" htmlFor="imp-date">{select(mapping.date, (n) => setMapping({ ...mapping, date: n }), "imp-date")}</Field>
             <Field label="Coluna da descrição" htmlFor="imp-desc">{select(mapping.description, (n) => setMapping({ ...mapping, description: n }), "imp-desc")}</Field>
-            <Field label="Coluna do valor" htmlFor="imp-amount">{select(mapping.amount, (n) => setMapping({ ...mapping, amount: n }), "imp-amount")}</Field>
+            <Field label={mapping.credit !== undefined && !destination ? "Coluna de débito (saídas)" : "Coluna do valor"} htmlFor="imp-amount">{select(mapping.amount, (n) => setMapping({ ...mapping, amount: n }), "imp-amount")}</Field>
           </div>
           {!destination && (
+            <label className="flex items-center gap-2 text-[13px] font-semibold text-ink2">
+              <input
+                type="checkbox"
+                checked={mapping.credit !== undefined}
+                onChange={(e) => setMapping({ ...mapping, credit: e.target.checked ? (usable.find((c) => c !== mapping.date && c !== mapping.description && c !== mapping.amount) ?? mapping.amount) : undefined })}
+              />
+              O extrato tem Débito e Crédito em colunas separadas
+            </label>
+          )}
+          {mapping.credit !== undefined && !destination && (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Coluna de crédito (entradas)" htmlFor="imp-credit">{select(mapping.credit, (n) => setMapping({ ...mapping, credit: n }), "imp-credit")}</Field>
+              <p className="text-[12.5px] text-muted-foreground sm:col-span-2 sm:self-end">A linha com valor na coluna de débito vira despesa, e a com valor na de crédito vira renda.</p>
+            </div>
+          )}
+          {!destination && mapping.credit === undefined && (
             <Field label="Sinal dos valores" htmlFor="imp-sign">
               <select id="imp-sign" value={mapping.signMode} onChange={(e) => setMapping({ ...mapping, signMode: e.target.value as SignMode })} className={inputClass}>
                 <option value="auto">Negativo é despesa e positivo é renda (extrato)</option>

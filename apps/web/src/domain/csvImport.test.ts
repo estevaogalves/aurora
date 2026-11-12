@@ -142,6 +142,24 @@ describe("duplicados e reimportação", () => {
   });
 });
 
+describe("Débito e Crédito em colunas separadas", () => {
+  const csv = [["Data", "Histórico", "Débito", "Crédito", "Saldo"], ["03/11/2026", "COMPRA MERCADO", "187,43", "", "1.000,00"], ["05/11/2026", "SALARIO", "", "3.500,00", "4.500,00"], ["06/11/2026", "SEM VALOR", "", "", "4.500,00"]];
+
+  it("reconhece as duas colunas pelo cabeçalho e ignora o saldo", () => {
+    expect(guessMapping(csv)).toEqual({ date: 0, description: 1, amount: 2, credit: 3, hasHeader: true, signMode: "auto" });
+  });
+
+  it("débito vira despesa e crédito vira renda; linha sem valor é pulada", () => {
+    const { rows, skipped } = buildImportRows(csv, guessMapping(csv)!, []);
+    expect(rows.map((r) => [r.description, r.type, r.amount])).toEqual([["COMPRA MERCADO", "expense", 18743], ["SALARIO", "income", 350000]]);
+    expect(skipped).toEqual([{ line: 4, reason: "sem valor" }]);
+  });
+
+  it("uma coluna de valor continua funcionando como antes", () => {
+    expect(guessMapping([["Data", "Descrição", "Valor"], ["03/11/2026", "X", "-1,00"]])).not.toHaveProperty("credit");
+  });
+});
+
 describe("planilhas modelo", () => {
   for (const t of IMPORT_TEMPLATES) {
     it(`${t.id}: só o cabeçalho, sem exemplos, e o app reconhece as colunas`, () => {
