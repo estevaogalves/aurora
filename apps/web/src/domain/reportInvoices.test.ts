@@ -155,3 +155,35 @@ describe("faturas no CSV e no TXT", () => {
     expect(csv).not.toMatch(/;=HYPERLINK/);
   });
 });
+
+describe("fatura única: ajuste e parcelas dentro dela", () => {
+  const card = { id: "nu", name: "Nubank", closingDay: 2, dueDay: 9, adjustments: { "2026-12": [{ id: "d", amount: -37, note: "desconto" }, { id: "j", amount: 12, note: "juros" }] } };
+  const tv: CreditTransaction = { id: "tv", name: "TV", category: "Crédito/Parcelado", totalAmount: 30000, installments: 3, startMonth: "2026-12", cardId: "nu" } as CreditTransaction;
+  const loose: CreditTransaction = { id: "sofa", name: "Sofá", category: "Crédito/Parcelado", totalAmount: 20000, installments: 2, startMonth: "2026-12" } as CreditTransaction;
+  const d = { transactions: [], creditTransactions: [tv, loose], extraExpenses: [], creditCards: [card] };
+
+  it("o total da fatura é o total a pagar e a soma dos itens (com o desconto) bate com ele", () => {
+    const inv = getReportInvoices(d, ["2026-12"]).find((i) => i.cardName === "Nubank")!;
+    expect(inv.items.map((i) => i.kind)).toEqual(["installment", "adjustment", "adjustment"]);
+    expect(inv.items.reduce((s, i) => s + i.amount, 0)).toBe(inv.total);
+    expect(inv.total).toBe(10000 - 37 + 12);
+  });
+
+  it("parcelas sem cartão não somem: ficam num grupo à parte, e os totais do relatório batem", () => {
+    const all = getReportInvoices(d, ["2026-12"]);
+    expect(all.map((i) => i.cardName)).toEqual(["Nubank", "Sem cartão"]);
+    expect(all.reduce((s, i) => s + i.total, 0)).toBe(getPeriodTotals(d, ["2026-12"]).expense);
+  });
+
+  it("com as faturas no relatório, os lançamentos não repetem parcelas nem compras no cartão", () => {
+    const rows = getReportRows(d, ["2026-12"], { entries: true, credit: false, invoices: true });
+    expect(rows).toEqual([]);
+  });
+
+  it("CSV e TXT trazem o ajuste dentro da fatura", () => {
+    const csv = buildCsv(d, ["2026-12"], { summary: false, entries: false, invoices: true });
+    expect(csv).toContain(";Ajuste;Desconto · desconto;");
+    expect(csv).toContain(";Ajuste;Acréscimo · juros;");
+    expect(buildTxt(d, ["2026-12"], { summary: false, entries: false, invoices: true })).toContain("Desconto · desconto");
+  });
+});

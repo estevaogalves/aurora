@@ -9,7 +9,6 @@ export type ReportFormat = "PDF" | "CSV" | "TXT";
 export interface ReportContent {
   summary: boolean;
   entries: boolean;
-  credit: boolean;
   invoices: boolean;
   distribution: boolean;
 }
@@ -23,7 +22,7 @@ export const REPORT_PREFS_KEY = "aurora:report-prefs";
 
 export const DEFAULT_REPORT_PREFS: ReportPrefs = {
   format: "PDF",
-  content: { summary: true, entries: true, credit: true, invoices: true, distribution: false },
+  content: { summary: true, entries: true, invoices: true, distribution: false },
 };
 
 const FORMATS: ReportFormat[] = ["PDF", "CSV", "TXT"];

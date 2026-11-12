@@ -93,7 +93,7 @@ const finalY = (d: jsPDF) => (d as unknown as LastTable).lastAutoTable.finalY;
 /**
  * Gera o PDF do período (lista de meses "YYYY-MM"). Cada parte do relatório ocupa páginas próprias, em sequência:
  * 1. Resumo (totais, gráfico e mês a mês), 2. Despesas por categoria (e a sugestão de distribuição, se couber),
- * 3. Lançamentos, 4. Parcelas do crédito, 5. Faturas dos cartões. Nenhum bloco é cortado ao meio: o que não cabe
+ * 3. Lançamentos, 4. Faturas dos cartões (parcelas, recorrências, compras avulsas e ajuste de cada uma). Nenhum bloco é cortado ao meio: o que não cabe
  * no que sobrou da página vai inteiro para a seguinte, e um bloco maior que uma página reduz a letra até caber.
  */
 export function exportPDF(months: string[], options: PdfOptions) {
@@ -488,14 +488,14 @@ export function exportPDF(months: string[], options: PdfOptions) {
     for (const block of blocks) place(drawRowsBlock(block), 8);
   };
 
-  /* ====================== 3. Lançamentos  e  4. Parcelas do crédito ====================== */
-  if (options.entries) rowsSection("Lançamentos", "Receitas em verde, despesas em vermelho", getReportRows(data, months, { entries: true, credit: false }));
-  if (options.credit) rowsSection("Parcelas do crédito", "Parcelas e recorrências no cartão, por mês", getReportRows(data, months, { entries: false, credit: true }));
+  /* ====================== 3. Lançamentos ====================== */
+  // com as faturas no relatório, as compras no cartão e as parcelas aparecem só dentro delas
+  if (options.entries) rowsSection("Lançamentos", "Receitas em verde, despesas em vermelho", getReportRows(data, months, { entries: true, credit: false, invoices: options.invoices }));
 
   /* ====================== 5. Faturas dos cartões: cada fatura, com o título, o total e a descrição, inteira numa página ====================== */
   const drawInvoice = (inv: ReportInvoice): Draw => (d, startY, scale) => {
     const paid = inv.payment;
-    const sub = `${multi ? `${formatMonth(inv.month)} · ` : ""}Fecha ${dayMonth(inv.closingDate)} · Vence ${formatPaymentDate(inv.dueDate)}`;
+    const sub = `${multi ? `${formatMonth(inv.month)}` : ""}${inv.dueDate ? `${multi ? " · " : ""}Fecha ${dayMonth(inv.closingDate)} · Vence ${formatPaymentDate(inv.dueDate)}` : ""}`;
     const base = tableDefaults(d, scale);
     const subPad = { top: 1.6 * scale, bottom: 1.6 * scale, left: 3, right: 1.5 };
     autoTable(d, {
@@ -504,9 +504,10 @@ export function exportPDF(months: string[], options: PdfOptions) {
       head: [[invoiceTitle(inv), formatBRL(inv.total)]],
       headStyles: { fontSize: 12 * scale, fontStyle: "bold", textColor: VIOLET, fillColor: MONTH_BAND, cellPadding: { top: 3.2 * scale, bottom: 3.2 * scale, left: 3, right: 3 } },
       body: [
-        [{ content: sub, colSpan: 2, styles: { fontSize: 9 * scale, textColor: GRAY, cellPadding: subPad } }],
+        ...(sub ? [[{ content: sub, colSpan: 2, styles: { fontSize: 9 * scale, textColor: GRAY, cellPadding: subPad } }]] : []),
         ...(paid ? [[{ content: describePaidRow(paid), colSpan: 2, styles: { fontSize: 9 * scale, fontStyle: "bold" as const, textColor: isScheduled(paid) ? SCHEDULED_TEXT : PAID_TEXT, cellPadding: subPad } }]] : []),
-        ...inv.items.map((it) => [it.description, formatBRL(it.amount)]),
+        // a Helvetica do PDF não tem o "−" (menos tipográfico): ele sairia como lixo; vale o hífen comum
+        ...inv.items.map((it) => [it.description, it.kind === "adjustment" ? `${it.amount < 0 ? "-" : "+"}${formatBRL(Math.abs(it.amount))}` : formatBRL(it.amount)]),
       ],
       columnStyles: {
         0: { cellPadding: { top: 2.4 * scale, bottom: 2.4 * scale, left: 6, right: 1.5 } },
@@ -522,7 +523,7 @@ export function exportPDF(months: string[], options: PdfOptions) {
   if (options.invoices) {
     const invoices = getReportInvoices(data, months);
     if (invoices.length > 0) {
-      startSection("Faturas dos cartões", "Parcelas, recorrências e compras avulsas de cada cartão. Já estão nos totais: não são somadas de novo.");
+      startSection("Faturas dos cartões", "Parcelas, recorrências, compras avulsas e ajustes de cada cartão. Já estão nos totais: não são somadas de novo.");
       for (const inv of invoices) place(drawInvoice(inv), 7);
     }
   }

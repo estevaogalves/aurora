@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
-import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
+import Panel, { PageHeader } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import StatCard from "@/components/shared/StatCard";
-import { buildCsv, buildTxt, dayMonth, describePaidBadge, getPeriodTotals, getReportInvoices, invoiceTitle, isScheduled, type ReportInvoice } from "@/domain";
-import { formatBRL, formatBRLShort } from "@/lib/money";
+import { buildCsv, buildTxt, getPeriodTotals } from "@/domain";
+import { formatBRLShort } from "@/lib/money";
 import { downloadText } from "@/Services/download";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { changeMonth, formatMonth, formatMonthShort, getCurrentMonth, getMonthsBetween, monthsDifference } from "@/Utils/Date";
@@ -17,43 +17,11 @@ import { RELATORIOS_TOUR } from "./tour";
 const CONTENT = [
   { key: "summary", label: "Resumo de renda, despesas e saldo" },
   { key: "entries", label: "Lista de lançamentos" },
-  { key: "credit", label: "Parcelas do crédito" },
-  { key: "invoices", label: "Faturas dos cartões (cada uma com o total e a descrição dos gastos)" },
+  { key: "invoices", label: "Faturas dos cartões (parcelas, recorrências, compras avulsas e ajustes de cada uma)" },
   { key: "distribution", label: "Sugestão de distribuição do saldo (só no PDF; com vários meses usa o saldo somado)" },
 ] as const;
 
 const MAX_MONTHS = 6;
-
-/** Uma fatura: o título com o nome do cartão e o total, e embaixo a descrição dos gastos. */
-function InvoiceBlock({ invoice }: { invoice: ReportInvoice }) {
-  const { payment } = invoice;
-  return (
-    <div className="rounded-md border border-border bg-secondary p-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="break-words font-semibold">{invoiceTitle(invoice)}</div>
-          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[12.5px] text-muted-foreground">
-            <span>{formatMonth(invoice.month)}</span>
-            <span>Fecha {dayMonth(invoice.closingDate)}</span>
-            <span>Vence {dayMonth(invoice.dueDate)}</span>
-            {payment && <Pill tone={isScheduled(payment) ? "scheduled" : "good"}>{describePaidBadge(payment)}</Pill>}
-          </div>
-        </div>
-        <span className="num flex-none text-right font-bold">{formatBRL(invoice.total)}</span>
-      </div>
-      {invoice.items.length > 0 && (
-        <ul className="mt-2.5 flex flex-col border-t border-border pt-1.5">
-          {invoice.items.map((item, i) => (
-            <li key={i} className="flex items-baseline justify-between gap-3 py-1 text-[13px]">
-              <span className="min-w-0 break-words">{item.description}</span>
-              <span className="num flex-none font-semibold">{formatBRL(item.amount)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 export default function ReportsPage() {
   const current = useFinanceStore((s) => s.currentMonth);
@@ -85,7 +53,6 @@ export default function ReportsPage() {
   const range = custom ?? { start: changeMonth(current, -(MAX_MONTHS - 1)), end: current };
   const months = useMemo(() => getMonthsBetween(range.start, range.end), [range.start, range.end]);
   const total = useMemo(() => getPeriodTotals(data, months), [data, months]);
-  const invoices = useMemo(() => getReportInvoices(data, months), [data, months]);
   const count = months.length;
   const avg = (v: number) => formatBRLShort(Math.round(v / count));
 
@@ -113,12 +80,12 @@ export default function ReportsPage() {
       showToast({ type: "error", text: "Não há lançamentos no período escolhido" });
       return;
     }
-    if (!content.summary && !content.entries && !content.credit && !content.invoices && !(format === "PDF" && content.distribution)) {
+    if (!content.summary && !content.entries && !content.invoices && !(format === "PDF" && content.distribution)) {
       showToast({ type: "error", text: "Marque ao menos um conteúdo para exportar" });
       return;
     }
 
-    const options = { summary: content.summary, entries: content.entries, credit: content.credit, invoices: content.invoices };
+    const options = { summary: content.summary, entries: content.entries, invoices: content.invoices };
     const name = `relatorio-${months[0]}${months.length > 1 ? `_a_${months[months.length - 1]}` : ""}`;
 
     // o gerador de PDF é pesado: só é carregado quando alguém pede um PDF
@@ -190,19 +157,6 @@ export default function ReportsPage() {
               </table>
             </div>
           </Panel>
-
-          <div className="mt-3.5">
-            <Panel tour="faturas" title="Faturas dos cartões" subtitle="Cada fatura reúne parcelas, recorrências e compras avulsas do cartão">
-              {invoices.length === 0 ? (
-                <Empty>Nenhuma fatura de cartão neste período.</Empty>
-              ) : (
-                <div className="flex flex-col gap-3">
-                  {invoices.map((i) => <InvoiceBlock key={`${i.month}-${i.cardName}`} invoice={i} />)}
-                  <p className="text-[12.5px] text-muted-foreground">As faturas só agrupam lançamentos que já estão nos totais do período: nada é somado de novo.</p>
-                </div>
-              )}
-            </Panel>
-          </div>
         </div>
 
         <div className="col-span-12 lg:col-span-5">
