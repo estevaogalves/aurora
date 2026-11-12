@@ -332,9 +332,9 @@ export interface ImportTemplate {
 }
 
 /**
- * Modelos para baixar: já vêm com o cabeçalho e algumas linhas de exemplo (troque pelas suas, ou apague e cole as
- * suas). O Aurora reconhece as colunas sozinho. Valores negativos são despesas e positivos são rendas no extrato;
- * na fatura todo valor positivo é uma compra.
+ * Modelos para baixar: só o cabeçalho (Data, Descrição e Valor), sem nenhuma linha de exemplo, para a pessoa colar os
+ * próprios lançamentos. O Aurora reconhece as colunas sozinho. Valores negativos são despesas e positivos são rendas
+ * no extrato; na fatura todo valor positivo é uma compra.
  */
 export const IMPORT_TEMPLATES: ImportTemplate[] = [
   {
@@ -342,27 +342,13 @@ export const IMPORT_TEMPLATES: ImportTemplate[] = [
     label: "Modelo de extrato da conta",
     hint: "Destino: Conta. Negativo é despesa e positivo é renda.",
     filename: "aurora-modelo-extrato-conta.csv",
-    content: [
-      "Data;Descrição;Valor",
-      "03/11/2026;SUPERMERCADO BOM PRECO;-187,43",
-      "04/11/2026;UBER *TRIP;-23,90",
-      "05/11/2026;SALARIO;3.500,00",
-      "06/11/2026;CONTA DE LUZ;-182,37",
-      "08/11/2026;PIX RECEBIDO;250,00",
-    ].join("\r\n"),
+    content: "Data;Descrição;Valor\r\n",
   },
   {
     id: "fatura",
     label: "Modelo de fatura do cartão",
     hint: "Destino: Fatura do cartão. Todo valor positivo é uma compra.",
     filename: "aurora-modelo-fatura-cartao.csv",
-    content: [
-      "Data;Descrição;Valor",
-      "05/10/2026;RESTAURANTE EXEMPLO;189,90",
-      "12/10/2026;SUPERMERCADO BOM PRECO;312,45",
-      "20/10/2026;ASSINATURA STREAMING;55,90",
-      "25/10/2026;LOJA ONLINE;249,99",
-      "28/10/2026;POSTO DE COMBUSTIVEL;210,00",
-    ].join("\r\n"),
+    content: "Data;Descrição;Valor\r\n",
   },
 ];

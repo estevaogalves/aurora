@@ -209,7 +209,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
           <section aria-label="Planilhas modelo" className="flex flex-col gap-3 rounded-md border border-border p-3.5">
             <div>
               <h3 className="font-display text-[14px] font-semibold">Baixe uma planilha modelo</h3>
-              <p className="mt-0.5 text-[12.5px] text-muted-foreground">Já vem com as colunas prontas (Data, Descrição e Valor) e algumas linhas de exemplo. Troque pelas suas e depois escolha o arquivo acima. Abre no Excel e no Google Planilhas.</p>
+              <p className="mt-0.5 text-[12.5px] text-muted-foreground">Vem só com os títulos das colunas (Data, Descrição e Valor). Cole os seus lançamentos embaixo, salve como CSV e escolha o arquivo acima. Abre no Excel e no Google Planilhas.</p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {IMPORT_TEMPLATES.map((t) => (

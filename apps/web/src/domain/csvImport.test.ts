@@ -144,20 +144,19 @@ describe("duplicados e reimportação", () => {
 
 describe("planilhas modelo", () => {
   for (const t of IMPORT_TEMPLATES) {
-    it(`${t.id}: o modelo é lido sem nenhuma linha pulada e com as colunas reconhecidas`, () => {
+    it(`${t.id}: só o cabeçalho, sem exemplos, e o app reconhece as colunas`, () => {
       const rows = parseCsv(t.content);
-      const mapping = guessMapping(rows);
-      expect(mapping).toMatchObject({ date: 0, description: 1, amount: 2, hasHeader: true });
-      const { rows: built, skipped } = buildImportRows(rows, { ...mapping!, signMode: t.id === "fatura" ? "expense" : "auto" }, []);
-      expect(skipped).toEqual([]);
-      expect(built).toHaveLength(5);
+      expect(rows).toEqual([["Data", "Descrição", "Valor"]]);
+      expect(guessMapping(rows)).toMatchObject({ date: 0, description: 1, amount: 2, hasHeader: true });
       expect(t.filename).toMatch(/\.csv$/);
     });
+
+    it(`${t.id}: o modelo preenchido pela pessoa é lido sem pular nenhuma linha`, () => {
+      const filled = `${t.content}03/11/2026;SUPERMERCADO;${t.id === "fatura" ? "187,43" : "-187,43"}\r\n05/11/2026;PADARIA;${t.id === "fatura" ? "12,50" : "-12,50"}\r\n`;
+      const rows = parseCsv(filled);
+      const { rows: built, skipped } = buildImportRows(rows, { ...guessMapping(rows)!, signMode: t.id === "fatura" ? "expense" : "auto" }, []);
+      expect(skipped).toEqual([]);
+      expect(built.map((r) => r.type)).toEqual(["expense", "expense"]);
+    });
   }
-  it("o extrato modelo tem despesas e rendas; a fatura modelo, só compras", () => {
-    const extrato = IMPORT_TEMPLATES.find((t) => t.id === "extrato")!;
-    const types = buildImportRows(parseCsv(extrato.content), guessMapping(parseCsv(extrato.content))!, []).rows.map((r) => r.type);
-    expect(types).toContain("income");
-    expect(types).toContain("expense");
-  });
 });
