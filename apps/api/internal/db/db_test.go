@@ -69,7 +69,7 @@ func TestOpenEmptyPath(t *testing.T) {
 }
 
 // Quem já usa o Aurora com SQLite tem um aurora.db na versão 1 (só o 00001). Ao ligar a versão nova, as migrations
-// 00012 a 00018 têm que rodar sozinhas, sem perder nada, e as metas existentes ganham o histórico ("Saldo inicial")
+// 00012 a 00019 têm que rodar sozinhas, sem perder nada, e as metas existentes ganham o histórico ("Saldo inicial")
 // que reproduz exatamente o valor que já estava guardado.
 func TestUpgradeFromVersion1KeepsDataAndBackfillsGoalHistory(t *testing.T) {
 	ctx := context.Background()
@@ -106,7 +106,7 @@ func TestUpgradeFromVersion1KeepsDataAndBackfillsGoalHistory(t *testing.T) {
 		t.Fatalf("atualizar: %v", err)
 	}
 	var version int64
-	if err := d.QueryRowContext(ctx, "SELECT max(version_id) FROM goose_db_version").Scan(&version); err != nil || version != 18 {
+	if err := d.QueryRowContext(ctx, "SELECT max(version_id) FROM goose_db_version").Scan(&version); err != nil || version != 19 {
 		t.Fatalf("versão depois de atualizar: %d %v", version, err)
 	}
 
@@ -180,5 +180,56 @@ func TestUpgradeFromVersion1KeepsDataAndBackfillsGoalHistory(t *testing.T) {
 	var n int
 	if err := d.QueryRowContext(ctx, "SELECT count(*) FROM goal_movements").Scan(&n); err != nil || n != 5 {
 		t.Fatalf("migrar de novo não pode duplicar o histórico: %d %v", n, err)
+	}
+}
+
+// A migration 00019 refaz as tabelas de investimentos (o SQLite não altera um CHECK no lugar): os investimentos e
+// as movimentações que já existiam têm que continuar iguais, e o negócio próprio passa a ser aceito.
+func TestBusinessMigrationKeepsInvestments(t *testing.T) {
+	ctx := context.Background()
+	d, err := Open(ctx, filepath.Join(t.TempDir(), "antigo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer d.Close()
+	goose.SetBaseFS(migrations)
+	if err := goose.SetDialect("sqlite3"); err != nil {
+		t.Fatal(err)
+	}
+	if err := goose.UpToContext(ctx, d, "migrations", 18); err != nil {
+		t.Fatal(err)
+	}
+	exec := func(q string) {
+		t.Helper()
+		if _, err := d.ExecContext(ctx, q); err != nil {
+			t.Fatalf("%s: %v", q, err)
+		}
+	}
+	exec("INSERT INTO users (id, email, password_hash) VALUES ('u1', 'a@b.c', 'x')")
+	exec("INSERT INTO investments (id, user_id, name, family, institution, applied_at, current_value_cents, fees) VALUES ('i1', 'u1', 'CDB', 'fixed', 'Banco A', '2026-01-01', 105000, 'IR')")
+	exec("INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents, note, origin) VALUES ('m1', 'u1', 'i1', 'contribution', '2026-01-01', 100000, 'primeiro', 'distribution|2026-01|a|1')")
+	exec("INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents) VALUES ('m2', 'u1', 'i1', 'yield', '2026-02-01', 5000)")
+
+	if err := Migrate(ctx, d); err != nil {
+		t.Fatalf("atualizar: %v", err)
+	}
+	var name, fees, note, origin string
+	var value int64
+	if err := d.QueryRowContext(ctx, "SELECT name, fees, current_value_cents FROM investments WHERE id = 'i1'").Scan(&name, &fees, &value); err != nil || name != "CDB" || fees != "IR" || value != 105000 {
+		t.Fatalf("investimento depois de atualizar: %q %q %d %v", name, fees, value, err)
+	}
+	if err := d.QueryRowContext(ctx, "SELECT note, origin FROM investment_movements WHERE id = 'm1'").Scan(&note, &origin); err != nil || note != "primeiro" || origin != "distribution|2026-01|a|1" {
+		t.Fatalf("movimentação depois de atualizar: %q %q %v", note, origin, err)
+	}
+	var n int
+	if err := d.QueryRowContext(ctx, "SELECT count(*) FROM investment_movements").Scan(&n); err != nil || n != 2 {
+		t.Fatalf("movimentações: %d %v", n, err)
+	}
+	// o negócio próprio e o recebimento agora são aceitos; o apagar em cascata continua valendo
+	exec("INSERT INTO investments (id, user_id, name, family, institution, applied_at) VALUES ('b1', 'u1', 'Revenda', 'business', 'Negócio próprio', '2026-03-01')")
+	exec("INSERT INTO investment_movements (id, user_id, investment_id, type, date, amount_cents) VALUES ('m3', 'u1', 'b1', 'income', '2026-03-02', 8000)")
+	exec("DELETE FROM investments WHERE id = 'b1'")
+	if err := d.QueryRowContext(ctx, "SELECT count(*) FROM investment_movements WHERE investment_id = 'b1'").Scan(&n); err != nil || n != 0 {
+		t.Fatalf("cascata: %d %v", n, err)
 	}
 }
