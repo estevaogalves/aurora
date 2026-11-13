@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import { EXPENSE_CATEGORIES, type Category } from "@/Types/Category";
+import { expenseCategoryOptions, type Category } from "@/Types/Category";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import CategoryDialog from "./CategoryDialog";
 
@@ -24,9 +24,9 @@ export default function CategorySelect({ value, onChange, id }: CategorySelectPr
   const colorOf = useCategoryColor();
   const [creating, setCreating] = useState(false);
 
-  const names = [...EXPENSE_CATEGORIES, ...custom.map((c) => c.name)];
-  // categoria que foi apagada mas ainda está num lançamento continua selecionável
-  if (value && !names.includes(value)) names.push(value);
+  // "Outros" fica sempre por último; categoria nova entra acima dele. Uma apagada que ainda está no lançamento continua selecionável.
+  const customNames = custom.map((c) => c.name);
+  const names = expenseCategoryOptions(customNames, value && value !== "Renda" && !customNames.includes(value) ? [value] : []);
 
   return (
     <div className="flex flex-col">

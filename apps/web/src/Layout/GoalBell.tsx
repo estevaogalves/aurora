@@ -4,8 +4,11 @@ import Icon from "@/components/Icon";
 import { Pill } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { dueLabel, formatPaymentDay, goalPercent, type BudgetAlert, type DueItem, type GoalAlert, type MaturityAlert } from "@/domain";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { alertKey, budgetAlertKey, dueAlertKey, maturityAlertKey, dueLabel, formatPaymentDay, goalPercent, type BudgetAlert, type DueItem, type GoalAlert, type MaturityAlert } from "@/domain";
 import { formatBRL } from "@/lib/money";
+import { clearAlerts, usePrefsStore } from "@/lib/preferences";
 import { useBudgetAlerts } from "@/Store/budgets";
 import { useDueAlerts } from "@/Store/dues";
 import { deadlineStatus, paceHint, useGoalAlerts } from "@/Features/Goals/goalAlerts";
@@ -108,14 +111,32 @@ function BudgetAlertItem({ item, seen, onToggle }: { item: BudgetAlert; seen: bo
  * O contador só conta o que ainda não foi visto.
  */
 export default function GoalBell() {
-  const goals = useGoalAlerts();
-  const maturities = useMaturityAlerts();
-  const dues = useDueAlerts();
-  const budgets = useBudgetAlerts();
+  const rawGoals = useGoalAlerts();
+  const rawMaturities = useMaturityAlerts();
+  const rawDues = useDueAlerts();
+  const rawBudgets = useBudgetAlerts();
+  const cleared = usePrefsStore((s) => s.clearedAlerts);
+  const [confirmClear, setConfirmClear] = useState(false);
+  // avisos limpos não aparecem mais em "Já vistos" (voltam só se o aviso mudar de nível)
+  const goals = { ...rawGoals, seen: rawGoals.seen.filter((a) => !cleared.includes(alertKey(a))) };
+  const maturities = { ...rawMaturities, seen: rawMaturities.seen.filter((a) => !cleared.includes(maturityAlertKey(a))) };
+  const dues = { ...rawDues, seen: rawDues.seen.filter((a) => !cleared.includes(dueAlertKey(a))) };
+  const budgets = { ...rawBudgets, seen: rawBudgets.seen.filter((a) => !cleared.includes(budgetAlertKey(a))) };
   const count = goals.unseen.length + maturities.unseen.length + dues.unseen.length + budgets.unseen.length;
   const urgent = goals.unseen.some((a) => a.level !== "soon") || maturities.unseen.some((a) => a.level !== "soon") || dues.unseen.some((d) => d.level === "overdue" || d.level === "today") || budgets.unseen.some((b) => b.level === "over");
   const none = count === 0 && goals.seen.length + maturities.seen.length + dues.seen.length + budgets.seen.length === 0;
   const [open, setOpen] = useState(false);
+  const everyKey = [
+    ...[...rawGoals.unseen, ...rawGoals.seen].map(alertKey),
+    ...[...rawMaturities.unseen, ...rawMaturities.seen].map(maturityAlertKey),
+    ...[...rawDues.unseen, ...rawDues.seen].map(dueAlertKey),
+    ...[...rawBudgets.unseen, ...rawBudgets.seen].map(budgetAlertKey),
+  ];
+  const doClear = () => {
+    markAllSeen();
+    clearAlerts(everyKey);
+    setConfirmClear(false);
+  };
   const markAllSeen = () => {
     goals.markSeen(goals.unseen);
     maturities.markSeen(maturities.unseen);
@@ -124,6 +145,7 @@ export default function GoalBell() {
   };
 
   return (
+    <>
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
@@ -142,12 +164,20 @@ export default function GoalBell() {
       <PopoverContent>
         <div className="flex items-center justify-between gap-2">
           <h3 className="font-display text-[15px] font-semibold">Avisos</h3>
-          {count > 1 && (
-            <button type="button" onClick={markAllSeen} className={`${btnClass.base} ${btnClass.sm}`}>
-              <Icon name="check" size={14} />
-              Marcar todos como vistos
-            </button>
-          )}
+          <div className="flex flex-wrap justify-end gap-1.5">
+            {count > 1 && (
+              <button type="button" onClick={markAllSeen} className={`${btnClass.base} ${btnClass.sm}`}>
+                <Icon name="check" size={14} />
+                Marcar todos como vistos
+              </button>
+            )}
+            {!none && (
+              <button type="button" onClick={() => setConfirmClear(true)} className={`${btnClass.base} ${btnClass.sm} hover:!border-destructive hover:!text-destructive`}>
+                <Icon name="trash" size={14} />
+                Limpar avisos
+              </button>
+            )}
+          </div>
         </div>
 
         {none && <p className="mt-2 text-[13px] text-muted-foreground">Nenhuma meta com prazo vencido ou chegando nos próximos 3 meses, nenhum investimento vencendo nos próximos 30 dias nenhuma conta atrasada ou vencendo nos próximos 3 dias e nenhuma categoria perto do limite do orçamento.</p>}
@@ -205,5 +235,20 @@ export default function GoalBell() {
         </div>
       </PopoverContent>
     </Popover>
+      <Dialog open={confirmClear} onOpenChange={setConfirmClear}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Limpar todos os avisos?</DialogTitle>
+            <DialogDescription>
+              Os avisos de metas, investimentos, vencimentos e orçamento somem do sino, inclusive os já vistos. Nada é apagado dos seus dados: um aviso só volta se a situação piorar (por exemplo, uma conta que passa a estar atrasada).
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="secondary" onClick={() => setConfirmClear(false)}>Cancelar</Button>
+            <Button type="button" variant="destructive" onClick={doClear}>Limpar avisos</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

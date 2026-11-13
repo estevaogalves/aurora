@@ -199,5 +199,77 @@
       "invested": 500000,
       "monthlyDividends": 2500
     }
-  ]
+  ],
+  "closings": {
+    "2025-11": {
+      "closedAt": "2025-11-28",
+      "income": 500000,
+      "expense": 380000,
+      "balance": 120000,
+      "byCategory": {
+        "Moradia": 120000
+      },
+      "note": "Mês 2025-11"
+    },
+    "2025-12": {
+      "closedAt": "2025-12-28",
+      "income": 500000,
+      "expense": 380000,
+      "balance": 120000,
+      "byCategory": {
+        "Moradia": 120000
+      },
+      "note": "Mês 2025-12"
+    },
+    "2026-01": {
+      "closedAt": "2026-01-28",
+      "income": 500000,
+      "expense": 380000,
+      "balance": 120000,
+      "byCategory": {
+        "Moradia": 120000
+      },
+      "note": "Mês 2026-01"
+    },
+    "2026-02": {
+      "closedAt": "2026-02-28",
+      "income": 500000,
+      "expense": 380000,
+      "balance": 120000,
+      "byCategory": {
+        "Moradia": 120000
+      },
+      "note": "Mês 2026-02"
+    },
+    "2026-03": {
+      "closedAt": "2026-03-28",
+      "income": 500000,
+      "expense": 380000,
+      "balance": 120000,
+      "byCategory": {
+        "Moradia": 120000
+      },
+      "note": "Mês 2026-03"
+    },
+    "2026-04": {
+      "closedAt": "2026-04-28",
+      "income": 500000,
+      "expense": 380000,
+      "balance": 120000,
+      "byCategory": {
+        "Moradia": 120000
+      },
+      "note": "Mês 2026-04"
+    },
+    "2026-05": {
+      "closedAt": "2026-05-28",
+      "income": 500000,
+      "expense": 380000,
+      "balance": 120000,
+      "byCategory": {
+        "Moradia": 120000
+      },
+      "note": "Mês 2026-05"
+    }
+  }
 }

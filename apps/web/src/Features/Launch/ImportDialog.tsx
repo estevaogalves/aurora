@@ -26,7 +26,7 @@ import { uuid } from "@/lib/uuid";
 import { downloadText } from "@/Services/download";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
-import { EXPENSE_CATEGORIES, type Category } from "@/Types/Category";
+import { expenseCategoryOptions, type Category } from "@/Types/Category";
 import { showToast } from "../Warnings/toast";
 
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -77,7 +77,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
   const [ruleText, setRuleText] = useState("");
   const [ruleCategory, setRuleCategory] = useState<Category>("Outros");
 
-  const categoryNames = useMemo(() => [...EXPENSE_CATEGORIES, ...custom.map((c) => c.name)], [custom]);
+  const categoryNames = useMemo(() => expenseCategoryOptions(custom.map((c) => c.name)), [custom]);
   const body = mapping?.hasHeader ? rows.slice(1) : rows;
   const flagged = useMemo(() => sensitiveColumns(body.slice(0, 200)), [body]);
   const width = Math.max(0, ...rows.map((r) => r[0] === undefined ? 0 : r.length));
@@ -229,7 +229,10 @@ function Wizard({ onClose }: { onClose: () => void }) {
 
       {step === "map" && mapping && (
         <>
-          <p className="text-[13px] text-ink2">Arquivo: <b>{fileName}</b> · {body.length} linhas</p>
+          <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px] text-ink2">
+            <span>Arquivo: <b>{fileName}</b> · {body.length} linhas</span>
+            <button type="button" onClick={() => { setStep("file"); setError(""); setRows([]); setFileName(""); }} className="font-bold text-primary hover:underline">Trocar arquivo</button>
+          </p>
           {flagged.size > 0 && (
             <p role="note" className="rounded-md border border-border bg-secondary px-3 py-2 text-[12.5px] text-ink2">
               Ignorei {flagged.size === 1 ? "a coluna" : "as colunas"} {[...flagged.keys()].map((c) => `“${rows[0]?.[c] || `Coluna ${c + 1}`}”`).join(", ")}: parece{flagged.size === 1 ? "" : "m"} ter número de cartão ou documento.

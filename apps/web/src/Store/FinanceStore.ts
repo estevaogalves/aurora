@@ -22,6 +22,7 @@ import {
   findSentMovements,
   goalOpeningMovements,
   overrideKey,
+  paidMonths,
   pruneSeenAlerts,
   replayGoal,
   todayISO,
@@ -193,7 +194,9 @@ interface FinanceState {
   updateDebt: (id: string, patch: Partial<Debt>) => void;
   removeDebt: (id: string) => void;
   /** Registra uma parcela paga da dívida (avança a próxima parcela em um mês). */
-  payDebtInstallment: (id: string) => void;
+  payDebtInstallment: (id: string, amount?: number) => void;
+  /** Corrige o valor realmente pago numa parcela já paga (desconto ou acréscimo daquele mês). */
+  setDebtPaidValue: (id: string, month: string, amount: number) => void;
   /** Fecha um mês com o retrato e a anotação; fechar de novo substitui. */
   closeMonth: (month: string, closing: MonthClosing) => void;
   /** Reabre o mês (tira o fechamento). */
@@ -744,10 +747,21 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       set((s) => ({ debts: s.debts.filter((d) => d.id !== id) }));
       savePlanning();
     },
-    payDebtInstallment: (id) => {
+    payDebtInstallment: (id, amount) => {
       const d = get().debts.find((x) => x.id === id);
       if (!d || d.paidInstallments >= d.totalInstallments) return;
-      set((s) => ({ debts: s.debts.map((x) => (x.id === id ? { ...x, paidInstallments: x.paidInstallments + 1, nextMonth: changeMonth(x.nextMonth, 1) } : x)) }));
+      // com valor, guarda o que foi realmente pago nesta parcela (desconto ou acréscimo)
+      const valid = amount !== undefined && Number.isInteger(amount) && amount >= 0 && amount <= MAX_PLANNING_CENTS;
+      set((s) => ({
+        debts: s.debts.map((x) => (x.id === id ? { ...x, paidInstallments: x.paidInstallments + 1, nextMonth: changeMonth(x.nextMonth, 1), ...(valid && { paidValues: { ...x.paidValues, [x.nextMonth]: amount } }) } : x)),
+      }));
+      savePlanning();
+    },
+    setDebtPaidValue: (id, month, amount) => {
+      const d = get().debts.find((x) => x.id === id);
+      if (!d || !paidMonths(d).includes(month)) return;
+      if (!Number.isInteger(amount) || amount < 0 || amount > MAX_PLANNING_CENTS) return;
+      set((s) => ({ debts: s.debts.map((x) => (x.id === id ? { ...x, paidValues: { ...x.paidValues, [month]: amount } } : x)) }));
       savePlanning();
     },
     closeMonth: (month, closing) => {

@@ -6,7 +6,7 @@ import { PAYMENT_METHODS, isFilterActive, type PaymentMethod } from "@/domain";
 import { formatBRL, parseBRL } from "@/lib/money";
 import { useLaunchFilter } from "@/lib/launchFilter";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import { EXPENSE_CATEGORIES } from "@/Types/Category";
+import { expenseCategoryOptions } from "@/Types/Category";
 import { useLaunchFiltering } from "./filtering";
 
 /**
@@ -18,7 +18,7 @@ export default function FilterBar() {
   const custom = useFinanceStore((s) => s.customCategories);
   const transactions = useFinanceStore((s) => s.transactions);
   const view = useLaunchFiltering();
-  const categories = [...EXPENSE_CATEGORIES, ...custom.map((c) => c.name), "Renda"];
+  const categories = [...expenseCategoryOptions(custom.map((c) => c.name)), "Renda"];
   const tags = useMemo(() => [...new Set(transactions.flatMap((t) => t.tags ?? []))].sort((a, b) => a.localeCompare(b)), [transactions]);
   const active = isFilterActive(filter);
   const money = (cents: number | null) => (cents === null ? "" : (cents / 100).toFixed(2).replace(".", ","));

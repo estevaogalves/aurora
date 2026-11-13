@@ -24,12 +24,16 @@ export interface Preferences {
   dueWindow: number;
   /** cenário da Projeção para a renda variável: conservador (padrão, só renda fixa), médio ou otimista */
   scenario: Scenario;
+  /** avisos do sino que o usuário limpou (some da lista "Já vistos"; volta só se o aviso mudar de nível) */
+  clearedAlerts: string[];
 }
 
 /** Quantos insights dispensados ficam guardados (os mais antigos saem primeiro). */
 export const MAX_DISMISSED = 200;
+/** Quantos avisos limpos ficam guardados (os mais antigos saem primeiro). */
+export const MAX_CLEARED = 500;
 
-export const DEFAULT_PREFS: Preferences = { showHours: false, hoursPerMonth: DEFAULT_HOURS_PER_MONTH, netIncome: null, showBreathing: false, dismissedInsights: [], dueWindow: DEFAULT_DUE_WINDOW, scenario: "conservative" };
+export const DEFAULT_PREFS: Preferences = { showHours: false, hoursPerMonth: DEFAULT_HOURS_PER_MONTH, netIncome: null, showBreathing: false, dismissedInsights: [], dueWindow: DEFAULT_DUE_WINDOW, scenario: "conservative", clearedAlerts: [] };
 
 /** Lê o que foi salvo, aceitando só campos do tipo certo (o resto volta ao padrão). */
 export function parsePrefs(raw: string | null): Preferences {
@@ -41,6 +45,7 @@ export function parsePrefs(raw: string | null): Preferences {
       hoursPerMonth: typeof d.hoursPerMonth === "number" && d.hoursPerMonth > 0 && d.hoursPerMonth <= 744 ? d.hoursPerMonth : DEFAULT_PREFS.hoursPerMonth,
       netIncome: typeof d.netIncome === "number" && d.netIncome > 0 ? d.netIncome : null,
       showBreathing: d.showBreathing === true,
+      clearedAlerts: Array.isArray(d.clearedAlerts) ? d.clearedAlerts.filter((x): x is string => typeof x === "string").slice(-MAX_CLEARED) : [],
       scenario: isScenario(d.scenario) ? d.scenario : "conservative",
       dueWindow: (DUE_WINDOWS as readonly number[]).includes(d.dueWindow as number) ? (d.dueWindow as number) : DEFAULT_DUE_WINDOW,
       dismissedInsights: Array.isArray(d.dismissedInsights) ? d.dismissedInsights.filter((x): x is string => typeof x === "string").slice(-MAX_DISMISSED) : [],
@@ -66,9 +71,9 @@ export const usePrefsStore = create<PrefsState>((set, get) => ({
   ...read(),
   setPrefs: (patch) => {
     set(patch);
-    const { showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow, scenario } = get();
+    const { showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow, scenario, clearedAlerts } = get();
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow, scenario }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow, scenario, clearedAlerts }));
     } catch {
       // sem persistência, vale só para a sessão
     }
@@ -80,4 +85,10 @@ export function dismissInsight(id: string) {
   const { dismissedInsights, setPrefs } = usePrefsStore.getState();
   if (dismissedInsights.includes(id)) return;
   setPrefs({ dismissedInsights: [...dismissedInsights, id].slice(-MAX_DISMISSED) });
+}
+
+/** Limpa avisos do sino: guarda as chaves deles como "limpos". */
+export function clearAlerts(keys: string[]) {
+  const { clearedAlerts, setPrefs } = usePrefsStore.getState();
+  setPrefs({ clearedAlerts: [...new Set([...clearedAlerts, ...keys])].slice(-MAX_CLEARED) });
 }

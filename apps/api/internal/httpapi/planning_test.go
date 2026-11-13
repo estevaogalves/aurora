@@ -28,14 +28,14 @@ func TestPlanning(t *testing.T) {
 
 	valid := map[string]any{
 		"budgets":        map[string]any{"Alimentação": map[string]any{"2026-11": 80000, "2027-01": 0}},
-		"debts":          []any{map[string]any{"id": "d1", "name": "Consórcio moto", "installmentValue": 69700, "totalInstallments": 60, "paidInstallments": 12, "nextMonth": "2026-12", "linkedTransactionId": "abc"}},
+		"debts":          []any{map[string]any{"id": "d1", "name": "Consórcio moto", "installmentValue": 69700, "totalInstallments": 60, "paidInstallments": 12, "nextMonth": "2026-12", "linkedTransactionId": "abc", "paidValues": map[string]any{"2026-11": 60000}}},
 		"closings":       map[string]any{"2026-10": map[string]any{"closedAt": "2026-11-01", "income": 300000, "expense": 250000, "balance": 50000, "byCategory": map[string]any{"Moradia": 100000}, "note": "gastei menos"}},
 		"dividendAssets": []any{map[string]any{"id": "a1", "name": "HGLG11", "invested": 1000000, "monthlyDividends": 8000}},
 	}
 	want(t, e.do(t, "PUT", "/api/v1/settings/planning", tk, valid), http.StatusNoContent)
 
 	d = load()
-	if d.Budgets["Alimentação"]["2026-11"] != 80000 || len(d.Debts) != 1 || d.Debts[0].PaidInstallments != 12 ||
+	if d.Budgets["Alimentação"]["2026-11"] != 80000 || len(d.Debts) != 1 || d.Debts[0].PaidInstallments != 12 || d.Debts[0].PaidValues["2026-11"] != 60000 ||
 		d.Closings["2026-10"].Balance != 50000 || d.Closings["2026-10"].ByCategory["Moradia"] != 100000 || d.DividendAssets[0].Name != "HGLG11" {
 		t.Fatalf("depois de salvar: %+v", d)
 	}
@@ -56,6 +56,9 @@ func TestPlanning(t *testing.T) {
 	})
 	bad(func(m map[string]any) {
 		m["debts"] = []any{map[string]any{"id": "d1", "name": "X", "installmentValue": 0, "totalInstallments": 10, "paidInstallments": 1, "nextMonth": "2026-12"}}
+	})
+	bad(func(m map[string]any) {
+		m["debts"] = []any{map[string]any{"id": "d1", "name": "X", "installmentValue": 100, "totalInstallments": 10, "paidInstallments": 1, "nextMonth": "2026-12", "paidValues": map[string]any{"2026-13": 5}}}
 	})
 	bad(func(m map[string]any) {
 		m["closings"] = map[string]any{"2026-10": map[string]any{"closedAt": "ontem", "income": 1, "expense": 1, "balance": 0}}

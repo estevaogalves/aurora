@@ -6,34 +6,36 @@ import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import OriginBadge from "@/components/shared/OriginBadge";
+import Pager from "@/components/shared/Pager";
+import { usePagination } from "@/lib/usePagination";
 import { GOAL_MOVEMENT_LABEL, formatDateBR, getFixedExpense, isReserveName, replayGoal, reserveSuggestion, sortGoalMovements, todayISO, type GoalMovement, type GoalMovementType } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { showToast } from "../Warnings/toast";
 
 /** Criar (goal = null) ou editar uma meta. */
-export function GoalDialog({ open, goal, onClose, initialName, onCreated }: { open: boolean; goal: Goal | null; onClose: () => void; /** nome já preenchido ao criar (ex.: vindo de uma linha da sugestão do saldo) */ initialName?: string; /** chamado com o id da meta recém-criada */ onCreated?: (id: string) => void }) {
+export function GoalDialog({ open, goal, onClose, initialName, onCreated, asPiggy }: { open: boolean; goal: Goal | null; onClose: () => void; /** ao criar, cria um porquinho (sem valor de meta) em vez de uma meta */ asPiggy?: boolean; /** nome já preenchido ao criar (ex.: vindo de uma linha da sugestão do saldo) */ initialName?: string; /** chamado com o id da meta recém-criada */ onCreated?: (id: string) => void }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{goal?.piggy ? "Editar porquinho" : goal ? "Editar meta" : "Nova meta"}</DialogTitle>
+          <DialogTitle>{goal?.piggy ? "Editar porquinho" : goal ? "Editar meta" : asPiggy ? "Novo porquinho" : "Nova meta"}</DialogTitle>
           <DialogDescription>{goal?.piggy ? "Ajuste o nome, o aporte ou o prazo." : goal ? "Ajuste o valor, o aporte ou o prazo." : "Defina quanto guardar e até quando."}</DialogDescription>
         </DialogHeader>
         {/* key reinicia os campos a cada abertura ou troca de meta */}
-        {open && <GoalFields key={goal?.id ?? `new-${initialName ?? ""}`} goal={goal} onClose={onClose} initialName={initialName} onCreated={onCreated} />}
+        {open && <GoalFields key={goal?.id ?? `new-${asPiggy ? "p" : "g"}-${initialName ?? ""}`} goal={goal} onClose={onClose} initialName={initialName} onCreated={onCreated} asPiggy={asPiggy} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function GoalFields({ goal, onClose, initialName, onCreated }: { goal: Goal | null; onClose: () => void; initialName?: string; onCreated?: (id: string) => void }) {
+function GoalFields({ goal, onClose, initialName, onCreated, asPiggy }: { goal: Goal | null; onClose: () => void; initialName?: string; onCreated?: (id: string) => void; asPiggy?: boolean }) {
   const addGoal = useFinanceStore((s) => s.addGoal);
   const updateGoal = useFinanceStore((s) => s.updateGoal);
   const transactions = useFinanceStore((s) => s.transactions);
   const month = useFinanceStore((s) => s.currentMonth);
 
-  const piggy = !!goal?.piggy;
+  const piggy = !!goal?.piggy || (!goal && !!asPiggy);
   const [name, setName] = useState(goal?.name ?? initialName ?? "");
   const [target, setTarget] = useState(goal ? centsToInput(goal.target) : "");
   const [saved, setSaved] = useState("");
@@ -65,9 +67,9 @@ function GoalFields({ goal, onClose, initialName, onCreated }: { goal: Goal | nu
       showToast({ type: "success", text: `${piggy ? "Porquinho" : "Meta"} "${trimmed}" atualizada` });
     } else {
       const id = uuid();
-      addGoal({ id, ...values, saved: parseBRL(saved) ?? 0 });
+      addGoal({ id, ...values, saved: parseBRL(saved) ?? 0, ...(piggy && { piggy: true }) });
       onCreated?.(id);
-      showToast({ type: "success", text: `Meta "${trimmed}" criada` });
+      showToast({ type: "success", text: `${piggy ? "Porquinho" : "Meta"} "${trimmed}" criado${piggy ? "" : "a"}` });
     }
     onClose();
   }
@@ -216,6 +218,8 @@ export function GoalHistoryDialog({ goal, open, onClose, onEdit }: { goal: Goal 
   const remove = useFinanceStore((s) => s.removeGoalMovement);
   const [confirming, setConfirming] = useState<string | null>(null);
   const list = goal ? sortGoalMovements(movements.filter((m) => m.goalId === goal.id)).reverse() : [];
+  // histórico longo: 10 por página, em vez de uma rolagem sem fim
+  const pager = usePagination(list, 10);
 
   return (
     <Dialog open={open && !!goal} onOpenChange={(next) => { if (!next) { setConfirming(null); onClose(); } }}>
@@ -227,8 +231,9 @@ export function GoalHistoryDialog({ goal, open, onClose, onEdit }: { goal: Goal 
         {list.length === 0 ? (
           <p className="text-[13px] text-muted-foreground">Nenhuma movimentação registrada.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border">
-            {list.map((m) => (
+          <>
+<ul className="flex flex-col divide-y divide-border">
+            {pager.slice.map((m) => (
               <li key={m.id} className="flex flex-col gap-1.5 py-2.5 text-[13px]">
                 <div className="flex items-baseline justify-between gap-3">
                   <span>
@@ -259,6 +264,8 @@ export function GoalHistoryDialog({ goal, open, onClose, onEdit }: { goal: Goal 
               </li>
             ))}
           </ul>
+          <Pager {...pager} onPage={pager.setPage} />
+          </>
         )}
       </DialogContent>
     </Dialog>

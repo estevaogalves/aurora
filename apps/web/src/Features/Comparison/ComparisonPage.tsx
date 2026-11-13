@@ -70,7 +70,8 @@ export default function ComparisonPage() {
   const best = bySelected.reduce((a, b) => (b.balance > a.balance ? b : a), bySelected[0]);
   const worst = bySelected.reduce((a, b) => (b.balance < a.balance ? b : a), bySelected[0]);
 
-  const ranking = [...summaries].sort((a, b) => b.balance - a.balance);
+  // o ranking mostra só os meses escolhidos acima (não todos os que têm movimento)
+  const ranking = [...bySelected].sort((a, b) => b.balance - a.balance);
   const rankMax = Math.max(...ranking.map((m) => Math.abs(m.balance)), 1);
   const catMax = Math.max(...bySelected.flatMap((m) => CATEGORIES.map((c) => m.byCategory[c] ?? 0)), 1);
 

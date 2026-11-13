@@ -8,8 +8,10 @@ import StatCard from "@/components/shared/StatCard";
 import { btnClass } from "@/components/shared/styles";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MAX_CENTS, debtProgress, detectedPayment, earlyPayoff, formatPaymentDate, getDebtTotals, splitDebts, type Debt } from "@/domain";
+import { MAX_CENTS, debtProgress, detectedPayment, earlyPayoff, formatPaymentDate, getDebtTotals, getPaidInstallments, splitDebts, type Debt } from "@/domain";
 import { centsToInput, formatBRL, formatBRLShort, parseBRL } from "@/lib/money";
+import Pager from "@/components/shared/Pager";
+import { usePagination } from "@/lib/usePagination";
 import { uuid } from "@/lib/uuid";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
@@ -32,7 +34,9 @@ export default function DebtsView() {
   const demo = useUiStore((s) => s.tourDemo) && debts.length === 0;
   const shown = demo ? DEMO : debts;
   const { active, paidOff } = useMemo(() => splitDebts(shown), [shown]);
-  const totals = useMemo(() => getDebtTotals(shown), [shown]);
+  // com o vínculo, o valor da parcela acompanha a despesa fixa (um desconto lançado num mês vale para a parcela daquele mês)
+  const totals = useMemo(() => getDebtTotals(shown, transactions), [shown, transactions]);
+  const [paying, setPaying] = useState<{ debt: Debt; month: string; value: number } | null>(null);
   const [editing, setEditing] = useState<Debt | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Debt | null>(null);
@@ -70,10 +74,10 @@ export default function DebtsView() {
 
       <div className="mt-3.5 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-3.5">
         {active.map((d, i) => {
-          const p = debtProgress(d);
+          const p = debtProgress(d, transactions);
           const linked = transactions.find((t) => t.id === d.linkedTransactionId);
           const found = demo ? null : detectedPayment(d, transactions);
-          const sim = simulating === d.id ? earlyPayoff(d, parseBRL(discount) ?? 0) : null;
+          const sim = simulating === d.id ? earlyPayoff(d, parseBRL(discount) ?? 0, transactions) : null;
           return (
             <article key={d.id} data-tour={i === 0 ? "div-card" : undefined} className="flex min-w-0 flex-col gap-3 rounded-lg border border-border bg-card p-5 shadow-[var(--shadow-card)]">
               <div className="flex items-start justify-between gap-2.5">
@@ -86,11 +90,11 @@ export default function DebtsView() {
               <div className="h-[6px] overflow-hidden rounded-full bg-secondary"><i className="block h-full rounded-full bg-primary" style={{ width: `${p.percent}%` }} /></div>
               {[
                 ["Parcelas", `${d.paidInstallments} pagas · ${p.remaining} restantes de ${d.totalInstallments}`],
-                ["Valor da parcela", formatBRL(d.installmentValue)],
+                [linked ? "Parcela do mês (acompanha a despesa fixa)" : "Valor da parcela", formatBRL(p.nextValue)],
                 ["Total já pago", formatBRL(p.paidTotal)],
                 ["Saldo a pagar", formatBRL(p.balance)],
                 ["Próxima parcela", formatMonthTitle(d.nextMonth)],
-                ["Quitação", p.payoffMonth ? formatMonthTitle(p.payoffMonth) : "—"],
+                ["Última parcela (quitação)", p.payoffMonth ? formatMonthTitle(p.payoffMonth) : "—"],
               ].map(([label, value]) => (
                 <div key={label} className="flex flex-wrap justify-between gap-2 text-[12.5px]">
                   <span className="text-muted-foreground">{label}</span>
@@ -100,7 +104,7 @@ export default function DebtsView() {
               {d.note && <p className="border-t border-border pt-2.5 text-[12.5px] text-ink2">{d.note}</p>}
               {found && (
                 <p className="rounded-md bg-secondary px-3 py-2 text-[12.5px] text-ink2">
-                  A despesa vinculada foi paga em {formatPaymentDate(found.date)}. <button type="button" onClick={() => payInstallment(d.id)} className="font-bold text-primary hover:underline">Marcar a parcela de {formatMonthTitle(found.month)} como paga</button>
+                  A despesa vinculada foi paga em {formatPaymentDate(found.date)}. <button type="button" onClick={() => setPaying({ debt: d, month: found.month, value: found.value })} className="font-bold text-primary hover:underline">Marcar a parcela de {formatMonthTitle(found.month)} como paga</button>
                 </p>
               )}
               {sim && (
@@ -112,17 +116,18 @@ export default function DebtsView() {
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={demo} onClick={() => payInstallment(d.id)} className={`${btnClass.primary} ${btnClass.sm}`}>
+                <button type="button" disabled={demo} onClick={() => setPaying({ debt: d, month: d.nextMonth, value: p.nextValue })} className={`${btnClass.primary} ${btnClass.sm}`}>
                   <Icon name="check" size={14} />
                   Registrar parcela paga
                 </button>
-                <button type="button" disabled={demo} onClick={() => { setSimulating(simulating === d.id ? null : d.id); setDiscount(""); }} className={`${btnClass.base} ${btnClass.sm}`}>Simular quitação</button>
+                <button type="button" disabled={demo} onClick={() => { setSimulating(simulating === d.id ? null : d.id); setDiscount(""); }} className={`${btnClass.base} ${btnClass.sm}`}>Simular quitação antecipada</button>
                 <button type="button" disabled={demo} onClick={() => setEditing(d)} className={`${btnClass.base} ${btnClass.sm}`}>Editar</button>
                 <button type="button" disabled={demo} onClick={() => setDeleting(d)} className={`${btnClass.base} ${btnClass.sm} hover:!border-destructive hover:!text-destructive`}>
                   <Icon name="trash" size={14} />
                   Excluir
                 </button>
               </div>
+              {!demo && p.paidTotal > 0 && <PaidInstallments debt={d} />}
             </article>
           );
         })}
@@ -145,6 +150,17 @@ export default function DebtsView() {
         </section>
       )}
 
+      <PayConfirm
+        request={paying}
+        onClose={() => setPaying(null)}
+        onConfirm={(amount) => {
+          if (paying) {
+            payInstallment(paying.debt.id, amount);
+            showToast({ type: "success", text: `Parcela de ${formatMonthTitle(paying.month)} registrada: ${formatBRL(amount)}` });
+          }
+          setPaying(null);
+        }}
+      />
       <DebtDialog open={creating || !!editing} debt={editing} onClose={() => { setCreating(false); setEditing(null); }} />
       <ConfirmDeletion
         open={!!deleting}
@@ -235,5 +251,99 @@ function DebtFields({ debt, onClose }: { debt: Debt | null; onClose: () => void 
         <Button type="submit">{debt ? "Salvar" : "Cadastrar"}</Button>
       </div>
     </form>
+  );
+}
+
+/** Confirmação ao registrar uma parcela como paga: mostra o mês e o valor, que pode ser ajustado (desconto ou acréscimo). */
+function PayConfirm({ request, onClose, onConfirm }: { request: { debt: Debt; month: string; value: number } | null; onClose: () => void; onConfirm: (amount: number) => void }) {
+  return (
+    <Dialog open={!!request} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Registrar parcela paga?</DialogTitle>
+          <DialogDescription>{request ? `${request.debt.name} · parcela de ${formatMonthTitle(request.month)}. A próxima parcela passa para o mês seguinte.` : ""}</DialogDescription>
+        </DialogHeader>
+        {request && <PayFields key={`${request.debt.id}-${request.month}`} request={request} onClose={onClose} onConfirm={onConfirm} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PayFields({ request, onClose, onConfirm }: { request: { debt: Debt; month: string; value: number }; onClose: () => void; onConfirm: (amount: number) => void }) {
+  const [value, setValue] = useState(centsToInput(request.value));
+  const [error, setError] = useState("");
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const cents = parseBRL(value);
+    if (cents === null) return setError("Informe o valor pago (0 se a parcela foi abonada).");
+    if (cents > MAX_CENTS) return setError("O valor passa do limite de R$ 1 bilhão.");
+    onConfirm(cents);
+  }
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col gap-3">
+      <Field label="Valor pago nesta parcela" htmlFor="pay-value" hint={request.debt.linkedTransactionId ? "(vem da despesa fixa vinculada neste mês)" : undefined}>
+        <MoneyInput id="pay-value" value={value} onChange={(v) => { setValue(v); setError(""); }} />
+      </Field>
+      <p className="text-xs text-muted-foreground">Se você recebeu ou deu um desconto neste mês (ou pagou a mais), ajuste o valor: ele fica registrado nesta parcela e entra no total já pago.</p>
+      {error && <p role="alert" className="text-[13px] font-semibold text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+        <Button type="submit">Registrar parcela</Button>
+      </div>
+    </form>
+  );
+}
+
+/** As parcelas já pagas de uma dívida, 6 por página, com o valor de cada uma e a correção dele (desconto ou acréscimo). */
+function PaidInstallments({ debt }: { debt: Debt }) {
+  const transactions = useFinanceStore((s) => s.transactions);
+  const setPaidValue = useFinanceStore((s) => s.setDebtPaidValue);
+  const [open, setOpen] = useState(false);
+  const list = getPaidInstallments(debt, transactions);
+  const pager = usePagination(list, 6);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [value, setValue] = useState("");
+  const [error, setError] = useState("");
+
+  return (
+    <div className="border-t border-border pt-2.5">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="text-[12.5px] font-bold text-primary hover:underline">
+        {open ? "Esconder parcelas pagas" : `Parcelas pagas (${list.length})`}
+      </button>
+      {open && (
+        <>
+          <ul className="mt-2 flex flex-col divide-y divide-border text-[12.5px]">
+            {pager.slice.map((x) => (
+              <li key={x.month} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
+                <span>Parcela {x.number} · {formatMonthTitle(x.month)}{x.adjusted && <span className="ml-1.5 text-muted-foreground">(valor registrado)</span>}</span>
+                {editing === x.month ? (
+                  <form
+                    className="flex items-center gap-1.5"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const cents = parseBRL(value);
+                      if (cents === null || cents > MAX_CENTS) return setError("Valor inválido.");
+                      setPaidValue(debt.id, x.month, cents);
+                      setEditing(null);
+                    }}
+                  >
+                    <MoneyInput id={`paid-${debt.id}-${x.month}`} value={value} onChange={(v) => { setValue(v); setError(""); }} />
+                    <button type="submit" className="font-bold text-primary hover:underline">Salvar</button>
+                    <button type="button" onClick={() => setEditing(null)} className="text-muted-foreground hover:underline">Cancelar</button>
+                  </form>
+                ) : (
+                  <span className="flex items-center gap-3">
+                    <b className="num">{formatBRL(x.value)}</b>
+                    <button type="button" onClick={() => { setEditing(x.month); setValue(centsToInput(x.value)); setError(""); }} className="font-bold text-primary hover:underline">Editar valor</button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          {error && <p role="alert" className="mt-1 text-[12px] font-semibold text-destructive">{error}</p>}
+          <Pager {...pager} onPage={pager.setPage} />
+        </>
+      )}
+    </div>
   );
 }

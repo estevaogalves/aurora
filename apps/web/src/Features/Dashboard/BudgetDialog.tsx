@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { budgetLimitFor, MAX_CENTS } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import { EXPENSE_CATEGORIES } from "@/Types/Category";
+import { expenseCategoryOptions } from "@/Types/Category";
 import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 
@@ -34,9 +34,8 @@ function Fields({ month, onClose }: { month: string; onClose: () => void }) {
   const budgets = useFinanceStore((s) => s.budgets);
   const custom = useFinanceStore((s) => s.customCategories);
   const setBudget = useFinanceStore((s) => s.setBudget);
-  const names = [...EXPENSE_CATEGORIES, ...custom.map((c) => c.name)];
-  // categoria apagada que ainda tem limite continua na lista, para dar para tirar
-  for (const c of Object.keys(budgets)) if (!names.includes(c)) names.push(c);
+  // categoria apagada que ainda tem limite continua na lista, para dar para tirar; "Outros" fica por último
+  const names = expenseCategoryOptions(custom.map((c) => c.name), Object.keys(budgets));
 
   const initial = Object.fromEntries(names.map((c) => [c, budgetLimitFor(budgets, c, month)]));
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(names.map((c) => [c, initial[c] > 0 ? centsToInput(initial[c]) : ""])));

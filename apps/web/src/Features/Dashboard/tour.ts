@@ -16,4 +16,5 @@ export const PAINEL_TOUR: TourStep[] = [
   { target: "metas", title: "Progresso das metas", text: "Um resumo dos seus objetivos. Os detalhes e os aportes ficam na aba Metas.", placement: ["top", "left"] },
   { target: "despesas", title: "Despesas do mês", text: "As 5 despesas mais recentes. A lista completa, com edição, fica em Lançamentos.", placement: ["top", "right"] },
   { target: "anotacoes", title: "Anotações do mês", text: "Seus lembretes do mês, só para leitura aqui. Para criar ou editar, use a aba Lançamentos.", placement: ["top", "left"] },
+  { target: "folego", title: "Dias de fôlego", text: "Quantos dias a sua reserva sustenta a despesa média diária do mês: reserva (metas com “reserva” ou “emergência” no nome e investimentos de liquidez diária) ÷ despesa do mês por dia. Aparece no fim do Painel, só se você ligar em Tempo e fôlego e tiver uma reserva; com o recurso ligado, mostra também o “dia da liberdade de gastos” (a partir de qual dia a renda cobre as despesas fixas). Não muda nenhum valor.", placement: ["top", "right"] },
 ];

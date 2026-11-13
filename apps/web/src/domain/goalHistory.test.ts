@@ -121,3 +121,15 @@ describe("findGoalsByName e reserva com N meses", () => {
     expect(reserveSuggestion(100000)?.suggested).toBe(600000);
   });
 });
+
+describe("previsão: o mês de hoje sem aporte não puxa a média para baixo", () => {
+  const trip: Goal = { id: "g", name: "Viagem", target: 800000, saved: 120000, monthly: 60000, deadline: null };
+  it("3 aportes de R$ 400 em set, out e nov (mês de hoje ainda sem aporte): média de R$ 400", () => {
+    const movs = [gm("contribution", "2026-08-08", 40000), gm("contribution", "2026-09-08", 40000), gm("contribution", "2026-10-08", 40000)];
+    expect(goalForecast(trip, movs, "2026-11")).toMatchObject({ perMonth: 40000, basis: "history" });
+  });
+  it("se o mês de hoje já teve aporte, ele entra na média", () => {
+    const movs = [gm("contribution", "2026-09-08", 40000), gm("contribution", "2026-10-08", 40000), gm("contribution", "2026-11-05", 40000)];
+    expect(goalForecast(trip, movs, "2026-11")).toMatchObject({ perMonth: 40000 });
+  });
+});

@@ -63,6 +63,14 @@ func validatePlanning(p domain.Planning) string {
 			msg = "as parcelas pagas devem ficar entre 0 e o total."
 		case len(d.LinkedTransactionID) > 64:
 			msg = "vínculo inválido."
+		case len(d.PaidValues) > domain.MaxDebtInstallments:
+			msg = "valores pagos demais."
+		}
+		for month, v := range d.PaidValues {
+			if msg != "" {
+				break
+			}
+			msg = first(checkMonth(month), checkCents("O valor pago", v))
 		}
 		if msg != "" {
 			return "Dívida " + quote(d.Name) + ": " + msg
