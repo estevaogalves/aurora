@@ -1242,15 +1242,23 @@ components:
           type: object
           description: Valor realmente pago em cada parcela paga, por mês da parcela (para um desconto ou acréscimo daquele mês).
           additionalProperties: { $ref: "#/components/schemas/Cents" }
+        prepaidTail:
+          type: array
+          maxItems: 600
+          description: "Consórcio linear com parcelas finais pagas antes da hora (junto com a parcela do mês), na ordem em que foram pagas: a primeira é a última do consórcio, a seguinte a penúltima. Pode repetir em quantos meses quiser (pagas + antecipadas não passam do total)."
+          items: { $ref: "#/components/schemas/PrepaidInstallment" }
         prepaidLast:
-          type: object
-          description: "Consórcio linear com a última parcela paga antes da hora (junto com uma parcela do mês): valor pago e o pagamento (forma e dia)."
-          required: [value, payment]
-          properties:
-            value: { $ref: "#/components/schemas/Cents" }
-            payment: { $ref: "#/components/schemas/Payment" }
+          deprecated: true
+          description: Obsoleto (uma só parcela final). O front converte para `prepaidTail` ao carregar.
+          allOf: [{ $ref: "#/components/schemas/PrepaidInstallment" }]
         note: { type: string, maxLength: 200 }
         linkedTransactionId: { type: string, deprecated: true, description: Obsoleto (modelo antigo, preso a uma despesa fixa). Só é lido para descartar esses cadastros; o app não grava mais. }
+    PrepaidInstallment:
+      type: object
+      required: [value, payment]
+      properties:
+        value: { $ref: "#/components/schemas/Cents" }
+        payment: { $ref: "#/components/schemas/Payment" }
     MonthClosing:
       type: object
       required: [closedAt, income, expense, balance, byCategory]

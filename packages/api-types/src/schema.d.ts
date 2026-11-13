@@ -3011,17 +3011,23 @@ export interface components {
             paidValues?: {
                 [key: string]: components["schemas"]["Cents"];
             };
-            /** @description Consórcio linear com a última parcela paga antes da hora (junto com uma parcela do mês): valor pago e o pagamento (forma e dia). */
-            prepaidLast?: {
-                value: components["schemas"]["Cents"];
-                payment: components["schemas"]["Payment"];
-            };
+            /** @description Consórcio linear com parcelas finais pagas antes da hora (junto com a parcela do mês), na ordem em que foram pagas: a primeira é a última do consórcio, a seguinte a penúltima. Pode repetir em quantos meses quiser (pagas + antecipadas não passam do total). */
+            prepaidTail?: components["schemas"]["PrepaidInstallment"][];
+            /**
+             * @deprecated
+             * @description Obsoleto (uma só parcela final). O front converte para `prepaidTail` ao carregar.
+             */
+            prepaidLast?: components["schemas"]["PrepaidInstallment"];
             note?: string;
             /**
              * @deprecated
              * @description Obsoleto (modelo antigo
              */
             linkedTransactionId?: string;
+        };
+        PrepaidInstallment: {
+            value: components["schemas"]["Cents"];
+            payment: components["schemas"]["Payment"];
         };
         MonthClosing: {
             /** @description Data do fechamento, AAAA-MM-DD. */

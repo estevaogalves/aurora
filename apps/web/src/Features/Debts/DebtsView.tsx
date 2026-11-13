@@ -9,7 +9,7 @@ import { btnClass } from "@/components/shared/styles";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MAX_CENTS, debtKind, debtProgress, earlyPayoff, getDebtTotals, getPaidInstallments, isConsortium, isProgressive, splitDebts, validateDebtFields, type Debt, type DebtKind } from "@/domain";
+import { MAX_CENTS, debtKind, debtProgress, earlyPayoff, getDebtTotals, getPaidInstallments, isConsortium, isProgressive, prepaidList, splitDebts, validateDebtFields, type Debt, type DebtKind } from "@/domain";
 import { centsToInput, formatBRL, formatBRLShort, parseBRL } from "@/lib/money";
 import DebtPayDialog from "./DebtPayDialog";
 import Pager from "@/components/shared/Pager";
@@ -323,7 +323,7 @@ function PaidInstallments({ debt }: { debt: Debt }) {
                 {x.prepaid ? (
                   <span className="flex items-center gap-3">
                     <b className="num">{formatBRL(x.value)}</b>
-                    <button type="button" onClick={() => undoPrepaidLast(debt.id)} className="font-bold text-primary hover:underline">Desfazer</button>
+                    {x.number === debt.totalInstallments - prepaidList(debt).length + 1 && <button type="button" onClick={() => undoPrepaidLast(debt.id)} className="font-bold text-primary hover:underline">Desfazer</button>}
                   </span>
                 ) : editing === x.month ? (
                   <form

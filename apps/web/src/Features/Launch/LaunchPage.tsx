@@ -297,7 +297,7 @@ function ExpensesPanel() {
     // parcela de dívida: só a próxima se paga e só a última paga se desmarca (em ordem); as outras ficam sem menu
     if (t.debtOrigin) {
       // a última parcela paga antes da hora não tem menu aqui (desfaz-se em Dívidas)
-      if (t.id.endsWith(":last")) return undefined;
+      if (t.id.includes(":last:")) return undefined;
       const d = debts.find((x) => x.id === t.debtId);
       const canPay = !!d && month === d.nextMonth && !paymentOf(t, month);
       const canClear = !!d && paymentOf(t, month) && paidMonths(d).at(-1) === month;
