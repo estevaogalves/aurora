@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { budgetAlertKey, getBudgetAlerts, todayISO, type BudgetAlert } from "@/domain";
 import { useFinanceStore } from "./FinanceStore";
+import { useTransactions } from "./selectors";
 
 /**
  * Avisos de orçamento no sino, no mesmo molde dos de metas, investimentos e vencimentos: `unseen` conta no sino e `seen`
@@ -8,7 +9,7 @@ import { useFinanceStore } from "./FinanceStore";
  * com o prefixo `budget:`; a chave muda de "atenção" para "estourado", então o aviso volta quando estoura.
  */
 export function useBudgetAlerts() {
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);

@@ -12,6 +12,7 @@ import { GOAL_MOVEMENT_LABEL, formatDateBR, getFixedExpense, isReserveName, repl
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { showToast } from "../Warnings/toast";
+import { useTransactions } from "@/Store/selectors";
 
 /** Criar (goal = null) ou editar uma meta. */
 export function GoalDialog({ open, goal, onClose, initialName, onCreated, asPiggy }: { open: boolean; goal: Goal | null; onClose: () => void; /** ao criar, cria um porquinho (sem valor de meta) em vez de uma meta */ asPiggy?: boolean; /** nome já preenchido ao criar (ex.: vindo de uma linha da sugestão do saldo) */ initialName?: string; /** chamado com o id da meta recém-criada */ onCreated?: (id: string) => void }) {
@@ -32,7 +33,7 @@ export function GoalDialog({ open, goal, onClose, initialName, onCreated, asPigg
 function GoalFields({ goal, onClose, initialName, onCreated, asPiggy }: { goal: Goal | null; onClose: () => void; initialName?: string; onCreated?: (id: string) => void; asPiggy?: boolean }) {
   const addGoal = useFinanceStore((s) => s.addGoal);
   const updateGoal = useFinanceStore((s) => s.updateGoal);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const month = useFinanceStore((s) => s.currentMonth);
 
   const piggy = !!goal?.piggy || (!goal && !!asPiggy);

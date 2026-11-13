@@ -1221,34 +1221,29 @@ components:
         additionalProperties: { $ref: "#/components/schemas/Cents" }
     Debt:
       type: object
+      description: Dívida ou consórcio em parcelas. Independente das despesas fixas; o front calcula as parcelas e as mostra em Lançamentos (nada é gravado por mês).
       required: [id, name, installmentValue, totalInstallments, paidInstallments, nextMonth]
       properties:
         id: { type: string, maxLength: 64 }
         name: { type: string }
-        installmentValue: { $ref: "#/components/schemas/Cents" }
+        kind: { type: string, enum: [debt, consortium], description: Ausente (cadastros antigos) = dívida comum. }
+        model: { type: string, enum: [linear, progressive], description: "Só consórcio. Ausente = linear." }
+        installmentValue: { $ref: "#/components/schemas/Cents", description: Valor da parcela (linear) ou da primeira parcela (progressivo). }
+        increment: { $ref: "#/components/schemas/Cents", description: "Acréscimo fixo a cada parcela. Só no consórcio progressivo (maior que zero); nos outros, ausente ou 0." }
         totalInstallments: { type: integer, minimum: 1, maximum: 600 }
         paidInstallments: { type: integer, minimum: 0 }
         nextMonth: { $ref: "#/components/schemas/Month", description: Mês da próxima parcela a pagar. }
-        linkedTransactionId: { type: string, description: Despesa fixa que já traz esta parcela (para não somar duas vezes). }
-        note: { type: string, maxLength: 200 }
+        trackedFrom: { $ref: "#/components/schemas/Month", description: Primeiro mês que aparece em Lançamentos (o que foi pago antes do cadastro não vira lançamento). }
+        payments:
+          type: object
+          description: Pagamento de cada parcela paga pelo app (forma e dia), por mês da parcela.
+          additionalProperties: { $ref: "#/components/schemas/Payment" }
         paidValues:
           type: object
-          description: Valor realmente pago em cada parcela, por mês da parcela (para um desconto ou acréscimo daquele mês). Sem a chave, a parcela vale o da despesa fixa vinculada no mês ou o `installmentValue`.
+          description: Valor realmente pago em cada parcela paga, por mês da parcela (para um desconto ou acréscimo daquele mês).
           additionalProperties: { $ref: "#/components/schemas/Cents" }
-        startMonth: { $ref: "#/components/schemas/Month", description: "Primeiro mês do calendário de parcelas. Só existe quando há (ou houve) parcelas antecipadas; obrigatório com `anticipations`." }
-        anticipations:
-          type: object
-          description: Parcelas antecipadas (pagas antes da hora, com desconto), por mês da parcela. Até 600.
-          additionalProperties: { $ref: "#/components/schemas/DebtAnticipation" }
-    DebtAnticipation:
-      type: object
-      required: [originalValue, paidValue, paidOn, batchId, transactionId]
-      properties:
-        originalValue: { $ref: "#/components/schemas/Cents", description: Valor que a parcela tinha naquele mês antes da antecipação. }
-        paidValue: { $ref: "#/components/schemas/Cents", description: Valor realmente pago (maior que zero). }
-        paidOn: { type: string, description: "Dia do pagamento, AAAA-MM-DD." }
-        batchId: { type: string, maxLength: 64, description: Agrupa as parcelas antecipadas na mesma operação. }
-        transactionId: { type: string, maxLength: 64, description: Lançamento avulso que traz o desembolso. }
+        note: { type: string, maxLength: 200 }
+        linkedTransactionId: { type: string, deprecated: true, description: Obsoleto (modelo antigo, preso a uma despesa fixa). Só é lido para descartar esses cadastros; o app não grava mais. }
     MonthClosing:
       type: object
       required: [closedAt, income, expense, balance, byCategory]

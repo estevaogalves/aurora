@@ -12,6 +12,7 @@ import { useCategoryColor } from "@/Utils/categoryColors";
 import { compareMonths, formatMonth, formatMonthShort, getCurrentMonth, getMonthName } from "@/Utils/Date";
 import { getDemoSummaries } from "./demo";
 import { COMPARACAO_TOUR } from "./tour";
+import { useTransactions } from "@/Store/selectors";
 
 const MAX_SELECTED = 5;
 const MAX_MONTHS = 12;
@@ -25,7 +26,7 @@ const shortLabel = (m: string) => cap(formatMonthShort(m).split(" ")[0]);
 const chipLabel = (m: string) => `${shortLabel(m)}/${m.slice(2, 4)}`;
 
 export default function ComparisonPage() {
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);

@@ -16,8 +16,11 @@ export const EXPENSE_CATEGORIES: Category[] = [
 /** Categorias que o sistema usa por conta própria. */
 export const INCOME_CATEGORY: Category = "Renda";
 export const CREDIT_CATEGORY_NAME: Category = "Crédito/Parcelado";
+/** Despesas geradas por Dívidas e Consórcios (não se escolhem ao lançar uma despesa). */
+export const DEBT_CATEGORY: Category = "Dívidas";
+export const CONSORTIUM_CATEGORY: Category = "Consórcios";
 
-export const BUILTIN_CATEGORIES: Category[] = [...EXPENSE_CATEGORIES, INCOME_CATEGORY, CREDIT_CATEGORY_NAME];
+export const BUILTIN_CATEGORIES: Category[] = [...EXPENSE_CATEGORIES, INCOME_CATEGORY, CREDIT_CATEGORY_NAME, DEBT_CATEGORY, CONSORTIUM_CATEGORY];
 
 /**
  * Categorias para escolher numa despesa: as padrão, depois as do usuário, e "Outros" sempre por último (uma categoria

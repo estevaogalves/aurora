@@ -67,35 +67,49 @@ func TestPlanning(t *testing.T) {
 		m["dividendAssets"] = []any{map[string]any{"id": "a1", "name": "", "invested": 1}}
 	})
 
-	// parcelas antecipadas: valida mês, valores, data, ids e o início do calendário
-	ant := func(mut func(a map[string]any), start string) map[string]any {
-		a := map[string]any{"originalValue": 70000, "paidValue": 20000, "paidOn": "2026-11-10", "batchId": "b1", "transactionId": "t1"}
-		mut(a)
-		debt := map[string]any{"id": "d1", "name": "X", "installmentValue": 70000, "totalInstallments": 40, "paidInstallments": 1, "nextMonth": "2026-12", "anticipations": map[string]any{"2030-02": a}}
-		if start != "" {
-			debt["startMonth"] = start
+	// consórcio (linear e progressivo) e dívida: tipo, modelo, acréscimo, posição e pagamentos
+	debt := func(extra map[string]any) []any {
+		d := map[string]any{"id": "d1", "name": "X", "installmentValue": 10000, "totalInstallments": 5, "paidInstallments": 1, "nextMonth": "2026-12"}
+		for k, v := range extra {
+			d[k] = v
 		}
-		return debt
+		return []any{d}
 	}
-	bad(func(m map[string]any) { m["debts"] = []any{ant(func(a map[string]any) {}, "")} }) // sem startMonth
+	bad(func(m map[string]any) { m["debts"] = debt(map[string]any{"kind": "financiamento"}) })
+	bad(func(m map[string]any) { m["debts"] = debt(map[string]any{"kind": "debt", "model": "linear"}) }) // modelo só em consórcio
 	bad(func(m map[string]any) {
-		m["debts"] = []any{ant(func(a map[string]any) { a["paidValue"] = 0 }, "2026-11")}
-	}) // valor zero
+		m["debts"] = debt(map[string]any{"kind": "consortium", "model": "progressive"})
+	}) // sem acréscimo
 	bad(func(m map[string]any) {
-		m["debts"] = []any{ant(func(a map[string]any) { a["paidOn"] = "ontem" }, "2026-11")}
-	}) // data
+		m["debts"] = debt(map[string]any{"kind": "consortium", "model": "progressive", "increment": -5})
+	})
 	bad(func(m map[string]any) {
-		m["debts"] = []any{ant(func(a map[string]any) { a["batchId"] = "" }, "2026-11")}
-	}) // lote
-	bad(func(m map[string]any) { m["debts"] = []any{ant(func(a map[string]any) {}, "2026-13")} }) // mês de início
-	okAnt := map[string]any{}
+		m["debts"] = debt(map[string]any{"kind": "consortium", "model": "linear", "increment": 5000})
+	}) // acréscimo no linear
+	bad(func(m map[string]any) {
+		m["debts"] = debt(map[string]any{"kind": "consortium", "model": "geométrico"})
+	})
+	bad(func(m map[string]any) { m["debts"] = debt(map[string]any{"trackedFrom": "2026-13"}) })
+	bad(func(m map[string]any) {
+		m["debts"] = debt(map[string]any{"payments": map[string]any{"2026-11": map[string]any{"method": "cheque", "date": "2026-11-10"}}})
+	})
+	bad(func(m map[string]any) {
+		m["debts"] = debt(map[string]any{"payments": map[string]any{"2026-11": map[string]any{"method": "pix", "date": "ontem"}}})
+	})
+	okDebts := map[string]any{}
 	for k, v := range valid {
-		okAnt[k] = v
+		okDebts[k] = v
 	}
-	okAnt["debts"] = []any{ant(func(a map[string]any) {}, "2026-11")}
-	want(t, e.do(t, "PUT", "/api/v1/settings/planning", tk, okAnt), http.StatusNoContent)
-	if got := load(); got.Debts[0].StartMonth != "2026-11" || got.Debts[0].Anticipations["2030-02"].PaidValue != 20000 || got.Debts[0].Anticipations["2030-02"].OriginalValue != 70000 {
-		t.Fatalf("antecipação não voltou: %+v", got.Debts[0])
+	okDebts["debts"] = []any{
+		debt(map[string]any{"kind": "consortium", "model": "progressive", "increment": 5000, "trackedFrom": "2026-11", "paidValues": map[string]any{"2026-11": 10000},
+			"payments": map[string]any{"2026-11": map[string]any{"method": "pix", "date": "2026-11-10"}}})[0],
+		debt(map[string]any{"id": "d2", "kind": "consortium", "model": "linear"})[0],
+		debt(map[string]any{"id": "d3"})[0], // cadastro sem tipo: dívida comum
+	}
+	want(t, e.do(t, "PUT", "/api/v1/settings/planning", tk, okDebts), http.StatusNoContent)
+	if got := load(); len(got.Debts) != 3 || got.Debts[0].Increment != 5000 || got.Debts[0].Model != "progressive" || got.Debts[0].TrackedFrom != "2026-11" ||
+		got.Debts[0].Payments["2026-11"].Method != "pix" || got.Debts[0].PaidValues["2026-11"] != 10000 || got.Debts[1].Model != "linear" || got.Debts[2].Kind != "" {
+		t.Fatalf("dívidas não voltaram como salvas: %+v", got.Debts)
 	}
 	want(t, e.do(t, "PUT", "/api/v1/settings/planning", tk, valid), http.StatusNoContent) // volta ao estado anterior
 

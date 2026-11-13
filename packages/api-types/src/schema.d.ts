@@ -2979,39 +2979,44 @@ export interface components {
                 [key: string]: components["schemas"]["Cents"];
             };
         };
+        /** @description Dívida ou consórcio em parcelas. Independente das despesas fixas; o front calcula as parcelas e as mostra em Lançamentos (nada é gravado por mês). */
         Debt: {
             id: string;
             name: string;
+            /**
+             * @description Ausente (cadastros antigos) = dívida comum.
+             * @enum {string}
+             */
+            kind?: "debt" | "consortium";
+            /**
+             * @description Só consórcio. Ausente = linear.
+             * @enum {string}
+             */
+            model?: "linear" | "progressive";
+            /** @description Valor da parcela (linear) ou da primeira parcela (progressivo). */
             installmentValue: components["schemas"]["Cents"];
+            /** @description Acréscimo fixo a cada parcela. Só no consórcio progressivo (maior que zero); nos outros, ausente ou 0. */
+            increment?: components["schemas"]["Cents"];
             totalInstallments: number;
             paidInstallments: number;
             /** @description Mês da próxima parcela a pagar. */
             nextMonth: components["schemas"]["Month"];
-            /** @description Despesa fixa que já traz esta parcela (para não somar duas vezes). */
-            linkedTransactionId?: string;
-            note?: string;
-            /** @description Valor realmente pago em cada parcela, por mês da parcela (para um desconto ou acréscimo daquele mês). Sem a chave, a parcela vale o da despesa fixa vinculada no mês ou o `installmentValue`. */
+            /** @description Primeiro mês que aparece em Lançamentos (o que foi pago antes do cadastro não vira lançamento). */
+            trackedFrom?: components["schemas"]["Month"];
+            /** @description Pagamento de cada parcela paga pelo app (forma e dia), por mês da parcela. */
+            payments?: {
+                [key: string]: components["schemas"]["Payment"];
+            };
+            /** @description Valor realmente pago em cada parcela paga, por mês da parcela (para um desconto ou acréscimo daquele mês). */
             paidValues?: {
                 [key: string]: components["schemas"]["Cents"];
             };
-            /** @description Primeiro mês do calendário de parcelas. Só existe quando há (ou houve) parcelas antecipadas; obrigatório com `anticipations`. */
-            startMonth?: components["schemas"]["Month"];
-            /** @description Parcelas antecipadas (pagas antes da hora, com desconto), por mês da parcela. Até 600. */
-            anticipations?: {
-                [key: string]: components["schemas"]["DebtAnticipation"];
-            };
-        };
-        DebtAnticipation: {
-            /** @description Valor que a parcela tinha naquele mês antes da antecipação. */
-            originalValue: components["schemas"]["Cents"];
-            /** @description Valor realmente pago (maior que zero). */
-            paidValue: components["schemas"]["Cents"];
-            /** @description Dia do pagamento, AAAA-MM-DD. */
-            paidOn: string;
-            /** @description Agrupa as parcelas antecipadas na mesma operação. */
-            batchId: string;
-            /** @description Lançamento avulso que traz o desembolso. */
-            transactionId: string;
+            note?: string;
+            /**
+             * @deprecated
+             * @description Obsoleto (modelo antigo
+             */
+            linkedTransactionId?: string;
         };
         MonthClosing: {
             /** @description Data do fechamento, AAAA-MM-DD. */

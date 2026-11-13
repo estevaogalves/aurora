@@ -5,8 +5,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 
 interface RowMenuProps {
   label: string;
-  onEdit: () => void;
-  onDelete: () => void;
+  /** omitido: o item "Editar" não aparece (parcela gerada por dívida) */
+  onEdit?: () => void;
+  /** omitido: o item de excluir não aparece */
+  onDelete?: () => void;
   /** omitido: o item "Fixar" não aparece */
   onPin?: () => void;
   pinned?: boolean;
@@ -45,10 +47,12 @@ export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLab
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={g.guard(onEdit)}>
-          <Icon name="edit" size={15} />
-          Editar
-        </DropdownMenuItem>
+        {onEdit && (
+          <DropdownMenuItem onSelect={g.guard(onEdit)}>
+            <Icon name="edit" size={15} />
+            Editar
+          </DropdownMenuItem>
+        )}
         {onPay && (
           <DropdownMenuItem onSelect={g.guard(onPay)}>
             <Icon name="check" size={15} />
@@ -85,10 +89,12 @@ export default function RowMenu({ label, onEdit, onDelete, onPin, pinned, pinLab
             Cancelar recorrência
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem destructive onSelect={g.guard(onDelete)}>
-          <Icon name="trash" size={15} />
-          {deleteLabel}
-        </DropdownMenuItem>
+        {onDelete && (
+          <DropdownMenuItem destructive onSelect={g.guard(onDelete)}>
+            <Icon name="trash" size={15} />
+            {deleteLabel}
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
     <ReopenMonthDialog open={g.open} month={g.month} onConfirm={g.confirm} onCancel={g.cancel} />

@@ -14,7 +14,7 @@ import { formatWorkHours, workHours } from "@/domain";
 import { useHourInfo } from "@/Store/hours";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
-import { useCategoryTotals, useDistributionItemsFor, useMonthCredit, useMonthDistributions, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution } from "@/Store/selectors";
+import { useCategoryTotals, useDistributionItemsFor, useMonthCredit, useMonthDistributions, useMonthSummary, useMonthTransactions, useResolvedExtras, useSentByDistribution, useTransactions } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getCurrentMonth, getMonthName } from "@/Utils/Date";
 import { ExpenseStaticRow, type ExpenseLine } from "../Launch/rows";
@@ -69,7 +69,7 @@ function Hero() {
 
 function Trend() {
   const month = useFinanceStore((s) => s.currentMonth);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
@@ -105,7 +105,7 @@ function Categories() {
   const month = useFinanceStore((s) => s.currentMonth);
   const totals = useCategoryTotals();
   const colorOf = useCategoryColor();
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
@@ -467,7 +467,7 @@ function GoalDeadlines() {
 /** Faixa de 1 a 3 frases geradas por regras (sem IA e sem enviar dados para fora). Cada uma pode ser dispensada. */
 function Insights() {
   const month = useFinanceStore((s) => s.currentMonth);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);

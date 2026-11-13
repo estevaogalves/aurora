@@ -10,7 +10,7 @@ import { SCENARIOS, basisLabel, estimateVariableIncome, getDebtRelief, getCredit
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { usePrefsStore } from "@/lib/preferences";
 import { useFinanceStore, type ExtraExpense } from "@/Store/FinanceStore";
-import { useResolvedCredits } from "@/Store/selectors";
+import { useResolvedCredits, useTransactions } from "@/Store/selectors";
 import { useCategoryColor } from "@/Utils/categoryColors";
 import { changeMonth, formatMonthShort, formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 import EditExtraDialog from "./EditExtraDialog";
@@ -54,7 +54,7 @@ function DetailList({ title, lines, empty }: { title: string; lines: ProjectionL
 
 export default function ProjectionPage() {
   const current = useFinanceStore((s) => s.currentMonth);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const resolvedCredits = useResolvedCredits();
@@ -102,7 +102,7 @@ export default function ProjectionPage() {
 
   // dívidas vinculadas a uma despesa fixa: a partir de quando essa despesa fixa cai (só informação: a Projeção não muda)
   const debts = useFinanceStore((s) => s.debts);
-  const relief = useMemo(() => getDebtRelief(debts, transactions), [debts, transactions]);
+  const relief = useMemo(() => getDebtRelief(debts), [debts]);
   const extrasInWindow = extras.filter((e) => months.includes(e.month)).sort((a, b) => a.month.localeCompare(b.month));
   // compras que ainda cobram parcela em algum mês da janela
   const activeCredits = resolvedCredits.filter((c) => months.some((m) => getCreditByMonth([c], m).some((i) => !i.advanced)));
@@ -188,22 +188,22 @@ export default function ProjectionPage() {
               <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-inc" />Renda prevista</span>
               <span className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px] bg-exp" />Despesa prevista</span>
             </div>
-            <p className="mt-3 text-[12.5px] text-muted-foreground">Só entram rendas e despesas marcadas como fixas, parcelas do crédito e despesas extras{scenario !== "conservative" && variable.perMonth > 0 ? ", mais a renda variável estimada do cenário escolhido" : ""}.</p>
+            <p className="mt-3 text-[12.5px] text-muted-foreground">Só entram rendas e despesas marcadas como fixas, parcelas do crédito, parcelas de dívidas e consórcios e despesas extras{scenario !== "conservative" && variable.perMonth > 0 ? ", mais a renda variável estimada do cenário escolhido" : ""}.</p>
           </Panel>
         </div>
 
         {relief.length > 0 && (
           <div className="col-span-12">
-            <Panel tour="dividas-fim" title="Quando as dívidas terminam" subtitle="Dívidas vinculadas a uma despesa fixa: a partir do mês seguinte à última parcela, a despesa fixa cai">
+            <Panel tour="dividas-fim" title="Quando as dívidas terminam" subtitle="Dívidas e consórcios: a partir do mês seguinte à última parcela, o valor deixa de pesar">
               <ul className="flex flex-col divide-y divide-border">
                 {relief.map((r) => (
                   <li key={r.debt.id} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2 text-[13.5px] first:pt-0 last:pb-0">
                     <span className="min-w-0 break-words font-semibold">{r.debt.name}</span>
-                    <span className="text-ink2">A partir de <b className="text-foreground">{cap(formatMonthTitle(r.from))}</b> sua despesa fixa cai <b className="num text-success">{formatBRL(r.amount)}</b> por mês.</span>
+                    <span className="text-ink2">A partir de <b className="text-foreground">{cap(formatMonthTitle(r.from))}</b> sua despesa cai <b className="num text-success">{formatBRL(r.amount)}</b> por mês.</span>
                   </li>
                 ))}
               </ul>
-              <p className="mt-2 text-[12.5px] text-muted-foreground">É só uma informação: a projeção acima segue o que está cadastrado como fixo.</p>
+              <p className="mt-2 text-[12.5px] text-muted-foreground">É só uma informação: a projeção acima já traz as parcelas até a última.</p>
             </Panel>
           </div>
         )}

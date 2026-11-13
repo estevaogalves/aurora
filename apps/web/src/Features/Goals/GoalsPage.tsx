@@ -299,7 +299,7 @@ export default function GoalsPage() {
         <GoalsView />
       ) : view === "dividas" ? (
         <>
-          <PageHeader tour={DIVIDAS_TOUR} title="Dívidas e consórcios" subtitle="Parcelas fixas: quanto falta pagar, quando quita e quando a despesa fixa vinculada cai. Só acompanhamento." />
+          <PageHeader tour={DIVIDAS_TOUR} title="Dívidas e consórcios" subtitle="Quanto falta pagar, quando quita e quando a parcela deixa de pesar. As parcelas aparecem sozinhas em Lançamentos." />
           <DebtsView />
         </>
       ) : view === "simulador" ? (

@@ -14,6 +14,8 @@ export const categoryColors: Record<string, string> = {
   Outros: "hsl(var(--k8))",
   Renda: "hsl(var(--success))",
   "Crédito/Parcelado": "hsl(var(--k9))",
+  Dívidas: "hsl(var(--k4))",
+  Consórcios: "hsl(var(--k7))",
 };
 
 const FALLBACK = "hsl(var(--k8))";
