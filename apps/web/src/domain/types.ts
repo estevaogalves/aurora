@@ -347,11 +347,20 @@ export interface Debt {
   /** Valor realmente pago em cada parcela paga, por mês da parcela (centavos). Sem a chave vale o valor da parcela. */
   paidValues?: Record<Month, number>;
   /**
-   * Consórcio linear: a ÚLTIMA parcela foi paga antes da hora (junto com uma parcela do mês, com o desconto negociado).
-   * O valor entra como despesa no dia do pagamento; a parcela do último mês deixa de existir.
+   * Consórcio linear: parcelas FINAIS pagas antes da hora (junto com a parcela do mês, com o desconto negociado), na ordem em
+   * que foram pagas: a primeira é a última parcela do consórcio, a seguinte é a penúltima, e assim por diante. Pode-se fazer
+   * isso em quantos meses quiser. Cada valor entra como despesa no dia do pagamento; o consórcio termina mais cedo.
    */
-  prepaidLast?: { value: number; payment: Payment };
+  prepaidTail?: PrepaidInstallment[];
+  /** Obsoleto: formato antigo (uma só parcela final). Só é lido e convertido para `prepaidTail` ao carregar. */
+  prepaidLast?: PrepaidInstallment;
   note?: string;
+}
+
+/** Uma parcela final de consórcio linear paga antes da hora: o valor pago e o pagamento (forma e dia). */
+export interface PrepaidInstallment {
+  value: number;
+  payment: Payment;
 }
 
 /** Retrato de um mês fechado. */

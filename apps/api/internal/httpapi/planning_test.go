@@ -107,6 +107,14 @@ func TestPlanning(t *testing.T) {
 	bad(func(m map[string]any) {
 		m["debts"] = debt(map[string]any{"kind": "consortium", "model": "linear", "paidInstallments": 5, "prepaidLast": pre}) // 5 pagas + a última > total 5
 	})
+	tailPre := map[string]any{"value": 60000, "payment": map[string]any{"method": "pix", "date": "2026-11-10"}}
+	bad(func(m map[string]any) { m["debts"] = debt(map[string]any{"prepaidTail": []any{tailPre}}) }) // dívida comum não tem
+	bad(func(m map[string]any) {
+		m["debts"] = debt(map[string]any{"kind": "consortium", "model": "linear", "prepaidTail": []any{tailPre, tailPre, tailPre, tailPre, tailPre}}) // 1 paga + 5 finais > total 5
+	})
+	bad(func(m map[string]any) {
+		m["debts"] = debt(map[string]any{"kind": "consortium", "model": "linear", "prepaidTail": []any{map[string]any{"value": 1, "payment": map[string]any{"method": "pix", "date": "ontem"}}}})
+	})
 	okDebts := map[string]any{}
 	for k, v := range valid {
 		okDebts[k] = v
@@ -114,12 +122,12 @@ func TestPlanning(t *testing.T) {
 	okDebts["debts"] = []any{
 		debt(map[string]any{"kind": "consortium", "model": "progressive", "increment": 5000, "trackedFrom": "2026-11", "paidValues": map[string]any{"2026-11": 10000},
 			"payments": map[string]any{"2026-11": map[string]any{"method": "pix", "date": "2026-11-10"}}})[0],
-		debt(map[string]any{"id": "d2", "kind": "consortium", "model": "linear", "prepaidLast": pre})[0],
+		debt(map[string]any{"id": "d2", "kind": "consortium", "model": "linear", "prepaidTail": []any{pre, tailPre}})[0],
 		debt(map[string]any{"id": "d3"})[0], // cadastro sem tipo: dívida comum
 	}
 	want(t, e.do(t, "PUT", "/api/v1/settings/planning", tk, okDebts), http.StatusNoContent)
 	if got := load(); len(got.Debts) != 3 || got.Debts[0].Increment != 5000 || got.Debts[0].Model != "progressive" || got.Debts[0].TrackedFrom != "2026-11" ||
-		got.Debts[0].Payments["2026-11"].Method != "pix" || got.Debts[0].PaidValues["2026-11"] != 10000 || got.Debts[1].Model != "linear" || got.Debts[1].PrepaidLast == nil || got.Debts[1].PrepaidLast.Value != 60000 || got.Debts[2].Kind != "" {
+		got.Debts[0].Payments["2026-11"].Method != "pix" || got.Debts[0].PaidValues["2026-11"] != 10000 || got.Debts[1].Model != "linear" || len(got.Debts[1].PrepaidTail) != 2 || got.Debts[1].PrepaidTail[0].Value != 60000 || got.Debts[2].Kind != "" {
 		t.Fatalf("dívidas não voltaram como salvas: %+v", got.Debts)
 	}
 	want(t, e.do(t, "PUT", "/api/v1/settings/planning", tk, valid), http.StatusNoContent) // volta ao estado anterior

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MAX_CENTS, PAYMENT_METHODS, baseValueOf, canPrepayLast, debtProgress, isScheduled, lastInstallmentMonth, todayISO, validatePaymentTiming, type Debt, type PaymentMethod } from "@/domain";
+import { MAX_CENTS, PAYMENT_METHODS, baseValueOf, canPrepayLast, debtProgress, isScheduled, lastInstallmentMonth, nextPrepayNumber, todayISO, validatePaymentTiming, type Debt, type PaymentMethod } from "@/domain";
 import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { formatMonthTitle } from "@/Utils/Date";
@@ -36,7 +36,7 @@ function Fields({ debt, onClose }: { debt: Debt; onClose: () => void }) {
   const [method, setMethod] = useState<PaymentMethod>("pix");
   const [date, setDate] = useState(todayISO());
   const [withLast, setWithLast] = useState(false);
-  const [lastValue, setLastValue] = useState(centsToInput(baseValueOf(debt, debt.totalInstallments)));
+  const [lastValue, setLastValue] = useState(centsToInput(baseValueOf(debt, nextPrepayNumber(debt))));
   const [error, setError] = useState("");
 
   const timing = validatePaymentTiming(method, date);
@@ -72,7 +72,7 @@ function Fields({ debt, onClose }: { debt: Debt; onClose: () => void }) {
             <input type="checkbox" checked={withLast} onChange={(e) => setWithLast(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 accent-[hsl(var(--primary))]" />
             <span>
               <span className="block text-sm font-medium text-foreground">Pagar também a última parcela ({formatMonthTitle(lastMonth)})</span>
-              <span className="block text-xs text-muted-foreground">Antecipa a parcela final junto com esta, com o valor negociado. Ela fica como paga e o consórcio termina um mês antes.</span>
+              <span className="block text-xs text-muted-foreground">Antecipa a última parcela em aberto junto com esta, com o valor negociado. Ela fica como paga e o consórcio termina um mês antes. Dá para repetir em qualquer mês.</span>
             </span>
           </label>
           {withLast && (

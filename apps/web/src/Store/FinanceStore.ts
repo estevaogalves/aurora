@@ -27,7 +27,8 @@ import {
   isDebtTransactionId,
   isConsortium,
   canPrepayLast,
-  prepaidLastTransaction,
+  prepaidTransactions,
+  prepaidList,
   installmentValueFor,
   debtProgress,
   pruneSeenAlerts,
@@ -202,7 +203,7 @@ interface FinanceState {
   removeDebt: (id: string) => void;
   /** Registra uma parcela paga da dívida (avança a próxima parcela em um mês). Sem valor, vale o valor da parcela; sem pagamento, Pix hoje. */
   payDebtInstallment: (id: string, amount?: number, payment?: Payment, lastValue?: number) => void;
-  /** Desfaz o pagamento antecipado da última parcela (consórcio linear). */
+  /** Desfaz o último pagamento antecipado de parcela final (consórcio linear): sempre o mais recente. */
   undoPrepaidLast: (id: string) => void;
   /** Corrige o valor realmente pago numa parcela já paga (desconto ou acréscimo daquele mês). */
   setDebtPaidValue: (id: string, month: string, amount: number) => void;
@@ -323,7 +324,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
 
     hydrate: async () => {
       const data = await repository.load();
-      set({ ...data, goalMovements: data.goalMovements ?? [], distributionOverrides: data.distributionOverrides ?? {}, budgets: data.budgets ?? {}, debts: (data.debts ?? []).filter((d) => !("linkedTransactionId" in d)), closings: data.closings ?? {}, dividendAssets: data.dividendAssets ?? [], receipts: data.receipts ?? [], hydrated: true });
+      set({ ...data, goalMovements: data.goalMovements ?? [], distributionOverrides: data.distributionOverrides ?? {}, budgets: data.budgets ?? {}, debts: (data.debts ?? []).filter((d) => !("linkedTransactionId" in d)).map(({ prepaidLast, ...d }) => (prepaidLast && !d.prepaidTail ? { ...d, prepaidTail: [prepaidLast] } : d)), closings: data.closings ?? {}, dividendAssets: data.dividendAssets ?? [], receipts: data.receipts ?? [], hydrated: true });
     },
 
     reset: () =>
@@ -758,9 +759,9 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           // mudar a posição (pagas ou próxima parcela) recomeça o acompanhamento; mudar só valor, total ou nome mantém o que já foi pago
           const moved = (patch.paidInstallments !== undefined && patch.paidInstallments !== d.paidInstallments) || (patch.nextMonth !== undefined && patch.nextMonth !== d.nextMonth);
           const resized = patch.totalInstallments !== undefined && patch.totalInstallments !== d.totalInstallments;
-          if (moved) return { ...d, ...patch, trackedFrom: patch.nextMonth ?? d.nextMonth, payments: undefined, paidValues: undefined, prepaidLast: undefined };
+          if (moved) return { ...d, ...patch, trackedFrom: patch.nextMonth ?? d.nextMonth, payments: undefined, paidValues: undefined, prepaidTail: undefined, prepaidLast: undefined };
           // mudar o total muda qual é a última parcela: o pagamento antecipado dela deixa de valer
-          return { ...d, ...patch, ...(resized && { prepaidLast: undefined }) };
+          return { ...d, ...patch, ...(resized && { prepaidTail: undefined }) };
         }),
       }));
       savePlanning();
@@ -784,8 +785,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           });
         }
       }
-      const last = d && prepaidLastTransaction(d);
-      if (last) get().addTransaction({ ...last, id: uuid(), debtOrigin: undefined, debtId: undefined });
+      for (const last of d ? prepaidTransactions(d) : []) get().addTransaction({ ...last, id: uuid(), debtOrigin: undefined, debtId: undefined });
       set((s) => ({ debts: s.debts.filter((x) => x.id !== id) }));
       savePlanning();
     },
@@ -807,7 +807,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
                 trackedFrom: x.trackedFrom ?? x.nextMonth,
                 paidValues: { ...x.paidValues, [x.nextMonth]: value },
                 payments: { ...x.payments, [x.nextMonth]: payment ?? { method: "pix", date: todayISO() } },
-                ...(prepay && { prepaidLast: { value: lastValue, payment: payment ?? { method: "pix" as const, date: todayISO() } } }),
+                ...(prepay && { prepaidTail: [...prepaidList(x), { value: lastValue, payment: payment ?? { method: "pix" as const, date: todayISO() } }] }),
               }
             : x,
         ),
@@ -839,8 +839,8 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
     undoPrepaidLast: (id) => {
       const d = get().debts.find((x) => x.id === id);
-      if (!d?.prepaidLast) return;
-      set((s) => ({ debts: s.debts.map((x) => (x.id === id ? { ...x, prepaidLast: undefined } : x)) }));
+      if (!d || prepaidList(d).length === 0) return;
+      set((s) => ({ debts: s.debts.map((x) => (x.id === id ? { ...x, prepaidTail: prepaidList(x).length > 1 ? prepaidList(x).slice(0, -1) : undefined } : x)) }));
       savePlanning();
     },
     setDebtPaidValue: (id, month, amount) => {
