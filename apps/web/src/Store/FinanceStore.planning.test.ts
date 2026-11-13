@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const repo = vi.hoisted(() => ({ setPlanning: vi.fn(() => Promise.resolve()) }));
+const repo = vi.hoisted(() => ({ setPlanning: vi.fn(() => Promise.resolve()), setTransactionPayment: vi.fn(() => Promise.resolve()) }));
 vi.mock("../repositories", () => ({ repository: repo }));
 
 import { useFinanceStore } from "./FinanceStore";
@@ -9,7 +9,7 @@ const store = () => useFinanceStore.getState();
 
 beforeEach(() => {
   vi.clearAllMocks();
-  useFinanceStore.setState({ budgets: {}, debts: [], closings: {}, dividendAssets: [] });
+  useFinanceStore.setState({ budgets: {}, debts: [], closings: {}, dividendAssets: [], transactions: [{ id: "fx", name: "Consórcio", amount: 69700, type: "expense", category: "Outros", month: "2026-01", fixed: true }] });
 });
 
 describe("planejamento na store", () => {
@@ -73,5 +73,36 @@ describe("dívida: valor realmente pago em cada parcela", () => {
     expect(store().debts[0].paidValues).toEqual({ "2026-11": 60000 });
     store().setDebtPaidValue("d1", "2026-10", 0); // 0 é um valor válido (parcela abonada)
     expect(store().debts[0].paidValues).toEqual({ "2026-11": 60000, "2026-10": 0 });
+  });
+});
+
+describe("dívida vinculada a uma despesa fixa: pagar a despesa registra a parcela", () => {
+  const debt = { id: "d1", name: "Consórcio", installmentValue: 69700, totalInstallments: 5, paidInstallments: 1, nextMonth: "2026-11", linkedTransactionId: "fx" };
+  const pay = { method: "pix" as const, date: "2026-11-10" };
+
+  it("pagar a despesa no mês da próxima parcela avança a dívida, sem guardar valor próprio (o valor segue Lançamentos)", () => {
+    store().addDebt(debt);
+    store().setTransactionPayment("fx", "2026-11", pay);
+    expect(store().debts[0]).toMatchObject({ paidInstallments: 2, nextMonth: "2026-12" });
+    expect(store().debts[0].paidValues).toBeUndefined();
+  });
+
+  it("pagar um mês que não é o da próxima parcela não mexe na dívida", () => {
+    store().addDebt(debt);
+    store().setTransactionPayment("fx", "2027-03", pay);
+    expect(store().debts[0]).toMatchObject({ paidInstallments: 1, nextMonth: "2026-11" });
+  });
+
+  it("desmarcar o pagamento da última parcela paga desfaz o registro", () => {
+    store().addDebt(debt);
+    store().setTransactionPayment("fx", "2026-11", pay);
+    store().setTransactionPayment("fx", "2026-11", null);
+    expect(store().debts[0]).toMatchObject({ paidInstallments: 1, nextMonth: "2026-11" });
+  });
+
+  it("dívida sem vínculo não é afetada pelo pagamento da despesa", () => {
+    store().addDebt({ ...debt, linkedTransactionId: undefined });
+    store().setTransactionPayment("fx", "2026-11", pay);
+    expect(store().debts[0]).toMatchObject({ paidInstallments: 1, nextMonth: "2026-11" });
   });
 });
