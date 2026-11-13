@@ -346,6 +346,11 @@ export interface Debt {
   payments?: Record<Month, Payment>;
   /** Valor realmente pago em cada parcela paga, por mês da parcela (centavos). Sem a chave vale o valor da parcela. */
   paidValues?: Record<Month, number>;
+  /**
+   * Consórcio linear: a ÚLTIMA parcela foi paga antes da hora (junto com uma parcela do mês, com o desconto negociado).
+   * O valor entra como despesa no dia do pagamento; a parcela do último mês deixa de existir.
+   */
+  prepaidLast?: { value: number; payment: Payment };
   note?: string;
 }
 

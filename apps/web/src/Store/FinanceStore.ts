@@ -26,6 +26,8 @@ import {
   debtIdOf,
   isDebtTransactionId,
   isConsortium,
+  canPrepayLast,
+  prepaidLastTransaction,
   installmentValueFor,
   debtProgress,
   pruneSeenAlerts,
@@ -199,7 +201,9 @@ interface FinanceState {
   updateDebt: (id: string, patch: Partial<Debt>) => void;
   removeDebt: (id: string) => void;
   /** Registra uma parcela paga da dívida (avança a próxima parcela em um mês). Sem valor, vale o valor da parcela; sem pagamento, Pix hoje. */
-  payDebtInstallment: (id: string, amount?: number, payment?: Payment) => void;
+  payDebtInstallment: (id: string, amount?: number, payment?: Payment, lastValue?: number) => void;
+  /** Desfaz o pagamento antecipado da última parcela (consórcio linear). */
+  undoPrepaidLast: (id: string) => void;
   /** Corrige o valor realmente pago numa parcela já paga (desconto ou acréscimo daquele mês). */
   setDebtPaidValue: (id: string, month: string, amount: number) => void;
   /** Desfaz a última parcela paga. */
@@ -753,7 +757,10 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           if (d.id !== id) return d;
           // mudar a posição (pagas ou próxima parcela) recomeça o acompanhamento; mudar só valor, total ou nome mantém o que já foi pago
           const moved = (patch.paidInstallments !== undefined && patch.paidInstallments !== d.paidInstallments) || (patch.nextMonth !== undefined && patch.nextMonth !== d.nextMonth);
-          return moved ? { ...d, ...patch, trackedFrom: patch.nextMonth ?? d.nextMonth, payments: undefined, paidValues: undefined } : { ...d, ...patch };
+          const resized = patch.totalInstallments !== undefined && patch.totalInstallments !== d.totalInstallments;
+          if (moved) return { ...d, ...patch, trackedFrom: patch.nextMonth ?? d.nextMonth, payments: undefined, paidValues: undefined, prepaidLast: undefined };
+          // mudar o total muda qual é a última parcela: o pagamento antecipado dela deixa de valer
+          return { ...d, ...patch, ...(resized && { prepaidLast: undefined }) };
         }),
       }));
       savePlanning();
@@ -777,12 +784,16 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           });
         }
       }
+      const last = d && prepaidLastTransaction(d);
+      if (last) get().addTransaction({ ...last, id: uuid(), debtOrigin: undefined, debtId: undefined });
       set((s) => ({ debts: s.debts.filter((x) => x.id !== id) }));
       savePlanning();
     },
-    payDebtInstallment: (id, amount, payment) => {
+    payDebtInstallment: (id, amount, payment, lastValue) => {
       const d = get().debts.find((x) => x.id === id);
       if (!d || debtProgress(d).done) return;
+      // a última parcela só vai junto em consórcio linear (com a parcela atual), com valor válido
+      const prepay = lastValue !== undefined && canPrepayLast(d) && Number.isInteger(lastValue) && lastValue >= 0 && lastValue <= MAX_PLANNING_CENTS;
       // guarda o valor realmente pago (o da parcela, se não veio outro): mudar o acréscimo depois não reescreve o passado
       const valid = amount !== undefined && Number.isInteger(amount) && amount >= 0 && amount <= MAX_PLANNING_CENTS;
       const value = valid ? amount : installmentValueFor(d, d.nextMonth);
@@ -796,6 +807,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
                 trackedFrom: x.trackedFrom ?? x.nextMonth,
                 paidValues: { ...x.paidValues, [x.nextMonth]: value },
                 payments: { ...x.payments, [x.nextMonth]: payment ?? { method: "pix", date: todayISO() } },
+                ...(prepay && { prepaidLast: { value: lastValue, payment: payment ?? { method: "pix" as const, date: todayISO() } } }),
               }
             : x,
         ),
@@ -823,6 +835,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
           };
         }),
       }));
+      savePlanning();
+    },
+    undoPrepaidLast: (id) => {
+      const d = get().debts.find((x) => x.id === id);
+      if (!d?.prepaidLast) return;
+      set((s) => ({ debts: s.debts.map((x) => (x.id === id ? { ...x, prepaidLast: undefined } : x)) }));
       savePlanning();
     },
     setDebtPaidValue: (id, month, amount) => {

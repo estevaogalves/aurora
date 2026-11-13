@@ -11,6 +11,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { MAX_CENTS, debtKind, debtProgress, earlyPayoff, getDebtTotals, getPaidInstallments, isConsortium, isProgressive, splitDebts, validateDebtFields, type Debt, type DebtKind } from "@/domain";
 import { centsToInput, formatBRL, formatBRLShort, parseBRL } from "@/lib/money";
+import DebtPayDialog from "./DebtPayDialog";
 import Pager from "@/components/shared/Pager";
 import { usePagination } from "@/lib/usePagination";
 import { uuid } from "@/lib/uuid";
@@ -28,12 +29,11 @@ const DEMO: Debt[] = [
 export default function DebtsView() {
   const debts = useFinanceStore((s) => s.debts);
   const removeDebt = useFinanceStore((s) => s.removeDebt);
-  const payInstallment = useFinanceStore((s) => s.payDebtInstallment);
   const demo = useUiStore((s) => s.tourDemo) && debts.length === 0;
   const shown = demo ? DEMO : debts;
   const { active, paidOff } = useMemo(() => splitDebts(shown), [shown]);
   const totals = useMemo(() => getDebtTotals(shown), [shown]);
-  const [paying, setPaying] = useState<{ debt: Debt; month: string; value: number } | null>(null);
+  const [paying, setPaying] = useState<Debt | null>(null);
   const [editing, setEditing] = useState<Debt | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Debt | null>(null);
@@ -110,7 +110,7 @@ export default function DebtsView() {
               )}
               <div className="flex flex-wrap gap-2">
                 {/* a parcela também pode ser marcada como paga em Lançamentos: as duas formas são a mesma coisa */}
-                <button type="button" disabled={demo} onClick={() => setPaying({ debt: d, month: d.nextMonth, value: p.nextValue })} className={`${btnClass.primary} ${btnClass.sm}`}>
+                <button type="button" disabled={demo} onClick={() => setPaying(d)} className={`${btnClass.primary} ${btnClass.sm}`}>
                   <Icon name="check" size={14} />
                   Registrar parcela paga
                 </button>
@@ -152,17 +152,7 @@ export default function DebtsView() {
         </section>
       )}
 
-      <PayConfirm
-        request={paying}
-        onClose={() => setPaying(null)}
-        onConfirm={(amount) => {
-          if (paying) {
-            payInstallment(paying.debt.id, amount);
-            showToast({ type: "success", text: `Parcela de ${formatMonthTitle(paying.month)} registrada: ${formatBRL(amount)}` });
-          }
-          setPaying(null);
-        }}
-      />
+      <DebtPayDialog debt={paying} onClose={() => setPaying(null)} />
       <DebtDialog open={creating || !!editing} debt={editing} onClose={() => { setCreating(false); setEditing(null); }} />
       <ConfirmDeletion
         open={!!deleting}
@@ -304,49 +294,10 @@ function DebtFields({ kind, debt, onClose }: { kind: DebtKind; debt: Debt | null
   );
 }
 
-/** Confirmação ao registrar uma parcela como paga: mostra o mês e o valor, que pode ser ajustado (desconto ou acréscimo). */
-function PayConfirm({ request, onClose, onConfirm }: { request: { debt: Debt; month: string; value: number } | null; onClose: () => void; onConfirm: (amount: number) => void }) {
-  return (
-    <Dialog open={!!request} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Registrar parcela paga?</DialogTitle>
-          <DialogDescription>{request ? `${request.debt.name} · parcela de ${formatMonthTitle(request.month)}. A próxima parcela passa para o mês seguinte.` : ""}</DialogDescription>
-        </DialogHeader>
-        {request && <PayFields key={`${request.debt.id}-${request.month}`} request={request} onClose={onClose} onConfirm={onConfirm} />}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function PayFields({ request, onClose, onConfirm }: { request: { debt: Debt; month: string; value: number }; onClose: () => void; onConfirm: (amount: number) => void }) {
-  const [value, setValue] = useState(centsToInput(request.value));
-  const [error, setError] = useState("");
-  function submit(e: React.FormEvent) {
-    e.preventDefault();
-    const cents = parseBRL(value);
-    if (cents === null) return setError("Informe o valor pago (0 se a parcela foi abonada).");
-    if (cents > MAX_CENTS) return setError("O valor passa do limite de R$ 1 bilhão.");
-    onConfirm(cents);
-  }
-  return (
-    <form onSubmit={submit} noValidate className="flex flex-col gap-3">
-      <Field label="Valor pago nesta parcela" htmlFor="pay-value">
-        <MoneyInput id="pay-value" value={value} onChange={(v) => { setValue(v); setError(""); }} />
-      </Field>
-      <p className="text-xs text-muted-foreground">Se você recebeu ou deu um desconto neste mês (ou pagou a mais), ajuste o valor: ele fica registrado nesta parcela e entra no total já pago.</p>
-      {error && <p role="alert" className="text-[13px] font-semibold text-destructive">{error}</p>}
-      <div className="flex justify-end gap-2 pt-1">
-        <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
-        <Button type="submit">Registrar parcela</Button>
-      </div>
-    </form>
-  );
-}
-
 /** As parcelas já pagas de uma dívida, 6 por página, com o valor de cada uma e a correção dele (desconto ou acréscimo). */
 function PaidInstallments({ debt }: { debt: Debt }) {
   const setPaidValue = useFinanceStore((s) => s.setDebtPaidValue);
+  const undoPrepaidLast = useFinanceStore((s) => s.undoPrepaidLast);
   const [open, setOpen] = useState(false);
   const list = getPaidInstallments(debt);
   const pager = usePagination(list, 6);
@@ -367,8 +318,14 @@ function PaidInstallments({ debt }: { debt: Debt }) {
                 <span>
                   Parcela {x.number} · {formatMonthTitle(x.month)}
                   {x.adjusted && <span className="ml-1.5 text-muted-foreground">(valor registrado)</span>}
+                  {x.prepaid && <span className="ml-1.5"><Pill>paga antes</Pill></span>}
                 </span>
-                {editing === x.month ? (
+                {x.prepaid ? (
+                  <span className="flex items-center gap-3">
+                    <b className="num">{formatBRL(x.value)}</b>
+                    <button type="button" onClick={() => undoPrepaidLast(debt.id)} className="font-bold text-primary hover:underline">Desfazer</button>
+                  </span>
+                ) : editing === x.month ? (
                   <form
                     className="flex items-center gap-1.5"
                     onSubmit={(e) => {

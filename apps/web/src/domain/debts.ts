@@ -39,6 +39,15 @@ export function paidMonths(d: Debt): Month[] {
   return Array.from({ length: n }, (_, i) => changeMonth(d.nextMonth, i - n));
 }
 
+/** Parcelas ainda em aberto (a última já paga antes da hora não conta). */
+const openCount = (d: Debt) => Math.max(0, d.totalInstallments - d.paidInstallments - (d.prepaidLast ? 1 : 0));
+
+/** Mês da última parcela do cronograma. */
+export const lastInstallmentMonth = (d: Debt): Month => changeMonth(d.nextMonth, d.totalInstallments - d.paidInstallments - 1);
+
+/** Dá para pagar a última parcela junto? Só consórcio linear, ainda sem a última paga, e com ao menos 2 parcelas em aberto. */
+export const canPrepayLast = (d: Debt) => isConsortium(d) && !isProgressive(d) && !d.prepaidLast && openCount(d) >= 2;
+
 export interface DebtProgress {
   /** parcelas que faltam */
   remaining: number;
@@ -57,9 +66,9 @@ export interface DebtProgress {
 }
 
 export function debtProgress(d: Debt): DebtProgress {
-  const remaining = Math.max(0, d.totalInstallments - d.paidInstallments);
+  const remaining = openCount(d);
   const done = remaining === 0;
-  const paidTotal = paidMonths(d).reduce((s, m) => s + installmentValueFor(d, m), 0);
+  const paidTotal = paidMonths(d).reduce((s, m) => s + installmentValueFor(d, m), 0) + (d.prepaidLast?.value ?? 0);
   let balance = 0;
   for (let i = 0; i < remaining; i++) balance += installmentValueFor(d, changeMonth(d.nextMonth, i));
   return {
@@ -68,7 +77,7 @@ export function debtProgress(d: Debt): DebtProgress {
     balance,
     payoffMonth: done ? null : changeMonth(d.nextMonth, remaining - 1),
     done,
-    percent: d.totalInstallments > 0 ? Math.round((d.paidInstallments / d.totalInstallments) * 100) : 0,
+    percent: d.totalInstallments > 0 ? Math.round(((d.totalInstallments - remaining) / d.totalInstallments) * 100) : 0,
     nextValue: installmentValueFor(d, d.nextMonth),
   };
 }
@@ -81,16 +90,20 @@ export interface PaidInstallment {
   value: number;
   /** o valor pago difere do valor da parcela (desconto ou acréscimo) */
   adjusted: boolean;
+  /** a última parcela, paga antes da hora */
+  prepaid?: boolean;
 }
 
 /** As parcelas já pagas, da mais recente para a mais antiga, com o valor de cada uma. */
 export function getPaidInstallments(d: Debt): PaidInstallment[] {
-  return paidMonths(d)
+  const list: PaidInstallment[] = paidMonths(d)
     .map((month, i) => {
       const value = installmentValueFor(d, month);
       return { number: i + 1, month, value, adjusted: value !== baseValueOf(d, i + 1) };
     })
     .reverse();
+  if (d.prepaidLast) list.unshift({ number: d.totalInstallments, month: lastInstallmentMonth(d), value: d.prepaidLast.value, adjusted: d.prepaidLast.value !== baseValueOf(d, d.totalInstallments), prepaid: true });
+  return list;
 }
 
 /** Quitação antecipada: quanto pagar hoje com o desconto que o usuário informou (nunca abaixo de zero) e quanto economiza. */
@@ -175,9 +188,30 @@ export function debtTransaction(d: Debt): Transaction | null {
   };
 }
 
+/**
+ * A última parcela paga antes da hora vira uma despesa comum, já paga, no dia do pagamento (regime de caixa: o desembolso é
+ * do mês em que saiu; o último mês do cronograma deixa de ter parcela). null se não houve.
+ */
+export function prepaidLastTransaction(d: Debt): Transaction | null {
+  if (!d.prepaidLast) return null;
+  const month = d.prepaidLast.payment.date.slice(0, 7);
+  return {
+    id: `${ID_PREFIX}${d.id}:last`,
+    name: `${d.name} (última parcela)`,
+    amount: d.prepaidLast.value,
+    type: "expense",
+    category: isConsortium(d) ? CONSORTIUM_CATEGORY : DEBT_CATEGORY,
+    fixed: false,
+    month,
+    payments: { [month]: d.prepaidLast.payment },
+    debtOrigin: debtKind(d),
+    debtId: d.id,
+  };
+}
+
 /** As despesas geradas por todas as dívidas e consórcios. */
 export function debtTransactions(debts: Debt[]): Transaction[] {
-  return debts.flatMap((d) => debtTransaction(d) ?? []);
+  return debts.flatMap((d) => [debtTransaction(d), prepaidLastTransaction(d)].filter((t): t is Transaction => t !== null));
 }
 
 /** Os lançamentos do cadastro mais os gerados pelas dívidas, para tudo que soma, projeta ou lista. */

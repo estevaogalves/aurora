@@ -79,6 +79,12 @@ func validatePlanning(p domain.Planning) string {
 			msg = "a última parcela passa do limite de R$ 1 bilhão."
 		case d.TrackedFrom != "" && checkMonth(d.TrackedFrom) != "":
 			msg = checkMonth(d.TrackedFrom)
+		case d.PrepaidLast != nil && (d.Kind != "consortium" || d.Model == "progressive"):
+			msg = "só o consórcio linear tem a última parcela paga antes da hora."
+		case d.PrepaidLast != nil && d.PaidInstallments+1 > d.TotalInstallments:
+			msg = "a última parcela paga antes da hora passa do total de parcelas."
+		case d.PrepaidLast != nil:
+			msg = first(checkCents("O valor da última parcela", d.PrepaidLast.Value), checkPayment(d.PrepaidLast.Payment))
 		}
 		for month, v := range d.PaidValues {
 			if msg != "" {

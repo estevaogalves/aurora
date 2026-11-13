@@ -181,3 +181,68 @@ describe("compatibilidade com cadastros antigos", () => {
     expect(withDebtTransactions([], store().debts)[0]).toMatchObject({ debtOrigin: "debt", month: "2026-11", endMonth: "2026-12" });
   });
 });
+
+describe("consórcio linear: pagar a última parcela junto com a atual", () => {
+  const pay = { method: "pix" as const, date: "2026-11-10" };
+  const linear = { id: "c1", name: "Consórcio moto", kind: "consortium" as const, model: "linear" as const, installmentValue: 70000, totalInstallments: 6, paidInstallments: 0, nextMonth: "2026-11" };
+  const effective = () => withDebtTransactions(store().transactions, store().debts);
+
+  it("paga a atual (R$ 700) e a última (R$ 200 negociado): a última fica paga e o consórcio termina um mês antes", () => {
+    store().addDebt(linear);
+    store().payDebtInstallment("c1", 70000, pay, 20000);
+    const d = store().debts[0];
+    expect(d).toMatchObject({ paidInstallments: 1, nextMonth: "2026-12", prepaidLast: { value: 20000, payment: pay } });
+    expect(debtProgress(d)).toMatchObject({ remaining: 4, paidTotal: 90000, balance: 4 * 70000, payoffMonth: "2027-03", percent: 33 });
+    // Lançamentos: nov = R$ 700 (parcela) + R$ 200 (última, linha própria, já paga); abr/2027 (a última) já não tem parcela
+    const nov = getTransactionsByMonth(effective(), "2026-11").filter((t) => t.debtId === "c1");
+    expect(nov.map((t) => [t.name, t.amount]).sort((a, b) => Number(b[1]) - Number(a[1]))).toEqual([["Consórcio moto", 70000], ["Consórcio moto (última parcela)", 20000]]);
+    expect(nov.every((t) => t.category === "Consórcios" && t.debtOrigin === "consortium")).toBe(true);
+    expect(getTransactionsByMonth(effective(), "2027-03").filter((t) => t.debtId === "c1").map((t) => t.amount)).toEqual([70000]);
+    expect(getTransactionsByMonth(effective(), "2027-04").filter((t) => t.debtId === "c1")).toEqual([]);
+  });
+
+  it("os valores são editáveis: atual com reajuste e última com desconto", () => {
+    store().addDebt(linear);
+    store().payDebtInstallment("c1", 72000, pay, 15000);
+    expect(store().debts[0].paidValues).toEqual({ "2026-11": 72000 });
+    expect(store().debts[0].prepaidLast?.value).toBe(15000);
+  });
+
+  it("não vale para dívida comum, consórcio progressivo, nem com a última já paga ou sobrando uma só parcela", () => {
+    store().addDebt({ ...linear, kind: undefined, model: undefined, id: "x" });
+    store().payDebtInstallment("x", 70000, pay, 20000);
+    expect(store().debts[0].prepaidLast).toBeUndefined();
+    store().addDebt({ ...linear, id: "p", model: "progressive", increment: 100 });
+    store().payDebtInstallment("p", 70000, pay, 20000);
+    expect(store().debts[1].prepaidLast).toBeUndefined();
+    store().addDebt({ ...linear, id: "u", totalInstallments: 1 });
+    store().payDebtInstallment("u", 70000, pay, 20000);
+    expect(store().debts[2].prepaidLast).toBeUndefined();
+    store().addDebt({ ...linear, id: "l" });
+    store().payDebtInstallment("l", 70000, pay, 20000);
+    store().payDebtInstallment("l", 70000, pay, 20000); // a última já foi paga
+    expect(store().debts[3].prepaidLast?.value).toBe(20000);
+  });
+
+  it("pagar as parcelas até o fim quita sem gerar a última de novo; desfazer devolve a última", () => {
+    store().addDebt({ ...linear, totalInstallments: 3 });
+    store().payDebtInstallment("c1", 70000, pay, 20000); // paga nov + a última (jan)
+    store().payDebtInstallment("c1", 70000); // dez
+    expect(debtProgress(store().debts[0])).toMatchObject({ remaining: 0, done: true, percent: 100 });
+    expect(getTransactionsByMonth(effective(), "2027-01").filter((t) => t.debtId === "c1" && !t.id.endsWith(":last"))).toEqual([]);
+    store().undoPrepaidLast("c1");
+    expect(store().debts[0].prepaidLast).toBeUndefined();
+    expect(debtProgress(store().debts[0])).toMatchObject({ remaining: 1, payoffMonth: "2027-01" });
+  });
+
+  it("mudar o total ou a posição descarta a última paga; excluir congela as pagas, inclusive a última", () => {
+    store().addDebt(linear);
+    store().payDebtInstallment("c1", 70000, pay, 20000);
+    store().updateDebt("c1", { totalInstallments: 8 });
+    expect(store().debts[0].prepaidLast).toBeUndefined();
+    store().payDebtInstallment("c1", 70000, { ...pay, date: "2026-12-10" }, 21000);
+    store().removeDebt("c1");
+    const frozen = store().transactions.filter((t) => t.id !== "fx").map((t) => [t.name, t.amount, t.month]).sort((a, b) => Number(b[1]) - Number(a[1]) || String(a[2]).localeCompare(String(b[2])));
+    expect(frozen).toEqual([["Consórcio moto", 70000, "2026-11"], ["Consórcio moto", 70000, "2026-12"], ["Consórcio moto (última parcela)", 21000, "2026-12"]]);
+  });
+});

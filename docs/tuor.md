@@ -170,7 +170,7 @@ Sem nenhuma dívida, o tour usa dívidas de exemplo (fictícias, nunca gravadas)
 
 - [ ok ] 1. Botão **Nova dívida** (abas **Dívida** e **Consórcio**, este linear ou progressivo; as parcelas aparecem sozinhas em Lançamentos)
 - [ ok ] 2. **Resumo**: parcelas por mês, saldo a pagar e última parcela
-- [ ok ] 3. **Cartão da dívida**: selo Dívida/Consórcio, parcelas, saldo, quitação e **Registrar parcela paga** (igual a marcar a parcela como paga em Lançamentos); quitada vira **Quitado**
+- [ ok ] 3. **Cartão da dívida**: selo Dívida/Consórcio, parcelas, saldo, quitação e **Registrar parcela paga** (igual a marcar a parcela como paga em Lançamentos; confirma o valor e, no consórcio linear, paga junto a última parcela); quitada vira **Quitado**
 - [ ok ] 4. **Simular quitação antecipada** (com o desconto informado)
 
 ### Relatórios (`relatorios`)
