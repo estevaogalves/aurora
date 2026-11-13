@@ -2990,6 +2990,10 @@ export interface components {
             /** @description Despesa fixa que já traz esta parcela (para não somar duas vezes). */
             linkedTransactionId?: string;
             note?: string;
+            /** @description Valor realmente pago em cada parcela, por mês da parcela (para um desconto ou acréscimo daquele mês). Sem a chave, a parcela vale o da despesa fixa vinculada no mês ou o `installmentValue`. */
+            paidValues?: {
+                [key: string]: components["schemas"]["Cents"];
+            };
         };
         MonthClosing: {
             /** @description Data do fechamento, AAAA-MM-DD. */

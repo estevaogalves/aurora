@@ -76,7 +76,7 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
   const list = options[destination];
   // só oferece criar meta se não existe nenhuma com nome parecido (evita duplicar)
   const hasMatchingGoal = matches.length > 0;
-  const [creatingGoal, setCreatingGoal] = useState(false);
+  const [creating, setCreating] = useState<"goal" | "piggy" | null>(null);
   const cotas = investments.filter(byQuantity).length;
 
   function pickDestination(next: Destination) {
@@ -129,8 +129,10 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
           </div>
           {!hasMatchingGoal && destination !== "investment" && (
             <p className="-mb-1 rounded-md bg-secondary px-3 py-2 text-[13px] text-ink2">
-              Não há meta nem porquinho chamado “{request.slice.label}”.{" "}
-              <button type="button" onClick={() => setCreatingGoal(true)} className="font-bold text-primary hover:underline">Criar meta</button>
+              Não há meta nem porquinho com o nome “{request.slice.label}”. Quer criar um?{" "}
+              <button type="button" onClick={() => setCreating("goal")} className="font-bold text-primary hover:underline">Criar meta</button>
+              {" · "}
+              <button type="button" onClick={() => setCreating("piggy")} className="font-bold text-primary hover:underline">Criar porquinho</button>
             </p>
           )}
           <Field label={DESTINATION_LABEL[destination]} htmlFor="send-target">
@@ -160,11 +162,12 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
     </form>
     {/* fora do <form>: o submit de um diálogo em portal sobe pela árvore do React e enviaria este formulário */}
     <GoalDialog
-      open={creatingGoal}
+      open={creating !== null}
       goal={null}
+      asPiggy={creating === "piggy"}
       initialName={request.slice.label}
-      onClose={() => setCreatingGoal(false)}
-      onCreated={(id) => { setDestination("goal"); setTargetId(id); setError(""); }}
+      onClose={() => setCreating(null)}
+      onCreated={(id) => { setDestination(creating === "piggy" ? "piggy" : "goal"); setTargetId(id); setError(""); }}
     />
     </>
   );

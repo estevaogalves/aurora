@@ -30,6 +30,9 @@ type Debt struct {
 	// LinkedTransactionID: despesa fixa que já traz esta parcela no orçamento (para não somar duas vezes). Opcional.
 	LinkedTransactionID string `json:"linkedTransactionId,omitempty"`
 	Note                string `json:"note,omitempty"`
+	// PaidValues: valor realmente pago em cada parcela, por mês da parcela (centavos), para um desconto ou acréscimo
+	// daquele mês. Sem a chave, a parcela vale o da despesa fixa vinculada no mês ou o InstallmentValue.
+	PaidValues map[string]int64 `json:"paidValues,omitempty"`
 }
 
 // MonthClosing é o retrato de um mês fechado.

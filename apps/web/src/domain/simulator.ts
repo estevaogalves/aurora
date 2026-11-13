@@ -92,7 +92,8 @@ export function averageMonthlyContribution(investments: Investment[], movements:
 
 /** "10,5" ou "10.5" ou "10,5%" -> 10.5; vazio ou inválido -> null. */
 export function parsePercent(text: string): number | null {
-  const t = text.trim().replace("%", "").replace(",", ".");
+  // "4," e "4." (a pessoa ainda está digitando) valem 4
+  const t = text.trim().replace("%", "").replace(",", ".").replace(/\.$/, "");
   if (!t || !/^\d+(\.\d+)?$/.test(t)) return null;
   const n = Number(t);
   return Number.isFinite(n) ? n : null;

@@ -89,6 +89,7 @@ Os textos estão em `Features/*/tour.ts`. Quando um card depende de dados (por e
 - [ ok ] 11. Card **Metas**: progresso geral dos objetivos
 - [ ok ] 12. Card **Despesas do mês**: as 5 mais recentes
 - [ ok ] 13. Card **Anotações**: lembretes do mês (somente leitura aqui)
+- [ ok ] 14. Card **Dias de fôlego** (só aparece ligado em Tempo e fôlego e com reserva; durante o tour mostra um exemplo)
 
 ### Lançamentos (`lancamentos`)
 
@@ -180,6 +181,7 @@ Sem nenhuma dívida, o tour usa dívidas de exemplo (fictícias, nunca gravadas)
 - [ ok ] 4. Indicador **Maior categoria**
 - [ ok ] 5. Card **Resumo mês a mês**: base do relatório
 - [ ok ] 6. Card **Exportar relatório**: período e formato (PDF, CSV ou TXT)
+- [ ok ] 7. Card **Meses fechados**: o retrato de cada mês fechado no Painel; com mais de 3 meses aparecem o filtro por ano e 3 ou 6 meses por página (usa meses de exemplo durante o tour)
 
 ## Verificação
 

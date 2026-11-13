@@ -325,6 +325,11 @@ export interface Debt {
   /** despesa fixa que já traz esta parcela no orçamento (para não somar duas vezes) */
   linkedTransactionId?: string;
   note?: string;
+  /**
+   * Valor realmente pago em cada parcela, por mês da parcela (centavos): para um desconto ou acréscimo daquele mês.
+   * Parcela sem valor aqui vale o da despesa fixa vinculada naquele mês (se houver) ou o `installmentValue`.
+   */
+  paidValues?: Record<Month, number>;
 }
 
 /** Retrato de um mês fechado. */

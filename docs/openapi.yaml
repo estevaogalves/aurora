@@ -1231,6 +1231,10 @@ components:
         nextMonth: { $ref: "#/components/schemas/Month", description: Mês da próxima parcela a pagar. }
         linkedTransactionId: { type: string, description: Despesa fixa que já traz esta parcela (para não somar duas vezes). }
         note: { type: string, maxLength: 200 }
+        paidValues:
+          type: object
+          description: Valor realmente pago em cada parcela, por mês da parcela (para um desconto ou acréscimo daquele mês). Sem a chave, a parcela vale o da despesa fixa vinculada no mês ou o `installmentValue`.
+          additionalProperties: { $ref: "#/components/schemas/Cents" }
     MonthClosing:
       type: object
       required: [closedAt, income, expense, balance, byCategory]

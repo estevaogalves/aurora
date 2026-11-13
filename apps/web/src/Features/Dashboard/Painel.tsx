@@ -523,19 +523,30 @@ function Breathing() {
   const month = useFinanceStore((s) => s.currentMonth);
   const { totalIncome, totalExpense } = useMonthSummary();
   const monthTransactions = useMonthTransactions();
-  if (!show) return null;
+  const tourDemo = useUiStore((s) => s.tourDemo);
 
   const reserve = reserveTotal(goals, investments);
   const [y, m] = month.split("-").map(Number);
   const days = new Date(y, m, 0).getDate();
-  const result = breathingDays(reserve, totalExpense, days);
-  if (result === null) return null;
+  const result = show ? breathingDays(reserve, totalExpense, days) : null;
+  // durante o tour, quem ainda não ligou (ou não tem reserva) vê um exemplo ilustrativo (nunca gravado)
+  if (result === null) {
+    if (!tourDemo) return null;
+    return (
+      <div className="col-span-12 lg:col-span-4">
+        <Panel tour="folego" title="Dias de fôlego" subtitle="Exemplo ilustrativo">
+          <p className="font-display text-[28px] font-semibold leading-tight">18 dias</p>
+          <p className="mt-1 text-[13px] text-muted-foreground">Reserva de R$ 3.000,00 ÷ despesa média de R$ 166,00 por dia. Estes números são fictícios: o card real aparece quando você liga “Dias de fôlego” em Tempo e fôlego e tem uma reserva.</p>
+        </Panel>
+      </div>
+    );
+  }
   const fixed = monthTransactions.filter((t) => t.type === "expense" && t.fixed).reduce((sum, t) => sum + t.amount, 0);
   const free = freedomDay(totalIncome, fixed, days);
 
   return (
     <div className="col-span-12 lg:col-span-4">
-    <Panel title="Dias de fôlego" subtitle="Quanto tempo a sua reserva sustenta">
+    <Panel tour="folego" title="Dias de fôlego" subtitle="Quanto tempo a sua reserva sustenta">
       <p className="font-display text-[28px] font-semibold leading-tight">{result} {result === 1 ? "dia" : "dias"}</p>
       <p className="mt-1 text-[13px] text-muted-foreground">
         Reserva de {formatBRL(reserve)} (metas com “reserva” ou “emergência” no nome e investimentos de liquidez diária) ÷ despesa média de {formatBRL(Math.round(totalExpense / days))} por dia.

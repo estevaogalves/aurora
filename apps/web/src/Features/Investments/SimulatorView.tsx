@@ -50,7 +50,6 @@ export default function SimulatorView() {
   let problem = "";
   if (!Number.isInteger(yearsN) || yearsN < 1 || yearsN > SIM_MAX_YEARS) problem = `O prazo vai de 1 a ${SIM_MAX_YEARS} anos.`;
   else if (rate.trim() && (rateN === null || rateN > SIM_MAX_RATE)) problem = `A rentabilidade vai de 0 a ${SIM_MAX_RATE}% ao ano.`;
-  else if (yieldText.trim() && yieldN === null) problem = "O yield anual precisa ser um número, como 6 ou 6,5.";
 
   const income = result && yieldN !== null ? passiveIncome(result.final, yieldN) : null;
   const dividendsCents = parseBRL(dividends);
@@ -125,7 +124,7 @@ export default function SimulatorView() {
 
           <Panel tour="sim-dividendos" title="Renda passiva por dividendos" subtitle="Quanto o valor final poderia render por mês, com o yield que você informar">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Yield anual estimado (%)" htmlFor="sim-yield">
+              <Field label="Yield anual estimado (%)" htmlFor="sim-yield" hint={yieldText.trim() && yieldN === null ? "(use um número, como 6 ou 6,5)" : undefined}>
                 <input id="sim-yield" inputMode="decimal" value={yieldText} onChange={(e) => setYieldText(e.target.value.replace(/[^0-9,.]/g, ""))} placeholder="Digite a sua estimativa" className={inputClass} />
               </Field>
               <Field label="Proventos que você recebe por mês" hint="(opcional, para o yield on cost)" htmlFor="sim-dividends">

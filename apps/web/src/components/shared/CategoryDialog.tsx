@@ -36,6 +36,7 @@ function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
   const removeCategory = useFinanceStore((s) => s.removeCategory);
   // id da categoria que está sendo editada; null = criando uma nova
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<{ id: string; name: string } | null>(null);
   const [name, setName] = useState("");
   const [color, setColor] = useState(SWATCHES[0]);
   const editing = categories.find((c) => c.id === editingId);
@@ -127,7 +128,7 @@ function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
                 <button type="button" aria-label={`Editar categoria ${c.name}`} onClick={() => startEdit(c.id)} className="grid h-7 w-7 place-items-center rounded-md border border-border-strong text-muted-foreground hover:border-primary hover:text-foreground">
                   <Icon name="edit" size={14} />
                 </button>
-                <button type="button" aria-label={`Apagar categoria ${c.name}`} onClick={() => { if (c.id === editingId) reset(); removeCategory(c.id); }} className="grid h-7 w-7 place-items-center rounded-md border border-border-strong text-muted-foreground hover:border-destructive hover:text-destructive">
+                <button type="button" aria-label={`Apagar categoria ${c.name}`} onClick={() => setDeleting(c)} className="grid h-7 w-7 place-items-center rounded-md border border-border-strong text-muted-foreground hover:border-destructive hover:text-destructive">
                   <Icon name="trash" size={14} />
                 </button>
               </span>
@@ -136,6 +137,32 @@ function CategoryFields({ onClose, onCreated }: Omit<Props, "open">) {
           <p className="mt-1 text-xs text-muted-foreground">Apagar não altera lançamentos antigos: eles mantêm o nome, com cor neutra. Editar o nome atualiza os lançamentos.</p>
         </div>
       )}
+      <Dialog open={!!deleting} onOpenChange={(next) => !next && setDeleting(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Apagar a categoria “{deleting?.name}”?</DialogTitle>
+            <DialogDescription>
+              Os lançamentos que já usam esta categoria <b>não mudam</b>: eles continuam com o nome “{deleting?.name}” (com cor neutra) nos meses anteriores e nos relatórios. Só deixa de ser uma opção para novos lançamentos.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 pt-1">
+            <Button type="button" variant="secondary" onClick={() => setDeleting(null)}>Cancelar</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (deleting) {
+                  if (deleting.id === editingId) reset();
+                  removeCategory(deleting.id);
+                }
+                setDeleting(null);
+              }}
+            >
+              Apagar categoria
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

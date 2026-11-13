@@ -53,3 +53,25 @@ describe("planejamento na store", () => {
     expect(store().dividendAssets).toEqual([]);
   });
 });
+
+describe("dívida: valor realmente pago em cada parcela", () => {
+  it("registrar a parcela com valor guarda o que foi pago naquele mês; sem valor, não guarda nada", () => {
+    store().addDebt({ id: "d1", name: "Consórcio", installmentValue: 69700, totalInstallments: 5, paidInstallments: 0, nextMonth: "2026-12" });
+    store().payDebtInstallment("d1");
+    expect(store().debts[0].paidValues).toBeUndefined();
+    store().payDebtInstallment("d1", 50000); // parcela de janeiro paga com desconto
+    expect(store().debts[0]).toMatchObject({ paidInstallments: 2, nextMonth: "2027-02", paidValues: { "2027-01": 50000 } });
+  });
+
+  it("corrigir o valor de uma parcela já paga (só de meses pagos, só valores válidos)", () => {
+    store().addDebt({ id: "d1", name: "Consórcio", installmentValue: 69700, totalInstallments: 5, paidInstallments: 2, nextMonth: "2026-12" });
+    store().setDebtPaidValue("d1", "2026-11", 60000);
+    expect(store().debts[0].paidValues).toEqual({ "2026-11": 60000 });
+    store().setDebtPaidValue("d1", "2026-12", 1); // ainda não paga
+    store().setDebtPaidValue("d1", "2026-10", -5);
+    store().setDebtPaidValue("d1", "2026-10", 1.5);
+    expect(store().debts[0].paidValues).toEqual({ "2026-11": 60000 });
+    store().setDebtPaidValue("d1", "2026-10", 0); // 0 é um valor válido (parcela abonada)
+    expect(store().debts[0].paidValues).toEqual({ "2026-11": 60000, "2026-10": 0 });
+  });
+});

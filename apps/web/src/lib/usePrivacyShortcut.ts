@@ -6,13 +6,16 @@ export function usePrivacyShortcut() {
   const toggle = usePrivacyStore((s) => s.toggle);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (!e.altKey || e.ctrlKey || e.metaKey || e.code !== "KeyP") return;
+      // Alt+P (também com Shift ou Ctrl+Alt, que é o AltGr em alguns teclados); vale pela tecla física ou pela letra
+      const isP = e.code === "KeyP" || e.key.toLowerCase() === "p" || e.key === "π" || e.key === "∏";
+      if (!e.altKey || e.metaKey || !isP) return;
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
       e.preventDefault();
       toggle();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // captura no documento: roda antes de qualquer tela ou diálogo que prenda o foco
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [toggle]);
 }

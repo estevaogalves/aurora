@@ -7,6 +7,9 @@ import { buildCsv, buildTxt, formatPaymentDate, formatPeriodLabel, getPeriodTota
 import { formatBRL, formatBRLShort } from "@/lib/money";
 import { downloadText } from "@/Services/download";
 import { useFinanceStore } from "@/Store/FinanceStore";
+import { useUiStore } from "@/Store/UiStore";
+import { usePagination } from "@/lib/usePagination";
+import Pager from "@/components/shared/Pager";
 import { changeMonth, formatMonth, formatMonthAbbr, formatMonthShort, getCurrentMonth, getMonthsBetween, monthsDifference } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 import { loadReportPrefs, sameReportPrefs, saveReportPrefs, type ReportFormat } from "./prefs";
@@ -27,8 +30,18 @@ export default function ReportsPage() {
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
-  const closings = useFinanceStore((s) => s.closings);
+  const realClosings = useFinanceStore((s) => s.closings);
+  // durante o tour, sem nenhum mês fechado, a tela mostra exemplos fictícios (nunca gravados)
+  const demoClosings = useUiStore((s) => s.tourDemo) && Object.keys(realClosings).length === 0;
+  const closings = demoClosings
+    ? { [changeMonth(current, -2)]: { closedAt: `${changeMonth(current, -1)}-03`, income: 560000, expense: 410000, balance: 150000, byCategory: {}, note: "Exemplo ilustrativo" }, [changeMonth(current, -3)]: { closedAt: `${changeMonth(current, -2)}-03`, income: 560000, expense: 450000, balance: 110000, byCategory: {}, note: "Exemplo ilustrativo" } }
+    : realClosings;
   const closedMonths = Object.keys(closings).sort().reverse();
+  const [closedYear, setClosedYear] = useState("");
+  const [closedPerPage, setClosedPerPage] = useState(3);
+  const closedYears = [...new Set(closedMonths.map((m) => m.slice(0, 4)))];
+  const closedShown = closedMonths.filter((m) => !closedYear || m.startsWith(closedYear));
+  const closedPager = usePagination(closedShown, closedPerPage);
 
   // null = só o mês do seletor do cabeçalho (o padrão); a lista aparece quando o usuário escolhe meses
   const [picked, setPicked] = useState<string[] | null>(null);
@@ -214,9 +227,26 @@ export default function ReportsPage() {
 
         {closedMonths.length > 0 && (
           <div className="col-span-12">
-            <Panel title="Meses fechados" subtitle="O retrato guardado em cada fechamento (não muda se os lançamentos mudarem depois)">
+            <Panel tour="fechados" title="Meses fechados" subtitle="O retrato guardado em cada fechamento (não muda se os lançamentos mudarem depois)">
+              {closedMonths.length > 3 && (
+                <div className="mb-3 flex flex-wrap items-end gap-3">
+                  <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Ano
+                    <select value={closedYear} onChange={(e) => { setClosedYear(e.target.value); closedPager.setPage(1); }} className="h-9 rounded-md border border-border-strong bg-card px-2 text-[13px] font-semibold">
+                      <option value="">Todos os anos</option>
+                      {closedYears.map((y) => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Meses por página
+                    <select value={closedPerPage} onChange={(e) => { setClosedPerPage(Number(e.target.value)); closedPager.setPage(1); }} className="h-9 rounded-md border border-border-strong bg-card px-2 text-[13px] font-semibold">
+                      <option value={3}>3</option>
+                      <option value={6}>6</option>
+                    </select>
+                  </label>
+                </div>
+              )}
+              {demoClosings && <p className="mb-2 text-[12.5px] text-muted-foreground"><b className="text-foreground">Exemplo ilustrativo:</b> estes meses são fictícios.</p>}
               <ul className="flex flex-col divide-y divide-border">
-                {closedMonths.map((m) => {
+                {closedPager.slice.map((m) => {
                   const c = closings[m];
                   return (
                     <li key={m} className="flex flex-col gap-1 py-2.5 text-[13.5px] first:pt-0 last:pb-0">
@@ -229,6 +259,8 @@ export default function ReportsPage() {
                   );
                 })}
               </ul>
+              <Pager {...closedPager} onPage={closedPager.setPage} />
+              {closedShown.length === 0 && <p className="text-[13px] text-muted-foreground">Nenhum mês fechado em {closedYear}.</p>}
             </Panel>
           </div>
         )}

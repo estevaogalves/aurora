@@ -102,7 +102,7 @@ export default function ProjectionPage() {
 
   // dívidas vinculadas a uma despesa fixa: a partir de quando essa despesa fixa cai (só informação: a Projeção não muda)
   const debts = useFinanceStore((s) => s.debts);
-  const relief = useMemo(() => getDebtRelief(debts), [debts]);
+  const relief = useMemo(() => getDebtRelief(debts, transactions), [debts, transactions]);
   const extrasInWindow = extras.filter((e) => months.includes(e.month)).sort((a, b) => a.month.localeCompare(b.month));
   // compras que ainda cobram parcela em algum mês da janela
   const activeCredits = resolvedCredits.filter((c) => months.some((m) => getCreditByMonth([c], m).some((i) => !i.advanced)));

@@ -122,18 +122,22 @@ export const FORECAST_WINDOW_MONTHS = 3;
 
 /**
  * Previsão de conclusão no ritmo atual: média mensal dos aportes líquidos (aportes − retiradas) dos últimos
- * `FORECAST_WINDOW_MONTHS` meses (só conta os meses desde o primeiro movimento da janela). Sem aportes recentes,
+ * `FORECAST_WINDOW_MONTHS` meses fechados (o mês de hoje só entra se já teve aporte; só conta os meses desde o primeiro
+ * movimento da janela). Sem aportes recentes,
  * usa o aporte mensal definido na meta; sem nenhum dos dois, null. Meta concluída, sem valor-alvo ou porquinho: null.
  */
 export function goalForecast(goal: Goal, movements: GoalMovement[], today: Month, window = FORECAST_WINDOW_MONTHS): GoalForecast | null {
   if (goal.piggy || goal.target <= 0 || isGoalDone(goal)) return null;
   const remaining = goalRemaining(goal);
-  const start = changeMonth(today, -(window - 1));
-  const recent = movements.filter((m) => m.goalId === goal.id && (m.type === "contribution" || m.type === "withdrawal") && m.date.slice(0, 7) >= start && m.date.slice(0, 7) <= today);
+  const own = movements.filter((m) => m.goalId === goal.id && (m.type === "contribution" || m.type === "withdrawal"));
+  // o mês de hoje só entra na média se já teve movimento: um mês ainda sem aporte não pode puxar a média para baixo
+  const end = own.some((m) => m.date.slice(0, 7) === today) ? today : changeMonth(today, -1);
+  const start = changeMonth(end, -(window - 1));
+  const recent = own.filter((m) => m.date.slice(0, 7) >= start && m.date.slice(0, 7) <= end);
 
   if (recent.length > 0) {
-    const first = recent.reduce((min, m) => (m.date.slice(0, 7) < min ? m.date.slice(0, 7) : min), today);
-    const span = Math.min(window, monthsDifference(today, first) + 1);
+    const first = recent.reduce((min, m) => (m.date.slice(0, 7) < min ? m.date.slice(0, 7) : min), end);
+    const span = Math.min(window, monthsDifference(end, first) + 1);
     const net = recent.reduce((sum, m) => sum + (m.type === "contribution" ? m.amount : -m.amount), 0);
     const perMonth = Math.round(net / span);
     if (perMonth > 0) {

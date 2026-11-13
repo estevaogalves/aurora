@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Field, inputClass, MoneyInput } from "@/components/shared/FormFields";
 import OriginBadge from "@/components/shared/OriginBadge";
+import Pager from "@/components/shared/Pager";
+import { usePagination } from "@/lib/usePagination";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -468,6 +470,8 @@ export function HistoryDialog({ investment, open, onClose, onEdit }: { investmen
   const remove = useFinanceStore((s) => s.removeInvestmentMovement);
   const [confirming, setConfirming] = useState<string | null>(null);
   const list = investment ? sortMovements(movements.filter((m) => m.investmentId === investment.id)).reverse() : [];
+  // histórico longo: 10 por página, em vez de uma rolagem sem fim
+  const pager = usePagination(list, 10);
 
   return (
     <Dialog open={open && !!investment} onOpenChange={(next) => { if (!next) { setConfirming(null); onClose(); } }}>
@@ -479,8 +483,9 @@ export function HistoryDialog({ investment, open, onClose, onEdit }: { investmen
         {list.length === 0 ? (
           <p className="text-[13px] text-muted-foreground">Nenhuma movimentação registrada.</p>
         ) : (
-          <ul className="flex flex-col divide-y divide-border">
-            {list.map((m) => (
+          <>
+<ul className="flex flex-col divide-y divide-border">
+            {pager.slice.map((m) => (
               <li key={m.id} className="flex flex-col gap-1.5 py-2.5 text-[13px]">
                 <div className="flex items-baseline justify-between gap-3">
                   <span>
@@ -514,6 +519,8 @@ export function HistoryDialog({ investment, open, onClose, onEdit }: { investmen
               </li>
             ))}
           </ul>
+        <Pager {...pager} onPage={pager.setPage} />
+          </>
         )}
       </DialogContent>
     </Dialog>
