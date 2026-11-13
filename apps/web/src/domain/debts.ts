@@ -248,7 +248,7 @@ export interface DebtFields {
 
 /** Confere o cadastro de dívida ou consórcio. Devolve a mensagem do primeiro problema, ou null. */
 export function validateDebtFields(f: DebtFields): string | null {
-  if (!f.name.trim()) return "Dê um nome à " + (f.kind === "consortium" ? "consórcio." : "dívida.");
+  if (!f.name.trim()) return f.kind === "consortium" ? "Dê um nome ao consórcio." : "Dê um nome à dívida.";
   if (f.installmentValue === null || f.installmentValue <= 0) return f.kind === "consortium" && f.model === "progressive" ? "Informe o valor da primeira parcela, maior que zero." : "Informe o valor da parcela, maior que zero.";
   if (f.installmentValue > MAX_DEBT_CENTS) return "O valor da parcela passa de R$ 1 bilhão.";
   if (f.kind === "consortium" && f.model === "progressive") {

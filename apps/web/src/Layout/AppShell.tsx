@@ -148,7 +148,7 @@ function BottomTabs() {
           key={item.path}
           to={item.path}
           className={({ isActive }) =>
-            `flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-[10px] font-semibold tracking-[-0.01em] ${
+            `flex min-h-[52px] min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-xl px-0.5 text-[10px] font-semibold tracking-[-0.01em] max-[400px]:text-[9px] max-[400px]:tracking-[-0.04em] ${
               isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground"
             }`
           }

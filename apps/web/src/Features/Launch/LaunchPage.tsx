@@ -85,7 +85,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
         </span>
         <div className="flex items-center gap-2">
           <span className="num text-right font-semibold">{formatBRL(t.amount)}</span>
-          {pay && <RowMenu label={t.name} onPay={pay.onPay} paid={!!debtPayment} onClearPay={debtPayment ? pay.onClearPay : undefined} />}
+          {pay && <RowMenu label={t.name} onPay={debtPayment ? undefined : pay.onPay} paid={!!debtPayment} onClearPay={debtPayment ? pay.onClearPay : undefined} />}
         </div>
       </div>
     );
@@ -286,7 +286,9 @@ function ExpensesPanel() {
   const view = useLaunchFiltering();
   // parcelas de dívidas e consórcios ficam à parte: não são despesas fixas (vêm do cadastro em Dívidas)
   const fixed = expenses.filter((t) => t.fixed && !t.debtOrigin && view.expense(t)).sort((a, b) => b.amount - a.amount);
-  const debtRows = expenses.filter((t) => t.debtOrigin && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  // cada dívida vem seguida das suas "(última parcela)" pagas antes da hora; as dívidas, da maior parcela para a menor
+  const debtMain = expenses.filter((t) => t.debtOrigin && !t.id.includes(":last:") && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  const debtRows = [...debtMain.flatMap((t) => [t, ...expenses.filter((x) => x.debtId === t.debtId && x.id.includes(":last:") && view.expense(x))]), ...expenses.filter((x) => x.id.includes(":last:") && view.expense(x) && !debtMain.some((m) => m.debtId === x.debtId))];
   const variable = expenses.filter((t) => !t.fixed && !t.debtOrigin && view.expense(t)).sort((a, b) => b.amount - a.amount);
   const shownExtras = extras.filter((e) => view.extra(e));
   const count = expenses.length + extras.length;
