@@ -281,7 +281,7 @@ export default function GoalsPage() {
 
   return (
     <>
-      <div role="tablist" aria-label="Metas, investimentos, dívidas ou simulador" className="mb-4 inline-flex rounded-full border border-border bg-card p-1">
+      <div role="tablist" aria-label="Metas, investimentos, dívidas ou simulador" className="mb-4 flex max-w-full overflow-x-auto rounded-full border border-border bg-card p-1 sm:inline-flex">
         {options.map((o) => (
           <button
             key={o.id}
@@ -289,7 +289,7 @@ export default function GoalsPage() {
             role="tab"
             aria-selected={view === o.id}
             onClick={() => setView(o.id)}
-            className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors max-sm:min-h-10 ${view === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+            className={`rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors max-sm:min-h-10 sm:px-4 ${view === o.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
           >
             {o.label}
           </button>

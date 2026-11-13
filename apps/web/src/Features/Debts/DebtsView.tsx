@@ -87,7 +87,7 @@ export default function DebtsView() {
               </div>
               <div className="h-[6px] overflow-hidden rounded-full bg-secondary"><i className="block h-full rounded-full bg-primary" style={{ width: `${p.percent}%` }} /></div>
               {[
-                ["Parcelas", `${d.paidInstallments} pagas · ${p.remaining} restantes de ${d.totalInstallments}`],
+                ["Parcelas", `${d.paidInstallments} ${d.paidInstallments === 1 ? "paga" : "pagas"} · ${p.remaining} ${p.remaining === 1 ? "restante" : "restantes"} de ${d.totalInstallments}`],
                 [isProgressive(d) ? "Próxima parcela (valor)" : "Valor da parcela", formatBRL(p.nextValue)],
                 ["Total já pago", formatBRL(p.paidTotal)],
                 ["Saldo a pagar", formatBRL(p.balance)],
@@ -247,22 +247,22 @@ function DebtFields({ kind, debt, onClose }: { kind: DebtKind; debt: Debt | null
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       {consortium && (
         <Field label="Tipo de parcela" htmlFor="debt-model">
-          <select id="debt-model" value={model} onChange={(e) => setModel(e.target.value as "linear" | "progressive")} disabled={!!debt} className={inputClass}>
+          <select id="debt-model" value={model} onChange={(e) => { setModel(e.target.value as "linear" | "progressive"); setError(""); }} disabled={!!debt} className={inputClass}>
             <option value="linear">Linear (todas as parcelas iguais)</option>
             <option value="progressive">Progressivo (a parcela cresce todo mês)</option>
           </select>
         </Field>
       )}
       <Field label="Nome" htmlFor="debt-name">
-        <input id="debt-name" value={name} onChange={(e) => setName(e.target.value)} placeholder={consortium ? "Ex.: Consórcio da moto" : "Ex.: Financiamento do carro"} className={inputClass} />
+        <input id="debt-name" value={name} onChange={(e) => { setName(e.target.value); setError(""); }} placeholder={consortium ? "Ex.: Consórcio da moto" : "Ex.: Financiamento do carro"} className={inputClass} />
       </Field>
       <div className={`grid gap-4 ${progressive ? "sm:grid-cols-2" : ""}`}>
         <Field label={progressive ? "Valor da primeira parcela" : "Valor da parcela"} htmlFor="debt-value">
-          <MoneyInput id="debt-value" value={value} onChange={setValue} placeholder="100,00" />
+          <MoneyInput id="debt-value" value={value} onChange={(v) => { setValue(v); setError(""); }} placeholder="100,00" />
         </Field>
         {progressive && (
           <Field label="Acréscimo mensal" htmlFor="debt-increment">
-            <MoneyInput id="debt-increment" value={increment} onChange={setIncrement} placeholder="50,00" />
+            <MoneyInput id="debt-increment" value={increment} onChange={(v) => { setIncrement(v); setError(""); }} placeholder="50,00" />
           </Field>
         )}
       </div>
@@ -273,13 +273,13 @@ function DebtFields({ kind, debt, onClose }: { kind: DebtKind; debt: Debt | null
       )}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Total de parcelas" htmlFor="debt-total">
-          <input id="debt-total" inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="60" className={inputClass} />
+          <input id="debt-total" inputMode="numeric" value={total} onChange={(e) => { setTotal(e.target.value.replace(/\D/g, "").slice(0, 3)); setError(""); }} placeholder="60" className={inputClass} />
         </Field>
         <Field label="Parcelas já pagas" htmlFor="debt-paid">
-          <input id="debt-paid" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value.replace(/\D/g, "").slice(0, 3))} className={inputClass} />
+          <input id="debt-paid" inputMode="numeric" value={paid} onChange={(e) => { setPaid(e.target.value.replace(/\D/g, "").slice(0, 3)); setError(""); }} className={inputClass} />
         </Field>
       </div>
-      <Field label="Mês da próxima parcela" htmlFor="debt-next"><MonthPicker id="debt-next" value={nextMonth} onChange={setNextMonth} /></Field>
+      <Field label="Mês da próxima parcela" htmlFor="debt-next"><MonthPicker id="debt-next" value={nextMonth} onChange={(v) => { setNextMonth(v); setError(""); }} /></Field>
       {debt && <p className="-mt-2 text-xs text-muted-foreground">Mudar as parcelas pagas ou o mês da próxima recomeça o acompanhamento dos pagamentos registrados. Mudar só o valor, o total ou o nome vale para as parcelas futuras: o que já foi pago não muda.</p>}
       {totalN > 0 && Number(paid) >= totalN && <p className="-mt-2 text-xs text-muted-foreground">Com todas as parcelas pagas, fica como quitado e não gera lançamentos.</p>}
       <Field label="Observação" hint="(opcional)" htmlFor="debt-note">
