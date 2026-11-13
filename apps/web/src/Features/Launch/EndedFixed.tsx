@@ -7,6 +7,7 @@ import { useFinanceStore, type Transaction } from "@/Store/FinanceStore";
 import { useEndedTransactions } from "@/Store/selectors";
 import { changeMonth, formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
+import CollapsibleSection from "./CollapsibleSection";
 
 /**
  * Encerra uma despesa ou renda fixa a partir do mês visto: ela deixa de valer daqui em diante. Os meses anteriores,
@@ -53,8 +54,7 @@ export function EndedList({ kind }: { kind: "income" | "expense" }) {
   if (ended.length === 0) return null;
 
   return (
-    <div className="mt-4 border-t border-border pt-3">
-      <p className="mb-2 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Encerradas</p>
+    <CollapsibleSection id={`${kind}-ended`} title="Encerradas" count={ended.length}>
       {ended.map((t) => (
         <div key={t.id} className="flex items-center justify-between gap-3 py-1.5 text-[13px] opacity-80">
           <span className="min-w-0 break-words">
@@ -76,6 +76,6 @@ export function EndedList({ kind }: { kind: "income" | "expense" }) {
           </button>
         </div>
       ))}
-    </div>
+    </CollapsibleSection>
   );
 }

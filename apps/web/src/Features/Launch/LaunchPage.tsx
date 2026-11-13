@@ -19,6 +19,7 @@ import EditExtraDialog from "../Projection/EditExtraDialog";
 import { showToast } from "../Warnings/toast";
 import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
 import { EndedList, EndFixedDialog } from "./EndedFixed";
+import CollapsibleSection from "./CollapsibleSection";
 import InvoicesSection from "./Invoices";
 import { AdvanceDialog, CancelRecurrenceDialog, EditInstallmentDialog, ScopeDialog } from "./InstallmentDialogs";
 import DebtPayDialog from "../Debts/DebtPayDialog";
@@ -35,11 +36,15 @@ function PaidBadge({ payment }: { payment: Payment }) {
   );
 }
 
-/** Anotações escondidas por padrão: o olho mostra ou esconde o texto. Sem anotação, `button` e `text` ficam nulos. */
+/** Espaços do tamanho do olho da anotação e do menu ⋮: linhas sem eles ficam com o valor alinhado às outras. */
+const NOTE_SLOT = <span aria-hidden className="inline-block h-6 w-6 flex-none" />;
+const MENU_SLOT = <span aria-hidden className="inline-block h-10 w-10 flex-none sm:h-8 sm:w-8" />;
+
+/** Anotações escondidas por padrão: o olho mostra ou esconde o texto. Sem anotação, `button` é só um espaço e `text` fica nulo. */
 function useNotes(...notes: (string | undefined)[]) {
   const [open, setOpen] = useState(false);
   const text = notes.filter(Boolean).join(" · ");
-  if (!text) return { button: null, text: null };
+  if (!text) return { button: NOTE_SLOT, text: null };
   return {
     button: (
       <button
@@ -48,7 +53,7 @@ function useNotes(...notes: (string | undefined)[]) {
         aria-label={open ? "Esconder anotação" : "Mostrar anotação"}
         aria-pressed={open}
         title={open ? "Esconder anotação" : "Mostrar anotação"}
-        className="flex-none rounded-md p-1 text-muted-foreground hover:bg-secondary hover:text-foreground"
+        className="inline-flex h-6 w-6 flex-none items-center justify-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
       >
         <Icon name={open ? "eyeOff" : "eye"} size={16} />
       </button>
@@ -85,7 +90,8 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
         </span>
         <div className="flex items-center gap-2">
           <span className="num text-right font-semibold">{formatBRL(t.amount)}</span>
-          {pay && <RowMenu label={t.name} onPay={debtPayment ? undefined : pay.onPay} paid={!!debtPayment} onClearPay={debtPayment ? pay.onClearPay : undefined} />}
+          {NOTE_SLOT}
+          {pay ? <RowMenu label={t.name} onPay={debtPayment ? undefined : pay.onPay} paid={!!debtPayment} onClearPay={debtPayment ? pay.onClearPay : undefined} /> : MENU_SLOT}
         </div>
       </div>
     );
@@ -125,8 +131,8 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
           {note.text}
         </div>
         <div className="flex items-center gap-2">
-          {note.button}
           <span className={`num text-right font-semibold ${income ? "text-success" : ""}`}>{formatBRL(t.amount)}</span>
+          {note.button}
           {menu}
         </div>
       </div>
@@ -135,6 +141,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
 
   return (
     <Row
+      inline
       color={income ? "hsl(var(--success))" : colorOf(t.category)}
       name={t.name}
       meta={
@@ -164,6 +171,7 @@ function ExtraRow({ e, color, onEdit, onDelete, onPay, onClearPay }: { e: ExtraE
   const cardName = useFinanceStore((s) => s.creditCards.find((k) => k.id === e.cardId)?.name);
   return (
     <Row
+      inline
       color={color}
       name={e.name}
       meta={
@@ -192,16 +200,6 @@ function TotalFooter({ label, value, className = "" }: { label: string; value: n
     <div className={`mt-3 flex items-baseline justify-between gap-3 border-t border-border-strong pt-3 text-[13.5px] ${className}`}>
       <span className="font-semibold">{label}</span>
       <span className="num font-bold">{formatBRL(value)}</span>
-    </div>
-  );
-}
-
-/** Área das fixas: linha divisória e só nome e valor, abaixo das variáveis. */
-function FixedSection({ children, title = "Fixas" }: { children: React.ReactNode; title?: string }) {
-  return (
-    <div className="mt-3 border-t border-border-strong pt-3">
-      <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">{title}</p>
-      {children}
     </div>
   );
 }
@@ -243,10 +241,15 @@ function IncomesPanel() {
 
   return (
     <Panel tour="rendas" title="Rendas" subtitle="Fontes do mês">
-      {incomes.length === 0 ? <Empty>Nenhuma renda cadastrada. Use o botão Lançar.</Empty> : variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}
-      {incomes.length > 0 && variable.length === 0 && fixed.length === 0 && view.active && <Empty>Nenhuma renda com estes filtros.</Empty>}
-      {incomes.length > 0 && variable.length === 0 && !view.active && <Empty>Nenhuma renda variável neste mês.</Empty>}
-      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} />)}</FixedSection>}
+      {incomes.length === 0 && <Empty>Nenhuma renda cadastrada. Use o botão Lançar.</Empty>}
+      {incomes.length > 0 && (
+        <CollapsibleSection id="income-variable" title="Lançamentos" count={variable.length} first>
+          {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} />)}
+          {variable.length === 0 && view.active && fixed.length === 0 && <Empty>Nenhuma renda com estes filtros.</Empty>}
+          {variable.length === 0 && !view.active && <Empty>Nenhuma renda variável neste mês.</Empty>}
+        </CollapsibleSection>
+      )}
+      {fixed.length > 0 && <CollapsibleSection id="income-fixed" title="Fixas" count={fixed.length}>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} />)}</CollapsibleSection>}
       <HiddenList kind="income" />
       <EndedList kind="income" />
       {incomes.length > 0 && <TotalFooter label="Total das rendas do mês" value={incomes.reduce((sum, t) => sum + t.amount, 0)} className="text-success" />}
@@ -324,22 +327,26 @@ function ExpensesPanel() {
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
       {onCard > 0 && <p className="mb-1 text-[12.5px] text-muted-foreground">{onCard === 1 ? "1 compra no cartão está" : `${onCard} compras no cartão estão`} na fatura, em Compras parceladas.</p>}
       {count > 0 && variable.length === 0 && shownExtras.length === 0 && fixed.length === 0 && debtRows.length === 0 && view.active && <Empty>Nenhuma despesa com estes filtros.</Empty>}
-      {count > 0 && variable.length === 0 && extras.length === 0 && !view.active && <Empty>Nenhuma despesa variável neste mês.</Empty>}
-      {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={t.cardId ? undefined : payTx(t)} />)}
-      {shownExtras.map((e) => (
-        <ExtraRow
-          key={e.id}
-          e={e}
-          color={colorOf("Outros")}
-          onEdit={() => setEditingExtra(e)}
-          onDelete={() => setExtraToDelete(e.id)}
-          // no cartão, o pagamento é marcado na fatura (Compras parceladas)
-          onPay={e.cardId ? undefined : () => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
-          onClearPay={e.payment && !e.cardId ? () => setExtraPayment(e.id, null) : undefined}
-        />
-      ))}
-      {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} pay={payTx(t)} />)}</FixedSection>}
-      {debtRows.length > 0 && <FixedSection title="Dívidas e consórcios">{debtRows.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}</FixedSection>}
+      {count > 0 && (
+        <CollapsibleSection id="expense-variable" title="Lançamentos" count={variable.length + shownExtras.length} first>
+          {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={t.cardId ? undefined : payTx(t)} />)}
+          {shownExtras.map((e) => (
+            <ExtraRow
+              key={e.id}
+              e={e}
+              color={colorOf("Outros")}
+              onEdit={() => setEditingExtra(e)}
+              onDelete={() => setExtraToDelete(e.id)}
+              // no cartão, o pagamento é marcado na fatura (Compras parceladas)
+              onPay={e.cardId ? undefined : () => setPaying({ kind: "extra", id: e.id, name: e.name, amount: e.amount, current: e.payment })}
+              onClearPay={e.payment && !e.cardId ? () => setExtraPayment(e.id, null) : undefined}
+            />
+          ))}
+          {variable.length === 0 && extras.length === 0 && !view.active && <Empty>Nenhuma despesa variável neste mês.</Empty>}
+        </CollapsibleSection>
+      )}
+      {fixed.length > 0 && <CollapsibleSection id="expense-fixed" title="Fixas" count={fixed.length}>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} pay={payTx(t)} />)}</CollapsibleSection>}
+      {debtRows.length > 0 && <CollapsibleSection id="expense-debts" title="Dívidas e consórcios" count={debtRows.length}>{debtRows.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}</CollapsibleSection>}
       <HiddenList kind="expense" />
       <EndedList kind="expense" />
       {count > 0 && <TotalFooter label="Total das despesas do mês (sem parcelas)" value={expenses.reduce((sum, t) => sum + t.amount, 0) + extras.reduce((sum, e) => sum + e.amount, 0)} />}

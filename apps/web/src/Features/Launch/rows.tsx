@@ -15,6 +15,7 @@ export function Row({
   actions,
   below,
   hoursOf,
+  inline = false,
 }: {
   color: string;
   name: ReactNode;
@@ -25,13 +26,24 @@ export function Row({
   below?: ReactNode;
   /** valor da despesa (centavos) para mostrar "≈ X h de trabalho" embaixo, se o usuário ligar essa opção */
   hoursOf?: number;
+  /** nome, categoria e selos numa linha só (quebra para a seguinte só se não couber) */
+  inline?: boolean;
 }) {
   return (
-    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border py-[11px] first:border-t-0 first:pt-0">
+    <div className={`grid grid-cols-[auto_1fr_auto] items-center gap-3 border-t border-border first:border-t-0 first:pt-0 ${inline ? "py-1" : "py-[11px]"}`}>
       <span className="h-2.5 w-2.5 flex-none rounded-[3px]" style={{ background: color }} />
       <div className="min-w-0">
-        <div className="min-w-0 break-words font-semibold">{name}</div>
-        {meta && <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[12.5px] text-muted-foreground">{meta}</div>}
+        {inline ? (
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+            <span className="min-w-0 break-words font-semibold">{name}</span>
+            {meta && <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12.5px] text-muted-foreground">{meta}</span>}
+          </div>
+        ) : (
+          <>
+            <div className="min-w-0 break-words font-semibold">{name}</div>
+            {meta && <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[12.5px] text-muted-foreground">{meta}</div>}
+          </>
+        )}
         {below}
       </div>
       <div className="flex items-center gap-2">
