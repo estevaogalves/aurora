@@ -19,6 +19,7 @@ import {
   type ReportInvoice,
   type ReportOptions,
   type ReportRow,
+  withDebtTransactions,
 } from "../domain";
 import { downloadBlob } from "./download";
 import { formatBRLExact as formatBRL } from "../lib/money";
@@ -101,7 +102,7 @@ const finalY = (d: jsPDF) => (d as unknown as LastTable).lastAutoTable.finalY;
 export function exportPDF(months: string[], options: PdfOptions) {
   const doc = new jsPDF();
   const store = useFinanceStore.getState();
-  const data = { transactions: store.transactions, creditTransactions: store.creditTransactions, creditCards: store.creditCards, extraExpenses: store.extraExpenses };
+  const data = { transactions: withDebtTransactions(store.transactions, store.debts), creditTransactions: store.creditTransactions, creditCards: store.creditCards, extraExpenses: store.extraExpenses };
   const totals = getPeriodTotals(data, months);
   const multi = months.length > 1;
   const periodLabel = formatPeriodLabel(months);

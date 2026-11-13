@@ -17,40 +17,33 @@ const (
 // da última mudança até ele (o limite herda para os meses seguintes até o usuário mudar). 0 = sem limite desde o mês.
 type Budgets map[string]map[string]int64
 
-// Debt é uma dívida ou consórcio em parcelas fixas.
+// Debt é uma dívida ou consórcio em parcelas. É independente das despesas fixas: as parcelas são calculadas pelo
+// front e aparecem em Lançamentos sozinhas (nada é gravado por mês).
 type Debt struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
-	// InstallmentValue: valor da parcela, em centavos.
-	InstallmentValue  int64 `json:"installmentValue"`
+	// Kind: "debt" ou "consortium". Vazio (cadastros antigos) = dívida comum.
+	Kind string `json:"kind,omitempty"`
+	// Model: só consórcio, "linear" ou "progressive". Vazio = linear.
+	Model string `json:"model,omitempty"`
+	// InstallmentValue: valor da parcela (linear) ou da primeira parcela (progressivo), em centavos.
+	InstallmentValue int64 `json:"installmentValue"`
+	// Increment: acréscimo fixo a cada parcela, em centavos. Só no consórcio progressivo (maior que zero).
+	Increment         int64 `json:"increment,omitempty"`
 	TotalInstallments int   `json:"totalInstallments"`
 	PaidInstallments  int   `json:"paidInstallments"`
 	// NextMonth: mês da próxima parcela a pagar. A quitação é NextMonth + (restantes − 1) meses.
 	NextMonth string `json:"nextMonth"`
-	// LinkedTransactionID: despesa fixa que já traz esta parcela no orçamento (para não somar duas vezes). Opcional.
-	LinkedTransactionID string `json:"linkedTransactionId,omitempty"`
-	Note                string `json:"note,omitempty"`
-	// PaidValues: valor realmente pago em cada parcela, por mês da parcela (centavos), para um desconto ou acréscimo
-	// daquele mês. Sem a chave, a parcela vale o da despesa fixa vinculada no mês ou o InstallmentValue.
+	// TrackedFrom: primeiro mês que aparece em Lançamentos (o que foi pago antes do cadastro não vira lançamento).
+	TrackedFrom string `json:"trackedFrom,omitempty"`
+	// Payments: pagamento de cada parcela paga pelo app, por mês da parcela.
+	Payments map[string]Payment `json:"payments,omitempty"`
+	// PaidValues: valor realmente pago em cada parcela paga, por mês da parcela (centavos).
 	PaidValues map[string]int64 `json:"paidValues,omitempty"`
-	// StartMonth: primeiro mês do calendário de parcelas; só existe quando há (ou houve) parcelas antecipadas.
-	StartMonth string `json:"startMonth,omitempty"`
-	// Anticipations: parcelas antecipadas (pagas antes da hora, com desconto), por mês da parcela.
-	Anticipations map[string]DebtAnticipation `json:"anticipations,omitempty"`
-}
-
-// DebtAnticipation é uma parcela antecipada de uma dívida vinculada a uma despesa fixa.
-type DebtAnticipation struct {
-	// OriginalValue: centavos que a parcela valia naquele mês antes da antecipação.
-	OriginalValue int64 `json:"originalValue"`
-	// PaidValue: centavos realmente pagos na antecipação.
-	PaidValue int64 `json:"paidValue"`
-	// PaidOn: dia do pagamento, "AAAA-MM-DD".
-	PaidOn string `json:"paidOn"`
-	// BatchID agrupa as parcelas antecipadas na mesma operação.
-	BatchID string `json:"batchId"`
-	// TransactionID: lançamento avulso que traz o desembolso.
-	TransactionID string `json:"transactionId"`
+	Note       string           `json:"note,omitempty"`
+	// LinkedTransactionID: OBSOLETO. Modelo antigo, em que a dívida seguia uma despesa fixa. Só é lido para que o front
+	// descarte esses cadastros; nunca mais é gravado pelo app.
+	LinkedTransactionID string `json:"linkedTransactionId,omitempty"`
 }
 
 // MonthClosing é o retrato de um mês fechado.

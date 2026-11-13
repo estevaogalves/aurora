@@ -1,63 +1,42 @@
-import { changeMonth, compareMonths } from "../Utils/Date";
-import { paymentOf } from "./payment";
-import { getTransactionsByMonth } from "./transactions";
-import type { Debt, Month, Transaction } from "./types";
+import { CONSORTIUM_CATEGORY, DEBT_CATEGORY } from "../Types/Category";
+import { changeMonth, compareMonths, monthsDifference } from "../Utils/Date";
+import type { Debt, DebtKind, Month, Payment, Transaction } from "./types";
 
 /**
- * Dívidas e consórcios em parcelas fixas. É só um acompanhamento: não cria nem muda despesas. Para não somar a parcela
- * duas vezes, a dívida pode ser vinculada à despesa fixa que já a traz no orçamento. Com o vínculo, o valor de cada
- * parcela acompanha o valor daquele lançamento no mês (um desconto num mês muda a parcela daquele mês).
+ * Dívidas e consórcios em parcelas. São independentes das despesas fixas: as parcelas são calculadas a partir do
+ * cadastro e aparecem em Lançamentos sozinhas (`debtTransactions`), sem nada gravado por mês: calcular de novo dá
+ * sempre o mesmo resultado, então nunca há lançamento duplicado.
+ *
+ * Cronograma: a parcela de número n vence em `nextMonth + (n − pagas − 1)`. As pagas são as anteriores a `nextMonth`.
  */
 
-/**
- * Valor de uma parcela, pelo mês dela: o que foi pago e registrado (`paidValues`); senão o valor da despesa fixa vinculada
- * naquele mês (que já vem com o ajuste do mês); senão o valor cadastrado na dívida.
- */
-export function installmentValueFor(d: Debt, month: Month, transactions: Transaction[] = []): number {
-  const anticipated = d.anticipations?.[month];
-  if (anticipated) return anticipated.paidValue;
-  const paid = d.paidValues?.[month];
-  if (paid !== undefined) return paid;
-  if (d.linkedTransactionId) {
-    const linked = getTransactionsByMonth(transactions, month).find((t) => t.id === d.linkedTransactionId);
-    if (linked) return linked.amount;
-  }
-  return d.installmentValue;
+export const MAX_DEBT_INSTALLMENTS = 600;
+export const MAX_DEBT_CENTS = 100_000_000_000;
+
+export const debtKind = (d: Debt): DebtKind => d.kind ?? "debt";
+export const isConsortium = (d: Debt) => debtKind(d) === "consortium";
+export const isProgressive = (d: Debt) => isConsortium(d) && d.model === "progressive";
+
+/** Valor da parcela de número n (1 = a primeira), sem considerar ajustes: linear = fixo; progressivo = inicial + (n − 1) × acréscimo. */
+export function baseValueOf(d: Debt, n: number): number {
+  return isProgressive(d) ? d.installmentValue + (n - 1) * (d.increment ?? 0) : d.installmentValue;
 }
 
-/** Usa o calendário próprio (há ou houve parcelas antecipadas)? */
-export const hasAnticipations = (d: Debt) => !!d.startMonth || Object.keys(d.anticipations ?? {}).length > 0;
+/** Mês da primeira parcela do cronograma. */
+const firstMonth = (d: Debt): Month => changeMonth(d.nextMonth, -d.paidInstallments);
 
-/** O calendário de parcelas: um mês por parcela, da primeira à última. */
-export function debtCalendar(d: Debt): Month[] {
-  const start = d.startMonth ?? changeMonth(d.nextMonth, -d.paidInstallments);
-  return Array.from({ length: d.totalInstallments }, (_, i) => changeMonth(start, i));
+/** Número da parcela (1 = a primeira) que vence em `month`. */
+export const installmentNumber = (d: Debt, month: Month): number => monthsDifference(month, firstMonth(d)) + 1;
+
+/** Valor de uma parcela, pelo mês dela: o que foi pago e registrado (`paidValues`); senão o valor da parcela pela posição. */
+export function installmentValueFor(d: Debt, month: Month): number {
+  return d.paidValues?.[month] ?? baseValueOf(d, installmentNumber(d, month));
 }
 
-/** Os meses das parcelas pagas em ordem (sem as antecipadas), da mais antiga para a mais recente. */
+/** Os meses das parcelas já pagas, da mais antiga para a mais recente (a última é o mês anterior à próxima parcela). */
 export function paidMonths(d: Debt): Month[] {
   const n = Math.min(d.paidInstallments, d.totalInstallments);
-  if (!hasAnticipations(d)) return Array.from({ length: n }, (_, i) => changeMonth(d.nextMonth, i - n));
-  return debtCalendar(d).filter((m) => !d.anticipations?.[m]).slice(0, n);
-}
-
-/** Os meses das parcelas antecipadas, em ordem. */
-export function anticipatedMonths(d: Debt): Month[] {
-  return Object.keys(d.anticipations ?? {}).sort(compareMonths);
-}
-
-/** Meses das parcelas ainda em aberto (nem pagas em ordem, nem antecipadas), em ordem. */
-export function openMonths(d: Debt): Month[] {
-  if (!hasAnticipations(d)) return Array.from({ length: Math.max(0, d.totalInstallments - d.paidInstallments) }, (_, i) => changeMonth(d.nextMonth, i));
-  const paid = new Set(paidMonths(d));
-  return debtCalendar(d).filter((m) => !paid.has(m) && !d.anticipations?.[m]);
-}
-
-/** O mês seguinte a `month` que ainda não foi antecipado (para onde a próxima parcela vai ao pagar `month`). */
-export function nextOpenAfter(d: Debt, month: Month): Month {
-  let next = changeMonth(month, 1);
-  while (d.anticipations?.[next]) next = changeMonth(next, 1);
-  return next;
+  return Array.from({ length: n }, (_, i) => changeMonth(d.nextMonth, i - n));
 }
 
 export interface DebtProgress {
@@ -65,32 +44,32 @@ export interface DebtProgress {
   remaining: number;
   /** centavos já pagos (somando o valor real de cada parcela paga) */
   paidTotal: number;
-  /** centavos que faltam pagar (cada parcela restante pelo valor do mês dela; estimativa, sem juros nem correção) */
+  /** centavos que faltam pagar (cada parcela restante pelo valor da posição dela; sem juros nem correção) */
   balance: number;
   /** mês da última parcela, ou null se já foi quitada */
   payoffMonth: Month | null;
+  /** todas as parcelas pagas: quitada */
   done: boolean;
   /** 0 a 100 */
   percent: number;
-  /** valor da próxima parcela (segue a despesa fixa vinculada, se houver) */
+  /** valor da próxima parcela */
   nextValue: number;
 }
 
-export function debtProgress(d: Debt, transactions: Transaction[] = []): DebtProgress {
-  const open = openMonths(d);
-  const remaining = open.length;
+export function debtProgress(d: Debt): DebtProgress {
+  const remaining = Math.max(0, d.totalInstallments - d.paidInstallments);
   const done = remaining === 0;
-  const paidTotal = [...paidMonths(d), ...anticipatedMonths(d)].reduce((s, m) => s + installmentValueFor(d, m, transactions), 0);
-  const balance = open.reduce((s, m) => s + installmentValueFor(d, m, transactions), 0);
-  const doneCount = d.totalInstallments - remaining;
+  const paidTotal = paidMonths(d).reduce((s, m) => s + installmentValueFor(d, m), 0);
+  let balance = 0;
+  for (let i = 0; i < remaining; i++) balance += installmentValueFor(d, changeMonth(d.nextMonth, i));
   return {
     remaining,
     paidTotal,
     balance,
-    payoffMonth: done ? null : open[open.length - 1],
+    payoffMonth: done ? null : changeMonth(d.nextMonth, remaining - 1),
     done,
-    percent: d.totalInstallments > 0 ? Math.round((doneCount / d.totalInstallments) * 100) : 0,
-    nextValue: installmentValueFor(d, d.nextMonth, transactions),
+    percent: d.totalInstallments > 0 ? Math.round((d.paidInstallments / d.totalInstallments) * 100) : 0,
+    nextValue: installmentValueFor(d, d.nextMonth),
   };
 }
 
@@ -100,47 +79,23 @@ export interface PaidInstallment {
   month: Month;
   /** centavos realmente pagos nela */
   value: number;
-  /** o valor foi registrado ou corrigido (difere do valor-base da parcela naquele mês) */
+  /** o valor pago difere do valor da parcela (desconto ou acréscimo) */
   adjusted: boolean;
-  /** parcela antecipada: paga antes da hora, com o valor negociado */
-  anticipated?: boolean;
-  /** antecipada: o valor que a parcela valia antes da antecipação */
-  originalValue?: number;
-  /** antecipada: a operação a que pertence e o lançamento avulso do desembolso */
-  batchId?: string;
-  transactionId?: string;
-  /** antecipada: dia do pagamento */
-  paidOn?: string;
 }
 
 /** As parcelas já pagas, da mais recente para a mais antiga, com o valor de cada uma. */
-export function getPaidInstallments(d: Debt, transactions: Transaction[] = []): PaidInstallment[] {
-  if (!hasAnticipations(d)) {
-    return paidMonths(d)
-      .map((month, i) => ({ number: i + 1, month, value: installmentValueFor(d, month, transactions), adjusted: d.paidValues?.[month] !== undefined }))
-      .reverse();
-  }
-  const calendar = debtCalendar(d);
-  const numberOf = (m: Month) => calendar.indexOf(m) + 1;
-  const regular: PaidInstallment[] = paidMonths(d).map((month) => ({ number: numberOf(month), month, value: installmentValueFor(d, month, transactions), adjusted: d.paidValues?.[month] !== undefined }));
-  const anticipated: PaidInstallment[] = anticipatedMonths(d).map((month) => {
-    const a = d.anticipations![month];
-    return { number: numberOf(month), month, value: a.paidValue, adjusted: false, anticipated: true, originalValue: a.originalValue, batchId: a.batchId, transactionId: a.transactionId, paidOn: a.paidOn };
-  });
-  return [...regular, ...anticipated].sort((a, b) => compareMonths(b.month, a.month));
-}
-
-/** O que dá para antecipar agora: meses em aberto depois da próxima parcela, com o valor original de cada um. */
-export function anticipableInstallments(d: Debt, transactions: Transaction[] = []): { month: Month; number: number; value: number }[] {
-  const calendar = debtCalendar(d);
-  return openMonths(d)
-    .filter((m) => m !== d.nextMonth)
-    .map((month) => ({ month, number: calendar.indexOf(month) + 1, value: installmentValueFor(d, month, transactions) }));
+export function getPaidInstallments(d: Debt): PaidInstallment[] {
+  return paidMonths(d)
+    .map((month, i) => {
+      const value = installmentValueFor(d, month);
+      return { number: i + 1, month, value, adjusted: value !== baseValueOf(d, i + 1) };
+    })
+    .reverse();
 }
 
 /** Quitação antecipada: quanto pagar hoje com o desconto que o usuário informou (nunca abaixo de zero) e quanto economiza. */
-export function earlyPayoff(d: Debt, discount: number, transactions: Transaction[] = []): { toPay: number; saved: number } {
-  const { balance } = debtProgress(d, transactions);
+export function earlyPayoff(d: Debt, discount: number): { toPay: number; saved: number } {
+  const { balance } = debtProgress(d);
   const applied = Math.min(Math.max(0, discount), balance);
   return { toPay: balance - applied, saved: applied };
 }
@@ -153,13 +108,13 @@ export function splitDebts(debts: Debt[]): { active: Debt[]; paidOff: Debt[] } {
 }
 
 /** Totais do que está em andamento: parcela mensal somada, saldo restante e a quitação mais distante. */
-export function getDebtTotals(debts: Debt[], transactions: Transaction[] = []) {
+export function getDebtTotals(debts: Debt[]) {
   const { active } = splitDebts(debts);
   const last = active.length > 0 ? debtProgress(active[active.length - 1]).payoffMonth : null;
   return {
     count: active.length,
-    monthly: active.reduce((s, d) => s + debtProgress(d, transactions).nextValue, 0),
-    balance: active.reduce((s, d) => s + debtProgress(d, transactions).balance, 0),
+    monthly: active.reduce((s, d) => s + debtProgress(d).nextValue, 0),
+    balance: active.reduce((s, d) => s + debtProgress(d).balance, 0),
     lastPayoff: last,
   };
 }
@@ -168,27 +123,92 @@ export interface DebtRelief {
   debt: Debt;
   /** primeiro mês sem a parcela (o mês depois da última) */
   from: Month;
-  /** centavos por mês que deixam de sair */
+  /** centavos por mês que deixam de sair (o valor da última parcela) */
   amount: number;
 }
 
-/** Quando a despesa fixa vinculada "cai": a partir do mês seguinte à última parcela, a parcela deixa de pesar. Só com vínculo. */
-export function getDebtRelief(debts: Debt[], transactions: Transaction[] = []): DebtRelief[] {
-  return splitDebts(debts).active
-    .filter((d) => d.linkedTransactionId)
-    .map((debt) => {
-      const last = debtProgress(debt).payoffMonth!;
-      return { debt, from: changeMonth(last, 1), amount: installmentValueFor(debt, last, transactions) };
-    });
+/** Quando cada obrigação em andamento termina: a partir do mês seguinte à última parcela, ela deixa de pesar. */
+export function getDebtRelief(debts: Debt[]): DebtRelief[] {
+  return splitDebts(debts).active.map((debt) => {
+    const last = debtProgress(debt).payoffMonth!;
+    return { debt, from: changeMonth(last, 1), amount: installmentValueFor(debt, last) };
+  });
 }
 
+/* ---------- lançamentos gerados ---------- */
+
+const ID_PREFIX = "debt:";
+
+/** O lançamento é gerado por uma dívida (não existe no cadastro de lançamentos)? */
+export const isDebtTransactionId = (id: string) => id.startsWith(ID_PREFIX);
+/** O id da dívida que gerou o lançamento. */
+export const debtIdOf = (transactionId: string) => transactionId.slice(ID_PREFIX.length);
+
 /**
- * A despesa fixa vinculada já tem o pagamento do mês da próxima parcela registrado? Então dá para sugerir marcar a
- * parcela como paga (o usuário confirma, com o valor daquele mês). null se não há vínculo, se a despesa sumiu ou se não foi paga.
+ * Uma despesa gerada por dívida: os meses do primeiro registrado até a última parcela (ou até a última paga, se quitada),
+ * cada um com o valor da parcela. Dívida quitada não gera nada depois da última parcela paga. null se não há nada a mostrar.
+ * Os meses em que a parcela foi paga trazem o pagamento (o do app; sem registro, o dia 1 do mês).
  */
-export function detectedPayment(d: Debt, transactions: Transaction[]): { month: Month; date: string; value: number } | null {
-  if (!d.linkedTransactionId || debtProgress(d).done) return null;
-  const t = transactions.find((x) => x.id === d.linkedTransactionId);
-  const payment = t ? paymentOf(t, d.nextMonth) : undefined;
-  return payment ? { month: d.nextMonth, date: payment.date, value: installmentValueFor(d, d.nextMonth, transactions) } : null;
+export function debtTransaction(d: Debt): Transaction | null {
+  const start = d.trackedFrom ?? d.nextMonth;
+  const end = debtProgress(d).payoffMonth ?? changeMonth(d.nextMonth, -1);
+  if (compareMonths(start, end) > 0) return null;
+  const monthlyValues: Record<Month, number> = {};
+  const payments: Record<Month, Payment> = {};
+  for (let m = start; compareMonths(m, end) <= 0; m = changeMonth(m, 1)) {
+    monthlyValues[m] = installmentValueFor(d, m);
+    if (compareMonths(m, d.nextMonth) < 0) payments[m] = d.payments?.[m] ?? { method: "pix", date: `${m}-01` };
+  }
+  return {
+    id: ID_PREFIX + d.id,
+    name: d.name,
+    amount: monthlyValues[start],
+    type: "expense",
+    category: isConsortium(d) ? CONSORTIUM_CATEGORY : DEBT_CATEGORY,
+    fixed: true,
+    month: start,
+    endMonth: end,
+    monthlyValues,
+    payments,
+    debtOrigin: debtKind(d),
+    debtId: d.id,
+  };
+}
+
+/** As despesas geradas por todas as dívidas e consórcios. */
+export function debtTransactions(debts: Debt[]): Transaction[] {
+  return debts.flatMap((d) => debtTransaction(d) ?? []);
+}
+
+/** Os lançamentos do cadastro mais os gerados pelas dívidas, para tudo que soma, projeta ou lista. */
+export function withDebtTransactions(transactions: Transaction[], debts: Debt[]): Transaction[] {
+  return debts.length === 0 ? transactions : [...transactions, ...debtTransactions(debts)];
+}
+
+/* ---------- validação ---------- */
+
+export interface DebtFields {
+  name: string;
+  kind: DebtKind;
+  model?: "linear" | "progressive";
+  installmentValue: number | null;
+  increment?: number | null;
+  total: number;
+  paid: number;
+  nextMonth: string;
+}
+
+/** Confere o cadastro de dívida ou consórcio. Devolve a mensagem do primeiro problema, ou null. */
+export function validateDebtFields(f: DebtFields): string | null {
+  if (!f.name.trim()) return "Dê um nome à " + (f.kind === "consortium" ? "consórcio." : "dívida.");
+  if (f.installmentValue === null || f.installmentValue <= 0) return f.kind === "consortium" && f.model === "progressive" ? "Informe o valor da primeira parcela, maior que zero." : "Informe o valor da parcela, maior que zero.";
+  if (f.installmentValue > MAX_DEBT_CENTS) return "O valor da parcela passa de R$ 1 bilhão.";
+  if (f.kind === "consortium" && f.model === "progressive") {
+    if (f.increment === null || f.increment === undefined || f.increment <= 0) return "Informe o acréscimo mensal, maior que zero.";
+    if (f.installmentValue + (f.total - 1) * f.increment > MAX_DEBT_CENTS) return "Com este acréscimo, a última parcela passa de R$ 1 bilhão.";
+  }
+  if (!Number.isInteger(f.total) || f.total < 1 || f.total > MAX_DEBT_INSTALLMENTS) return `O total de parcelas vai de 1 a ${MAX_DEBT_INSTALLMENTS}.`;
+  if (!Number.isInteger(f.paid) || f.paid < 0 || f.paid > f.total) return "As parcelas pagas vão de 0 até o total.";
+  if (!f.nextMonth) return "Informe o mês da próxima parcela.";
+  return null;
 }

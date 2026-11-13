@@ -7,7 +7,7 @@ import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
 import { useUiStore } from "@/Store/UiStore";
-import { canAdvanceInstallment, chargeDay, dayMonth, distGroupOf, distLabel, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
+import { canAdvanceInstallment, chargeDay, dayMonth, distGroupOf, distLabel, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paidMonths, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
 import { useLaunchFiltering } from "./filtering";
@@ -71,6 +71,24 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
   const receiptCount = useFinanceStore((s) => s.receipts.filter((r) => r.transactionId === t.id).length);
   const payment = pay ? paymentOf(t, month) : undefined;
   const note = useNotes(t.notes, payment?.notes);
+
+  // parcela gerada por dívida ou consórcio: só nome, valor e a origem; só dá para pagar (o resto se muda em Dívidas)
+  if (t.debtOrigin) {
+    const debtPayment = paymentOf(t, month);
+    return (
+      <div className="flex items-center justify-between gap-3 py-1 text-[13.5px]">
+        <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="break-words">{t.name}</span>
+          <Pill tone={t.debtOrigin}>{t.debtOrigin === "consortium" ? "Consórcio" : "Dívida"}</Pill>
+          {debtPayment && <PaidBadge payment={debtPayment} />}
+        </span>
+        <div className="flex items-center gap-2">
+          <span className="num text-right font-semibold">{formatBRL(t.amount)}</span>
+          {pay && <RowMenu label={t.name} onPay={pay.onPay} paid={!!debtPayment} onClearPay={debtPayment ? pay.onClearPay : undefined} />}
+        </div>
+      </div>
+    );
+  }
 
   const menu = (
     <RowMenu
@@ -178,10 +196,10 @@ function TotalFooter({ label, value, className = "" }: { label: string; value: n
 }
 
 /** Área das fixas: linha divisória e só nome e valor, abaixo das variáveis. */
-function FixedSection({ children }: { children: React.ReactNode }) {
+function FixedSection({ children, title = "Fixas" }: { children: React.ReactNode; title?: string }) {
   return (
     <div className="mt-3 border-t border-border-strong pt-3">
-      <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Fixas</p>
+      <p className="mb-1.5 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">{title}</p>
       {children}
     </div>
   );
@@ -265,12 +283,25 @@ function ExpensesPanel() {
   const [toDelete, setToDelete] = useState<string | null>(null);
   const target = expenses.find((e) => e.id === toDelete);
   const view = useLaunchFiltering();
-  const fixed = expenses.filter((t) => t.fixed && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  // parcelas de dívidas e consórcios ficam à parte: não são despesas fixas (vêm do cadastro em Dívidas)
+  const fixed = expenses.filter((t) => t.fixed && !t.debtOrigin && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  const debtRows = expenses.filter((t) => t.debtOrigin && view.expense(t)).sort((a, b) => b.amount - a.amount);
   const variable = expenses.filter((t) => !t.fixed && view.expense(t)).sort((a, b) => b.amount - a.amount);
   const shownExtras = extras.filter((e) => view.extra(e));
   const count = expenses.length + extras.length;
 
-  const payTx = (t: Transaction) => ({
+  const debts = useFinanceStore((s) => s.debts);
+  const payTx = (t: Transaction) => {
+    // parcela de dívida: só a próxima se paga e só a última paga se desmarca (em ordem); as outras ficam sem menu
+    if (t.debtOrigin) {
+      const d = debts.find((x) => x.id === t.debtId);
+      const canPay = !!d && month === d.nextMonth && !paymentOf(t, month);
+      const canClear = !!d && paymentOf(t, month) && paidMonths(d).at(-1) === month;
+      return canPay || canClear ? { onPay: () => setPaying({ kind: "tx", id: t.id, name: t.name, amount: t.amount, current: paymentOf(t, month) }), onClearPay: () => setTransactionPayment(t.id, month, null) } : undefined;
+    }
+    return payTxPlain(t);
+  };
+  const payTxPlain = (t: Transaction) => ({
     onPay: () => setPaying({ kind: "tx", id: t.id, name: t.name, amount: t.amount, current: paymentOf(t, month) }),
     onClearPay: () => setTransactionPayment(t.id, month, null),
   });
@@ -286,7 +317,7 @@ function ExpensesPanel() {
     <Panel tour="despesas" title="Despesas do mês" subtitle={`${count} ${count === 1 ? "lançamento" : "lançamentos"}`}>
       {count === 0 && <Empty>Nenhuma despesa neste mês. Use o botão Lançar.</Empty>}
       {onCard > 0 && <p className="mb-1 text-[12.5px] text-muted-foreground">{onCard === 1 ? "1 compra no cartão está" : `${onCard} compras no cartão estão`} na fatura, em Compras parceladas.</p>}
-      {count > 0 && variable.length === 0 && shownExtras.length === 0 && fixed.length === 0 && view.active && <Empty>Nenhuma despesa com estes filtros.</Empty>}
+      {count > 0 && variable.length === 0 && shownExtras.length === 0 && fixed.length === 0 && debtRows.length === 0 && view.active && <Empty>Nenhuma despesa com estes filtros.</Empty>}
       {count > 0 && variable.length === 0 && extras.length === 0 && !view.active && <Empty>Nenhuma despesa variável neste mês.</Empty>}
       {variable.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={t.cardId ? undefined : payTx(t)} />)}
       {shownExtras.map((e) => (
@@ -302,6 +333,7 @@ function ExpensesPanel() {
         />
       ))}
       {fixed.length > 0 && <FixedSection>{fixed.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} onEnd={setEnding} pay={payTx(t)} />)}</FixedSection>}
+      {debtRows.length > 0 && <FixedSection title="Dívidas e consórcios">{debtRows.map((t) => <TransactionRow key={t.id} t={t} onEdit={setEditing} onDelete={setToDelete} pay={payTx(t)} />)}</FixedSection>}
       <HiddenList kind="expense" />
       <EndedList kind="expense" />
       {count > 0 && <TotalFooter label="Total das despesas do mês (sem parcelas)" value={expenses.reduce((sum, t) => sum + t.amount, 0) + extras.reduce((sum, e) => sum + e.amount, 0)} />}

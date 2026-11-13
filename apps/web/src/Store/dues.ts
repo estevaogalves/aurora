@@ -2,10 +2,11 @@ import { useMemo } from "react";
 import { dueAlertKey, getDueAlerts, getUpcomingDues, todayISO, type DueItem } from "@/domain";
 import { usePrefsStore } from "@/lib/preferences";
 import { useFinanceStore } from "./FinanceStore";
+import { useTransactions } from "./selectors";
 
 /** Vencimentos da janela escolhida no card do Painel (7, 14 ou 30 dias), com atrasados primeiro. */
 export function useUpcomingDues() {
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
@@ -18,7 +19,7 @@ export function useUpcomingDues() {
  * "Já vistos". As chaves ficam em `seenAlerts` com o prefixo `due:` e mudam quando o vencimento piora (vira atrasado).
  */
 export function useDueAlerts() {
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);

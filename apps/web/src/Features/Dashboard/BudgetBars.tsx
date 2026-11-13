@@ -3,6 +3,7 @@ import { getBudgetLines, type BudgetLevel } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import BudgetDialog from "./BudgetDialog";
+import { useTransactions } from "@/Store/selectors";
 
 const BAR: Record<BudgetLevel, string> = { ok: "bg-primary", warn: "bg-[hsl(var(--k3))]", over: "bg-destructive" };
 const TEXT: Record<BudgetLevel, string> = { ok: "text-muted-foreground", warn: "text-foreground", over: "font-semibold text-destructive" };
@@ -11,7 +12,7 @@ const LABEL: Record<BudgetLevel, string> = { ok: "", warn: "atenção", over: "e
 /** Barras gasto ÷ limite das categorias com orçamento (normal, atenção a partir de 80% e estourado a partir de 100%). */
 export default function BudgetBars() {
   const month = useFinanceStore((s) => s.currentMonth);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);

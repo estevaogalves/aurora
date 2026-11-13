@@ -43,6 +43,10 @@ export interface Transaction {
    * `monthlyValues`; na avulsa (renda ou despesa de um mês só), o valor real vem de editar `amount` e desmarcar a estimativa.
    */
   variableAmount?: boolean;
+  /** Só no front (nunca salvo): despesa gerada por uma dívida ou consórcio. Não se edita nem exclui em Lançamentos. */
+  debtOrigin?: DebtKind;
+  /** Só no front (nunca salvo): a dívida que gerou esta despesa. */
+  debtId?: string;
   /** Só em `getTransactionsByMonth` (não é salvo): valor variável deste mês ainda sem o valor real (fixa sem `monthlyValues`, ou avulsa estimada). */
   estimated?: boolean;
   /** Despesas: pagamento por mês (fixa pode estar paga em um mês e não em outro). Só registro. */
@@ -312,48 +316,37 @@ export type OnboardingState = "done" | "dismissed";
  */
 export type Budgets = Record<string, Record<Month, number>>;
 
-/** Dívida ou consórcio em parcelas fixas. Só um acompanhamento: não cria nem muda despesas. */
+/** O que é a obrigação: dívida comum ou consórcio. */
+export type DebtKind = "debt" | "consortium";
+/** Consórcio: parcelas iguais (linear) ou que crescem sempre pelo mesmo acréscimo (progressivo). */
+export type ConsortiumModel = "linear" | "progressive";
+
+/**
+ * Dívida ou consórcio em parcelas. É independente das despesas fixas: as parcelas aparecem sozinhas em Lançamentos
+ * (veja `debtTransactions`), nada é gravado por mês.
+ */
 export interface Debt {
   id: string;
   name: string;
-  /** centavos */
+  /** Ausente (dados antigos) = dívida comum. */
+  kind?: DebtKind;
+  /** Só consórcio. Ausente = linear. */
+  model?: ConsortiumModel;
+  /** centavos: valor da parcela (linear) ou da 1ª parcela (progressivo) */
   installmentValue: number;
+  /** centavos: acréscimo fixo a cada parcela, só no consórcio progressivo (maior que zero) */
+  increment?: number;
   totalInstallments: number;
   paidInstallments: number;
   /** mês da próxima parcela a pagar; a quitação é este mês + (restantes − 1) */
   nextMonth: Month;
-  /** despesa fixa que já traz esta parcela no orçamento (para não somar duas vezes) */
-  linkedTransactionId?: string;
-  note?: string;
-  /**
-   * Valor realmente pago em cada parcela, por mês da parcela (centavos): para um desconto ou acréscimo daquele mês.
-   * Parcela sem valor aqui vale o da despesa fixa vinculada naquele mês (se houver) ou o `installmentValue`.
-   */
+  /** primeiro mês que aparece em Lançamentos (o que foi pago antes do cadastro não vira lançamento). Ausente = `nextMonth`. */
+  trackedFrom?: Month;
+  /** pagamento de cada parcela paga pelo app, por mês da parcela (forma e dia) */
+  payments?: Record<Month, Payment>;
+  /** Valor realmente pago em cada parcela paga, por mês da parcela (centavos). Sem a chave vale o valor da parcela. */
   paidValues?: Record<Month, number>;
-  /**
-   * Primeiro mês do calendário de parcelas. Só é guardado quando há antecipações (sem elas, vem de `nextMonth` e
-   * `paidInstallments`).
-   */
-  startMonth?: Month;
-  /**
-   * Parcelas antecipadas (pagas antes da hora, com desconto), por mês da parcela. Cada uma guarda o valor original
-   * daquele mês, o que foi pago, o lançamento avulso que registra o desembolso e a operação (lote) a que pertence.
-   */
-  anticipations?: Record<Month, DebtAnticipation>;
-}
-
-/** Uma parcela antecipada de uma dívida vinculada. */
-export interface DebtAnticipation {
-  /** centavos que a parcela valia naquele mês, antes da antecipação */
-  originalValue: number;
-  /** centavos realmente pagos na antecipação */
-  paidValue: number;
-  /** dia do pagamento, "AAAA-MM-DD" */
-  paidOn: string;
-  /** agrupa as parcelas antecipadas na mesma operação */
-  batchId: string;
-  /** lançamento avulso (em Lançamentos) que traz o desembolso */
-  transactionId: string;
+  note?: string;
 }
 
 /** Retrato de um mês fechado. */

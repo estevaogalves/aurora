@@ -44,7 +44,7 @@ export function PageHeader({ title, subtitle, action, tour }: { title: string; s
   );
 }
 
-export function Pill({ children, tone = "default" }: { children: ReactNode; tone?: "default" | "fix" | "good" | "bad" | "warn" | "scheduled" }) {
+export function Pill({ children, tone = "default" }: { children: ReactNode; tone?: "default" | "fix" | "good" | "bad" | "warn" | "scheduled" | "debt" | "consortium" }) {
   const tones = {
     default: "border border-border bg-secondary text-ink2",
     fix: "bg-pill text-pill-foreground",
@@ -53,6 +53,9 @@ export function Pill({ children, tone = "default" }: { children: ReactNode; tone
     warn: "bg-[hsl(var(--k3)/0.2)] text-foreground",
     /** pagamento agendado: laranja */
     scheduled: "border border-[hsl(var(--k6)/0.6)] bg-[hsl(var(--k6)/0.18)] text-foreground",
+    /** origem do lançamento: dívida (rosa) e consórcio (azul), as mesmas cores das categorias */
+    debt: "border border-[hsl(var(--k4)/0.6)] bg-[hsl(var(--k4)/0.18)] text-foreground",
+    consortium: "border border-[hsl(var(--k7)/0.6)] bg-[hsl(var(--k7)/0.18)] text-foreground",
   };
   return (
     <span className={cn("inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-bold", tones[tone])}>

@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { buildClosing, compareWithPrevious, distributeBalance, getClosingPending, getMonthSummary, todayISO } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
-import { useDistributionItems } from "@/Store/selectors";
+import { useDistributionItems, useTransactions } from "@/Store/selectors";
 import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 
@@ -33,7 +33,7 @@ export default function CloseMonthDialog({ open, onClose }: { open: boolean; onC
 }
 
 function Steps({ month, onClose }: { month: string; onClose: () => void }) {
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);

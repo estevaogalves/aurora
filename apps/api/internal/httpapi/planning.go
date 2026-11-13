@@ -63,32 +63,34 @@ func validatePlanning(p domain.Planning) string {
 			msg = "as parcelas pagas devem ficar entre 0 e o total."
 		case len(d.LinkedTransactionID) > 64:
 			msg = "vínculo inválido."
-		case len(d.PaidValues) > domain.MaxDebtInstallments:
-			msg = "valores pagos demais."
-		case len(d.Anticipations) > domain.MaxDebtInstallments:
-			msg = "antecipações demais."
-		case d.StartMonth != "" && checkMonth(d.StartMonth) != "":
-			msg = checkMonth(d.StartMonth)
-		case len(d.Anticipations) > 0 && d.StartMonth == "":
-			msg = "com antecipações, o mês de início do calendário é obrigatório."
-		}
-		for month, a := range d.Anticipations {
-			if msg != "" {
-				break
-			}
-			msg = first(
-				checkMonth(month), checkCents("O valor original", a.OriginalValue), checkCents("O valor antecipado", a.PaidValue),
-				checkDate("A data da antecipação", a.PaidOn, false), checkID("Operação", a.BatchID), checkID("Lançamento da antecipação", a.TransactionID),
-			)
-			if msg == "" && a.PaidValue <= 0 {
-				msg = "o valor antecipado precisa ser maior que zero."
-			}
+		case len(d.PaidValues) > domain.MaxDebtInstallments || len(d.Payments) > domain.MaxDebtInstallments:
+			msg = "pagamentos demais."
+		case d.Kind != "" && d.Kind != "debt" && d.Kind != "consortium":
+			msg = "tipo inválido (dívida ou consórcio)."
+		case d.Model != "" && d.Kind != "consortium":
+			msg = "só consórcio tem modelo de parcela."
+		case d.Model != "" && d.Model != "linear" && d.Model != "progressive":
+			msg = "modelo de parcela inválido (linear ou progressivo)."
+		case d.Model == "progressive" && d.Increment <= 0:
+			msg = "no consórcio progressivo, o acréscimo mensal precisa ser maior que zero."
+		case d.Model != "progressive" && d.Increment != 0:
+			msg = "só o consórcio progressivo tem acréscimo."
+		case d.Model == "progressive" && d.InstallmentValue+int64(d.TotalInstallments-1)*d.Increment > domain.MaxInvestmentCents:
+			msg = "a última parcela passa do limite de R$ 1 bilhão."
+		case d.TrackedFrom != "" && checkMonth(d.TrackedFrom) != "":
+			msg = checkMonth(d.TrackedFrom)
 		}
 		for month, v := range d.PaidValues {
 			if msg != "" {
 				break
 			}
 			msg = first(checkMonth(month), checkCents("O valor pago", v))
+		}
+		for month, p := range d.Payments {
+			if msg != "" {
+				break
+			}
+			msg = first(checkMonth(month), checkPayment(p))
 		}
 		if msg != "" {
 			return "Dívida " + quote(d.Name) + ": " + msg

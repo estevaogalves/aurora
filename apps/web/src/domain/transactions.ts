@@ -48,13 +48,13 @@ export function getHiddenTransactionsByMonth(
   month: Month,
 ): Transaction[] {
   return transactions.filter(
-    (t) => t.fixed && compareMonths(month, t.month) >= 0 && t.hiddenMonths?.includes(month),
+    (t) => t.fixed && !t.debtOrigin && compareMonths(month, t.month) >= 0 && t.hiddenMonths?.includes(month),
   );
 }
 
 /** Fixas encerradas que já não valem neste mês (para poder reativar). */
 export function getEndedTransactionsByMonth(transactions: Transaction[], month: Month): Transaction[] {
-  return transactions.filter((t) => t.fixed && !!t.endMonth && compareMonths(month, t.month) >= 0 && compareMonths(month, t.endMonth) > 0);
+  return transactions.filter((t) => t.fixed && !t.debtOrigin && !!t.endMonth && compareMonths(month, t.month) >= 0 && compareMonths(month, t.endMonth) > 0);
 }
 
 export type EndResult = { ok: true; patch: Partial<Transaction> } | { ok: false; error: string };

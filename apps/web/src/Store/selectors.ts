@@ -13,6 +13,7 @@ import {
   resolveCardExpenses,
   resolveCredits,
   getTransactionsByMonth,
+  withDebtTransactions,
 } from "../domain";
 import { useFinanceStore } from "./FinanceStore";
 
@@ -22,6 +23,16 @@ import { useFinanceStore } from "./FinanceStore";
  * Sem argumento, usam o mês que o usuário está vendo.
  */
 
+/**
+ * Os lançamentos que valem para tudo que soma, projeta ou lista: os cadastrados mais as parcelas geradas pelas dívidas
+ * e consórcios (calculadas, nunca gravadas). Quem só precisa dos cadastrados usa `s.transactions`.
+ */
+export function useTransactions() {
+  const transactions = useFinanceStore((s) => s.transactions);
+  const debts = useFinanceStore((s) => s.debts);
+  return useMemo(() => withDebtTransactions(transactions, debts), [transactions, debts]);
+}
+
 function useMonth(month?: string) {
   const current = useFinanceStore((s) => s.currentMonth);
   return month ?? current;
@@ -29,7 +40,7 @@ function useMonth(month?: string) {
 
 export function useMonthSummary(month?: string) {
   const m = useMonth(month);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
@@ -42,7 +53,7 @@ export function useMonthSummary(month?: string) {
 
 export function useMonthTransactions(month?: string) {
   const m = useMonth(month);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditCards = useFinanceStore((s) => s.creditCards);
 
   // despesa avulsa no cartão aparece no mês do vencimento da fatura
@@ -51,7 +62,7 @@ export function useMonthTransactions(month?: string) {
 
 export function useHiddenTransactions(month?: string) {
   const m = useMonth(month);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
 
   return useMemo(
     () => getHiddenTransactionsByMonth(transactions, m),
@@ -68,7 +79,7 @@ export function useResolvedExtras() {
 
 export function useEndedTransactions(month?: string) {
   const m = useMonth(month);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
 
   return useMemo(() => getEndedTransactionsByMonth(transactions, m), [transactions, m]);
 }
@@ -108,7 +119,7 @@ export function useDistribution(month?: string) {
 /** As distribuições do saldo do mês visto: a Dist 1 (o saldo) e as próprias (Dist 2, 3...). */
 export function useMonthDistributions(month?: string) {
   const m = useMonth(month);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);

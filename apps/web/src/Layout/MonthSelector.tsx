@@ -3,6 +3,7 @@ import Icon from "../components/Icon";
 import { getAdjacentMonth } from "../domain";
 import { useFinanceStore } from "../Store/FinanceStore";
 import { formatMonthTitle, getCurrentMonth } from "../Utils/Date";
+import { useTransactions } from "@/Store/selectors";
 
 /**
  * Seletor de mês global: todas as telas leem `currentMonth` da store.
@@ -11,7 +12,7 @@ import { formatMonthTitle, getCurrentMonth } from "../Utils/Date";
 export default function MonthSelector() {
   const currentMonth = useFinanceStore((s) => s.currentMonth);
   const setCurrentMonth = useFinanceStore((s) => s.setCurrentMonth);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);

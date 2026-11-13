@@ -14,6 +14,7 @@ import { changeMonth, formatMonth, formatMonthAbbr, formatMonthShort, getCurrent
 import { showToast } from "../Warnings/toast";
 import { loadReportPrefs, sameReportPrefs, saveReportPrefs, type ReportFormat } from "./prefs";
 import { RELATORIOS_TOUR } from "./tour";
+import { useTransactions } from "@/Store/selectors";
 
 const CONTENT = [
   { key: "summary", label: "Resumo de renda, despesas e saldo" },
@@ -26,7 +27,7 @@ const MAX_MONTHS = 12;
 
 export default function ReportsPage() {
   const current = useFinanceStore((s) => s.currentMonth);
-  const transactions = useFinanceStore((s) => s.transactions);
+  const transactions = useTransactions();
   const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const creditCards = useFinanceStore((s) => s.creditCards);
   const extraExpenses = useFinanceStore((s) => s.extraExpenses);
