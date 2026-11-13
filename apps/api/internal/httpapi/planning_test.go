@@ -67,6 +67,38 @@ func TestPlanning(t *testing.T) {
 		m["dividendAssets"] = []any{map[string]any{"id": "a1", "name": "", "invested": 1}}
 	})
 
+	// parcelas antecipadas: valida mês, valores, data, ids e o início do calendário
+	ant := func(mut func(a map[string]any), start string) map[string]any {
+		a := map[string]any{"originalValue": 70000, "paidValue": 20000, "paidOn": "2026-11-10", "batchId": "b1", "transactionId": "t1"}
+		mut(a)
+		debt := map[string]any{"id": "d1", "name": "X", "installmentValue": 70000, "totalInstallments": 40, "paidInstallments": 1, "nextMonth": "2026-12", "anticipations": map[string]any{"2030-02": a}}
+		if start != "" {
+			debt["startMonth"] = start
+		}
+		return debt
+	}
+	bad(func(m map[string]any) { m["debts"] = []any{ant(func(a map[string]any) {}, "")} }) // sem startMonth
+	bad(func(m map[string]any) {
+		m["debts"] = []any{ant(func(a map[string]any) { a["paidValue"] = 0 }, "2026-11")}
+	}) // valor zero
+	bad(func(m map[string]any) {
+		m["debts"] = []any{ant(func(a map[string]any) { a["paidOn"] = "ontem" }, "2026-11")}
+	}) // data
+	bad(func(m map[string]any) {
+		m["debts"] = []any{ant(func(a map[string]any) { a["batchId"] = "" }, "2026-11")}
+	}) // lote
+	bad(func(m map[string]any) { m["debts"] = []any{ant(func(a map[string]any) {}, "2026-13")} }) // mês de início
+	okAnt := map[string]any{}
+	for k, v := range valid {
+		okAnt[k] = v
+	}
+	okAnt["debts"] = []any{ant(func(a map[string]any) {}, "2026-11")}
+	want(t, e.do(t, "PUT", "/api/v1/settings/planning", tk, okAnt), http.StatusNoContent)
+	if got := load(); got.Debts[0].StartMonth != "2026-11" || got.Debts[0].Anticipations["2030-02"].PaidValue != 20000 || got.Debts[0].Anticipations["2030-02"].OriginalValue != 70000 {
+		t.Fatalf("antecipação não voltou: %+v", got.Debts[0])
+	}
+	want(t, e.do(t, "PUT", "/api/v1/settings/planning", tk, valid), http.StatusNoContent) // volta ao estado anterior
+
 	// o que já estava salvo continua depois dos pedidos recusados
 	if got := load(); len(got.Debts) != 1 {
 		t.Fatalf("recusar não pode apagar o que já existe: %d dívidas", len(got.Debts))

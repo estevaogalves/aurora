@@ -231,6 +231,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
   const [distGroup, setDistGroup] = useState(1);
   // dia do vencimento da despesa (1 a 31), opcional: alimenta o card "Próximos vencimentos" do Painel
   const [txDueDay, setTxDueDay] = useState("");
+  const [fixedTerm, setFixedTerm] = useState("");
   // etiquetas livres (opcional), para buscar e filtrar em Lançamentos
   const [txTags, setTxTags] = useState<string[]>([]);
   const [cardId, setCardId] = useState("");
@@ -270,6 +271,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     setVariable(false);
     setDistGroup(1);
     setTxDueDay("");
+    setFixedTerm("");
     setTxTags([]);
     setStartDate(defaultStartDate(currentMonth));
     setClosingDay("");
@@ -306,6 +308,10 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
     // dia do vencimento: vazio = sem dia; senão de 1 a 31
     const dueDayValue = txDueDay.trim() ? Number(txDueDay) : 0;
     if (kind === "expense" && !cardId && txDueDay.trim() && !(dueDayValue >= 1 && dueDayValue <= 31)) return showToast({ type: "error", text: "O dia do vencimento vai de 1 a 31" });
+
+    // despesa fixa parcelada: vale por N meses a partir do mês inicial (o último é o término)
+    const installmentsN = kind === "expense" && fixed && fixedTerm.trim() ? Number(fixedTerm) : 0;
+    if (kind === "expense" && fixed && fixedTerm.trim() && !(Number.isInteger(installmentsN) && installmentsN >= 1 && installmentsN <= 600)) return showToast({ type: "error", text: "O número de parcelas vai de 1 a 600" });
 
     const isPiggy = kind === "goal" && piggy;
     // porquinho não tem valor de meta
@@ -357,7 +363,7 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
       addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed: false, month: purchaseDate.slice(0, 7), cardId, purchaseDate });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada no cartão` });
     } else {
-      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(variable && { variableAmount: true }), ...(dueDayValue && { dueDay: dueDayValue }), ...(txTags.length > 0 && { tags: txTags }) });
+      addTransaction({ id: uuid(), name: trimmed, amount: cents, type: "expense", category, notes: notes.trim(), fixed, month: launchMonth, ...(variable && { variableAmount: true }), ...(dueDayValue && { dueDay: dueDayValue }), ...(installmentsN > 0 && { endMonth: changeMonth(launchMonth, installmentsN - 1) }), ...(txTags.length > 0 && { tags: txTags }) });
       showToast({ type: "success", text: `Despesa "${trimmed}" adicionada${inFuture ? ` a partir de ${formatMonthTitle(launchMonth)}` : ""}` });
     }
 
@@ -536,6 +542,16 @@ function LaunchFields({ kind, focusName, onClose }: { kind: LaunchTab; focusName
             </span>
           </label>
         </div>
+      )}
+
+      {kind === "expense" && fixed && !cardId && (
+        <Field label="Parcelada em" hint="(opcional)" htmlFor="launch-installments">
+          <input id="launch-installments" inputMode="numeric" value={fixedTerm} onChange={(e) => setFixedTerm(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="Ex.: 60" className={inputClass} />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {fixedTerm && Number(fixedTerm) > 0 ? `Vale por ${fixedTerm} ${Number(fixedTerm) === 1 ? "mês" : "meses"}: a última parcela é em ${formatMonthTitle(changeMonth(launchMonth, Number(fixedTerm) - 1))}. ` : ""}
+            Para consórcio ou financiamento: depois, vincule em Dívidas e o calendário vem desta despesa.
+          </p>
+        </Field>
       )}
 
       {kind === "expense" && !cardId && (

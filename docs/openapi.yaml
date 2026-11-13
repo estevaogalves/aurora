@@ -1235,6 +1235,20 @@ components:
           type: object
           description: Valor realmente pago em cada parcela, por mês da parcela (para um desconto ou acréscimo daquele mês). Sem a chave, a parcela vale o da despesa fixa vinculada no mês ou o `installmentValue`.
           additionalProperties: { $ref: "#/components/schemas/Cents" }
+        startMonth: { $ref: "#/components/schemas/Month", description: "Primeiro mês do calendário de parcelas. Só existe quando há (ou houve) parcelas antecipadas; obrigatório com `anticipations`." }
+        anticipations:
+          type: object
+          description: Parcelas antecipadas (pagas antes da hora, com desconto), por mês da parcela. Até 600.
+          additionalProperties: { $ref: "#/components/schemas/DebtAnticipation" }
+    DebtAnticipation:
+      type: object
+      required: [originalValue, paidValue, paidOn, batchId, transactionId]
+      properties:
+        originalValue: { $ref: "#/components/schemas/Cents", description: Valor que a parcela tinha naquele mês antes da antecipação. }
+        paidValue: { $ref: "#/components/schemas/Cents", description: Valor realmente pago (maior que zero). }
+        paidOn: { type: string, description: "Dia do pagamento, AAAA-MM-DD." }
+        batchId: { type: string, maxLength: 64, description: Agrupa as parcelas antecipadas na mesma operação. }
+        transactionId: { type: string, maxLength: 64, description: Lançamento avulso que traz o desembolso. }
     MonthClosing:
       type: object
       required: [closedAt, income, expense, balance, byCategory]

@@ -170,7 +170,7 @@ Sem nenhuma dívida, o tour usa dívidas de exemplo (fictícias, nunca gravadas)
 
 - [ ok ] 1. Botão **Nova dívida**
 - [ ok ] 2. **Resumo**: parcelas por mês, saldo a pagar e última parcela
-- [ ok ] 3. **Cartão da dívida**: parcelas, saldo, quitação, vínculo com a despesa fixa e **Registrar parcela paga**
+- [ ok ] 3. **Cartão da dívida**: parcelas, saldo, quitação, vínculo com a despesa fixa e **Registrar parcela paga**; com vínculo, **Antecipar parcelas** (lançamento avulso já pago + mês zerado na despesa fixa, valor original × pago no histórico, **Desfazer antecipação**)
 - [ ok ] 4. **Simular quitação antecipada** (com o desconto informado)
 
 ### Relatórios (`relatorios`)

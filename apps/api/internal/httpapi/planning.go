@@ -65,6 +65,24 @@ func validatePlanning(p domain.Planning) string {
 			msg = "vínculo inválido."
 		case len(d.PaidValues) > domain.MaxDebtInstallments:
 			msg = "valores pagos demais."
+		case len(d.Anticipations) > domain.MaxDebtInstallments:
+			msg = "antecipações demais."
+		case d.StartMonth != "" && checkMonth(d.StartMonth) != "":
+			msg = checkMonth(d.StartMonth)
+		case len(d.Anticipations) > 0 && d.StartMonth == "":
+			msg = "com antecipações, o mês de início do calendário é obrigatório."
+		}
+		for month, a := range d.Anticipations {
+			if msg != "" {
+				break
+			}
+			msg = first(
+				checkMonth(month), checkCents("O valor original", a.OriginalValue), checkCents("O valor antecipado", a.PaidValue),
+				checkDate("A data da antecipação", a.PaidOn, false), checkID("Operação", a.BatchID), checkID("Lançamento da antecipação", a.TransactionID),
+			)
+			if msg == "" && a.PaidValue <= 0 {
+				msg = "o valor antecipado precisa ser maior que zero."
+			}
 		}
 		for month, v := range d.PaidValues {
 			if msg != "" {

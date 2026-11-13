@@ -8,14 +8,14 @@ import StatCard from "@/components/shared/StatCard";
 import { btnClass } from "@/components/shared/styles";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MAX_CENTS, debtProgress, detectedPayment, earlyPayoff, formatPaymentDate, getDebtTotals, getPaidInstallments, splitDebts, type Debt } from "@/domain";
+import { MAX_CENTS, anticipableInstallments, anticipatedMonths, debtProgress, detectedPayment, earlyPayoff, formatPaymentDate, getDebtTotals, getPaidInstallments, hasAnticipations, splitDebts, type Debt } from "@/domain";
 import { centsToInput, formatBRL, formatBRLShort, parseBRL } from "@/lib/money";
 import Pager from "@/components/shared/Pager";
 import { usePagination } from "@/lib/usePagination";
 import { uuid } from "@/lib/uuid";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
-import { formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
+import { compareMonths, formatMonthTitle, getCurrentMonth, getMonthsBetween } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
 
 const MAX_INSTALLMENTS = 600;
@@ -40,6 +40,7 @@ export default function DebtsView() {
   const [editing, setEditing] = useState<Debt | null>(null);
   const [creating, setCreating] = useState(false);
   const [deleting, setDeleting] = useState<Debt | null>(null);
+  const [anticipating, setAnticipating] = useState<Debt | null>(null);
   const [simulating, setSimulating] = useState<string | null>(null);
   const [discount, setDiscount] = useState("");
 
@@ -89,7 +90,7 @@ export default function DebtsView() {
               </div>
               <div className="h-[6px] overflow-hidden rounded-full bg-secondary"><i className="block h-full rounded-full bg-primary" style={{ width: `${p.percent}%` }} /></div>
               {[
-                ["Parcelas", `${d.paidInstallments} pagas · ${p.remaining} restantes de ${d.totalInstallments}`],
+                ["Parcelas", `${d.totalInstallments - p.remaining} pagas${anticipatedMonths(d).length > 0 ? ` (${anticipatedMonths(d).length} ${anticipatedMonths(d).length === 1 ? "antecipada" : "antecipadas"})` : ""} · ${p.remaining} restantes de ${d.totalInstallments}`],
                 [linked ? "Parcela do mês (acompanha a despesa fixa)" : "Valor da parcela", formatBRL(p.nextValue)],
                 ["Total já pago", formatBRL(p.paidTotal)],
                 ["Saldo a pagar", formatBRL(p.balance)],
@@ -122,6 +123,9 @@ export default function DebtsView() {
                     <Icon name="check" size={14} />
                     Registrar parcela paga
                   </button>
+                )}
+                {linked && (
+                  <button type="button" disabled={demo} onClick={() => setAnticipating(d)} className={`${btnClass.base} ${btnClass.sm}`}>Antecipar parcelas</button>
                 )}
                 <button type="button" disabled={demo} onClick={() => { setSimulating(simulating === d.id ? null : d.id); setDiscount(""); }} className={`${btnClass.base} ${btnClass.sm}`}>Simular quitação antecipada</button>
                 <button type="button" disabled={demo} onClick={() => setEditing(d)} className={`${btnClass.base} ${btnClass.sm}`}>Editar</button>
@@ -164,6 +168,7 @@ export default function DebtsView() {
           setPaying(null);
         }}
       />
+      <AnticipateDialog debt={anticipating} onClose={() => setAnticipating(null)} />
       <DebtDialog open={creating || !!editing} debt={editing} onClose={() => { setCreating(false); setEditing(null); }} />
       <ConfirmDeletion
         open={!!deleting}
@@ -204,6 +209,8 @@ function DebtFields({ debt, onClose }: { debt: Debt | null; onClose: () => void 
   const [linked, setLinked] = useState(debt?.linkedTransactionId ?? "");
   const [note, setNote] = useState(debt?.note ?? "");
   const [error, setError] = useState("");
+  // com parcelas antecipadas o calendário é fixo: as parcelas pagas e o mês da próxima não se editam aqui
+  const locked = !!debt && hasAnticipations(debt);
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -216,6 +223,7 @@ function DebtFields({ debt, onClose }: { debt: Debt | null; onClose: () => void 
     if (!cents || cents <= 0) return setError("Informe o valor da parcela, maior que zero.");
     if (cents > MAX_CENTS) return setError("O valor da parcela passa de R$ 1 bilhão.");
     if (!Number.isInteger(totalN) || totalN < 1 || totalN > MAX_INSTALLMENTS) return setError(`O total de parcelas vai de 1 a ${MAX_INSTALLMENTS}.`);
+    if (locked && totalN < debt.totalInstallments) return setError("Com parcelas antecipadas, o total de parcelas não pode diminuir.");
     if (!Number.isInteger(paidN) || paidN < 0 || paidN > totalN) return setError("As parcelas pagas vão de 0 até o total.");
     if (!nextMonth) return setError("Informe o mês da próxima parcela.");
     // vinculada: os valores pagos de cada parcela passam a vir do lançamento (sem valor próprio guardado)
@@ -236,19 +244,27 @@ function DebtFields({ debt, onClose }: { debt: Debt | null; onClose: () => void 
         <Field label="Total de parcelas" htmlFor="debt-total">
           <input id="debt-total" inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="60" className={inputClass} />
         </Field>
-        <Field label="Parcelas já pagas" htmlFor="debt-paid">
-          <input id="debt-paid" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value.replace(/\D/g, "").slice(0, 3))} className={inputClass} />
-        </Field>
+        {!locked && (
+          <Field label="Parcelas já pagas" htmlFor="debt-paid">
+            <input id="debt-paid" inputMode="numeric" value={paid} onChange={(e) => setPaid(e.target.value.replace(/\D/g, "").slice(0, 3))} className={inputClass} />
+          </Field>
+        )}
       </div>
-      <Field label="Mês da próxima parcela" htmlFor="debt-next"><MonthPicker id="debt-next" value={nextMonth} onChange={setNextMonth} /></Field>
+      {!locked && <Field label="Mês da próxima parcela" htmlFor="debt-next"><MonthPicker id="debt-next" value={nextMonth} onChange={setNextMonth} /></Field>}
+      {locked && <p className="rounded-md bg-secondary px-3 py-2 text-xs text-ink2">Esta dívida tem parcelas antecipadas: as parcelas pagas e o mês da próxima seguem o pagamento da despesa fixa vinculada.</p>}
       <Field label="Despesa fixa vinculada" hint="(opcional)" htmlFor="debt-linked">
-        <select id="debt-linked" value={linked} onChange={(e) => setLinked(e.target.value)} className={inputClass}>
+        <select id="debt-linked" value={linked} onChange={(e) => {
+          setLinked(e.target.value);
+          // despesa fixa parcelada: o total de parcelas vem do calendário dela (início até o término)
+          const t = fixed.find((x) => x.id === e.target.value);
+          if (t?.endMonth) setTotal(String(Math.min(MAX_INSTALLMENTS, getMonthsBetween(t.month, t.endMonth).length)));
+        }} className={inputClass}>
           <option value="">Nenhuma</option>
           {fixed.map((t) => <option key={t.id} value={t.id}>{t.name} ({formatBRL(t.amount)})</option>)}
         </select>
         <p className="mt-1 text-xs text-muted-foreground">
           {linked
-            ? "O valor da parcela vem desta despesa fixa, em Lançamentos: se mudar lá, muda aqui. Ao pagar a despesa, a parcela é registrada nesta aba sozinha."
+            ? "O total de parcelas vem do término da despesa, se ela for parcelada. O valor da parcela vem desta despesa fixa, em Lançamentos: se mudar lá, muda aqui. Ao pagar a despesa, a parcela é registrada nesta aba sozinha."
             : "Escolha a despesa fixa que já traz esta parcela no seu orçamento: o valor não é somado duas vezes, e a Projeção mostra quando ela cai."}
         </p>
       </Field>
@@ -308,6 +324,7 @@ function PayFields({ request, onClose, onConfirm }: { request: { debt: Debt; mon
 function PaidInstallments({ debt, linked }: { debt: Debt; linked: boolean }) {
   const transactions = useFinanceStore((s) => s.transactions);
   const setPaidValue = useFinanceStore((s) => s.setDebtPaidValue);
+  const undoAnticipation = useFinanceStore((s) => s.undoAnticipation);
   const [open, setOpen] = useState(false);
   const list = getPaidInstallments(debt, transactions);
   const pager = usePagination(list, 6);
@@ -325,8 +342,18 @@ function PaidInstallments({ debt, linked }: { debt: Debt; linked: boolean }) {
           <ul className="mt-2 flex flex-col divide-y divide-border text-[12.5px]">
             {pager.slice.map((x) => (
               <li key={x.month} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
-                <span>Parcela {x.number} · {formatMonthTitle(x.month)}{x.adjusted && <span className="ml-1.5 text-muted-foreground">(valor registrado)</span>}</span>
-                {editing === x.month ? (
+                <span>
+                  Parcela {x.number} · {formatMonthTitle(x.month)}
+                  {x.adjusted && <span className="ml-1.5 text-muted-foreground">(valor registrado)</span>}
+                  {x.anticipated && <span className="ml-1.5"><Pill>antecipada</Pill></span>}
+                </span>
+                {x.anticipated ? (
+                  <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+                    <span className="text-muted-foreground">valia <span className="num">{formatBRL(x.originalValue ?? 0)}</span>, pago <b className="num text-foreground">{formatBRL(x.value)}</b></span>
+                    {!transactions.some((t) => t.id === x.transactionId) && <span className="font-semibold text-destructive">lançamento removido</span>}
+                    {compareMonths(x.month, debt.nextMonth) >= 0 && <button type="button" onClick={() => undoAnticipation(debt.id, x.month)} className="font-bold text-primary hover:underline">Desfazer antecipação</button>}
+                  </span>
+                ) : editing === x.month ? (
                   <form
                     className="flex items-center gap-1.5"
                     onSubmit={(e) => {
@@ -356,5 +383,90 @@ function PaidInstallments({ debt, linked }: { debt: Debt; linked: boolean }) {
         </>
       )}
     </div>
+  );
+}
+
+/** Antecipar parcelas de uma dívida vinculada: escolhe os meses, informa o valor negociado e confirma. */
+function AnticipateDialog({ debt, onClose }: { debt: Debt | null; onClose: () => void }) {
+  return (
+    <Dialog open={!!debt} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>Antecipar parcelas</DialogTitle>
+          <DialogDescription>{debt ? `${debt.name}. Cada parcela antecipada vira um lançamento avulso já pago neste mês, e o mês dela passa a valer R$ 0 na despesa fixa.` : ""}</DialogDescription>
+        </DialogHeader>
+        {debt && <AnticipateFields key={debt.id} debt={debt} onClose={onClose} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AnticipateFields({ debt, onClose }: { debt: Debt; onClose: () => void }) {
+  const transactions = useFinanceStore((s) => s.transactions);
+  const anticipate = useFinanceStore((s) => s.anticipateInstallments);
+  const options = useMemo(() => anticipableInstallments(debt, transactions), [debt, transactions]);
+  const [rows, setRows] = useState<{ month: string; value: string }[]>([{ month: options[options.length - 1]?.month ?? "", value: "" }]);
+  const [error, setError] = useState("");
+  const original = (month: string) => options.find((o) => o.month === month)?.value ?? 0;
+  const parsed = rows.map((r) => parseBRL(r.value));
+  const total = parsed.reduce<number>((s, v) => s + (v ?? 0), 0);
+  const savedTotal = rows.reduce((s, r, i) => s + (parsed[i] !== null ? Math.max(0, original(r.month) - (parsed[i] ?? 0)) : 0), 0);
+  const mustPayFirst = compareMonths(debt.nextMonth, getCurrentMonth()) <= 0;
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (parsed.some((v) => v === null || v <= 0)) return setError("Informe o valor pago de cada parcela, maior que zero.");
+    const result = anticipate(debt.id, rows.map((r, i) => ({ month: r.month, paidValue: parsed[i]! })));
+    if (result) return setError(result);
+    showToast({ type: "success", text: `${rows.length === 1 ? "Parcela antecipada" : `${rows.length} parcelas antecipadas`}: ${formatBRL(total)} lançados em Lançamentos` });
+    onClose();
+  }
+
+  if (options.length === 0) {
+    return (
+      <>
+        <p className="text-[13px] text-muted-foreground">Não há parcelas em aberto depois da próxima para antecipar.</p>
+        <div className="flex justify-end"><Button type="button" variant="secondary" onClick={onClose}>Fechar</Button></div>
+      </>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+      {mustPayFirst && (
+        <p role="note" className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-[12.5px] text-ink2">
+          Pague primeiro a parcela de {formatMonthTitle(debt.nextMonth)} em Lançamentos: a antecipação vai junto com o pagamento da parcela em aberto mais próxima.
+        </p>
+      )}
+      {rows.map((r, i) => (
+        <div key={i} className="flex flex-col gap-2 rounded-md border border-border p-3">
+          <Field label="Parcela a antecipar" htmlFor={`ant-month-${i}`}>
+            <select id={`ant-month-${i}`} value={r.month} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, month: e.target.value } : x)))} className={inputClass}>
+              {options.filter((o) => o.month === r.month || !rows.some((x) => x.month === o.month)).map((o) => <option key={o.month} value={o.month}>Parcela {o.number} · {formatMonthTitle(o.month)}</option>)}
+            </select>
+          </Field>
+          <div className="flex flex-wrap justify-between gap-2 text-[12.5px]">
+            <span className="text-muted-foreground">Valor original da parcela</span>
+            <b className="num">{formatBRL(original(r.month))}</b>
+          </div>
+          <Field label="Valor pago na antecipação" htmlFor={`ant-value-${i}`}>
+            <MoneyInput id={`ant-value-${i}`} value={r.value} onChange={(v) => { setRows(rows.map((x, j) => (j === i ? { ...x, value: v } : x))); setError(""); }} placeholder="200,00" />
+          </Field>
+          {rows.length > 1 && <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))} className="self-start text-[12.5px] font-semibold text-muted-foreground hover:text-destructive hover:underline">Tirar esta parcela</button>}
+        </div>
+      ))}
+      {rows.length < options.length && (
+        <button type="button" onClick={() => setRows([...rows, { month: options.find((o) => !rows.some((x) => x.month === o.month))!.month, value: "" }])} className="self-start text-[12.5px] font-bold text-primary hover:underline">+ Antecipar outra parcela</button>
+      )}
+      <p className="rounded-md bg-secondary px-3 py-2 text-[12.5px] text-ink2">
+        Total desta antecipação: <b className="num text-foreground">{formatBRL(total)}</b>
+        {savedTotal > 0 && <> · desconto de <b className="num text-success">{formatBRL(savedTotal)}</b></>}. Vai para Lançamentos deste mês, somado à parcela do mês.
+      </p>
+      {error && <p role="alert" className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-[13px] font-semibold text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+        <Button type="submit">Antecipar</Button>
+      </div>
+    </form>
   );
 }

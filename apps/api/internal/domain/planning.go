@@ -33,6 +33,24 @@ type Debt struct {
 	// PaidValues: valor realmente pago em cada parcela, por mês da parcela (centavos), para um desconto ou acréscimo
 	// daquele mês. Sem a chave, a parcela vale o da despesa fixa vinculada no mês ou o InstallmentValue.
 	PaidValues map[string]int64 `json:"paidValues,omitempty"`
+	// StartMonth: primeiro mês do calendário de parcelas; só existe quando há (ou houve) parcelas antecipadas.
+	StartMonth string `json:"startMonth,omitempty"`
+	// Anticipations: parcelas antecipadas (pagas antes da hora, com desconto), por mês da parcela.
+	Anticipations map[string]DebtAnticipation `json:"anticipations,omitempty"`
+}
+
+// DebtAnticipation é uma parcela antecipada de uma dívida vinculada a uma despesa fixa.
+type DebtAnticipation struct {
+	// OriginalValue: centavos que a parcela valia naquele mês antes da antecipação.
+	OriginalValue int64 `json:"originalValue"`
+	// PaidValue: centavos realmente pagos na antecipação.
+	PaidValue int64 `json:"paidValue"`
+	// PaidOn: dia do pagamento, "AAAA-MM-DD".
+	PaidOn string `json:"paidOn"`
+	// BatchID agrupa as parcelas antecipadas na mesma operação.
+	BatchID string `json:"batchId"`
+	// TransactionID: lançamento avulso que traz o desembolso.
+	TransactionID string `json:"transactionId"`
 }
 
 // MonthClosing é o retrato de um mês fechado.
