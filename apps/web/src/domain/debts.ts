@@ -14,6 +14,8 @@ import type { Debt, Month, Transaction } from "./types";
  * naquele mês (que já vem com o ajuste do mês); senão o valor cadastrado na dívida.
  */
 export function installmentValueFor(d: Debt, month: Month, transactions: Transaction[] = []): number {
+  const anticipated = d.anticipations?.[month];
+  if (anticipated) return anticipated.paidValue;
   const paid = d.paidValues?.[month];
   if (paid !== undefined) return paid;
   if (d.linkedTransactionId) {
@@ -23,10 +25,39 @@ export function installmentValueFor(d: Debt, month: Month, transactions: Transac
   return d.installmentValue;
 }
 
-/** Os meses das parcelas já pagas, da mais antiga para a mais recente (a última é o mês anterior à próxima parcela). */
+/** Usa o calendário próprio (há ou houve parcelas antecipadas)? */
+export const hasAnticipations = (d: Debt) => !!d.startMonth || Object.keys(d.anticipations ?? {}).length > 0;
+
+/** O calendário de parcelas: um mês por parcela, da primeira à última. */
+export function debtCalendar(d: Debt): Month[] {
+  const start = d.startMonth ?? changeMonth(d.nextMonth, -d.paidInstallments);
+  return Array.from({ length: d.totalInstallments }, (_, i) => changeMonth(start, i));
+}
+
+/** Os meses das parcelas pagas em ordem (sem as antecipadas), da mais antiga para a mais recente. */
 export function paidMonths(d: Debt): Month[] {
   const n = Math.min(d.paidInstallments, d.totalInstallments);
-  return Array.from({ length: n }, (_, i) => changeMonth(d.nextMonth, i - n));
+  if (!hasAnticipations(d)) return Array.from({ length: n }, (_, i) => changeMonth(d.nextMonth, i - n));
+  return debtCalendar(d).filter((m) => !d.anticipations?.[m]).slice(0, n);
+}
+
+/** Os meses das parcelas antecipadas, em ordem. */
+export function anticipatedMonths(d: Debt): Month[] {
+  return Object.keys(d.anticipations ?? {}).sort(compareMonths);
+}
+
+/** Meses das parcelas ainda em aberto (nem pagas em ordem, nem antecipadas), em ordem. */
+export function openMonths(d: Debt): Month[] {
+  if (!hasAnticipations(d)) return Array.from({ length: Math.max(0, d.totalInstallments - d.paidInstallments) }, (_, i) => changeMonth(d.nextMonth, i));
+  const paid = new Set(paidMonths(d));
+  return debtCalendar(d).filter((m) => !paid.has(m) && !d.anticipations?.[m]);
+}
+
+/** O mês seguinte a `month` que ainda não foi antecipado (para onde a próxima parcela vai ao pagar `month`). */
+export function nextOpenAfter(d: Debt, month: Month): Month {
+  let next = changeMonth(month, 1);
+  while (d.anticipations?.[next]) next = changeMonth(next, 1);
+  return next;
 }
 
 export interface DebtProgress {
@@ -46,18 +77,19 @@ export interface DebtProgress {
 }
 
 export function debtProgress(d: Debt, transactions: Transaction[] = []): DebtProgress {
-  const remaining = Math.max(0, d.totalInstallments - d.paidInstallments);
+  const open = openMonths(d);
+  const remaining = open.length;
   const done = remaining === 0;
-  const paidTotal = paidMonths(d).reduce((s, m) => s + installmentValueFor(d, m, transactions), 0);
-  let balance = 0;
-  for (let i = 0; i < remaining; i++) balance += installmentValueFor(d, changeMonth(d.nextMonth, i), transactions);
+  const paidTotal = [...paidMonths(d), ...anticipatedMonths(d)].reduce((s, m) => s + installmentValueFor(d, m, transactions), 0);
+  const balance = open.reduce((s, m) => s + installmentValueFor(d, m, transactions), 0);
+  const doneCount = d.totalInstallments - remaining;
   return {
     remaining,
     paidTotal,
     balance,
-    payoffMonth: done ? null : changeMonth(d.nextMonth, remaining - 1),
+    payoffMonth: done ? null : open[open.length - 1],
     done,
-    percent: d.totalInstallments > 0 ? Math.round((d.paidInstallments / d.totalInstallments) * 100) : 0,
+    percent: d.totalInstallments > 0 ? Math.round((doneCount / d.totalInstallments) * 100) : 0,
     nextValue: installmentValueFor(d, d.nextMonth, transactions),
   };
 }
@@ -70,14 +102,40 @@ export interface PaidInstallment {
   value: number;
   /** o valor foi registrado ou corrigido (difere do valor-base da parcela naquele mês) */
   adjusted: boolean;
+  /** parcela antecipada: paga antes da hora, com o valor negociado */
+  anticipated?: boolean;
+  /** antecipada: o valor que a parcela valia antes da antecipação */
+  originalValue?: number;
+  /** antecipada: a operação a que pertence e o lançamento avulso do desembolso */
+  batchId?: string;
+  transactionId?: string;
+  /** antecipada: dia do pagamento */
+  paidOn?: string;
 }
 
 /** As parcelas já pagas, da mais recente para a mais antiga, com o valor de cada uma. */
 export function getPaidInstallments(d: Debt, transactions: Transaction[] = []): PaidInstallment[] {
-  const months = paidMonths(d);
-  return months
-    .map((month, i) => ({ number: i + 1, month, value: installmentValueFor(d, month, transactions), adjusted: d.paidValues?.[month] !== undefined }))
-    .reverse();
+  if (!hasAnticipations(d)) {
+    return paidMonths(d)
+      .map((month, i) => ({ number: i + 1, month, value: installmentValueFor(d, month, transactions), adjusted: d.paidValues?.[month] !== undefined }))
+      .reverse();
+  }
+  const calendar = debtCalendar(d);
+  const numberOf = (m: Month) => calendar.indexOf(m) + 1;
+  const regular: PaidInstallment[] = paidMonths(d).map((month) => ({ number: numberOf(month), month, value: installmentValueFor(d, month, transactions), adjusted: d.paidValues?.[month] !== undefined }));
+  const anticipated: PaidInstallment[] = anticipatedMonths(d).map((month) => {
+    const a = d.anticipations![month];
+    return { number: numberOf(month), month, value: a.paidValue, adjusted: false, anticipated: true, originalValue: a.originalValue, batchId: a.batchId, transactionId: a.transactionId, paidOn: a.paidOn };
+  });
+  return [...regular, ...anticipated].sort((a, b) => compareMonths(b.month, a.month));
+}
+
+/** O que dá para antecipar agora: meses em aberto depois da próxima parcela, com o valor original de cada um. */
+export function anticipableInstallments(d: Debt, transactions: Transaction[] = []): { month: Month; number: number; value: number }[] {
+  const calendar = debtCalendar(d);
+  return openMonths(d)
+    .filter((m) => m !== d.nextMonth)
+    .map((month) => ({ month, number: calendar.indexOf(month) + 1, value: installmentValueFor(d, month, transactions) }));
 }
 
 /** Quitação antecipada: quanto pagar hoje com o desconto que o usuário informou (nunca abaixo de zero) e quanto economiza. */

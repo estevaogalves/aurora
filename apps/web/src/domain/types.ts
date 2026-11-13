@@ -330,6 +330,30 @@ export interface Debt {
    * Parcela sem valor aqui vale o da despesa fixa vinculada naquele mês (se houver) ou o `installmentValue`.
    */
   paidValues?: Record<Month, number>;
+  /**
+   * Primeiro mês do calendário de parcelas. Só é guardado quando há antecipações (sem elas, vem de `nextMonth` e
+   * `paidInstallments`).
+   */
+  startMonth?: Month;
+  /**
+   * Parcelas antecipadas (pagas antes da hora, com desconto), por mês da parcela. Cada uma guarda o valor original
+   * daquele mês, o que foi pago, o lançamento avulso que registra o desembolso e a operação (lote) a que pertence.
+   */
+  anticipations?: Record<Month, DebtAnticipation>;
+}
+
+/** Uma parcela antecipada de uma dívida vinculada. */
+export interface DebtAnticipation {
+  /** centavos que a parcela valia naquele mês, antes da antecipação */
+  originalValue: number;
+  /** centavos realmente pagos na antecipação */
+  paidValue: number;
+  /** dia do pagamento, "AAAA-MM-DD" */
+  paidOn: string;
+  /** agrupa as parcelas antecipadas na mesma operação */
+  batchId: string;
+  /** lançamento avulso (em Lançamentos) que traz o desembolso */
+  transactionId: string;
 }
 
 /** Retrato de um mês fechado. */

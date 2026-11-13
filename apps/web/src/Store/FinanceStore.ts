@@ -23,6 +23,10 @@ import {
   goalOpeningMovements,
   overrideKey,
   paidMonths,
+  openMonths,
+  nextOpenAfter,
+  installmentValueFor,
+  debtCalendar,
   pruneSeenAlerts,
   replayGoal,
   todayISO,
@@ -53,13 +57,14 @@ import {
   type OnboardingState,
   type InvoiceAdjustment,
   type Payment,
+  type PaymentMethod,
   type Transaction,
   patchClearPayment,
   patchSetPayment,
 } from "../domain";
 import { repository } from "../repositories";
 import type { Category } from "../Types/Category";
-import { changeMonth, getCurrentMonth, monthsDifference } from "../Utils/Date";
+import { changeMonth, compareMonths, getCurrentMonth, monthsDifference } from "../Utils/Date";
 
 export type { Investment, InvestmentMovement, CreditCard, CreditInstallment, CreditTransaction, CustomCategory, DistributionItem, ExtraExpense, Goal, Note, Transaction };
 
@@ -199,6 +204,14 @@ interface FinanceState {
   setDebtPaidValue: (id: string, month: string, amount: number) => void;
   /** Desfaz a última parcela paga (usado quando o pagamento da despesa fixa vinculada é desmarcado). */
   unpayDebtInstallment: (id: string) => void;
+  /**
+   * Antecipa parcelas de uma dívida vinculada à despesa fixa: cria um lançamento avulso por parcela com o valor negociado
+   * (já pago), zera aquele mês na despesa fixa e guarda o valor original. Só com a parcela do mês já paga.
+   * Devolve uma mensagem de erro pronta, ou null se deu certo.
+   */
+  anticipateInstallments: (id: string, items: { month: string; paidValue: number }[], method?: PaymentMethod) => string | null;
+  /** Desfaz a antecipação de uma parcela: apaga o lançamento avulso e devolve ao mês o valor original na despesa fixa. */
+  undoAnticipation: (id: string, month: string) => void;
   /** Fecha um mês com o retrato e a anotação; fechar de novo substitui. */
   closeMonth: (month: string, closing: MonthClosing) => void;
   /** Reabre o mês (tira o fechamento). */
@@ -751,24 +764,92 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
     payDebtInstallment: (id, amount) => {
       const d = get().debts.find((x) => x.id === id);
-      if (!d || d.paidInstallments >= d.totalInstallments) return;
+      if (!d || openMonths(d).length === 0) return;
       // com valor, guarda o que foi realmente pago nesta parcela (desconto ou acréscimo)
       const valid = amount !== undefined && Number.isInteger(amount) && amount >= 0 && amount <= MAX_PLANNING_CENTS;
       set((s) => ({
-        debts: s.debts.map((x) => (x.id === id ? { ...x, paidInstallments: x.paidInstallments + 1, nextMonth: changeMonth(x.nextMonth, 1), ...(valid && { paidValues: { ...x.paidValues, [x.nextMonth]: amount } }) } : x)),
+        debts: s.debts.map((x) => (x.id === id ? { ...x, paidInstallments: x.paidInstallments + 1, nextMonth: nextOpenAfter(x, x.nextMonth), ...(valid && { paidValues: { ...x.paidValues, [x.nextMonth]: amount } }) } : x)),
       }));
       savePlanning();
     },
     unpayDebtInstallment: (id) => {
       const d = get().debts.find((x) => x.id === id);
       if (!d || d.paidInstallments <= 0) return;
-      const last = changeMonth(d.nextMonth, -1);
+      const last = paidMonths(d).at(-1) ?? changeMonth(d.nextMonth, -1);
       set((s) => ({
         debts: s.debts.map((x) => {
           if (x.id !== id) return x;
           const rest = { ...x.paidValues };
           delete rest[last];
           return { ...x, paidInstallments: x.paidInstallments - 1, nextMonth: last, paidValues: Object.keys(rest).length > 0 ? rest : undefined };
+        }),
+      }));
+      savePlanning();
+    },
+    anticipateInstallments: (id, items, method = "pix") => {
+      const d = get().debts.find((x) => x.id === id);
+      if (!d) return "Dívida não encontrada.";
+      const linked = d.linkedTransactionId ? findTransaction(d.linkedTransactionId) : undefined;
+      if (!linked) return "A antecipação precisa da despesa fixa vinculada.";
+      if (items.length === 0) return "Escolha ao menos uma parcela para antecipar.";
+      if (compareMonths(d.nextMonth, getCurrentMonth()) <= 0) return `Pague primeiro a parcela de ${d.nextMonth.slice(5)}/${d.nextMonth.slice(0, 4)}: a antecipação vai junto com o pagamento da parcela em aberto mais próxima.`;
+      const open = openMonths(d);
+      const seen = new Set<string>();
+      for (const { month, paidValue } of items) {
+        if (seen.has(month)) return "Uma parcela foi escolhida duas vezes.";
+        seen.add(month);
+        if (month === d.nextMonth || !open.includes(month)) return `A parcela de ${month.slice(5)}/${month.slice(0, 4)} não está em aberto para antecipar.`;
+        if (!Number.isInteger(paidValue) || paidValue <= 0 || paidValue > MAX_PLANNING_CENTS) return "Informe o valor pago de cada parcela antecipada (maior que zero).";
+      }
+      const batchId = uuid();
+      const today = todayISO();
+      const thisMonth = getCurrentMonth();
+      const anticipations = { ...d.anticipations };
+      let monthlyValues = { ...linked.monthlyValues };
+      const transactions = get().transactions;
+      for (const { month, paidValue } of items) {
+        const originalValue = installmentValueFor(d, month, transactions);
+        const transactionId = uuid();
+        const label = `${month.slice(5)}/${month.slice(0, 4)}`;
+        get().addTransaction({
+          id: transactionId,
+          name: `${d.name}: antecipação da parcela ${label}`,
+          amount: paidValue,
+          type: "expense",
+          category: linked.category,
+          month: thisMonth,
+          tags: ["consórcio"],
+          payments: { [thisMonth]: { method, date: today } },
+        });
+        monthlyValues = { ...monthlyValues, [month]: 0 };
+        anticipations[month] = { originalValue, paidValue, paidOn: today, batchId, transactionId };
+      }
+      // o mês da parcela antecipada passa a valer zero na despesa fixa: o desembolso fica só no lançamento avulso
+      patchTransaction(linked.id, { monthlyValues });
+      set((s) => ({ debts: s.debts.map((x) => (x.id === id ? { ...x, startMonth: x.startMonth ?? debtCalendar(x)[0], anticipations } : x)) }));
+      savePlanning();
+      return null;
+    },
+    undoAnticipation: (id, month) => {
+      const d = get().debts.find((x) => x.id === id);
+      const a = d?.anticipations?.[month];
+      // antecipada que ficou para trás da próxima parcela já não é uma antecipação: o calendário seguiria fora de ordem
+      if (!d || !a || compareMonths(month, d.nextMonth) < 0) return;
+      if (get().transactions.some((t) => t.id === a.transactionId)) get().removeTransaction(a.transactionId);
+      const linked = d.linkedTransactionId ? findTransaction(d.linkedTransactionId) : undefined;
+      if (linked) {
+        const monthlyValues = { ...linked.monthlyValues };
+        if (a.originalValue === linked.amount) delete monthlyValues[month];
+        else monthlyValues[month] = a.originalValue;
+        patchTransaction(linked.id, { monthlyValues: Object.keys(monthlyValues).length > 0 ? monthlyValues : undefined });
+      }
+      set((s) => ({
+        debts: s.debts.map((x) => {
+          if (x.id !== id) return x;
+          const rest = { ...x.anticipations };
+          delete rest[month];
+          // o `nextMonth` continua válido (a antecipada é sempre depois dele) e o calendário (`startMonth`) é mantido
+          return { ...x, anticipations: Object.keys(rest).length === 0 ? undefined : rest };
         }),
       }));
       savePlanning();
@@ -820,7 +901,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       // dívida vinculada a esta despesa fixa: o pagamento do mês da próxima parcela registra a parcela sozinho (sem valor
       // próprio: o valor segue o lançamento); desmarcar o pagamento da última parcela paga a desfaz
       for (const d of get().debts.filter((x) => x.linkedTransactionId === id)) {
-        if (payment && month === d.nextMonth && d.paidInstallments < d.totalInstallments) get().payDebtInstallment(d.id);
+        if (payment && month === d.nextMonth && openMonths(d).length > 0) get().payDebtInstallment(d.id);
         else if (!payment && d.paidInstallments > 0 && paidMonths(d).at(-1) === month) get().unpayDebtInstallment(d.id);
       }
     },

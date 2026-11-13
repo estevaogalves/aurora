@@ -2994,6 +2994,24 @@ export interface components {
             paidValues?: {
                 [key: string]: components["schemas"]["Cents"];
             };
+            /** @description Primeiro mês do calendário de parcelas. Só existe quando há (ou houve) parcelas antecipadas; obrigatório com `anticipations`. */
+            startMonth?: components["schemas"]["Month"];
+            /** @description Parcelas antecipadas (pagas antes da hora, com desconto), por mês da parcela. Até 600. */
+            anticipations?: {
+                [key: string]: components["schemas"]["DebtAnticipation"];
+            };
+        };
+        DebtAnticipation: {
+            /** @description Valor que a parcela tinha naquele mês antes da antecipação. */
+            originalValue: components["schemas"]["Cents"];
+            /** @description Valor realmente pago (maior que zero). */
+            paidValue: components["schemas"]["Cents"];
+            /** @description Dia do pagamento, AAAA-MM-DD. */
+            paidOn: string;
+            /** @description Agrupa as parcelas antecipadas na mesma operação. */
+            batchId: string;
+            /** @description Lançamento avulso que traz o desembolso. */
+            transactionId: string;
         };
         MonthClosing: {
             /** @description Data do fechamento, AAAA-MM-DD. */
