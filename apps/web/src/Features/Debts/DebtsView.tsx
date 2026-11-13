@@ -104,7 +104,7 @@ export default function DebtsView() {
               {d.note && <p className="border-t border-border pt-2.5 text-[12.5px] text-ink2">{d.note}</p>}
               {found && (
                 <p className="rounded-md bg-secondary px-3 py-2 text-[12.5px] text-ink2">
-                  A despesa vinculada foi paga em {formatPaymentDate(found.date)}. <button type="button" onClick={() => setPaying({ debt: d, month: found.month, value: found.value })} className="font-bold text-primary hover:underline">Marcar a parcela de {formatMonthTitle(found.month)} como paga</button>
+                  A despesa vinculada já foi paga em {formatPaymentDate(found.date)}. <button type="button" onClick={() => payInstallment(d.id)} className="font-bold text-primary hover:underline">Registrar a parcela de {formatMonthTitle(found.month)}</button>
                 </p>
               )}
               {sim && (
@@ -116,10 +116,13 @@ export default function DebtsView() {
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                <button type="button" disabled={demo} onClick={() => setPaying({ debt: d, month: d.nextMonth, value: p.nextValue })} className={`${btnClass.primary} ${btnClass.sm}`}>
-                  <Icon name="check" size={14} />
-                  Registrar parcela paga
-                </button>
+                {/* com despesa fixa vinculada, o pagamento é feito em Lançamentos e a parcela é registrada aqui sozinha */}
+                {!d.linkedTransactionId && (
+                  <button type="button" disabled={demo} onClick={() => setPaying({ debt: d, month: d.nextMonth, value: p.nextValue })} className={`${btnClass.primary} ${btnClass.sm}`}>
+                    <Icon name="check" size={14} />
+                    Registrar parcela paga
+                  </button>
+                )}
                 <button type="button" disabled={demo} onClick={() => { setSimulating(simulating === d.id ? null : d.id); setDiscount(""); }} className={`${btnClass.base} ${btnClass.sm}`}>Simular quitação antecipada</button>
                 <button type="button" disabled={demo} onClick={() => setEditing(d)} className={`${btnClass.base} ${btnClass.sm}`}>Editar</button>
                 <button type="button" disabled={demo} onClick={() => setDeleting(d)} className={`${btnClass.base} ${btnClass.sm} hover:!border-destructive hover:!text-destructive`}>
@@ -127,7 +130,7 @@ export default function DebtsView() {
                   Excluir
                 </button>
               </div>
-              {!demo && p.paidTotal > 0 && <PaidInstallments debt={d} />}
+              {!demo && p.paidTotal > 0 && <PaidInstallments debt={d} linked={!!linked} />}
             </article>
           );
         })}
@@ -204,7 +207,9 @@ function DebtFields({ debt, onClose }: { debt: Debt | null; onClose: () => void 
 
   function submit(e: React.FormEvent) {
     e.preventDefault();
-    const cents = parseBRL(value);
+    // com despesa fixa vinculada, o valor da parcela vem dela (Lançamentos); o campo nem aparece
+    const linkedTx = fixed.find((t) => t.id === linked);
+    const cents = linkedTx ? linkedTx.amount : parseBRL(value);
     const totalN = Number(total);
     const paidN = Number(paid);
     if (!name.trim()) return setError("Dê um nome à dívida.");
@@ -213,7 +218,8 @@ function DebtFields({ debt, onClose }: { debt: Debt | null; onClose: () => void 
     if (!Number.isInteger(totalN) || totalN < 1 || totalN > MAX_INSTALLMENTS) return setError(`O total de parcelas vai de 1 a ${MAX_INSTALLMENTS}.`);
     if (!Number.isInteger(paidN) || paidN < 0 || paidN > totalN) return setError("As parcelas pagas vão de 0 até o total.");
     if (!nextMonth) return setError("Informe o mês da próxima parcela.");
-    const values = { name: name.trim(), installmentValue: cents, totalInstallments: totalN, paidInstallments: paidN, nextMonth, linkedTransactionId: linked || undefined, note: note.trim() || undefined };
+    // vinculada: os valores pagos de cada parcela passam a vir do lançamento (sem valor próprio guardado)
+    const values = { name: name.trim(), installmentValue: cents, totalInstallments: totalN, paidInstallments: paidN, nextMonth, linkedTransactionId: linked || undefined, note: note.trim() || undefined, ...(linked && { paidValues: undefined }) };
     if (debt) updateDebt(debt.id, values);
     else addDebt({ id: uuid(), ...values });
     showToast({ type: "success", text: debt ? `Dívida "${values.name}" atualizada` : `Dívida "${values.name}" cadastrada` });
@@ -225,8 +231,8 @@ function DebtFields({ debt, onClose }: { debt: Debt | null; onClose: () => void 
       <Field label="Nome" htmlFor="debt-name">
         <input id="debt-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex.: Consórcio da moto" className={inputClass} />
       </Field>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Valor da parcela" htmlFor="debt-value"><MoneyInput id="debt-value" value={value} onChange={setValue} placeholder="697,00" /></Field>
+      <div className={`grid gap-4 ${linked ? "sm:grid-cols-2" : "sm:grid-cols-3"}`}>
+        {!linked && <Field label="Valor da parcela" htmlFor="debt-value"><MoneyInput id="debt-value" value={value} onChange={setValue} placeholder="697,00" /></Field>}
         <Field label="Total de parcelas" htmlFor="debt-total">
           <input id="debt-total" inputMode="numeric" value={total} onChange={(e) => setTotal(e.target.value.replace(/\D/g, "").slice(0, 3))} placeholder="60" className={inputClass} />
         </Field>
@@ -240,7 +246,11 @@ function DebtFields({ debt, onClose }: { debt: Debt | null; onClose: () => void 
           <option value="">Nenhuma</option>
           {fixed.map((t) => <option key={t.id} value={t.id}>{t.name} ({formatBRL(t.amount)})</option>)}
         </select>
-        <p className="mt-1 text-xs text-muted-foreground">Escolha a despesa fixa que já traz esta parcela no seu orçamento: o valor não é somado duas vezes, e a Projeção mostra quando ela cai.</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {linked
+            ? "O valor da parcela vem desta despesa fixa, em Lançamentos: se mudar lá, muda aqui. Ao pagar a despesa, a parcela é registrada nesta aba sozinha."
+            : "Escolha a despesa fixa que já traz esta parcela no seu orçamento: o valor não é somado duas vezes, e a Projeção mostra quando ela cai."}
+        </p>
       </Field>
       <Field label="Observação" hint="(opcional)" htmlFor="debt-note">
         <input id="debt-note" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} className={inputClass} />
@@ -295,7 +305,7 @@ function PayFields({ request, onClose, onConfirm }: { request: { debt: Debt; mon
 }
 
 /** As parcelas já pagas de uma dívida, 6 por página, com o valor de cada uma e a correção dele (desconto ou acréscimo). */
-function PaidInstallments({ debt }: { debt: Debt }) {
+function PaidInstallments({ debt, linked }: { debt: Debt; linked: boolean }) {
   const transactions = useFinanceStore((s) => s.transactions);
   const setPaidValue = useFinanceStore((s) => s.setDebtPaidValue);
   const [open, setOpen] = useState(false);
@@ -334,7 +344,8 @@ function PaidInstallments({ debt }: { debt: Debt }) {
                 ) : (
                   <span className="flex items-center gap-3">
                     <b className="num">{formatBRL(x.value)}</b>
-                    <button type="button" onClick={() => { setEditing(x.month); setValue(centsToInput(x.value)); setError(""); }} className="font-bold text-primary hover:underline">Editar valor</button>
+                    {/* com vínculo, o valor vem de Lançamentos (um desconto lá muda a parcela aqui) */}
+                    {!linked && <button type="button" onClick={() => { setEditing(x.month); setValue(centsToInput(x.value)); setError(""); }} className="font-bold text-primary hover:underline">Editar valor</button>}
                   </span>
                 )}
               </li>

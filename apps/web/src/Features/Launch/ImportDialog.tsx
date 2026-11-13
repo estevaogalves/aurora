@@ -81,7 +81,7 @@ function Wizard({ onClose }: { onClose: () => void }) {
   const body = mapping?.hasHeader ? rows.slice(1) : rows;
   const flagged = useMemo(() => sensitiveColumns(body.slice(0, 200)), [body]);
   const width = Math.max(0, ...rows.map((r) => r[0] === undefined ? 0 : r.length));
-  const signature = mapping?.hasHeader ? rows[0].map(plain).join("|") : `cols:${width}`;
+  const signature = mapping?.hasHeader ? (rows[0] ?? []).map(plain).join("|") : `cols:${width}`;
   const columnLabel = (c: number) => (mapping?.hasHeader && rows[0]?.[c] ? rows[0][c] : `Coluna ${c + 1}`) + (body[0]?.[c] ? ` (ex.: ${body[0][c].slice(0, 18)})` : "");
   const usable = Array.from({ length: width }, (_, c) => c).filter((c) => !flagged.has(c));
 

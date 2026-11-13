@@ -197,6 +197,8 @@ interface FinanceState {
   payDebtInstallment: (id: string, amount?: number) => void;
   /** Corrige o valor realmente pago numa parcela já paga (desconto ou acréscimo daquele mês). */
   setDebtPaidValue: (id: string, month: string, amount: number) => void;
+  /** Desfaz a última parcela paga (usado quando o pagamento da despesa fixa vinculada é desmarcado). */
+  unpayDebtInstallment: (id: string) => void;
   /** Fecha um mês com o retrato e a anotação; fechar de novo substitui. */
   closeMonth: (month: string, closing: MonthClosing) => void;
   /** Reabre o mês (tira o fechamento). */
@@ -757,6 +759,20 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       }));
       savePlanning();
     },
+    unpayDebtInstallment: (id) => {
+      const d = get().debts.find((x) => x.id === id);
+      if (!d || d.paidInstallments <= 0) return;
+      const last = changeMonth(d.nextMonth, -1);
+      set((s) => ({
+        debts: s.debts.map((x) => {
+          if (x.id !== id) return x;
+          const rest = { ...x.paidValues };
+          delete rest[last];
+          return { ...x, paidInstallments: x.paidInstallments - 1, nextMonth: last, paidValues: Object.keys(rest).length > 0 ? rest : undefined };
+        }),
+      }));
+      savePlanning();
+    },
     setDebtPaidValue: (id, month, amount) => {
       const d = get().debts.find((x) => x.id === id);
       if (!d || !paidMonths(d).includes(month)) return;
@@ -801,6 +817,12 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       const patch = payment ? patchSetPayment(t, month, payment) : patchClearPayment(t, month);
       set((state) => ({ transactions: state.transactions.map((x) => (x.id === id ? { ...x, ...patch } : x)) }));
       sync(repository.setTransactionPayment(id, month, payment));
+      // dívida vinculada a esta despesa fixa: o pagamento do mês da próxima parcela registra a parcela sozinho (sem valor
+      // próprio: o valor segue o lançamento); desmarcar o pagamento da última parcela paga a desfaz
+      for (const d of get().debts.filter((x) => x.linkedTransactionId === id)) {
+        if (payment && month === d.nextMonth && d.paidInstallments < d.totalInstallments) get().payDebtInstallment(d.id);
+        else if (!payment && d.paidInstallments > 0 && paidMonths(d).at(-1) === month) get().unpayDebtInstallment(d.id);
+      }
     },
 
     setTransactionDistGroup: (id, group) => {
