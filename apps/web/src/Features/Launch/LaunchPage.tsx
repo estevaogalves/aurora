@@ -475,7 +475,7 @@ function InstallmentsPanel() {
       {credit.length === 0 ? (
         <Empty>Nenhuma compra parcelada neste mês.</Empty>
       ) : (
-        <>
+        <CollapsibleSection id="installments" title="Parcelas do mês" count={credit.length} first>
           {credit.map((c) => (
             <InstallmentRow
               key={`${c.id}-${c.currentInstallment}`}
@@ -490,7 +490,7 @@ function InstallmentsPanel() {
             />
           ))}
           <TotalFooter label="Total das parcelas do mês" value={total} />
-        </>
+        </CollapsibleSection>
       )}
       <InvoicesSection />
 
