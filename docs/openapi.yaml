@@ -1242,6 +1242,13 @@ components:
           type: object
           description: Valor realmente pago em cada parcela paga, por mês da parcela (para um desconto ou acréscimo daquele mês).
           additionalProperties: { $ref: "#/components/schemas/Cents" }
+        prepaidLast:
+          type: object
+          description: "Consórcio linear com a última parcela paga antes da hora (junto com uma parcela do mês): valor pago e o pagamento (forma e dia)."
+          required: [value, payment]
+          properties:
+            value: { $ref: "#/components/schemas/Cents" }
+            payment: { $ref: "#/components/schemas/Payment" }
         note: { type: string, maxLength: 200 }
         linkedTransactionId: { type: string, deprecated: true, description: Obsoleto (modelo antigo, preso a uma despesa fixa). Só é lido para descartar esses cadastros; o app não grava mais. }
     MonthClosing:

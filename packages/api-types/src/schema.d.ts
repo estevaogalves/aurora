@@ -3011,6 +3011,11 @@ export interface components {
             paidValues?: {
                 [key: string]: components["schemas"]["Cents"];
             };
+            /** @description Consórcio linear com a última parcela paga antes da hora (junto com uma parcela do mês): valor pago e o pagamento (forma e dia). */
+            prepaidLast?: {
+                value: components["schemas"]["Cents"];
+                payment: components["schemas"]["Payment"];
+            };
             note?: string;
             /**
              * @deprecated

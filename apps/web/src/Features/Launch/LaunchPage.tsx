@@ -7,7 +7,7 @@ import Panel, { Empty, PageHeader, Pill } from "@/components/shared/Panel";
 import RowMenu from "@/components/shared/RowMenu";
 import { btnClass } from "@/components/shared/styles";
 import { useUiStore } from "@/Store/UiStore";
-import { canAdvanceInstallment, chargeDay, dayMonth, distGroupOf, distLabel, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paidMonths, paymentOf, paymentStatusLabel, type Payment } from "@/domain";
+import { canAdvanceInstallment, chargeDay, dayMonth, distGroupOf, distLabel, formatPaymentDay, getCreditEffectiveTotal, getCreditProgress, getInstallmentMonth, isCardPurchase, isScheduled, paymentMethodLabel, paidMonths, paymentOf, paymentStatusLabel, type Debt, type Payment } from "@/domain";
 import { formatBRL } from "@/lib/money";
 import { useFinanceStore, type CreditTransaction, type ExtraExpense, type Transaction } from "@/Store/FinanceStore";
 import { useLaunchFiltering } from "./filtering";
@@ -21,6 +21,7 @@ import { EditCreditDialog, EditTransactionDialog } from "./EditDialogs";
 import { EndedList, EndFixedDialog } from "./EndedFixed";
 import InvoicesSection from "./Invoices";
 import { AdvanceDialog, CancelRecurrenceDialog, EditInstallmentDialog, ScopeDialog } from "./InstallmentDialogs";
+import DebtPayDialog from "../Debts/DebtPayDialog";
 import PaymentDialog, { type PaymentTarget } from "./PaymentDialog";
 import { ProgressMini, Row } from "./rows";
 import { LANCAMENTOS_TOUR } from "./tour";
@@ -286,18 +287,21 @@ function ExpensesPanel() {
   // parcelas de dívidas e consórcios ficam à parte: não são despesas fixas (vêm do cadastro em Dívidas)
   const fixed = expenses.filter((t) => t.fixed && !t.debtOrigin && view.expense(t)).sort((a, b) => b.amount - a.amount);
   const debtRows = expenses.filter((t) => t.debtOrigin && view.expense(t)).sort((a, b) => b.amount - a.amount);
-  const variable = expenses.filter((t) => !t.fixed && view.expense(t)).sort((a, b) => b.amount - a.amount);
+  const variable = expenses.filter((t) => !t.fixed && !t.debtOrigin && view.expense(t)).sort((a, b) => b.amount - a.amount);
   const shownExtras = extras.filter((e) => view.extra(e));
   const count = expenses.length + extras.length;
 
   const debts = useFinanceStore((s) => s.debts);
+  const [payingDebt, setPayingDebt] = useState<Debt | null>(null);
   const payTx = (t: Transaction) => {
     // parcela de dívida: só a próxima se paga e só a última paga se desmarca (em ordem); as outras ficam sem menu
     if (t.debtOrigin) {
+      // a última parcela paga antes da hora não tem menu aqui (desfaz-se em Dívidas)
+      if (t.id.endsWith(":last")) return undefined;
       const d = debts.find((x) => x.id === t.debtId);
       const canPay = !!d && month === d.nextMonth && !paymentOf(t, month);
       const canClear = !!d && paymentOf(t, month) && paidMonths(d).at(-1) === month;
-      return canPay || canClear ? { onPay: () => setPaying({ kind: "tx", id: t.id, name: t.name, amount: t.amount, current: paymentOf(t, month) }), onClearPay: () => setTransactionPayment(t.id, month, null) } : undefined;
+      return canPay || canClear ? { onPay: () => setPayingDebt(d!), onClearPay: () => setTransactionPayment(t.id, month, null) } : undefined;
     }
     return payTxPlain(t);
   };
@@ -340,6 +344,7 @@ function ExpensesPanel() {
       <EditTransactionDialog transaction={editing} onClose={() => setEditing(null)} />
       <EndFixedDialog transaction={ending} month={month} onClose={() => setEnding(null)} />
       <EditExtraDialog extra={editingExtra} onClose={() => setEditingExtra(null)} />
+      <DebtPayDialog debt={payingDebt} onClose={() => setPayingDebt(null)} />
       <PaymentDialog target={paying} onConfirm={confirmPayment} onClose={() => setPaying(null)} />
       <ConfirmDeletion
         open={!!extraToDelete}

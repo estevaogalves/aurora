@@ -40,10 +40,19 @@ type Debt struct {
 	Payments map[string]Payment `json:"payments,omitempty"`
 	// PaidValues: valor realmente pago em cada parcela paga, por mês da parcela (centavos).
 	PaidValues map[string]int64 `json:"paidValues,omitempty"`
-	Note       string           `json:"note,omitempty"`
+	// PrepaidLast: consórcio linear com a última parcela paga antes da hora (junto com uma parcela do mês).
+	PrepaidLast *PrepaidLast `json:"prepaidLast,omitempty"`
+	Note        string       `json:"note,omitempty"`
 	// LinkedTransactionID: OBSOLETO. Modelo antigo, em que a dívida seguia uma despesa fixa. Só é lido para que o front
 	// descarte esses cadastros; nunca mais é gravado pelo app.
 	LinkedTransactionID string `json:"linkedTransactionId,omitempty"`
+}
+
+// PrepaidLast é a última parcela de um consórcio linear paga antes da hora.
+type PrepaidLast struct {
+	// Value: centavos realmente pagos na última parcela.
+	Value   int64   `json:"value"`
+	Payment Payment `json:"payment"`
 }
 
 // MonthClosing é o retrato de um mês fechado.
