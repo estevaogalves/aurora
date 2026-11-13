@@ -26,14 +26,18 @@ export interface Preferences {
   scenario: Scenario;
   /** avisos do sino que o usuário limpou (some da lista "Já vistos"; volta só se o aviso mudar de nível) */
   clearedAlerts: string[];
+  /** seções de Lançamentos que o usuário fechou (as outras ficam abertas) */
+  collapsedSections: string[];
 }
 
 /** Quantos insights dispensados ficam guardados (os mais antigos saem primeiro). */
 export const MAX_DISMISSED = 200;
 /** Quantos avisos limpos ficam guardados (os mais antigos saem primeiro). */
 export const MAX_CLEARED = 500;
+/** Quantas seções fechadas ficam guardadas. */
+export const MAX_COLLAPSED = 50;
 
-export const DEFAULT_PREFS: Preferences = { showHours: false, hoursPerMonth: DEFAULT_HOURS_PER_MONTH, netIncome: null, showBreathing: false, dismissedInsights: [], dueWindow: DEFAULT_DUE_WINDOW, scenario: "conservative", clearedAlerts: [] };
+export const DEFAULT_PREFS: Preferences = { showHours: false, hoursPerMonth: DEFAULT_HOURS_PER_MONTH, netIncome: null, showBreathing: false, dismissedInsights: [], dueWindow: DEFAULT_DUE_WINDOW, scenario: "conservative", clearedAlerts: [], collapsedSections: [] };
 
 /** Lê o que foi salvo, aceitando só campos do tipo certo (o resto volta ao padrão). */
 export function parsePrefs(raw: string | null): Preferences {
@@ -46,6 +50,7 @@ export function parsePrefs(raw: string | null): Preferences {
       netIncome: typeof d.netIncome === "number" && d.netIncome > 0 ? d.netIncome : null,
       showBreathing: d.showBreathing === true,
       clearedAlerts: Array.isArray(d.clearedAlerts) ? d.clearedAlerts.filter((x): x is string => typeof x === "string").slice(-MAX_CLEARED) : [],
+      collapsedSections: Array.isArray(d.collapsedSections) ? d.collapsedSections.filter((x): x is string => typeof x === "string").slice(-MAX_COLLAPSED) : [],
       scenario: isScenario(d.scenario) ? d.scenario : "conservative",
       dueWindow: (DUE_WINDOWS as readonly number[]).includes(d.dueWindow as number) ? (d.dueWindow as number) : DEFAULT_DUE_WINDOW,
       dismissedInsights: Array.isArray(d.dismissedInsights) ? d.dismissedInsights.filter((x): x is string => typeof x === "string").slice(-MAX_DISMISSED) : [],
@@ -71,9 +76,9 @@ export const usePrefsStore = create<PrefsState>((set, get) => ({
   ...read(),
   setPrefs: (patch) => {
     set(patch);
-    const { showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow, scenario, clearedAlerts } = get();
+    const { showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow, scenario, clearedAlerts, collapsedSections } = get();
     try {
-      localStorage.setItem(PREFS_KEY, JSON.stringify({ showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow, scenario, clearedAlerts }));
+      localStorage.setItem(PREFS_KEY, JSON.stringify({ showHours, hoursPerMonth, netIncome, showBreathing, dismissedInsights, dueWindow, scenario, clearedAlerts, collapsedSections }));
     } catch {
       // sem persistência, vale só para a sessão
     }
@@ -91,4 +96,10 @@ export function dismissInsight(id: string) {
 export function clearAlerts(keys: string[]) {
   const { clearedAlerts, setPrefs } = usePrefsStore.getState();
   setPrefs({ clearedAlerts: [...new Set([...clearedAlerts, ...keys])].slice(-MAX_CLEARED) });
+}
+
+/** Abre ou fecha uma seção de Lançamentos; a escolha fica guardada neste navegador. */
+export function toggleSection(id: string) {
+  const { collapsedSections, setPrefs } = usePrefsStore.getState();
+  setPrefs({ collapsedSections: collapsedSections.includes(id) ? collapsedSections.filter((x) => x !== id) : [...collapsedSections, id].slice(-MAX_COLLAPSED) });
 }

@@ -44,38 +44,38 @@ export default function FilterBar() {
       </div>
 
       {open && (
-        <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Categoria
+        <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-flow-col lg:auto-cols-fr">
+          <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Categoria
             <select value={filter.category} onChange={(e) => setFilter({ category: e.target.value })} className={inputClass}>
               <option value="">Todas</option>
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Pagamento (despesas)
+          <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Pagamento (despesas)
             <select value={filter.status} onChange={(e) => setFilter({ status: e.target.value as typeof filter.status })} className={inputClass}>
               <option value="all">Todas</option>
               <option value="paid">Pagas</option>
               <option value="pending">Pendentes</option>
             </select>
           </label>
-          <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Forma de pagamento
+          <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Forma de pagamento
             <select value={filter.method} onChange={(e) => setFilter({ method: e.target.value as "" | PaymentMethod })} className={inputClass}>
               <option value="">Qualquer</option>
               {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
           </label>
           {tags.length > 0 && (
-            <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Tag
+            <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Tag
               <select value={filter.tag} onChange={(e) => setFilter({ tag: e.target.value })} className={inputClass}>
                 <option value="">Qualquer</option>
                 {tags.map((t) => <option key={t} value={t}>{t}</option>)}
               </select>
             </label>
           )}
-          <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Valor a partir de
+          <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Valor a partir de
             <input inputMode="decimal" defaultValue={money(filter.min)} key={`min-${active}`} onChange={(e) => setFilter({ min: e.target.value.trim() ? parseBRL(e.target.value) : null })} placeholder="0,00" className={inputClass} />
           </label>
-          <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Valor até
+          <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Valor até
             <input inputMode="decimal" defaultValue={money(filter.max)} key={`max-${active}`} onChange={(e) => setFilter({ max: e.target.value.trim() ? parseBRL(e.target.value) : null })} placeholder="sem limite" className={inputClass} />
           </label>
         </div>
