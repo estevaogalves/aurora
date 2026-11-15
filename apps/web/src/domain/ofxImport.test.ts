@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildImportRows, guessMapping } from "./csvImport";
 import { isOfx, ofxToRows, parseOfx, purchasesAreNegative } from "./ofxImport";
 
-// o fuso entre colchetes é montado aqui para o Tailwind não ler "[-3:BRT]" como classe e gerar CSS inválido
+// o fuso entre colchetes é montado aqui (em duas partes) para o Tailwind não ler o texto como classe e gerar CSS inválido
 const TZ = "[-3" + ":BRT]";
 const SGML = `OFXHEADER:100
 DATA:OFXSGML
