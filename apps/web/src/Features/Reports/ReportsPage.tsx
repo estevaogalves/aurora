@@ -16,6 +16,7 @@ import { loadReportPrefs, sameReportPrefs, saveReportPrefs, type ReportFormat } 
 import { RELATORIOS_TOUR } from "./tour";
 import { useTransactions } from "@/Store/selectors";
 import OptionSelect from "@/components/shared/OptionSelect";
+import { placeWord } from "@/platform";
 
 const CONTENT = [
   { key: "summary", label: "Resumo de renda, despesas e saldo" },
@@ -56,7 +57,7 @@ export default function ReportsPage() {
   function savePrefs() {
     const prefs = { format, content };
     if (!saveReportPrefs(prefs)) {
-      showToast({ type: "error", text: "Não foi possível salvar: o navegador não deixou guardar a preferência" });
+      showToast({ type: "error", text: `Não foi possível salvar: o ${placeWord()} não deixou guardar a preferência` });
       return;
     }
     setSaved(prefs);
@@ -222,7 +223,7 @@ export default function ReportsPage() {
               </button>
             </div>
             <p className="mt-2 text-[12.5px] text-muted-foreground" role="status">
-              {unsaved ? "Você mudou o formato ou o conteúdo. Salve para a tela abrir assim da próxima vez." : "O formato e o conteúdo marcados acima são o seu padrão salvo neste navegador."}
+              {unsaved ? "Você mudou o formato ou o conteúdo. Salve para a tela abrir assim da próxima vez." : `O formato e o conteúdo marcados acima são o seu padrão salvo neste ${placeWord()}.`}
             </p>
           </Panel>
         </div>

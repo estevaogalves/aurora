@@ -1,4 +1,5 @@
 import type { TourStep } from "@/components/tour/types";
+import { placeWord } from "@/platform";
 
 export const PAINEL_TOUR: TourStep[] = [
   { target: "lancar", title: "Todo cadastro começa aqui", text: "O botão Lançar abre o formulário de despesa, renda, compra no crédito, despesa extra e meta. O Painel só mostra os números.", placement: ["bottom", "left"] },
@@ -6,7 +7,7 @@ export const PAINEL_TOUR: TourStep[] = [
   { target: "prazos", title: "Metas com prazo chegando", text: "Este aviso aparece quando uma meta está perto do prazo ou vencida. Marque como visto para dispensá-lo; ele também fica no sino do topo.", placement: ["bottom"] },
   { target: "fechar-mes", title: "Fechar o mês", text: "Um passo a passo para encerrar o mês: resumo, o que ainda não foi pago, a divisão do saldo, a comparação com o mês anterior e uma anotação do que você aprendeu. Fechar não apaga nem altera nenhum lançamento: só marca o mês e guarda um retrato. Editar um mês fechado pede para reabri-lo antes.", placement: ["bottom", "left"] },
   { target: "tempo", title: "Tempo e fôlego (opcional)", text: "Veja as despesas também em horas de trabalho (valor da hora = renda líquida ÷ horas do mês) e ligue o card Dias de fôlego, que mostra quantos dias a sua reserva sustenta. Vem desligado e não muda nenhum valor.", placement: ["bottom", "left"] },
-  { target: "insights", title: "Em destaque neste mês", text: "Até 3 frases geradas por regras sobre os seus próprios dados (categoria que mudou, saldo do mês, despesa nova, metas, mês futuro apertado). Nada sai do seu navegador, e você pode dispensar cada uma no X. Só aparece com 2 meses ou mais de movimento.", placement: ["bottom"] },
+  { target: "insights", title: "Em destaque neste mês", text: "Até 3 frases geradas por regras sobre os seus próprios dados (categoria que mudou, saldo do mês, despesa nova, metas, mês futuro apertado). Nada sai do seu " + placeWord() + ", e você pode dispensar cada uma no X. Só aparece com 2 meses ou mais de movimento.", placement: ["bottom"] },
   { target: "saldo", title: "Seu saldo do mês", text: "Renda menos despesas, já somando as parcelas do crédito. A barra mostra quanto da renda está comprometida.", placement: ["right", "bottom"] },
   { target: "tendencia", title: "Últimos 6 meses", text: "Renda e despesas mês a mês, para ver se o gasto está subindo ou se a renda cobre o que sai.", placement: ["left", "bottom"] },
   { target: "vencimentos", title: "Próximos vencimentos", text: "O que ainda não foi pago: despesas que têm “Dia do vencimento” e as faturas de cartão (uma vez, no vencimento). Os atrasados vêm primeiro, em destaque. “Marcar como paga” é só um registro e tira o item daqui, sem mudar nenhum total. Escolha 7, 14 ou 30 dias. Os atrasados e os que vencem em até 3 dias também avisam no sino.", placement: ["top", "right"] },

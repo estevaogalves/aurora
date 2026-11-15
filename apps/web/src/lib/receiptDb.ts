@@ -4,14 +4,15 @@
  */
 const DB_NAME = "aurora-receipts";
 const STORE = "files";
+import { placeWord } from "../platform";
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    if (typeof indexedDB === "undefined") return reject(new Error("Este navegador não guarda arquivos."));
+    if (typeof indexedDB === "undefined") return reject(new Error(`Este ${placeWord()} não guarda arquivos.`));
     const req = indexedDB.open(DB_NAME, 1);
     req.onupgradeneeded = () => req.result.createObjectStore(STORE);
     req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(new Error("Não foi possível guardar o arquivo neste navegador."));
+    req.onerror = () => reject(new Error(`Não foi possível guardar o arquivo neste ${placeWord()}.`));
   });
 }
 
@@ -21,7 +22,7 @@ async function run<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => I
     return await new Promise<T>((resolve, reject) => {
       const req = fn(db.transaction(STORE, mode).objectStore(STORE));
       req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(new Error("Não foi possível ler ou guardar o arquivo neste navegador."));
+      req.onerror = () => reject(new Error(`Não foi possível ler ou guardar o arquivo neste ${placeWord()}.`));
     });
   } finally {
     db.close();

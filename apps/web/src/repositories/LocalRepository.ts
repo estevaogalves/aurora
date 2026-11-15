@@ -28,6 +28,7 @@ import { MAX_RECEIPTS_PER_TRANSACTION, MAX_RECEIPT_BYTES, cleanFileName, receipt
 import { todayISO } from "../domain/payment";
 import { deleteReceiptFile, getReceiptFile, putReceiptFile } from "../lib/receiptDb";
 import { uuid } from "../lib/uuid";
+import { placeWord } from "../platform";
 import { getCurrentMonth } from "../Utils/Date";
 import type { FinanceRepository } from "./FinanceRepository";
 import {
@@ -337,7 +338,7 @@ export class LocalRepository implements FinanceRepository {
   async getReceipt(id: string) {
     const meta = (this.data.receipts ?? []).find((r) => r.id === id);
     const data = meta ? await getReceiptFile(id) : undefined;
-    if (!meta || !data) throw new Error("Comprovante não encontrado neste navegador.");
+    if (!meta || !data) throw new Error(`Comprovante não encontrado neste ${placeWord()}.`);
     return { meta, data };
   }
 

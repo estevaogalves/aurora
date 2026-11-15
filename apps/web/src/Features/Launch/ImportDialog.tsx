@@ -29,6 +29,7 @@ import { useUiStore } from "@/Store/UiStore";
 import { expenseCategoryOptions, type Category } from "@/Types/Category";
 import { showToast } from "../Warnings/toast";
 import OptionSelect from "@/components/shared/OptionSelect";
+import { placeWord } from "@/platform";
 import { isOfx, ofxToRows, parseOfx, purchasesAreNegative, type OfxTx } from "@/domain/ofxImport";
 
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
@@ -46,7 +47,7 @@ export default function ImportDialog() {
       <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle>Importar extrato ou fatura (CSV ou OFX)</DialogTitle>
-          <DialogDescription>O arquivo é lido aqui no navegador e descartado. Nada é gravado antes de você confirmar a pré-visualização.</DialogDescription>
+          <DialogDescription>O arquivo é lido aqui no {placeWord()} e descartado. Nada é gravado antes de você confirmar a pré-visualização.</DialogDescription>
         </DialogHeader>
         {open && <Wizard onClose={close} />}
       </DialogContent>
