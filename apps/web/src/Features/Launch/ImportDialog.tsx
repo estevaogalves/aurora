@@ -29,11 +29,12 @@ import { useUiStore } from "@/Store/UiStore";
 import { expenseCategoryOptions, type Category } from "@/Types/Category";
 import { showToast } from "../Warnings/toast";
 import OptionSelect from "@/components/shared/OptionSelect";
+import { isOfx, ofxToRows, parseOfx, purchasesAreNegative, type OfxTx } from "@/domain/ofxImport";
 
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
 /**
- * Importar extrato ou fatura em CSV: 1) escolher o arquivo e o destino, 2) conferir as colunas, 3) pré-visualizar
+ * Importar extrato ou fatura em CSV ou OFX: 1) escolher o arquivo e o destino, 2) conferir as colunas, 3) pré-visualizar
  * (categoria sugerida pelas suas regras, duplicados marcados) e só então confirmar. O arquivo é lido na memória do
  * navegador e descartado: nada é enviado nem guardado, e nada vira lançamento antes de "Importar".
  */
@@ -44,7 +45,7 @@ export default function ImportDialog() {
     <Dialog open={open} onOpenChange={(next) => !next && close()}>
       <DialogContent className="max-h-[92vh] max-w-3xl overflow-y-auto" onInteractOutside={(e) => e.preventDefault()}>
         <DialogHeader>
-          <DialogTitle>Importar extrato ou fatura (CSV)</DialogTitle>
+          <DialogTitle>Importar extrato ou fatura (CSV ou OFX)</DialogTitle>
           <DialogDescription>O arquivo é lido aqui no navegador e descartado. Nada é gravado antes de você confirmar a pré-visualização.</DialogDescription>
         </DialogHeader>
         {open && <Wizard onClose={close} />}
@@ -66,6 +67,8 @@ function Wizard({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
   const [rows, setRows] = useState<string[][]>([]);
+  // arquivo OFX lido (null para CSV): na fatura de cartão o sinal das compras é acertado só ao montar a pré-visualização
+  const [ofx, setOfx] = useState<OfxTx[] | null>(null);
   const [destination, setDestination] = useState(""); // "" = conta (despesas e rendas); senão, o id do cartão
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
   const [bankName, setBankName] = useState("");
@@ -90,8 +93,11 @@ function Wizard({ onClose }: { onClose: () => void }) {
     setError("");
     if (!file) return;
     if (file.size > IMPORT_MAX_BYTES) return setError("O arquivo passa de 2 MB. Divida o extrato em períodos menores.");
-    const parsed = parseCsv(decodeCsvBytes(await file.arrayBuffer()));
-    if (parsed.length < 2) return setError("Não encontrei linhas neste arquivo. Ele precisa ser um CSV com cabeçalho e lançamentos.");
+    const text = decodeCsvBytes(await file.arrayBuffer());
+    const txs = isOfx(text) ? parseOfx(text) : null;
+    const parsed = txs ? ofxToRows(txs) : parseCsv(text);
+    setOfx(txs);
+    if (parsed.length < 2) return setError(txs ? "Não encontrei lançamentos neste arquivo OFX." : "Não encontrei linhas neste arquivo. Ele precisa ser um CSV (ou OFX) com os lançamentos.");
     if (parsed.length > IMPORT_MAX_ROWS + 1) return setError(`O arquivo tem mais de ${IMPORT_MAX_ROWS} linhas. Divida o extrato em períodos menores.`);
     setFileName(file.name);
     setRows(parsed);
@@ -118,7 +124,9 @@ function Wizard({ onClose }: { onClose: () => void }) {
     // fatura de cartão: tudo é compra (despesa); a coluna de crédito não se aplica
     const m: ColumnMapping = destination ? { ...mapping, credit: undefined, signMode: "expense" } : mapping;
     if (new Set([m.date, m.description, m.amount, ...(m.credit !== undefined ? [m.credit] : [])]).size < (m.credit !== undefined ? 4 : 3)) return setError("Escolha colunas diferentes para data, descrição e valor (e para débito e crédito, se usar as duas).");
-    const built = buildImportRows(rows, m, prefs.rules);
+    // OFX de fatura: o padrão traz a compra negativa e o importador espera positiva
+    const source = ofx && destination && purchasesAreNegative(ofx) ? ofxToRows(ofx, true) : rows;
+    const built = buildImportRows(source, m, prefs.rules);
     if (built.rows.length === 0) return setError("Nenhuma linha pôde ser lida com essas colunas. Confira a data e o valor.");
     const marked = markDuplicates(built.rows, transactions, new Set(prefs.imported));
     setError("");
@@ -202,11 +210,11 @@ function Wizard({ onClose }: { onClose: () => void }) {
             </OptionSelect>
             {destination && <p className="mt-1 text-xs text-muted-foreground">Cada linha vira uma despesa no cartão, com o dia da compra, e entra na fatura certa (fechamento e vencimento do cartão). Todas as linhas são despesas.</p>}
           </Field>
-          <Field label="Arquivo CSV" htmlFor="imp-file" hint="(até 2 MB e 1.000 linhas)">
-            <input id="imp-file" type="file" accept=".csv,.txt,text/csv" onChange={(e) => void pick(e.target.files?.[0])} className={`${inputClass} py-2`} />
+          <Field label="Arquivo CSV ou OFX" htmlFor="imp-file" hint="(até 2 MB e 1.000 linhas)">
+            <input id="imp-file" type="file" accept=".csv,.ofx,.txt,text/csv,text/plain,application/x-ofx,application/ofx,application/octet-stream" onChange={(e) => void pick(e.target.files?.[0])} className={`${inputClass} py-2`} />
           </Field>
           <p className="rounded-md bg-secondary px-3 py-2 text-[12.5px] text-muted-foreground">
-            Baixe o extrato ou a fatura no app do seu banco, em CSV. Números de cartão, CPF e documentos são ignorados e mascarados, e nada do arquivo é guardado.
+            Baixe o extrato ou a fatura no app do seu banco, em CSV ou OFX (os dois funcionam). Números de cartão, CPF e documentos são ignorados e mascarados, e nada do arquivo é guardado.
           </p>
           <section aria-label="Planilhas modelo" className="flex flex-col gap-3 rounded-md border border-border p-3.5">
             <div>
