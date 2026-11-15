@@ -1,5 +1,10 @@
 apply plugin: 'com.android.application'
 
+// Chave de assinatura do release: fica FORA do repositório (~/Android/keys/keystore.properties, ou o caminho em AURORA_KEYSTORE_PROPS).
+def keystoreProps = new Properties()
+def keystoreFile = file(System.getenv('AURORA_KEYSTORE_PROPS') ?: "${System.getProperty('user.home')}/Android/keys/keystore.properties")
+if (keystoreFile.exists()) keystoreFile.withInputStream { keystoreProps.load(it) }
+
 android {
     namespace = "br.com.aurora.financeiro"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,8 +21,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystoreProps['storeFile']) {
+                storeFile file(keystoreProps['storeFile'])
+                storePassword keystoreProps['storePassword']
+                keyAlias keystoreProps['keyAlias']
+                keyPassword keystoreProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (keystoreProps['storeFile']) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

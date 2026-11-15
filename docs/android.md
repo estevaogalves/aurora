@@ -10,6 +10,9 @@ pnpm --filter web android:debug
 ```
 O arquivo sai em `apps/web/android/app/build/outputs/apk/debug/app-debug.apk`.
 
+## Gerar o APK assinado (o que se instala de verdade)
+`./gradlew assembleRelease` (em `apps/web/android`) assina com a chave em `~/Android/keys/keystore.properties` (ou o caminho em `AURORA_KEYSTORE_PROPS`). A keystore **nunca vai para o Git**. Guarde uma cópia de `aurora-release.jks` e da senha fora do PC: sem elas não dá para atualizar o app por cima do instalado (seria preciso desinstalar e perder os dados). Saída: `app/build/outputs/apk/release/app-release.apk`.
+
 ## Instalar no celular
 Ative a Depuração USB e rode `adb install -r app-debug.apk`, ou copie o arquivo e instale (permitindo fontes desconhecidas).
 

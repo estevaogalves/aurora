@@ -13,6 +13,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- fundo e barras do sistema no tom do app (o sistema claro deixava faixas brancas no topo e embaixo) -->
+        <item name="android:windowBackground">@color/auroraBackground</item>
+        <item name="android:statusBarColor">@color/auroraBackground</item>
+        <item name="android:navigationBarColor">@color/auroraBackground</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
 
