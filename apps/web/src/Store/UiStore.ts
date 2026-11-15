@@ -16,6 +16,11 @@ interface UiState {
   importOpen: boolean;
   openImport: () => void;
   closeImport: () => void;
+  /** Arquivo recebido por "Compartilhar" / "Abrir com" (app Android): a importação abre com ele já escolhido. */
+  sharedFile: File | null;
+  openImportWith: (file: File) => void;
+  /** Entrega o arquivo recebido uma única vez (a janela de importação o guarda). */
+  takeSharedFile: () => File | null;
   /** Calculadora: aberta ou fechada independente do "Lançar". A conta em andamento sobrevive à troca de lugar do card e também ao fechar; só o botão C limpa. */
   calcOpen: boolean;
   calc: CalcState;
@@ -31,7 +36,7 @@ interface UiState {
 }
 
 /** Estado só de tela: o modal "Lançar" é aberto de qualquer lugar. */
-export const useUiStore = create<UiState>((set) => ({
+export const useUiStore = create<UiState>((set, get) => ({
   launchOpen: false,
   launchTab: "expense",
   openLaunch: (tab) => set((s) => ({ launchOpen: true, launchTab: tab ?? s.launchTab })),
@@ -43,7 +48,14 @@ export const useUiStore = create<UiState>((set) => ({
   importOpen: false,
   // abrir a importação fecha o "Lançar" (as duas janelas não ficam empilhadas)
   openImport: () => set({ importOpen: true, launchOpen: false, calcOpen: false }),
-  closeImport: () => set({ importOpen: false }),
+  closeImport: () => set({ importOpen: false, sharedFile: null }),
+  sharedFile: null,
+  openImportWith: (file) => set({ sharedFile: file, importOpen: true, launchOpen: false, calcOpen: false }),
+  takeSharedFile: () => {
+    const file = get().sharedFile;
+    if (file) set({ sharedFile: null });
+    return file;
+  },
   calcOpen: false,
   calc: initialCalc,
   toggleCalc: () => set((s) => ({ calcOpen: !s.calcOpen })),

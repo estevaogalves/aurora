@@ -66,6 +66,8 @@ function Wizard({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<Step>("file");
   const [error, setError] = useState("");
   const [fileName, setFileName] = useState("");
+  // arquivo recebido por "Compartilhar" (app Android): já escolhido; falta só o destino e "Continuar"
+  const [received, setReceived] = useState<File | null>(() => useUiStore.getState().takeSharedFile());
   const [rows, setRows] = useState<string[][]>([]);
   // arquivo OFX lido (null para CSV): na fatura de cartão o sinal das compras é acertado só ao montar a pré-visualização
   const [ofx, setOfx] = useState<OfxTx[] | null>(null);
@@ -210,9 +212,19 @@ function Wizard({ onClose }: { onClose: () => void }) {
             </OptionSelect>
             {destination && <p className="mt-1 text-xs text-muted-foreground">Cada linha vira uma despesa no cartão, com o dia da compra, e entra na fatura certa (fechamento e vencimento do cartão). Todas as linhas são despesas.</p>}
           </Field>
+          {received ? (
+            <div className="flex flex-col gap-2 rounded-md border border-border-strong bg-secondary px-3 py-3">
+              <p className="text-[13px]">Arquivo recebido: <strong className="break-all">{received.name}</strong></p>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" onClick={() => { const f = received; setReceived(null); void pick(f); }} className={btnClass.primary}>Continuar</button>
+                <button type="button" onClick={() => setReceived(null)} className="text-[12.5px] font-semibold text-primary hover:underline">Escolher outro arquivo</button>
+              </div>
+            </div>
+          ) : (
           <Field label="Arquivo CSV ou OFX" htmlFor="imp-file" hint="(até 2 MB e 1.000 linhas)">
             <input id="imp-file" type="file" accept=".csv,.ofx,.txt,text/csv,text/plain,application/x-ofx,application/ofx,application/octet-stream" onChange={(e) => void pick(e.target.files?.[0])} className={`${inputClass} py-2`} />
           </Field>
+          )}
           <p className="rounded-md bg-secondary px-3 py-2 text-[12.5px] text-muted-foreground">
             Baixe o extrato ou a fatura no app do seu banco, em CSV ou OFX (os dois funcionam). Números de cartão, CPF e documentos são ignorados e mascarados, e nada do arquivo é guardado.
           </p>
