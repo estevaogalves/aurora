@@ -7,6 +7,7 @@ import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { formatMonthTitle } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 /**
  * Pagar a próxima parcela de uma dívida ou consórcio: confirma o valor (pode mudar: reajuste ou desconto), a forma e o dia.
@@ -85,9 +86,9 @@ function Fields({ debt, onClose }: { debt: Debt; onClose: () => void }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Forma de pagamento" htmlFor="pay-method">
-          <select id="pay-method" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} className={inputClass}>
+          <OptionSelect id="pay-method" value={method} onChange={(e) => setMethod(e.target.value as PaymentMethod)} className={inputClass}>
             {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-          </select>
+          </OptionSelect>
         </Field>
         <Field label="Data do pagamento" htmlFor="pay-date">
           <input id="pay-date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} className={`${inputClass} block min-h-11 min-w-0 max-w-full appearance-none`} />

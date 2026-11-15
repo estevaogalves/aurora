@@ -8,6 +8,7 @@ import { useLaunchFilter } from "@/lib/launchFilter";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { expenseCategoryOptions } from "@/Types/Category";
 import { useLaunchFiltering } from "./filtering";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 /**
  * Busca e filtros de Lançamentos (texto, categoria, status, forma de pagamento, faixa de valor e tag). Só mudam o que
@@ -46,30 +47,30 @@ export default function FilterBar() {
       {open && (
         <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-flow-col lg:auto-cols-fr">
           <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Categoria
-            <select value={filter.category} onChange={(e) => setFilter({ category: e.target.value })} className={inputClass}>
+            <OptionSelect value={filter.category} onChange={(e) => setFilter({ category: e.target.value })} className={inputClass}>
               <option value="">Todas</option>
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
-            </select>
+            </OptionSelect>
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Pagamento (despesas)
-            <select value={filter.status} onChange={(e) => setFilter({ status: e.target.value as typeof filter.status })} className={inputClass}>
+            <OptionSelect value={filter.status} onChange={(e) => setFilter({ status: e.target.value as typeof filter.status })} className={inputClass}>
               <option value="all">Todas</option>
               <option value="paid">Pagas</option>
               <option value="pending">Pendentes</option>
-            </select>
+            </OptionSelect>
           </label>
           <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Forma de pagamento
-            <select value={filter.method} onChange={(e) => setFilter({ method: e.target.value as "" | PaymentMethod })} className={inputClass}>
+            <OptionSelect value={filter.method} onChange={(e) => setFilter({ method: e.target.value as "" | PaymentMethod })} className={inputClass}>
               <option value="">Qualquer</option>
               {PAYMENT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+            </OptionSelect>
           </label>
           {tags.length > 0 && (
             <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Tag
-              <select value={filter.tag} onChange={(e) => setFilter({ tag: e.target.value })} className={inputClass}>
+              <OptionSelect value={filter.tag} onChange={(e) => setFilter({ tag: e.target.value })} className={inputClass}>
                 <option value="">Qualquer</option>
                 {tags.map((t) => <option key={t} value={t}>{t}</option>)}
-              </select>
+              </OptionSelect>
             </label>
           )}
           <label className="flex min-w-0 flex-col gap-1 text-[12px] font-bold text-ink2">Valor a partir de

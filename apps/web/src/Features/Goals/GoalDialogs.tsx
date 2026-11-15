@@ -13,6 +13,7 @@ import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { useFinanceStore, type Goal } from "@/Store/FinanceStore";
 import { showToast } from "../Warnings/toast";
 import { useTransactions } from "@/Store/selectors";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 /** Criar (goal = null) ou editar uma meta. */
 export function GoalDialog({ open, goal, onClose, initialName, onCreated, asPiggy }: { open: boolean; goal: Goal | null; onClose: () => void; /** ao criar, cria um porquinho (sem valor de meta) em vez de uma meta */ asPiggy?: boolean; /** nome já preenchido ao criar (ex.: vindo de uma linha da sugestão do saldo) */ initialName?: string; /** chamado com o id da meta recém-criada */ onCreated?: (id: string) => void }) {
@@ -100,9 +101,9 @@ function GoalFields({ goal, onClose, initialName, onCreated, asPiggy }: { goal: 
           </span>
           <label className="flex flex-wrap items-center gap-2">
             Cobrir
-            <select value={reserveMonths} onChange={(e) => setReserveMonths(Number(e.target.value))} aria-label="Meses de despesa fixa que a reserva cobre" className={`${inputClass} !w-auto !py-1`}>
+            <OptionSelect value={reserveMonths} onChange={(e) => setReserveMonths(Number(e.target.value))} aria-label="Meses de despesa fixa que a reserva cobre" className={`${inputClass} !w-auto !py-1`}>
               {[3, 6, 12].map((m) => <option key={m} value={m}>{m} meses</option>)}
-            </select>
+            </OptionSelect>
             = <b className="num text-foreground">{formatBRL(reserve.suggested)}</b>
           </label>
           {reserve.belowOneMonth && <span className="font-semibold text-destructive">A meta está abaixo de 1 mês de despesa fixa ({formatBRL(fixedMonthly)}).</span>}
@@ -188,9 +189,9 @@ function GoalMovementFields({ goal, movement, onClose }: { goal: Goal; movement:
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       <Field label="O que aconteceu" htmlFor="gmov-type" hint={TYPE_HINT[type]}>
-        <select id="gmov-type" value={type} onChange={(e) => { setType(e.target.value as GoalMovementType); setError(""); }} className={inputClass}>
+        <OptionSelect id="gmov-type" value={type} onChange={(e) => { setType(e.target.value as GoalMovementType); setError(""); }} className={inputClass}>
           {(Object.keys(GOAL_MOVEMENT_LABEL) as GoalMovementType[]).map((k) => <option key={k} value={k}>{GOAL_MOVEMENT_LABEL[k]}</option>)}
-        </select>
+        </OptionSelect>
       </Field>
       <Field label={type === "adjustment" ? "Novo valor guardado" : "Valor"} htmlFor="gmov-amount">
         <MoneyInput id="gmov-amount" value={amount} onChange={(v) => { setAmount(v); setError(""); }} />

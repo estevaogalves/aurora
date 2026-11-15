@@ -9,6 +9,7 @@ import { useFinanceStore, type Investment } from "@/Store/FinanceStore";
 import { GoalDialog } from "../Goals/GoalDialogs";
 import { formatMonth } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 /** O que está sendo enviado: de qual fonte e fatia da sugestão, e quanto ainda falta enviar dela. */
 export interface SendRequest {
@@ -136,9 +137,9 @@ function SendFields({ request, onClose }: { request: SendRequest; onClose: () =>
             </p>
           )}
           <Field label={DESTINATION_LABEL[destination]} htmlFor="send-target">
-            <select id="send-target" value={targetId} onChange={(e) => setTargetId(e.target.value)} className={inputClass}>
+            <OptionSelect id="send-target" value={targetId} onChange={(e) => setTargetId(e.target.value)} className={inputClass}>
               {list.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
-            </select>
+            </OptionSelect>
           </Field>
           {destination === "investment" && cotas > 0 && (
             <p className="-mt-2 text-xs text-muted-foreground">Investimentos com cotas (ações, FIIs) não aparecem aqui: eles pedem quantidade e preço, em Metas → Investimentos → Movimentar.</p>

@@ -19,6 +19,7 @@ import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { formatMonthTitle, getCurrentMonth } from "@/Utils/Date";
 import { showToast } from "../Warnings/toast";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 const DEMO: Debt[] = [
   { id: "demo-1", name: "Consórcio moto (exemplo)", kind: "consortium", installmentValue: 69700, totalInstallments: 60, paidInstallments: 12, nextMonth: getCurrentMonth() },
@@ -247,10 +248,10 @@ function DebtFields({ kind, debt, onClose }: { kind: DebtKind; debt: Debt | null
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       {consortium && (
         <Field label="Tipo de parcela" htmlFor="debt-model">
-          <select id="debt-model" value={model} onChange={(e) => { setModel(e.target.value as "linear" | "progressive"); setError(""); }} disabled={!!debt} className={inputClass}>
+          <OptionSelect id="debt-model" value={model} onChange={(e) => { setModel(e.target.value as "linear" | "progressive"); setError(""); }} disabled={!!debt} className={inputClass}>
             <option value="linear">Linear (todas as parcelas iguais)</option>
             <option value="progressive">Progressivo (a parcela cresce todo mês)</option>
-          </select>
+          </OptionSelect>
         </Field>
       )}
       <Field label="Nome" htmlFor="debt-name">

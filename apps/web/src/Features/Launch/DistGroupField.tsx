@@ -1,5 +1,6 @@
 import { Field, inputClass } from "@/components/shared/FormFields";
 import { distGroupChoices, distGroupOf, distLabel, type Transaction } from "@/domain";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 /**
  * Em qual distribuição da sugestão do saldo (Painel) esta renda variável entra: somada ao saldo do mês (Dist 1), numa
@@ -30,9 +31,9 @@ export default function DistGroupField({ id, month, transactions, exceptId, valu
 
   return (
     <Field label="Distribuição do saldo" htmlFor={id} hint="(13º, bônus)">
-      <select id={id} value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputClass}>
+      <OptionSelect id={id} value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputClass}>
         {options.map((o) => <option key={o.group} value={o.group}>{o.label}</option>)}
-      </select>
+      </OptionSelect>
       <span className="text-xs text-muted-foreground">No Painel, cada distribuição tem a sua página e os seus percentuais. A Dist 1 é o saldo do mês.</span>
     </Field>
   );

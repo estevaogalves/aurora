@@ -28,6 +28,7 @@ import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { expenseCategoryOptions, type Category } from "@/Types/Category";
 import { showToast } from "../Warnings/toast";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 
@@ -180,9 +181,9 @@ function Wizard({ onClose }: { onClose: () => void }) {
   }
 
   const select = (value: number, onChange: (n: number) => void, id: string) => (
-    <select id={id} value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputClass}>
+    <OptionSelect id={id} value={value} onChange={(e) => onChange(Number(e.target.value))} className={inputClass}>
       {usable.map((c) => <option key={c} value={c}>{columnLabel(c)}</option>)}
-    </select>
+    </OptionSelect>
   );
 
   return (
@@ -195,10 +196,10 @@ function Wizard({ onClose }: { onClose: () => void }) {
       {step === "file" && (
         <>
           <Field label="Destino" htmlFor="imp-dest" hint="(onde os lançamentos entram)">
-            <select id="imp-dest" value={destination} onChange={(e) => setDestination(e.target.value)} className={inputClass}>
+            <OptionSelect id="imp-dest" value={destination} onChange={(e) => setDestination(e.target.value)} className={inputClass}>
               <option value="">Conta: despesas e rendas avulsas (extrato)</option>
               {cards.map((c) => <option key={c.id} value={c.id}>Fatura do cartão {c.name}</option>)}
-            </select>
+            </OptionSelect>
             {destination && <p className="mt-1 text-xs text-muted-foreground">Cada linha vira uma despesa no cartão, com o dia da compra, e entra na fatura certa (fechamento e vencimento do cartão). Todas as linhas são despesas.</p>}
           </Field>
           <Field label="Arquivo CSV" htmlFor="imp-file" hint="(até 2 MB e 1.000 linhas)">
@@ -240,10 +241,10 @@ function Wizard({ onClose }: { onClose: () => void }) {
           )}
           {prefs.mappings.length > 0 && (
             <Field label="Usar um mapeamento salvo" htmlFor="imp-saved">
-              <select id="imp-saved" value="" onChange={(e) => applySaved(e.target.value)} className={inputClass}>
+              <OptionSelect id="imp-saved" value="" onChange={(e) => applySaved(e.target.value)} className={inputClass}>
                 <option value="">Escolher…</option>
                 {prefs.mappings.map((m) => <option key={m.name} value={m.name}>{m.name}</option>)}
-              </select>
+              </OptionSelect>
             </Field>
           )}
           <label className="flex items-center gap-2 text-[13px] font-semibold text-ink2">
@@ -273,11 +274,11 @@ function Wizard({ onClose }: { onClose: () => void }) {
           )}
           {!destination && mapping.credit === undefined && (
             <Field label="Sinal dos valores" htmlFor="imp-sign">
-              <select id="imp-sign" value={mapping.signMode} onChange={(e) => setMapping({ ...mapping, signMode: e.target.value as SignMode })} className={inputClass}>
+              <OptionSelect id="imp-sign" value={mapping.signMode} onChange={(e) => setMapping({ ...mapping, signMode: e.target.value as SignMode })} className={inputClass}>
                 <option value="auto">Negativo é despesa e positivo é renda (extrato)</option>
                 <option value="expense">Tudo é despesa (valores positivos)</option>
                 <option value="income">Tudo é renda</option>
-              </select>
+              </OptionSelect>
             </Field>
           )}
           <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
@@ -328,9 +329,9 @@ function Wizard({ onClose }: { onClose: () => void }) {
                 </div>
                 <b className={`num col-start-2 sm:col-start-auto ${r.type === "income" ? "text-success" : ""}`}>{r.type === "income" ? "+" : ""}{formatBRL(r.amount)}</b>
                 {r.type === "expense" ? (
-                  <select aria-label={`Categoria de ${r.description}`} value={r.category} onChange={(e) => setRowCategory(r.key, e.target.value)} className={`${inputClass} col-start-2 sm:col-start-auto`}>
+                  <OptionSelect aria-label={`Categoria de ${r.description}`} value={r.category} onChange={(e) => setRowCategory(r.key, e.target.value)} className={`${inputClass} col-start-2 sm:col-start-auto`}>
                     {[...new Set([...categoryNames, r.category])].map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  </OptionSelect>
                 ) : (
                   <span className="col-start-2 text-[12px] text-muted-foreground sm:col-start-auto">Renda</span>
                 )}
@@ -356,9 +357,9 @@ function Wizard({ onClose }: { onClose: () => void }) {
                   <input id="imp-rule" value={ruleText} onChange={(e) => setRuleText(e.target.value)} placeholder="Ex.: uber" className={inputClass} />
                 </Field>
                 <Field label="Categoria" htmlFor="imp-rule-cat">
-                  <select id="imp-rule-cat" value={ruleCategory} onChange={(e) => setRuleCategory(e.target.value)} className={inputClass}>
+                  <OptionSelect id="imp-rule-cat" value={ruleCategory} onChange={(e) => setRuleCategory(e.target.value)} className={inputClass}>
                     {categoryNames.map((c) => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                  </OptionSelect>
                 </Field>
                 <Button type="button" variant="secondary" onClick={addRule} disabled={ruleText.trim().length < 2}>Adicionar regra</Button>
               </div>
