@@ -3,6 +3,7 @@ import { dayMonth, getInvoice } from "@/domain";
 import { useFinanceStore } from "@/Store/FinanceStore";
 import { useUiStore } from "@/Store/UiStore";
 import { formatMonthTitle } from "@/Utils/Date";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 interface CardProps {
   cardId: string;
@@ -38,12 +39,12 @@ export function CardSelect({ cardId, onChange, onNavigate }: Omit<CardProps, "da
 
   return (
     <Field label="Cartão" htmlFor="launch-card" hint="(opcional)">
-      <select id="launch-card" value={cardId} onChange={(e) => onChange(e.target.value)} className={`${inputClass} min-h-11`}>
+      <OptionSelect id="launch-card" value={cardId} onChange={(e) => onChange(e.target.value)} className={`${inputClass} min-h-11`}>
         <option value="">Sem cartão</option>
         {cards.map((k) => (
           <option key={k.id} value={k.id}>{k.name} · fecha {k.closingDay}, vence {k.dueDay}</option>
         ))}
-      </select>
+      </OptionSelect>
     </Field>
   );
 }

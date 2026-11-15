@@ -31,6 +31,7 @@ import { centsToInput, formatBRL, parseBRL } from "@/lib/money";
 import { uuid } from "@/lib/uuid";
 import { useFinanceStore, type Investment } from "@/Store/FinanceStore";
 import { showToast } from "../Warnings/toast";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 const FAMILIES = Object.keys(FAMILY_LABEL) as InvestmentFamily[];
 const MAX_LABEL = "R$ 1 bilhão";
@@ -206,13 +207,13 @@ function InvestmentFields({ investment, onClose }: { investment: Investment | nu
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       <Field label="Tipo" htmlFor="inv-type">
-        <select id="inv-type" value={typeKey} onChange={(e) => setTypeKey(e.target.value)} className={inputClass}>
+        <OptionSelect id="inv-type" value={typeKey} onChange={(e) => setTypeKey(e.target.value)} className={inputClass}>
           {FAMILIES.map((k) => (
             <optgroup key={k} label={FAMILY_LABEL[k]}>
               {options[k].map((p) => <option key={p} value={`${k}|${p}`}>{p}</option>)}
             </optgroup>
           ))}
-        </select>
+        </OptionSelect>
       </Field>
 
       <Field label="Nome" htmlFor="inv-name">
@@ -418,9 +419,9 @@ function MovementFields({ investment, movement, onClose }: { investment: Investm
   return (
     <form onSubmit={submit} noValidate className="flex flex-col gap-4">
       <Field label="O que aconteceu" htmlFor="mov-type" hint={(business ? BUSINESS_HINT[type] : undefined) ?? MOVEMENT_HINT[type]}>
-        <select id="mov-type" value={type} onChange={(e) => setType(e.target.value as InvestmentMovementType)} className={inputClass}>
+        <OptionSelect id="mov-type" value={type} onChange={(e) => setType(e.target.value as InvestmentMovementType)} className={inputClass}>
           {typeKeys.map((k) => <option key={k} value={k}>{movementLabel(investment, k)}</option>)}
-        </select>
+        </OptionSelect>
       </Field>
       {byQuantity ? (
         <>

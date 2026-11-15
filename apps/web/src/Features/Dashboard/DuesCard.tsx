@@ -9,6 +9,7 @@ import { useUiStore } from "@/Store/UiStore";
 import { useUpcomingDues } from "@/Store/dues";
 import PaymentDialog, { type PaymentTarget } from "../Launch/PaymentDialog";
 import { showToast } from "../Warnings/toast";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 const tone = (d: DueItem) => (d.level === "overdue" ? "bad" : d.level === "today" || d.level === "soon" ? "warn" : "default");
 
@@ -52,14 +53,14 @@ export default function DuesCard() {
         title="Próximos vencimentos"
         subtitle={demo ? "Exemplo ilustrativo" : `O que ainda não foi pago, nos próximos ${window} dias`}
         action={
-          <select
+          <OptionSelect
             aria-label="Janela dos próximos vencimentos"
             value={window}
             onChange={(e) => usePrefsStore.getState().setPrefs({ dueWindow: Number(e.target.value) })}
             className="h-8 rounded-md border border-border-strong bg-card px-2 text-[12.5px] font-semibold text-ink2"
           >
             {DUE_WINDOWS.map((w) => <option key={w} value={w}>{w} dias</option>)}
-          </select>
+          </OptionSelect>
         }
       >
         {shown.length === 0 ? (

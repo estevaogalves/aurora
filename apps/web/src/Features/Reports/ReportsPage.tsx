@@ -15,6 +15,7 @@ import { showToast } from "../Warnings/toast";
 import { loadReportPrefs, sameReportPrefs, saveReportPrefs, type ReportFormat } from "./prefs";
 import { RELATORIOS_TOUR } from "./tour";
 import { useTransactions } from "@/Store/selectors";
+import OptionSelect from "@/components/shared/OptionSelect";
 
 const CONTENT = [
   { key: "summary", label: "Resumo de renda, despesas e saldo" },
@@ -232,16 +233,16 @@ export default function ReportsPage() {
               {closedMonths.length > 3 && (
                 <div className="mb-3 flex flex-wrap items-end gap-3">
                   <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Ano
-                    <select value={closedYear} onChange={(e) => { setClosedYear(e.target.value); closedPager.setPage(1); }} className="h-9 rounded-md border border-border-strong bg-card px-2 text-[13px] font-semibold">
+                    <OptionSelect value={closedYear} onChange={(e) => { setClosedYear(e.target.value); closedPager.setPage(1); }} className="h-9 rounded-md border border-border-strong bg-card px-2 text-[13px] font-semibold">
                       <option value="">Todos os anos</option>
                       {closedYears.map((y) => <option key={y} value={y}>{y}</option>)}
-                    </select>
+                    </OptionSelect>
                   </label>
                   <label className="flex flex-col gap-1 text-[12px] font-bold text-ink2">Meses por página
-                    <select value={closedPerPage} onChange={(e) => { setClosedPerPage(Number(e.target.value)); closedPager.setPage(1); }} className="h-9 rounded-md border border-border-strong bg-card px-2 text-[13px] font-semibold">
+                    <OptionSelect value={closedPerPage} onChange={(e) => { setClosedPerPage(Number(e.target.value)); closedPager.setPage(1); }} className="h-9 rounded-md border border-border-strong bg-card px-2 text-[13px] font-semibold">
                       <option value={3}>3</option>
                       <option value={6}>6</option>
-                    </select>
+                    </OptionSelect>
                   </label>
                 </div>
               )}
