@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Imagens fixadas por digest (tag@sha256); o Dependabot propõe as atualizações.
-FROM golang:1.26-alpine@sha256:87c65a688975c0b1d4585d204874c45ca78354670e3a5f11368c5a492303d696 AS build
+FROM golang:1.27-alpine@sha256:eb61c3873c97416fff0116553fff65d67a3549f72e11d9758849a689cdd8b523 AS build
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
