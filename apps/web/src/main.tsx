@@ -6,6 +6,8 @@ import { DATA_SOURCE } from './config'
 import { useAuthStore } from './Store/AuthStore'
 import { useFinanceStore } from './Store/FinanceStore'
 import { initTheme } from './theme/theme'
+import { initNative } from './nativeApp'
+import { isNative } from './platform'
 
 initTheme()
 
@@ -22,7 +24,10 @@ ready.finally(() => {
 })
 
 // PWA: registra o service worker só no build de produção (em dev ele atrapalharia o hot reload).
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+// No app Android os arquivos já vão dentro do APK: sem service worker.
+if (isNative()) {
+  void initNative()
+} else if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {})
   })
