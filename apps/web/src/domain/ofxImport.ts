@@ -29,7 +29,7 @@ function tag(block: string, name: string): string {
   return m ? decodeEntities(m[1]).replace(/\s+/g, " ").trim() : "";
 }
 
-/** "20261108", "20261108000000" e "20261108120000[-3:BRT]" -> "2026-11-08"; null se inválida. */
+/** "20261108", "20261108000000" e "20261108120000" seguido do fuso entre colchetes -> "2026-11-08"; null se inválida. */
 function ofxDate(raw: string): string | null {
   const m = raw.match(/^(\d{4})(\d{2})(\d{2})/);
   if (!m) return null;

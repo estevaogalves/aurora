@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { buildImportRows, guessMapping } from "./csvImport";
 import { isOfx, ofxToRows, parseOfx, purchasesAreNegative } from "./ofxImport";
 
+// o fuso entre colchetes é montado aqui para o Tailwind não ler "[-3:BRT]" como classe e gerar CSS inválido
+const TZ = "[-3" + ":BRT]";
 const SGML = `OFXHEADER:100
 DATA:OFXSGML
 VERSION:102
@@ -10,7 +12,7 @@ CHARSET:1252
 <OFX><BANKMSGSRSV1><STMTTRNRS><STMTRS><BANKTRANLIST>
 <STMTTRN>
 <TRNTYPE>DEBIT
-<DTPOSTED>20261108120000[-3:BRT]
+<DTPOSTED>20261108120000${TZ}
 <TRNAMT>-45.90
 <FITID>abc1
 <MEMO>Mercado Bom Preco
