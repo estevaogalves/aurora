@@ -34,6 +34,8 @@ export interface Transaction {
   hiddenMonths?: Month[];
   /** Fixas encerradas: último mês em que vale (o seguinte em diante não vale mais). Ausente = segue valendo. */
   endMonth?: Month;
+  /** O fim veio de desfixar num mês posterior (não de "encerrar a partir daqui"): a lista de encerradas não a mostra. */
+  endedByUnfix?: boolean;
   /** Fixas: valor (em centavos) específico de um mês. */
   monthlyValues?: Record<Month, number>;
   /** Fixas: observação de um mês. A observação é só do mês: `notes` vale apenas no mês de criação e não se repete nos seguintes. */

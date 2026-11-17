@@ -74,6 +74,8 @@ type transactionPatchReq struct {
 	Tags *[]string `json:"tags"`
 	// EndMonth: último mês em que a fixa vale; "" tira o fim; ausente não muda.
 	EndMonth *string `json:"endMonth"`
+	// EndedByUnfix: o fim veio de desfixar (não de "encerrar a partir daqui"); ausente não muda.
+	EndedByUnfix *bool `json:"endedByUnfix"`
 }
 
 func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +129,7 @@ func (s *Server) updateTransaction(w http.ResponseWriter, r *http.Request) {
 	out, err := s.store.UpdateTransaction(r.Context(), userID(r), chi.URLParam(r, "id"), store.TransactionPatch{
 		Name: trimmed(in.Name), Amount: in.Amount, Category: in.Category, Notes: in.Notes, Fixed: in.Fixed,
 		HiddenMonths: in.HiddenMonths, MonthlyValues: in.MonthlyValues, MonthlyNotes: in.MonthlyNotes, VariableAmount: in.VariableAmount,
-		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth, DistGroup: in.DistGroup, DueDay: in.DueDay, Tags: in.Tags,
+		CardID: in.CardID, PurchaseDate: in.PurchaseDate, EndMonth: in.EndMonth, EndedByUnfix: in.EndedByUnfix, DistGroup: in.DistGroup, DueDay: in.DueDay, Tags: in.Tags,
 	})
 	if err != nil {
 		s.fail(w, r, err)

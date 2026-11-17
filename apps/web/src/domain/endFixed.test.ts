@@ -138,7 +138,10 @@ describe("desfixar em um mês posterior", () => {
 
   it("a fixa termina no mês anterior e o mês visto vira avulsa com valor e pagamento dele", () => {
     const r = splitFixedAtMonth(luz, "2026-12", "novo")!;
-    expect(r.endPrevious).toEqual({ endMonth: "2026-11" });
+    expect(r.endPrevious).toEqual({ endMonth: "2026-11", endedByUnfix: true });
+    // não é "encerrada": a lista de encerradas não mostra a série que terminou por desfixar
+    expect(getEndedTransactionsByMonth([{ ...cartao, ...r.endPrevious }], "2026-12")).toEqual([]);
+    expect(getEndedTransactionsByMonth([{ ...cartao, endMonth: "2026-11" }], "2026-12")).toHaveLength(1);
     expect(r.thisMonth).toMatchObject({ id: "novo", fixed: false, month: "2026-12", amount: 12345, dueDay: 10, payments: { "2026-12": { method: "pix", date: "2026-12-05" } } });
     expect(r.thisMonth.variableAmount).toBeUndefined();
   });

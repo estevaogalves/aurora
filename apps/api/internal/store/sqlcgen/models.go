@@ -169,6 +169,7 @@ type Transaction struct {
 	DistGroup      int64
 	DueDay         int64
 	Tags           sqlitetypes.JSON
+	EndByUnfix     bool
 }
 
 type TransactionReceipt struct {

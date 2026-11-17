@@ -29,7 +29,7 @@ function pick<T extends object>(source: T, keys: readonly (keyof T)[]): Partial<
   return out;
 }
 
-const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "distGroup", "dueDay", "tags"] as const;
+const TRANSACTION_PATCH = ["name", "amount", "category", "notes", "fixed", "hiddenMonths", "monthlyValues", "monthlyNotes", "variableAmount", "cardId", "purchaseDate", "endMonth", "endedByUnfix", "distGroup", "dueDay", "tags"] as const;
 const CREDIT_PATCH = ["name", "totalAmount", "installments", "startMonth", "category", "endMonth", "billingDay", "cardId", "variableAmount"] as const;
 const CARD_PATCH = ["name", "closingDay", "dueDay", "limit"] as const;
 // guardado e rendimentos não vão aqui: são refeitos pelo histórico (`/goal-movements`)

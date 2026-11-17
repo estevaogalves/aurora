@@ -5,8 +5,8 @@ SELECT * FROM transactions WHERE user_id = ? ORDER BY created_at, rowid;
 SELECT * FROM transactions WHERE id = ? AND user_id = ?;
 
 -- name: CreateTransaction :one
-INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO transactions (id, user_id, name, amount_cents, type, category, notes, fixed, month, variable_amount, card_id, purchase_date, end_month, dist_group, due_day, tags, end_by_unfix)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 RETURNING *;
 
 -- name: UpdateTransaction :one
@@ -21,6 +21,8 @@ UPDATE transactions SET
     purchase_date = COALESCE(sqlc.narg('purchase_date'), purchase_date),
     -- fixa encerrada: ultimo mes em que vale; texto vazio tira o fim
     end_month     = COALESCE(sqlc.narg('end_month'), end_month),
+    -- o fim veio de desfixar (nao e "encerrada"); tirar o fim (texto vazio) tambem tira a marca
+    end_by_unfix  = CASE WHEN sqlc.narg('end_month') = '' THEN 0 ELSE COALESCE(sqlc.narg('end_by_unfix'), end_by_unfix) END,
     -- renda variavel: em qual distribuicao do saldo entra (0 = Dist 1, 2 a 20 = distribuicao propria); so marca
     dist_group    = COALESCE(sqlc.narg('dist_group'), dist_group),
     -- dia do vencimento (1 a 31); 0 tira o dia

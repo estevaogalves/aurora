@@ -69,7 +69,7 @@ func TestOpenEmptyPath(t *testing.T) {
 }
 
 // Quem já usa o Aurora com SQLite tem um aurora.db na versão 1 (só o 00001). Ao ligar a versão nova, as migrations
-// 00012 a 00023 têm que rodar sozinhas, sem perder nada, e as metas existentes ganham o histórico ("Saldo inicial")
+// 00012 a 00024 têm que rodar sozinhas, sem perder nada, e as metas existentes ganham o histórico ("Saldo inicial")
 // que reproduz exatamente o valor que já estava guardado.
 func TestUpgradeFromVersion1KeepsDataAndBackfillsGoalHistory(t *testing.T) {
 	ctx := context.Background()
@@ -106,7 +106,7 @@ func TestUpgradeFromVersion1KeepsDataAndBackfillsGoalHistory(t *testing.T) {
 		t.Fatalf("atualizar: %v", err)
 	}
 	var version int64
-	if err := d.QueryRowContext(ctx, "SELECT max(version_id) FROM goose_db_version").Scan(&version); err != nil || version != 23 {
+	if err := d.QueryRowContext(ctx, "SELECT max(version_id) FROM goose_db_version").Scan(&version); err != nil || version != 24 {
 		t.Fatalf("versão depois de atualizar: %d %v", version, err)
 	}
 

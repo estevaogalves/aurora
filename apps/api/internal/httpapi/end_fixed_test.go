@@ -144,3 +144,31 @@ func TestResumeFixedKeepsTheGapDeactivated(t *testing.T) {
 		t.Fatalf("depois de reativar: %+v", d.Transactions[0])
 	}
 }
+
+// Desfixar num mês posterior termina a série com a marca endedByUnfix (não é "encerrada"); tirar o fim tira a marca.
+func TestEndedByUnfixFlag(t *testing.T) {
+	e := setup(t)
+	tk := e.register(t, "").AccessToken
+	r := e.do(t, "POST", "/api/v1/transactions", tk, map[string]any{"name": "Academia", "amount": 9000, "type": "expense", "category": "Saúde", "month": "2026-06", "fixed": true})
+	want(t, r, 201)
+	var tx domain.Transaction
+	r.json(t, &tx)
+
+	want(t, e.do(t, "PATCH", "/api/v1/transactions/"+tx.ID, tk, map[string]any{"endMonth": "2026-10", "endedByUnfix": true}), 200)
+	find := func() domain.Transaction {
+		for _, x := range loadData(t, e, tk).Transactions {
+			if x.ID == tx.ID {
+				return x
+			}
+		}
+		t.Fatal("transação não encontrada")
+		return domain.Transaction{}
+	}
+	if got := find(); got.EndMonth != "2026-10" || !got.EndedByUnfix {
+		t.Fatalf("fim por desfixar não ficou salvo: %+v", got)
+	}
+	want(t, e.do(t, "PATCH", "/api/v1/transactions/"+tx.ID, tk, map[string]any{"endMonth": ""}), 200)
+	if got := find(); got.EndMonth != "" || got.EndedByUnfix {
+		t.Fatalf("tirar o fim deveria tirar a marca: %+v", got)
+	}
+}
