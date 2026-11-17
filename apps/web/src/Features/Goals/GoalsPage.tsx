@@ -131,7 +131,7 @@ function PiggyCard({ goal, onContribute, onHistory, onEdit, onDelete }: { goal: 
             {goal.deadline && <Pill>Prazo {deadlineLabel(goal.deadline)}</Pill>}
           </div>
         </div>
-        <span className="num text-[22px] font-semibold">{formatBRLShort(goal.saved)}</span>
+        <span className="num flex-none text-[22px] font-semibold" title="Aportes + rendimentos">{formatBRL(goal.saved)}</span>
       </div>
       <div className="flex flex-wrap justify-between gap-2 text-[12.5px]">
         <span className="text-muted-foreground">Aporte mensal</span>

@@ -8,18 +8,30 @@ import { isRequiredItem, sumPercent, validateDistribution } from "@/domain";
 import type { DistributionItem } from "@/Store/FinanceStore";
 import { showToast } from "../Warnings/toast";
 
+export type DistributionScope = "all" | "month";
+
 /**
  * Edita os percentuais de uma sugestão. `current` é o que vale hoje, `base` é o padrão para onde "Restaurar padrão"
- * volta e `onSave` recebe a lista nova, ou null quando ela ficou igual ao padrão (assim a distribuição volta a seguir o padrão).
+ * volta e `onSave` recebe a lista nova (ou null quando ficou igual ao padrão, e a distribuição volta a segui-lo) e o alcance.
+ * Com `choice` (Dist 1) o usuário escolhe: todos os meses (o padrão) ou só o mês visto (`monthLabel`, com `monthBase`
+ * como o padrão a que o mês volta). Sem `choice`, a mudança vale só para o mês visto.
  */
-export function DistributionDialog({ open, onClose, title, description, current, base, onSave }: {
+export function DistributionDialog({ open, onClose, title, description, choice, monthLabel, current, base, monthBase, defaultScope = choice ? "all" : "month", onSave }: {
   open: boolean;
   onClose: () => void;
   title: string;
   description: string;
+  /** deixa escolher entre todos os meses e só o mês visto */
+  choice: boolean;
+  /** o mês visto, por extenso (ex.: "Novembro de 2026") */
+  monthLabel: string;
   current: DistributionItem[];
+  /** padrão de todos os meses (o do app, na Dist 1) */
   base: DistributionItem[];
-  onSave: (items: DistributionItem[] | null) => void;
+  /** o que vale se o mês não tiver percentuais próprios (o padrão do usuário) */
+  monthBase: DistributionItem[];
+  defaultScope?: DistributionScope;
+  onSave: (items: DistributionItem[] | null, scope: DistributionScope) => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
@@ -28,13 +40,16 @@ export function DistributionDialog({ open, onClose, title, description, current,
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        {open && <Fields onClose={onClose} current={current} base={base} onSave={onSave} />}
+        {open && <Fields onClose={onClose} current={current} base={base} monthBase={monthBase} choice={choice} monthLabel={monthLabel} defaultScope={defaultScope} onSave={onSave} />}
       </DialogContent>
     </Dialog>
   );
 }
 
-function Fields({ onClose, current, base, onSave }: { onClose: () => void; current: DistributionItem[]; base: DistributionItem[]; onSave: (items: DistributionItem[] | null) => void }) {
+function Fields({ onClose, current, base, monthBase, choice, monthLabel, defaultScope, onSave }: { onClose: () => void; current: DistributionItem[]; base: DistributionItem[]; monthBase: DistributionItem[]; choice: boolean; monthLabel: string; defaultScope: DistributionScope; onSave: (items: DistributionItem[] | null, scope: DistributionScope) => void }) {
+  const [scope, setScope] = useState<DistributionScope>(defaultScope);
+  // "restaurar" e "igual ao padrão" dependem do alcance: todos os meses voltam ao padrão do app; um mês, ao padrão do usuário
+  const reference = scope === "all" ? base : monthBase;
   const [items, setItems] = useState<DistributionItem[]>(() => current.map((i) => ({ ...i })));
   const [newName, setNewName] = useState("");
   const [newPercent, setNewPercent] = useState("");
@@ -62,13 +77,25 @@ function Fields({ onClose, current, base, onSave }: { onClose: () => void; curre
   function save() {
     if (error) return;
     const plain = (list: DistributionItem[]) => JSON.stringify(list.map(({ id, label, percent }) => ({ id, label: label.trim(), percent })));
-    onSave(plain(items) === plain(base) ? null : items.map((i) => ({ ...i, label: i.label.trim() })));
-    showToast({ type: "success", text: "Sugestão atualizada" });
+    onSave(plain(items) === plain(reference) ? null : items.map((i) => ({ ...i, label: i.label.trim() })), scope);
     onClose();
   }
 
   return (
     <div className="flex flex-col gap-4">
+      {choice ? (
+        <fieldset className="flex flex-col gap-1.5">
+          <legend className="mb-1 text-[12.5px] font-bold text-ink2">A mudança vale para</legend>
+          {([["all", "Todos os meses (muda o padrão)"], ["month", `Só ${monthLabel} (os outros meses não mudam)`]] as const).map(([value, label]) => (
+            <label key={value} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-[13px] font-semibold ${scope === value ? "border-primary bg-secondary" : "border-border"}`}>
+              <input type="radio" name="dist-scope" checked={scope === value} onChange={() => setScope(value)} />
+              {label}
+            </label>
+          ))}
+        </fieldset>
+      ) : (
+        <p role="note" className="rounded-md border border-border bg-secondary px-3 py-2 text-[12.5px] font-semibold text-ink2">Esta mudança vale só para {monthLabel}; os outros meses não mudam.</p>
+      )}
       <div className="flex flex-col gap-2">
         {items.map((item) => (
           <div key={item.id} className="grid grid-cols-[1fr_88px_auto] items-center gap-2">
@@ -112,7 +139,7 @@ function Fields({ onClose, current, base, onSave }: { onClose: () => void; curre
       </div>
 
       <div className="flex flex-wrap justify-between gap-2">
-        <Button type="button" variant="ghost" onClick={() => setItems(base.map((i) => ({ ...i })))}>Restaurar padrão</Button>
+        <Button type="button" variant="ghost" onClick={() => setItems(reference.map((i) => ({ ...i })))}>Restaurar padrão</Button>
         <div className="flex gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
           <Button type="button" disabled={!!error} onClick={save}>Salvar</Button>

@@ -706,7 +706,7 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
     },
 
     setDistributionOverride: (month, group, items) => {
-      if (group < 2) return;
+      if (group < 1) return;
       const key = overrideKey(month, group);
       set((state) => {
         const rest = { ...state.distributionOverrides };

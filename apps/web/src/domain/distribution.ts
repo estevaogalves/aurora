@@ -150,13 +150,13 @@ export function distGroupChoices(transactions: Transaction[], month: Month, exce
   return { existing: [...used].sort((a, b) => a - b), next };
 }
 
-/** Os percentuais de uma distribuição: os próprios do mês (Dist 2 em diante), senão o padrão do usuário, senão o do app. */
+/** Os percentuais de uma distribuição: os próprios do mês (qualquer distribuição, inclusive a Dist 1), senão o padrão do usuário, senão o do app. */
 export function distributionItemsFor(
   settings: { distribution: DistributionItem[] | null; distributionOverrides?: Record<string, DistributionItem[]> },
   month: Month,
   group: number,
 ): DistributionItem[] {
-  const own = group >= 2 ? settings.distributionOverrides?.[overrideKey(month, group)] : undefined;
+  const own = settings.distributionOverrides?.[overrideKey(month, group)];
   return own ?? settings.distribution ?? DEFAULT_DISTRIBUTION;
 }
 

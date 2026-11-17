@@ -5,6 +5,8 @@ import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { breathingDays, comparisonAvailable, freedomDay, getInsights, reserveTotal, visibleInsights, DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
 import HoursHint from "@/components/shared/HoursHint";
@@ -247,14 +249,15 @@ function Suggestion() {
   const [editing, setEditing] = useState(false);
   const [sending, setSending] = useState<SendRequest | null>(null);
   const [undoing, setUndoing] = useState<UndoRequest | null>(null);
+  const [restoringAll, setRestoringAll] = useState(false);
 
   // a página aberta some se a distribuição deixou de existir (ex.: a renda dela foi apagada)
   const dist = dists.find((d) => d.group === selected) ?? dists[0];
   const items = useDistributionItemsFor(dist.group);
   const base = globalItems ?? DEFAULT_DISTRIBUTION;
   const first = dist.group === 1;
-  const hasOwn = !first && !!overrides[overrideKey(month, dist.group)];
-  const canRestore = first ? globalItems !== null : hasOwn;
+  const hasOwn = !!overrides[overrideKey(month, dist.group)];
+  const canRestoreAll = first && globalItems !== null;
   const multiple = dists.length > 1;
 
   const menu = (
@@ -269,10 +272,16 @@ function Suggestion() {
           <Icon name="edit" size={15} />
           {first ? "Personalizar o padrão" : `Personalizar a ${dist.label}`}
         </DropdownMenuItem>
-        {canRestore && (
-          <DropdownMenuItem onSelect={() => (first ? setDistribution(null) : setOverride(month, dist.group, null))}>
+        {hasOwn && (
+          <DropdownMenuItem onSelect={() => setOverride(month, dist.group, null)}>
             <Icon name="restore" size={15} />
-            {first ? "Restaurar padrão" : "Voltar ao padrão"}
+            {first ? "Voltar ao padrão neste mês" : "Voltar ao padrão"}
+          </DropdownMenuItem>
+        )}
+        {canRestoreAll && (
+          <DropdownMenuItem onSelect={() => setRestoringAll(true)}>
+            <Icon name="restore" size={15} />
+            Restaurar padrão (todos os meses)
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
@@ -298,9 +307,11 @@ function Suggestion() {
             ))}
           </div>
         )}
-        {!first && (
-          <p className="mb-2 text-[12px] text-muted-foreground">{hasOwn ? "Percentuais só desta distribuição, neste mês." : "Segue os percentuais padrão. Se você alterar, muda só esta distribuição, neste mês."}</p>
-        )}
+        <p className="mb-2 text-[12px] text-muted-foreground">
+          {first
+            ? hasOwn ? "Percentuais só deste mês. Os outros meses seguem o padrão." : "Percentuais padrão, de todos os meses. Ao alterar, você escolhe se vale só para este mês."
+            : hasOwn ? "Percentuais só desta distribuição, neste mês." : "Segue os percentuais padrão. Se você alterar, muda só esta distribuição, neste mês."}
+        </p>
         <DistributionPage
           key={`${month}-${dist.group}`}
           dist={dist}
@@ -317,17 +328,45 @@ function Suggestion() {
         title={first ? "Personalizar o padrão da sugestão" : `Personalizar a ${dist.label}`}
         description={
           first
-            ? "O padrão vale para a Dist 1 de todos os meses e é o ponto de partida das outras distribuições. As cinco categorias padrão ficam sempre, e a soma precisa ser 100%."
+            ? "Escolha se a mudança vale para todos os meses (o padrão, ponto de partida das outras distribuições) ou só para este mês. As cinco categorias padrão ficam sempre, e a soma precisa ser 100%."
             : `Muda só a ${dist.label}, neste mês: as outras distribuições e os outros meses não mudam. A soma precisa ser 100%.`
         }
+        choice={first}
+        monthLabel={formatMonthTitle(month)}
+        defaultScope={first && !hasOwn ? "all" : "month"}
         current={items}
         base={base}
-        onSave={(next) => {
-          if (first) setDistribution(next);
+        monthBase={base}
+        onSave={(next, scope) => {
+          if (scope === "all") setDistribution(next);
           else setOverride(month, dist.group, next);
-          showToast({ type: "success", text: first ? "Padrão da sugestão atualizado" : `${dist.label} atualizada` });
+          showToast({ type: "success", text: scope === "all" ? "Padrão da sugestão atualizado em todos os meses" : `${dist.label} atualizada só em ${formatMonthTitle(month)}` });
         }}
       />
+      <Dialog open={restoringAll} onOpenChange={setRestoringAll}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Restaurar o padrão em todos os meses?</DialogTitle>
+            <DialogDescription>
+              Os percentuais que você personalizou para a Dist 1 voltam ao padrão do app em todos os meses. Os meses com percentuais só deles não mudam.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setRestoringAll(false)}>Cancelar</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setDistribution(null);
+                setRestoringAll(false);
+                showToast({ type: "success", text: "Padrão restaurado em todos os meses" });
+              }}
+            >
+              Restaurar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <SendDistributionDialog request={sending} onClose={() => setSending(null)} />
       <UndoSendDialog
         request={undoing}

@@ -3,6 +3,7 @@ import autoTable, { type CellHookData } from "jspdf-autotable";
 import { niceTicks, shortReais } from "../components/charts/scale";
 import {
   DEFAULT_DISTRIBUTION,
+  distributionItemsFor,
   dayMonth,
   describePaidBadge,
   describePaidRow,
@@ -357,7 +358,7 @@ export function exportPDF(months: string[], options: PdfOptions) {
   if (options.distribution) {
     const balance = multi ? totals.balance : totals.months[0].balance;
     if (balance > 0) {
-      const parts = distributeBalance(balance, store.distribution ?? DEFAULT_DISTRIBUTION).filter((p) => p.item.percent > 0);
+      const parts = distributeBalance(balance, multi ? (store.distribution ?? DEFAULT_DISTRIBUTION) : distributionItemsFor(store, months[0], 1)).filter((p) => p.item.percent > 0);
       // o bloco inteiro (título, barra e legenda) fica junto: cabe na página da categoria ou vai inteiro para a seguinte
       needs(30 + parts.length * 8);
       pageUsed = true;

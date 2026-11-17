@@ -91,10 +91,11 @@ describe("percentuais de cada distribuição", () => {
     expect(distributionItemsFor(settings, "2026-12", 3)).toBe(custom);
   });
 
-  it("sem padrão do usuário, vale o do app; e a Dist 1 nunca usa percentual próprio", () => {
+  it("sem padrão do usuário, vale o do app; a Dist 1 usa o percentual do mês só naquele mês", () => {
     expect(distributionItemsFor({ distribution: null }, "2026-12", 2)).toBe(DEFAULT_DISTRIBUTION);
     const settings = { distribution: null, distributionOverrides: { [overrideKey("2026-12", 1)]: own } };
-    expect(distributionItemsFor(settings, "2026-12", 1)).toBe(DEFAULT_DISTRIBUTION);
+    expect(distributionItemsFor(settings, "2026-12", 1)).toBe(own);
+    expect(distributionItemsFor(settings, "2027-01", 1)).toBe(DEFAULT_DISTRIBUTION);
   });
 });
 

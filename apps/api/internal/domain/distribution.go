@@ -50,7 +50,7 @@ func ValidateDistribution(items []DistributionItem) string {
 // MaxDistGroup é o maior número de distribuição própria (Dist 20) que uma renda pode ter.
 const MaxDistGroup = 20
 
-// ValidOverrideKey confere a chave dos percentuais próprios de uma distribuição: "AAAA-MM|n" com n de 2 a 20.
+// ValidOverrideKey confere a chave dos percentuais próprios de uma distribuição: "AAAA-MM|n" com n de 1 a 20 (a Dist 1 também pode ter percentuais só de um mês).
 func ValidOverrideKey(key string) bool {
 	if len(key) < 9 || key[7] != '|' {
 		return false
@@ -65,5 +65,5 @@ func ValidOverrideKey(key string) bool {
 		}
 		n = n*10 + int(r-'0')
 	}
-	return n >= 2 && n <= MaxDistGroup
+	return n >= 1 && n <= MaxDistGroup
 }
