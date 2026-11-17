@@ -298,9 +298,11 @@ function Suggestion() {
             ))}
           </div>
         )}
-        {!first && (
-          <p className="mb-2 text-[12px] text-muted-foreground">{hasOwn ? "Percentuais só desta distribuição, neste mês." : "Segue os percentuais padrão. Se você alterar, muda só esta distribuição, neste mês."}</p>
-        )}
+        <p className="mb-2 text-[12px] text-muted-foreground">
+          {first
+            ? "Percentuais padrão: se você alterar, muda em todos os meses."
+            : hasOwn ? "Percentuais só desta distribuição, neste mês." : "Segue os percentuais padrão. Se você alterar, muda só esta distribuição, neste mês."}
+        </p>
         <DistributionPage
           key={`${month}-${dist.group}`}
           dist={dist}
@@ -320,12 +322,13 @@ function Suggestion() {
             ? "O padrão vale para a Dist 1 de todos os meses e é o ponto de partida das outras distribuições. As cinco categorias padrão ficam sempre, e a soma precisa ser 100%."
             : `Muda só a ${dist.label}, neste mês: as outras distribuições e os outros meses não mudam. A soma precisa ser 100%.`
         }
+        scope={first ? { all: true } : { all: false, month: formatMonthTitle(month) }}
         current={items}
         base={base}
         onSave={(next) => {
           if (first) setDistribution(next);
           else setOverride(month, dist.group, next);
-          showToast({ type: "success", text: first ? "Padrão da sugestão atualizado" : `${dist.label} atualizada` });
+          showToast({ type: "success", text: first ? "Padrão da sugestão atualizado em todos os meses" : `${dist.label} atualizada só em ${formatMonthTitle(month)}` });
         }}
       />
       <SendDistributionDialog request={sending} onClose={() => setSending(null)} />

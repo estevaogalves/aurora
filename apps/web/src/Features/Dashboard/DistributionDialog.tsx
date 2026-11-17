@@ -12,11 +12,13 @@ import { showToast } from "../Warnings/toast";
  * Edita os percentuais de uma sugestão. `current` é o que vale hoje, `base` é o padrão para onde "Restaurar padrão"
  * volta e `onSave` recebe a lista nova, ou null quando ela ficou igual ao padrão (assim a distribuição volta a seguir o padrão).
  */
-export function DistributionDialog({ open, onClose, title, description, current, base, onSave }: {
+export function DistributionDialog({ open, onClose, title, description, scope, current, base, onSave }: {
   open: boolean;
   onClose: () => void;
   title: string;
   description: string;
+  /** a quem a mudança vale: todos os meses (padrão) ou só o mês visto (texto, ex.: "Novembro de 2026") */
+  scope: { all: true } | { all: false; month: string };
   current: DistributionItem[];
   base: DistributionItem[];
   onSave: (items: DistributionItem[] | null) => void;
@@ -27,6 +29,9 @@ export function DistributionDialog({ open, onClose, title, description, current,
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
+          <p role="note" className={`mt-1 rounded-md border px-3 py-2 text-[12.5px] font-semibold ${scope.all ? "border-[hsl(var(--k3)/0.6)] bg-[hsl(var(--k3)/0.2)] text-foreground" : "border-border bg-secondary text-ink2"}`}>
+            {scope.all ? "Esta mudança vale para todos os meses (é o padrão da Dist 1)." : `Esta mudança vale só para ${scope.month}; os outros meses não mudam.`}
+          </p>
         </DialogHeader>
         {open && <Fields onClose={onClose} current={current} base={base} onSave={onSave} />}
       </DialogContent>
