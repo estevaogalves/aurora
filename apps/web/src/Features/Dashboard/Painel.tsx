@@ -37,16 +37,40 @@ const sliceColor = (items: { id: string }[], id: string) => `hsl(var(--k${(items
 
 function Hero() {
   const month = useFinanceStore((s) => s.currentMonth);
-  const { totalIncome, totalExpense, balance, expensePercentage } = useMonthSummary();
-  const pct = Math.round(expensePercentage);
+  const summary = useMonthSummary();
+  const distributions = useMonthDistributions();
+  // o olho só existe quando alguma renda foi para uma distribuição própria (Dist 2 em diante): sem ela, os dois saldos são o mesmo
+  const ownIncome = distributions.filter((d) => d.group >= 2).reduce((sum, d) => sum + d.amount, 0);
+  const hasOwn = distributions.length > 1;
+  const [primary, setPrimary] = useState(false);
+  const only = primary && hasOwn;
+  const totalIncome = only ? summary.totalIncome - ownIncome : summary.totalIncome;
+  const { totalExpense } = summary;
+  const balance = only ? summary.balance - ownIncome : summary.balance;
+  const pct = Math.round(totalIncome === 0 ? 0 : (totalExpense / totalIncome) * 100);
 
   return (
     <section data-tour="saldo" className="flex flex-col gap-1.5 rounded-lg border border-border-strong bg-[linear-gradient(155deg,color-mix(in_srgb,hsl(var(--primary))_38%,hsl(var(--card))),hsl(var(--card))_70%)] p-6 shadow-[var(--shadow-card)]">
-      <span className="text-xs font-bold uppercase tracking-[0.1em] text-ink2">Saldo de {getMonthName(month)}</span>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-bold uppercase tracking-[0.1em] text-ink2">{only ? "Saldo primário de" : "Saldo de"} {getMonthName(month)}</span>
+        {hasOwn && (
+          <button
+            type="button"
+            onClick={() => setPrimary((v) => !v)}
+            aria-pressed={only}
+            aria-label={only ? "Ver o saldo com todas as rendas" : "Ver só o saldo primário"}
+            title={only ? "Mostrando só o saldo primário (sem as rendas das outras distribuições). Clique para ver tudo junto." : "Ver só o saldo primário, sem as rendas que foram para outras distribuições"}
+            className={`grid size-8 shrink-0 place-items-center rounded-md text-ink2 transition-colors hover:bg-background/40 hover:text-foreground ${only ? "bg-background/40 text-foreground" : ""}`}
+          >
+            <Icon name={only ? "eyeOff" : "eye"} size={18} />
+          </button>
+        )}
+      </div>
       {/* valor longo é cortado com "…" em vez de empurrar o card (min-w-0 deixa o item da coluna encolher) */}
       <span className={`num block min-w-0 truncate text-[40px] font-semibold leading-[1.1] tracking-[-0.03em] max-[700px]:text-[34px] ${balance < 0 ? "text-destructive" : ""}`}>
         {formatBRL(balance)}
       </span>
+      {only && <span className="text-[12.5px] text-muted-foreground">Sem {formatBRLShort(ownIncome)} de renda em outras distribuições</span>}
       <span className="text-[13.5px] text-ink2">{pct}% da renda comprometida</span>
       <div className="mt-auto pt-3.5">
         <div className="h-2 overflow-hidden rounded-full bg-background/50">
