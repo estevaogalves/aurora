@@ -4,6 +4,8 @@ import { Pill } from "@/components/shared/Panel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import RowMenu from "@/components/shared/RowMenu";
 import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   cardPaymentOf,
   dayMonth,
@@ -30,7 +32,7 @@ function PaidBadge({ payment }: { payment: Payment }) {
   return <Pill tone={isScheduled(payment) ? "scheduled" : "good"}>{paymentStatusLabel(payment)} · {paymentMethodLabel(payment.method)} · {formatPaymentDay(payment.date)}</Pill>;
 }
 
-function InvoiceMenu({ label, paid, adjusted, onPay, onClearPay, onAdjust }: { label: string; paid: boolean; adjusted: boolean; onPay: () => void; onClearPay: () => void; onAdjust: () => void }) {
+function InvoiceMenu({ label, paid, adjusted, canDelete, onPay, onClearPay, onAdjust, onDelete }: { label: string; paid: boolean; adjusted: boolean; canDelete: boolean; onPay: () => void; onClearPay: () => void; onAdjust: () => void; onDelete: () => void }) {
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
@@ -57,6 +59,12 @@ function InvoiceMenu({ label, paid, adjusted, onPay, onClearPay, onAdjust }: { l
             Desmarcar pagamento
           </DropdownMenuItem>
         )}
+        {canDelete && (
+          <DropdownMenuItem onSelect={onDelete} className="text-destructive focus:text-destructive">
+            <Icon name="trash" size={15} />
+            Excluir compras da fatura
+          </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
@@ -72,7 +80,7 @@ function Line({ label, value }: { label: string; value: string }) {
 }
 
 /** Uma fatura: o valor completo do cartão no mês (parcelas, recorrências e compras avulsas) e onde marcar como paga. */
-function InvoiceBlock({ invoice, first, onPay, onClearPay, onAdjust, onEditPurchase, onDeletePurchase }: { invoice: CardInvoice; first: boolean; onPay: () => void; onClearPay: () => void; onAdjust: () => void; onEditPurchase: (p: InvoicePurchase) => void; onDeletePurchase: (p: InvoicePurchase) => void }) {
+function InvoiceBlock({ invoice, first, onPay, onClearPay, onAdjust, onDeleteAll, onEditPurchase, onDeletePurchase }: { invoice: CardInvoice; first: boolean; onPay: () => void; onClearPay: () => void; onAdjust: () => void; onDeleteAll: () => void; onEditPurchase: (p: InvoicePurchase) => void; onDeletePurchase: (p: InvoicePurchase) => void }) {
   const [open, setOpen] = useState(false);
   const { card, month } = invoice;
   const payment = cardPaymentOf(card, month);
@@ -91,7 +99,7 @@ function InvoiceBlock({ invoice, first, onPay, onClearPay, onAdjust, onEditPurch
         </div>
         <div className="flex flex-none items-center gap-1">
           <span className="num text-right font-bold">{formatBRL(invoice.payable)}</span>
-          <InvoiceMenu label={`fatura ${card.name}`} paid={!!payment} adjusted={invoice.adjustments.length > 0} onPay={onPay} onClearPay={onClearPay} onAdjust={onAdjust} />
+          <InvoiceMenu label={`fatura ${card.name}`} paid={!!payment} adjusted={invoice.adjustments.length > 0} canDelete={invoice.purchases.length > 0} onPay={onPay} onClearPay={onClearPay} onAdjust={onAdjust} onDelete={onDeleteAll} />
         </div>
       </div>
 
@@ -164,6 +172,7 @@ export default function InvoicesSection() {
   const [editingTx, setEditingTx] = useState<Transaction | null>(null);
   const [editingExtra, setEditingExtra] = useState<ExtraExpense | null>(null);
   const [toDelete, setToDelete] = useState<InvoicePurchase | null>(null);
+  const [clearing, setClearing] = useState<CardInvoice | null>(null);
   const [paying, setPaying] = useState<(PaymentTarget & { cardId: string }) | null>(null);
 
   const invoices = useMemo(
@@ -194,7 +203,7 @@ export default function InvoicesSection() {
       <p className="mb-2 text-xs font-semibold uppercase tracking-[0.07em] text-muted-foreground">Faturas dos cartões · {formatMonthTitle(month)}</p>
       <div className="flex flex-col gap-3">
         {invoices.map((i, idx) => (
-          <InvoiceBlock key={i.card.id} invoice={i} first={idx === 0} onPay={() => pay(i)} onClearPay={() => setCardPayment(i.card.id, month, null)} onAdjust={() => adjust(i)} onEditPurchase={editPurchase} onDeletePurchase={setToDelete} />
+          <InvoiceBlock key={i.card.id} invoice={i} first={idx === 0} onPay={() => pay(i)} onClearPay={() => setCardPayment(i.card.id, month, null)} onAdjust={() => adjust(i)} onDeleteAll={() => setClearing(i)} onEditPurchase={editPurchase} onDeletePurchase={setToDelete} />
         ))}
       </div>
       <PaymentDialog target={paying} onConfirm={confirm} onClose={() => setPaying(null)} />
@@ -210,6 +219,31 @@ export default function InvoicesSection() {
       />
       <EditTransactionDialog transaction={editingTx} onClose={() => setEditingTx(null)} />
       <EditExtraDialog extra={editingExtra} onClose={() => setEditingExtra(null)} />
+      <Dialog open={!!clearing} onOpenChange={(next) => !next && setClearing(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Excluir compras da fatura?</DialogTitle>
+            <DialogDescription>
+              {clearing && `As ${clearing.purchases.length} compras avulsas (${formatBRL(clearing.purchasesTotal)}) da Fatura ${clearing.card.name} de ${formatMonthTitle(month)} serão removidas permanentemente. Parcelas e recorrências de outros meses não são afetadas.`}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setClearing(null)}>Cancelar</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                if (!clearing) return;
+                for (const p of clearing.purchases) (p.source === "extra" ? removeExtra : removeTransaction)(p.id);
+                showToast({ type: "success", text: `${clearing.purchases.length} compras removidas da Fatura ${clearing.card.name}` });
+                setClearing(null);
+              }}
+            >
+              Excluir
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <ConfirmDeletion
         open={!!toDelete}
         itemLabel="compra no cartão"

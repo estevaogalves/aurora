@@ -1,5 +1,7 @@
 import type { Category } from "../Types/Category";
-import type { Transaction } from "./types";
+import { getInstallmentNumber, recurringCharges } from "./credit";
+import { getInvoice, resolveCredits } from "./invoice";
+import type { CreditCard, CreditTransaction, Transaction } from "./types";
 
 /**
  * Importar CSV de extrato ou fatura. Tudo roda no navegador, com o texto do arquivo em memória (o arquivo nunca é
@@ -259,6 +261,33 @@ export interface ImportRow {
   key: string;
   /** já existe (ou já foi importado antes) */
   duplicate: boolean;
+  /** por que é duplicada: já lançada, coberta por uma recorrência do cartão ou por uma compra parcelada já cadastrada */
+  duplicateReason?: "exists" | "recurring" | "installment";
+  /** descrição com sufixo de parcela ("Loja 2/10"): parcela atual, total e nome sem o sufixo */
+  installment?: { n: number; total: number; base: string };
+}
+
+const INSTALLMENT_SUFFIX = /\s*[-–]?\s*(?:parcela\s*)?(\d{1,2})\s*(?:\/|de)\s*(\d{1,2})\s*$/i;
+
+/** Lê o sufixo de parcela da descrição ("Loja 2/10", "Loja - Parcela 2 de 10"). null se não houver (ou se for 1/1). */
+export function parseInstallmentSuffix(description: string): { n: number; total: number; base: string } | null {
+  const m = INSTALLMENT_SUFFIX.exec(description);
+  if (!m) return null;
+  const n = Number(m[1]);
+  const total = Number(m[2]);
+  const base = description.slice(0, m.index).trim();
+  if (total < 2 || n < 1 || n > total || !base) return null;
+  return { n, total, base };
+}
+
+const normName = (s: string) => plain(s).replace(/\s+/g, " ").trim();
+/** Mesmo nome, ou um está contido no outro, em qualquer posição ("claude" casa com "ANTHROPIC* CLAUDE SUB"). */
+function sameName(a: string, b: string): boolean {
+  const x = normName(a);
+  const y = normName(b);
+  if (!x || !y) return false;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  return short.length >= 3 && long.includes(short);
 }
 
 export interface BuildResult {
@@ -304,7 +333,8 @@ export function buildImportRows(rows: string[][], mapping: ColumnMapping, rules:
     const fp = rowFingerprint(date, amount, description);
     const n = (seen.get(fp) ?? 0) + 1;
     seen.set(fp, n);
-    out.push({ line, date, description, amount, type, category: type === "income" ? "Renda" : suggestCategory(description, rules), key: `${fp}#${n}`, duplicate: false });
+    const installment = type === "expense" ? parseInstallmentSuffix(description) : null;
+    out.push({ line, date, description, amount, type, category: type === "income" ? "Renda" : suggestCategory(description, rules), key: `${fp}#${n}`, duplicate: false, ...(installment && { installment }) });
   }
   return { rows: out, skipped };
 }
@@ -314,7 +344,34 @@ export function buildImportRows(rows: string[][], mapping: ColumnMapping, rules:
  * no cartão, o dia da compra) e com as chaves de importações anteriores. Duas linhas iguais no mesmo arquivo são
  * duas compras: cada uma casa com uma só ocorrência.
  */
-export function markDuplicates(rows: ImportRow[], transactions: Transaction[], importedKeys: Set<string>): ImportRow[] {
+export function markDuplicates(rows: ImportRow[], transactions: Transaction[], importedKeys: Set<string>, cardContext?: { card: CreditCard; credits: CreditTransaction[] }): ImportRow[] {
+  const credits = cardContext ? resolveCredits(cardContext.credits.filter((c) => c.cardId === cardContext.card.id), [cardContext.card]) : [];
+  /** Recorrência do cartão que cobre a linha: respeita o mês inicial e o "encerrar a partir daqui" (endMonth); fixas, também o mês oculto. */
+  const coveredByRecurring = (r: ImportRow): boolean => {
+    if (!cardContext || r.type !== "expense") return false;
+    const month = getInvoice(cardContext.card, r.date).month;
+    const credit = credits.some((c) => c.recurring && recurringCharges(c, month) && sameName(c.name, r.description) && (c.variableAmount || c.totalAmount === r.amount));
+    if (credit) return true;
+    return transactions.some((t) => {
+      if (!t.fixed || t.cardId !== cardContext.card.id || t.type !== "expense") return false;
+      if (month < t.month || (t.endMonth && month > t.endMonth) || t.hiddenMonths?.includes(month)) return false;
+      return sameName(t.name, r.description) && (t.variableAmount || (t.monthlyValues?.[month] ?? t.amount) === r.amount);
+    });
+  };
+  /**
+   * Compra parcelada já cadastrada no cartão. O nome que o usuário deu costuma ser outro (ele descreve a compra, a fatura traz o
+   * estabelecimento), então com "n/total" na linha vale o que identifica a parcela: mesmo total de parcelas, valor da parcela
+   * (com folga de centavos do arredondamento) e a parcela n ser a que cai nesta fatura. Sem o sufixo, só casa pelo nome.
+   */
+  const coveredByInstallment = (r: ImportRow): boolean => {
+    if (!cardContext || r.type !== "expense") return false;
+    const month = getInvoice(cardContext.card, r.date).month;
+    const nameOnly = (c: CreditTransaction) => c.installments > 1 && sameName(c.name, r.description) && getInstallmentNumber(c, month) !== null && Math.abs(c.totalAmount / c.installments - r.amount) <= c.installments;
+    if (!r.installment) return credits.some((c) => !c.recurring && nameOnly(c));
+    const { n, total } = r.installment;
+    return credits.some((c) => !c.recurring && c.installments === total && getInstallmentNumber(c, month) === n && (!!c.adjustments?.[String(n)] || Math.abs(c.totalAmount / c.installments - r.amount) <= c.installments));
+  };
+
   const existing = new Map<string, number>();
   for (const t of transactions) {
     if (t.fixed) continue;
@@ -331,9 +388,11 @@ export function markDuplicates(rows: ImportRow[], transactions: Transaction[], i
     for (const k of [dayKey, monthKey]) {
       const total = existing.get(k) ?? 0;
       const taken = used.get(k) ?? 0;
-      if (taken < total) { used.set(k, taken + 1); return { ...r, duplicate: true }; }
+      if (taken < total) { used.set(k, taken + 1); return { ...r, duplicate: true, duplicateReason: "exists" as const }; }
     }
-    return { ...r, duplicate: importedKeys.has(r.key) };
+    if (coveredByInstallment(r)) return { ...r, duplicate: true, duplicateReason: "installment" as const };
+    if (coveredByRecurring(r)) return { ...r, duplicate: true, duplicateReason: "recurring" as const };
+    return importedKeys.has(r.key) ? { ...r, duplicate: true, duplicateReason: "exists" as const } : { ...r, duplicate: false };
   });
 }
 

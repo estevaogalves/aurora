@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import Icon from "@/components/Icon";
+import ConfirmDeletion from "@/components/shared/ConfirmDeletion";
 import { Field, inputClass } from "@/components/shared/FormFields";
 import { btnClass } from "@/components/shared/styles";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
   type ImportRow,
   type SignMode,
 } from "@/domain";
+import { changeMonth } from "@/Utils/Date";
 import { formatBRL } from "@/lib/money";
 import { useImportPrefs } from "@/lib/importPrefs";
 import { uuid } from "@/lib/uuid";
@@ -62,6 +64,8 @@ function Wizard({ onClose }: { onClose: () => void }) {
   const transactions = useFinanceStore((s) => s.transactions);
   const custom = useFinanceStore((s) => s.customCategories);
   const addTransaction = useFinanceStore((s) => s.addTransaction);
+  const addCreditTransaction = useFinanceStore((s) => s.addCreditTransaction);
+  const creditTransactions = useFinanceStore((s) => s.creditTransactions);
   const prefs = useImportPrefs();
 
   const [step, setStep] = useState<Step>("file");
@@ -76,6 +80,11 @@ function Wizard({ onClose }: { onClose: () => void }) {
   const [mapping, setMapping] = useState<ColumnMapping | null>(null);
   const [bankName, setBankName] = useState("");
   const [saveMapping, setSaveMapping] = useState(true);
+  // linhas "Loja 2/10" que viram compra parcelada (projeta os meses seguintes) em vez de avulsa
+  const [asInstallment, setAsInstallment] = useState<Set<string>>(new Set());
+  const [managing, setManaging] = useState(false);
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  const [mappingToDelete, setMappingToDelete] = useState<string | null>(null);
   const [preview, setPreview] = useState<ImportRow[]>([]);
   const [skipped, setSkipped] = useState<{ line: number; reason: string }[]>([]);
   const [included, setIncluded] = useState<Set<string>>(new Set());
@@ -131,11 +140,13 @@ function Wizard({ onClose }: { onClose: () => void }) {
     const source = ofx && destination && purchasesAreNegative(ofx) ? ofxToRows(ofx, true) : rows;
     const built = buildImportRows(source, m, prefs.rules);
     if (built.rows.length === 0) return setError("Nenhuma linha pôde ser lida com essas colunas. Confira a data e o valor.");
-    const marked = markDuplicates(built.rows, transactions, new Set(prefs.imported));
+    const card = destination ? cards.find((k) => k.id === destination) : undefined;
+    const marked = markDuplicates(built.rows, transactions, new Set(prefs.imported), card ? { card, credits: creditTransactions } : undefined);
     setError("");
     setPreview(marked);
     setSkipped(built.skipped);
     setIncluded(new Set(marked.filter((r) => !r.duplicate).map((r) => r.key)));
+    setAsInstallment(new Set(card ? marked.filter((r) => !r.duplicate && r.installment).map((r) => r.key) : []));
     setEdited(new Set());
     if (saveMapping && bankName.trim()) prefs.saveMapping({ name: bankName.trim(), signature, mapping });
     setStep("preview");
@@ -174,6 +185,21 @@ function Wizard({ onClose }: { onClose: () => void }) {
   function confirm() {
     if (chosen.length === 0) return;
     for (const r of chosen) {
+      if (destination && r.installment && asInstallment.has(r.key)) {
+        const { n, total, base } = r.installment;
+        // a parcela n cai na fatura desta linha: a primeira ficou n-1 meses antes, no mesmo dia
+        addCreditTransaction({
+          id: uuid(),
+          name: base,
+          totalAmount: r.amount * total,
+          installments: total,
+          startMonth: changeMonth(r.date.slice(0, 7), -(n - 1)),
+          category: r.category,
+          cardId: destination,
+          billingDay: Number(r.date.slice(8, 10)),
+        });
+        continue;
+      }
       addTransaction({
         id: uuid(),
         name: r.description,
@@ -268,6 +294,56 @@ function Wizard({ onClose }: { onClose: () => void }) {
               </OptionSelect>
             </Field>
           )}
+          {prefs.mappings.length > 0 && (
+            <div>
+              <button type="button" aria-expanded={managing} onClick={() => setManaging((o) => !o)} className="text-[12.5px] font-bold text-primary hover:underline">
+                {managing ? "Esconder mapeamentos salvos" : `Gerenciar mapeamentos salvos (${prefs.mappings.length})`}
+              </button>
+              {managing && (
+                <ul className="mt-1.5 flex flex-col">
+                  {prefs.mappings.map((m) => (
+                    <li key={m.name} className="flex flex-wrap items-center justify-between gap-2 border-t border-border py-1.5 first:border-t-0">
+                      {renaming?.from === m.name ? (
+                        <form
+                          className="flex min-w-0 flex-1 items-center gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (!prefs.renameMapping(renaming.from, renaming.to)) return showToast({ type: "error", text: "Informe um nome que ainda não esteja em uso" });
+                            if (bankName === renaming.from) setBankName(renaming.to.trim().slice(0, 60));
+                            setRenaming(null);
+                          }}
+                        >
+                          <input aria-label="Novo nome do mapeamento" autoFocus maxLength={60} value={renaming.to} onChange={(e) => setRenaming({ ...renaming, to: e.target.value })} className={inputClass} />
+                          <Button type="submit" size="sm">Salvar</Button>
+                          <Button type="button" size="sm" variant="secondary" onClick={() => setRenaming(null)}>Cancelar</Button>
+                        </form>
+                      ) : (
+                        <>
+                          <span className="min-w-0 break-words text-[13px]">{m.name}</span>
+                          <span className="flex flex-none items-center gap-1">
+                            <button type="button" aria-label={`Renomear ${m.name}`} onClick={() => setRenaming({ from: m.name, to: m.name })} className="grid h-10 w-10 place-items-center rounded-md text-muted-foreground hover:bg-card hover:text-foreground sm:h-8 sm:w-8"><Icon name="edit" size={15} /></button>
+                            <button type="button" aria-label={`Excluir ${m.name}`} onClick={() => setMappingToDelete(m.name)} className="grid h-10 w-10 place-items-center rounded-md text-muted-foreground hover:bg-card hover:text-destructive sm:h-8 sm:w-8"><Icon name="trash" size={15} /></button>
+                          </span>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <ConfirmDeletion
+            open={mappingToDelete !== null}
+            itemLabel="mapeamento"
+            onCancel={() => setMappingToDelete(null)}
+            onConfirm={() => {
+              if (mappingToDelete !== null) {
+                prefs.removeMapping(mappingToDelete);
+                if (bankName === mappingToDelete) setBankName("");
+              }
+              setMappingToDelete(null);
+            }}
+          />
           <label className="flex items-center gap-2 text-[13px] font-semibold text-ink2">
             <input type="checkbox" checked={mapping.hasHeader} onChange={(e) => setMapping({ ...mapping, hasHeader: e.target.checked })} />
             A primeira linha é o cabeçalho
@@ -345,7 +421,13 @@ function Wizard({ onClose }: { onClose: () => void }) {
                   <span className="block break-words font-semibold">{r.description}</span>
                   <span className="text-[12px] text-muted-foreground">
                     {formatPaymentDate(r.date)}
-                    {r.duplicate && " · já existe"}
+                    {r.duplicate && (r.duplicateReason === "recurring" ? " · já cadastrada como recorrente" : r.duplicateReason === "installment" ? " · parcelada já cadastrada" : " · já existe")}
+                    {r.installment && !r.duplicate && destination && (
+                      <label className="mt-0.5 flex items-center gap-1.5 text-[12px] text-ink2">
+                        <input type="checkbox" checked={asInstallment.has(r.key)} onChange={() => setAsInstallment((set) => { const next = new Set(set); if (next.has(r.key)) next.delete(r.key); else next.add(r.key); return next; })} />
+                        Parece parcelada ({r.installment.n}/{r.installment.total}): cadastrar como compra parcelada para ver os próximos meses
+                      </label>
+                    )}
                   </span>
                 </div>
                 <b className={`num col-start-2 sm:col-start-auto ${r.type === "income" ? "text-success" : ""}`}>{r.type === "income" ? "+" : ""}{formatBRL(r.amount)}</b>
