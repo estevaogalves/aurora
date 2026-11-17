@@ -52,9 +52,9 @@ export function getHiddenTransactionsByMonth(
   );
 }
 
-/** Fixas encerradas que já não valem neste mês (para poder reativar). */
+/** Fixas encerradas que já não valem neste mês (para poder reativar). Fim por desfixar não conta: só "encerrar a partir daqui". */
 export function getEndedTransactionsByMonth(transactions: Transaction[], month: Month): Transaction[] {
-  return transactions.filter((t) => t.fixed && !t.debtOrigin && !!t.endMonth && compareMonths(month, t.month) >= 0 && compareMonths(month, t.endMonth) > 0);
+  return transactions.filter((t) => t.fixed && !t.debtOrigin && !!t.endMonth && !t.endedByUnfix && compareMonths(month, t.month) >= 0 && compareMonths(month, t.endMonth) > 0);
 }
 
 export type EndResult = { ok: true; patch: Partial<Transaction> } | { ok: false; error: string };
@@ -78,9 +78,9 @@ export function patchEndFromMonth(t: Transaction, month: Month): EndResult {
 export function patchResumeFixed(t: Transaction, month: Month): Partial<Transaction> {
   if (!t.endMonth) return {};
   const gap = getMonthsBetween(changeMonth(t.endMonth, 1), changeMonth(month, -1));
-  if (gap.length === 0) return { endMonth: undefined };
+  if (gap.length === 0) return { endMonth: undefined, endedByUnfix: undefined };
   const hidden = [...new Set([...(t.hiddenMonths ?? []), ...gap])].sort(compareMonths);
-  return { endMonth: undefined, hiddenMonths: hidden };
+  return { endMonth: undefined, endedByUnfix: undefined, hiddenMonths: hidden };
 }
 
 /* ---------- alterações: devolvem o patch a aplicar na transação ---------- */
@@ -145,7 +145,7 @@ export function patchToggleFixed(t: Transaction): Partial<Transaction> {
     return { fixed: true, hiddenMonths: [], distGroup: undefined };
   }
   // o valor variável (estimado) continua: o valor da fixa vira o valor estimado da avulsa
-  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, endMonth: undefined };
+  return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, endMonth: undefined, endedByUnfix: undefined };
 }
 
 /**
@@ -177,7 +177,7 @@ export function splitFixedAtMonth(
     ...(t.tags?.length && { tags: t.tags }),
     ...(payment && { payments: { [month]: payment } }),
   };
-  return { endPrevious: { endMonth: changeMonth(month, -1) }, thisMonth };
+  return { endPrevious: { endMonth: changeMonth(month, -1), endedByUnfix: true }, thisMonth };
 }
 
 /** Fixa de valor variável: tira o valor real deste mês e ele volta ao estimado. null se o mês já está estimado. */

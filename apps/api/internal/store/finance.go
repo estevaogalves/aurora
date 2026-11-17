@@ -29,6 +29,8 @@ type TransactionPatch struct {
 	PurchaseDate *string
 	// EndMonth: último mês em que a fixa vale. nil não muda; ponteiro para "" tira o fim.
 	EndMonth *string
+	// EndedByUnfix: marca que o fim veio de desfixar. nil não muda; tirar o fim (EndMonth "") tira a marca.
+	EndedByUnfix *bool
 	// DistGroup: distribuição da sugestão do saldo (0 = Dist 1, 2 a 20). nil não muda.
 	DistGroup *int
 	// DueDay: dia do vencimento (1 a 31; 0 tira o dia). nil não muda.
@@ -54,7 +56,7 @@ func createTransaction(ctx context.Context, q *sqlcgen.Queries, userID uuid.UUID
 	row, err := q.CreateTransaction(ctx, sqlcgen.CreateTransactionParams{
 		Column1: clientID(t.ID), UserID: userID, Name: t.Name, AmountCents: t.Amount, Type: t.Type,
 		Category: t.Category, Notes: t.Notes, Fixed: t.Fixed, Month: t.Month, VariableAmount: t.VariableAmount,
-		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int32(t.DistGroup), DueDay: int32(t.DueDay), Column16: tagsJSON(t.Tags),
+		CardID: nullID(t.CardID), PurchaseDate: t.PurchaseDate, EndMonth: t.EndMonth, DistGroup: int32(t.DistGroup), DueDay: int32(t.DueDay), Column16: tagsJSON(t.Tags), EndByUnfix: t.EndedByUnfix && t.EndMonth != "",
 	})
 	if err != nil {
 		return domain.Transaction{}, err
@@ -109,7 +111,7 @@ func (s *Store) UpdateTransaction(ctx context.Context, userID uuid.UUID, id stri
 		arg := sqlcgen.UpdateTransactionParams{
 			Name: text(p.Name), AmountCents: int8v(p.Amount), Category: text(p.Category),
 			Notes: text(p.Notes), Fixed: boolv(p.Fixed), VariableAmount: boolv(p.VariableAmount),
-			PurchaseDate: text(p.PurchaseDate), EndMonth: text(p.EndMonth), ID: tid, UserID: userID,
+			PurchaseDate: text(p.PurchaseDate), EndMonth: text(p.EndMonth), EndByUnfix: boolv(p.EndedByUnfix), ID: tid, UserID: userID,
 		}
 		if p.DistGroup != nil {
 			arg.DistGroup.Int32, arg.DistGroup.Valid = int32(*p.DistGroup), true

@@ -166,6 +166,7 @@ type Transaction struct {
 	DistGroup      int32
 	DueDay         int32
 	Tags           []byte
+	EndByUnfix     bool
 }
 
 type TransactionReceipt struct {

@@ -28,6 +28,9 @@ type Transaction struct {
 	PurchaseDate string `json:"purchaseDate,omitempty"`
 	// EndMonth: fixa encerrada, o último mês em que vale ("2026-11" = vale até novembro). Vazio = segue valendo.
 	EndMonth string `json:"endMonth,omitempty"`
+	// EndedByUnfix: o fim veio de desfixar a despesa num mês posterior ao de criação, não de "encerrar a partir daqui";
+	// a lista de encerradas não a mostra. Só faz sentido com EndMonth.
+	EndedByUnfix bool `json:"endedByUnfix,omitempty"`
 	// DistGroup: em qual distribuição da sugestão do saldo a renda entra. 0 (ausente) = soma ao saldo do mês (Dist 1);
 	// 2 a 20 = distribuição própria (Dist 2, 3...), cada uma com a sua página e os seus percentuais. Só marca: não
 	// muda nenhum valor. Só vale para renda não fixa (13º, bônus).
