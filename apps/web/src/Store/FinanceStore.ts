@@ -17,6 +17,7 @@ import {
   patchHideInMonth,
   patchRestoreInMonth,
   patchToggleFixed,
+  splitFixedAtMonth,
   patchClearMonthValue,
   type CreditInstallment,
   findSentMovements,
@@ -123,7 +124,8 @@ interface FinanceState {
   updateTransactionAmountForMonth: (id: string, month: string, cents: number) => void;
   /** Fixa: o novo valor vale deste mês em diante (os anteriores não mudam). */
   updateTransactionAmountFromMonth: (id: string, month: string, cents: number) => void;
-  toggleTransactionFixed: (id: string) => void;
+  /** Fixa/desfixa. Com `month` posterior ao de criação, desfixar só vale deste mês em diante (veja `splitFixedAtMonth`). */
+  toggleTransactionFixed: (id: string, month?: string) => void;
   /** Liga ou desliga o valor variável (estimado), em fixa ou avulsa. */
   setTransactionVariable: (id: string, variable: boolean) => void;
   /** Fixa variável: tira o valor real do mês e volta ao estimado. */
@@ -412,10 +414,14 @@ export const useFinanceStore = create<FinanceState>()((set, get) => {
       if (t) patchTransaction(id, patchAmountFromMonth(t, month, cents));
     },
 
-    toggleTransactionFixed: (id) => {
+    toggleTransactionFixed: (id, month) => {
       const t = findTransaction(id);
       // despesa no cartão não fixa: uma despesa fixa no cartão é uma recorrência (Lançar → Crédito parcelado)
-      if (t && !t.cardId) patchTransaction(id, patchToggleFixed(t));
+      if (!t || t.cardId) return;
+      const split = month ? splitFixedAtMonth(t, month, uuid()) : null;
+      if (!split) return patchTransaction(id, patchToggleFixed(t));
+      patchTransaction(id, split.endPrevious);
+      get().addTransaction(split.thisMonth);
     },
 
     setTransactionVariable: (id, variable) => {

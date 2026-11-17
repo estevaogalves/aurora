@@ -106,7 +106,7 @@ function TransactionRow({ t, onEdit, onDelete, onEnd, pay }: { t: Transaction; o
       deleteLabel={t.fixed ? "Ocultar neste mês" : "Excluir"}
       onEdit={() => onEdit(t)}
       // despesa no cartão só edita e exclui: não fixa (fixa no cartão é recorrência) e não paga sozinha (entra na fatura)
-      onPin={t.cardId ? undefined : () => toggleFixed(t.id)}
+      onPin={t.cardId ? undefined : () => toggleFixed(t.id, month)}
       onDelete={() => onDelete(t.id)}
       onEnd={t.fixed && onEnd ? () => onEnd(t) : undefined}
       onPay={pay?.onPay}
