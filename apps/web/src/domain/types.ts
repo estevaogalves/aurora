@@ -423,7 +423,7 @@ export interface FinanceData {
   /** Percentuais escolhidos pelo usuário; null = padrão. */
   distribution: DistributionItem[] | null;
   /**
-   * Percentuais próprios de uma distribuição (Dist 2 em diante) de um mês, por chave "AAAA-MM|n" (veja `overrideKey`).
+   * Percentuais próprios de uma distribuição (a Dist 1 também) de um mês, por chave "AAAA-MM|n" (veja `overrideKey`).
    * Sem a chave, vale `distribution` (o padrão). A Dist 1 sempre usa o padrão. Ausente = nenhuma.
    */
   distributionOverrides?: Record<string, DistributionItem[]>;

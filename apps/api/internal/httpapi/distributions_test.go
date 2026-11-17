@@ -113,7 +113,7 @@ func TestDistributionOverrides(t *testing.T) {
 
 	// mês, número e percentuais são conferidos
 	want(t, e.do(t, "PUT", "/api/v1/settings/distribution-overrides/dezembro/2", tk, map[string]any{"items": items(30)}), 400)
-	want(t, e.do(t, "PUT", "/api/v1/settings/distribution-overrides/2026-12/1", tk, map[string]any{"items": items(30)}), 400)
+	want(t, e.do(t, "PUT", "/api/v1/settings/distribution-overrides/2026-12/0", tk, map[string]any{"items": items(30)}), 400)
 	want(t, e.do(t, "PUT", "/api/v1/settings/distribution-overrides/2026-12/21", tk, map[string]any{"items": items(30)}), 400)
 	want(t, e.do(t, "PUT", "/api/v1/settings/distribution-overrides/2026-12/abc", tk, map[string]any{"items": items(30)}), 400)
 	want(t, e.do(t, "PUT", url, tk, map[string]any{"items": brokenItems()}), 400) // soma 90
@@ -151,6 +151,8 @@ func TestDistributionOverrides(t *testing.T) {
 	if d := loadData(t, e, tk); len(d.DistributionOverrides) != 1 || d.DistributionOverrides["2026-12|2"][1].Percent != 30 {
 		t.Fatalf("importação: %+v", d.DistributionOverrides)
 	}
-	want(t, e.do(t, "POST", "/api/v1/import?replace=true", tk, map[string]any{"distributionOverrides": map[string]any{"2026-12|1": items(30)}}), 400)
+	want(t, e.do(t, "POST", "/api/v1/import?replace=true", tk, map[string]any{"distributionOverrides": map[string]any{"2026-12|0": items(30)}}), 400)
+	// a Dist 1 também pode ter percentuais só de um mês
+	want(t, e.do(t, "POST", "/api/v1/import?replace=true", tk, map[string]any{"distributionOverrides": map[string]any{"2026-12|1": items(30)}}), 201)
 	want(t, e.do(t, "POST", "/api/v1/import?replace=true", tk, map[string]any{"distributionOverrides": map[string]any{"2026-12|2": brokenItems()}}), 400)
 }

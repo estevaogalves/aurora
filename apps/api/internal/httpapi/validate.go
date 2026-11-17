@@ -591,7 +591,7 @@ func (l Limits) validateData(d domain.FinanceData) string {
 	}
 	for key, items := range d.DistributionOverrides {
 		if !domain.ValidOverrideKey(key) {
-			return "Distribuição " + quote(key) + ": a chave deve ser AAAA-MM|n, com n de 2 a 20."
+			return "Distribuição " + quote(key) + ": a chave deve ser AAAA-MM|n, com n de 1 a 20."
 		}
 		if len(items) > l.DistributionItems {
 			return "Distribuição " + quote(key) + ": categorias demais."

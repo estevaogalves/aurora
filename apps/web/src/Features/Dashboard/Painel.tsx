@@ -253,8 +253,8 @@ function Suggestion() {
   const items = useDistributionItemsFor(dist.group);
   const base = globalItems ?? DEFAULT_DISTRIBUTION;
   const first = dist.group === 1;
-  const hasOwn = !first && !!overrides[overrideKey(month, dist.group)];
-  const canRestore = first ? globalItems !== null : hasOwn;
+  const hasOwn = !!overrides[overrideKey(month, dist.group)];
+  const canRestoreAll = first && globalItems !== null;
   const multiple = dists.length > 1;
 
   const menu = (
@@ -269,10 +269,16 @@ function Suggestion() {
           <Icon name="edit" size={15} />
           {first ? "Personalizar o padrão" : `Personalizar a ${dist.label}`}
         </DropdownMenuItem>
-        {canRestore && (
-          <DropdownMenuItem onSelect={() => (first ? setDistribution(null) : setOverride(month, dist.group, null))}>
+        {hasOwn && (
+          <DropdownMenuItem onSelect={() => setOverride(month, dist.group, null)}>
             <Icon name="restore" size={15} />
-            {first ? "Restaurar padrão" : "Voltar ao padrão"}
+            {first ? "Voltar ao padrão neste mês" : "Voltar ao padrão"}
+          </DropdownMenuItem>
+        )}
+        {canRestoreAll && (
+          <DropdownMenuItem onSelect={() => setDistribution(null)}>
+            <Icon name="restore" size={15} />
+            Restaurar padrão (todos os meses)
           </DropdownMenuItem>
         )}
       </DropdownMenuContent>
@@ -300,7 +306,7 @@ function Suggestion() {
         )}
         <p className="mb-2 text-[12px] text-muted-foreground">
           {first
-            ? "Percentuais padrão: se você alterar, muda em todos os meses."
+            ? hasOwn ? "Percentuais só deste mês. Os outros meses seguem o padrão." : "Percentuais padrão, de todos os meses. Ao alterar, você escolhe se vale só para este mês."
             : hasOwn ? "Percentuais só desta distribuição, neste mês." : "Segue os percentuais padrão. Se você alterar, muda só esta distribuição, neste mês."}
         </p>
         <DistributionPage
@@ -319,16 +325,19 @@ function Suggestion() {
         title={first ? "Personalizar o padrão da sugestão" : `Personalizar a ${dist.label}`}
         description={
           first
-            ? "O padrão vale para a Dist 1 de todos os meses e é o ponto de partida das outras distribuições. As cinco categorias padrão ficam sempre, e a soma precisa ser 100%."
+            ? "Escolha se a mudança vale para todos os meses (o padrão, ponto de partida das outras distribuições) ou só para este mês. As cinco categorias padrão ficam sempre, e a soma precisa ser 100%."
             : `Muda só a ${dist.label}, neste mês: as outras distribuições e os outros meses não mudam. A soma precisa ser 100%.`
         }
-        scope={first ? { all: true } : { all: false, month: formatMonthTitle(month) }}
+        choice={first}
+        monthLabel={formatMonthTitle(month)}
+        defaultScope={first && !hasOwn ? "all" : "month"}
         current={items}
         base={base}
-        onSave={(next) => {
-          if (first) setDistribution(next);
+        monthBase={base}
+        onSave={(next, scope) => {
+          if (scope === "all") setDistribution(next);
           else setOverride(month, dist.group, next);
-          showToast({ type: "success", text: first ? "Padrão da sugestão atualizado em todos os meses" : `${dist.label} atualizada só em ${formatMonthTitle(month)}` });
+          showToast({ type: "success", text: scope === "all" ? "Padrão da sugestão atualizado em todos os meses" : `${dist.label} atualizada só em ${formatMonthTitle(month)}` });
         }}
       />
       <SendDistributionDialog request={sending} onClose={() => setSending(null)} />

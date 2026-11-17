@@ -56,10 +56,12 @@ describe("percentuais próprios de uma distribuição na store", () => {
     expect(repo.setDistributionOverride).toHaveBeenLastCalledWith("2026-12", 2, null);
   });
 
-  it("a Dist 1 não tem percentual próprio: usa o padrão", () => {
+  it("a Dist 1 também pode ter percentuais só de um mês, e voltar ao padrão", () => {
     store().setDistributionOverride("2026-12", 1, itemsOf(30));
+    expect(Object.keys(store().distributionOverrides)).toEqual(["2026-12|1"]);
+    expect(repo.setDistributionOverride).toHaveBeenCalledWith("2026-12", 1, itemsOf(30));
+    store().setDistributionOverride("2026-12", 1, null);
     expect(store().distributionOverrides).toEqual({});
-    expect(repo.setDistributionOverride).not.toHaveBeenCalled();
   });
 });
 

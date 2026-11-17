@@ -589,8 +589,8 @@ func (s *Server) putDistribution(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// putDistributionOverride grava (ou, com `items: null`, limpa) os percentuais próprios de uma distribuição (Dist 2 em
-// diante) de um mês. A Dist 1 sempre usa o padrão (PUT /settings/distribution).
+// putDistributionOverride grava (ou, com `items: null`, limpa) os percentuais próprios de uma distribuição de um mês
+// (Dist 1 a 20). Sem eles, a distribuição segue o padrão do usuário (PUT /settings/distribution).
 func (s *Server) putDistributionOverride(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		Items []domain.DistributionItem `json:"items"` // null volta ao padrão
@@ -600,7 +600,7 @@ func (s *Server) putDistributionOverride(w http.ResponseWriter, r *http.Request)
 	}
 	key := chi.URLParam(r, "month") + "|" + chi.URLParam(r, "group")
 	if !domain.ValidOverrideKey(key) {
-		writeError(w, http.StatusBadRequest, "A distribuição deve ser de um mês válido (AAAA-MM) e de 2 a 20.")
+		writeError(w, http.StatusBadRequest, "A distribuição deve ser de um mês válido (AAAA-MM) e de 1 a 20.")
 		return
 	}
 	if len(in.Items) > s.lim.DistributionItems {
