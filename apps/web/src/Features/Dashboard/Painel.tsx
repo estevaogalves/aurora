@@ -5,6 +5,8 @@ import ChartLine from "@/components/charts/ChartLine";
 import Icon from "@/components/Icon";
 import Panel, { Empty, PageHeader } from "@/components/shared/Panel";
 import { btnClass } from "@/components/shared/styles";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { breathingDays, comparisonAvailable, freedomDay, getInsights, reserveTotal, visibleInsights, DEFAULT_DISTRIBUTION, distributeBalance, getCategoryDetail, getMonthSummary, goalPercent, isCardPurchase, overrideKey, sentKey, type DistributionItem, type MonthDistribution, type SentSummary, type SentTarget } from "@/domain";
 import HoursHint from "@/components/shared/HoursHint";
@@ -247,6 +249,7 @@ function Suggestion() {
   const [editing, setEditing] = useState(false);
   const [sending, setSending] = useState<SendRequest | null>(null);
   const [undoing, setUndoing] = useState<UndoRequest | null>(null);
+  const [restoringAll, setRestoringAll] = useState(false);
 
   // a página aberta some se a distribuição deixou de existir (ex.: a renda dela foi apagada)
   const dist = dists.find((d) => d.group === selected) ?? dists[0];
@@ -276,7 +279,7 @@ function Suggestion() {
           </DropdownMenuItem>
         )}
         {canRestoreAll && (
-          <DropdownMenuItem onSelect={() => setDistribution(null)}>
+          <DropdownMenuItem onSelect={() => setRestoringAll(true)}>
             <Icon name="restore" size={15} />
             Restaurar padrão (todos os meses)
           </DropdownMenuItem>
@@ -340,6 +343,30 @@ function Suggestion() {
           showToast({ type: "success", text: scope === "all" ? "Padrão da sugestão atualizado em todos os meses" : `${dist.label} atualizada só em ${formatMonthTitle(month)}` });
         }}
       />
+      <Dialog open={restoringAll} onOpenChange={setRestoringAll}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Restaurar o padrão em todos os meses?</DialogTitle>
+            <DialogDescription>
+              Os percentuais que você personalizou para a Dist 1 voltam ao padrão do app em todos os meses. Os meses com percentuais só deles não mudam.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setRestoringAll(false)}>Cancelar</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => {
+                setDistribution(null);
+                setRestoringAll(false);
+                showToast({ type: "success", text: "Padrão restaurado em todos os meses" });
+              }}
+            >
+              Restaurar
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
       <SendDistributionDialog request={sending} onClose={() => setSending(null)} />
       <UndoSendDialog
         request={undoing}
