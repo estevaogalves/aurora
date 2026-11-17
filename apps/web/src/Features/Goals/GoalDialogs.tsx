@@ -214,6 +214,81 @@ function GoalMovementFields({ goal, movement, onClose }: { goal: Goal; movement:
   );
 }
 
+/** Transfere um valor do guardado de uma meta/porquinho para outro: uma retirada na origem e um aporte no destino, com a mesma data. */
+export function GoalTransferDialog({ goal, open, onClose }: { goal: Goal | null; open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open && !!goal} onOpenChange={(next) => !next && onClose()}>
+      <DialogContent className="max-w-md" onInteractOutside={(e) => e.preventDefault()}>
+        <DialogHeader>
+          <DialogTitle>Transferir de “{goal?.name}”</DialogTitle>
+          <DialogDescription>Guardado hoje: {goal ? formatBRL(goal.saved) : ""}. O valor sai daqui e entra no destino escolhido.</DialogDescription>
+        </DialogHeader>
+        {goal && <GoalTransferFields key={goal.id} goal={goal} onClose={onClose} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function GoalTransferFields({ goal, onClose }: { goal: Goal; onClose: () => void }) {
+  const addMovement = useFinanceStore((s) => s.addGoalMovement);
+  const goals = useFinanceStore((s) => s.goals);
+  // piggy primeiro: a transferência mais comum é entre porquinhos
+  const targets = goals.filter((g) => g.id !== goal.id).sort((a, b) => Number(!!b.piggy) - Number(!!a.piggy));
+  const [toId, setToId] = useState(targets[0]?.id ?? "");
+  const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [error, setError] = useState("");
+
+  const cents = parseBRL(amount) ?? 0;
+  const to = targets.find((g) => g.id === toId);
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!to) return setError("Escolha o destino da transferência.");
+    if (!date) return setError("Informe a data.");
+    if (cents <= 0) return setError("Informe um valor maior que zero.");
+    if (cents > goal.saved) return setError(`O valor (${formatBRL(cents)}) é maior que o guardado em "${goal.name}" (${formatBRL(goal.saved)}).`);
+    addMovement({ id: uuid(), goalId: goal.id, type: "withdrawal", date, amount: cents, note: `Transferido para ${to.name}`.slice(0, 200) });
+    addMovement({ id: uuid(), goalId: to.id, type: "contribution", date, amount: cents, note: `Recebido de ${goal.name}`.slice(0, 200) });
+    showToast({ type: "success", text: `${formatBRL(cents)} transferido de "${goal.name}" para "${to.name}"` });
+    onClose();
+  }
+
+  if (targets.length === 0) {
+    return (
+      <div className="flex flex-col gap-4">
+        <p className="rounded-md bg-secondary px-3 py-2 text-[13px] text-ink2">Crie outro porquinho ou meta para poder transferir.</p>
+        <div className="flex justify-end"><Button type="button" variant="secondary" onClick={onClose}>Fechar</Button></div>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={submit} noValidate className="flex flex-col gap-4">
+      <Field label="Transferir para" htmlFor="gtr-to">
+        <OptionSelect id="gtr-to" value={toId} onChange={(e) => { setToId(e.target.value); setError(""); }} className={inputClass}>
+          {targets.map((g) => <option key={g.id} value={g.id}>{g.name} ({g.piggy ? "porquinho" : "meta"})</option>)}
+        </OptionSelect>
+      </Field>
+      <Field label="Valor" htmlFor="gtr-amount">
+        <MoneyInput id="gtr-amount" value={amount} onChange={(v) => { setAmount(v); setError(""); }} />
+      </Field>
+      <Field label="Data" htmlFor="gtr-date">
+        <input id="gtr-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} className={inputClass} />
+      </Field>
+      <p className="rounded-md bg-secondary px-3 py-2 text-[13px] text-ink2">
+        Depois: “{goal.name}” fica com <strong className="text-foreground">{formatBRL(goal.saved - Math.min(cents, goal.saved))}</strong>
+        {to && <>; “{to.name}” fica com <strong className="text-foreground">{formatBRL(to.saved + cents)}</strong></>}.
+      </p>
+      {error && <p role="alert" className="rounded-md bg-secondary px-3 py-2 text-[13px] font-semibold text-destructive">{error}</p>}
+      <div className="flex justify-end gap-2">
+        <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+        <Button type="submit">Transferir</Button>
+      </div>
+    </form>
+  );
+}
+
 /** Histórico de uma meta ou porquinho, da data mais recente para a mais antiga, com editar e excluir. */
 export function GoalHistoryDialog({ goal, open, onClose, onEdit }: { goal: Goal | null; open: boolean; onClose: () => void; onEdit: (m: GoalMovement) => void }) {
   const movements = useFinanceStore((s) => s.goalMovements);
