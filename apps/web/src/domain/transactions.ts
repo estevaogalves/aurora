@@ -148,6 +148,38 @@ export function patchToggleFixed(t: Transaction): Partial<Transaction> {
   return { fixed: false, hiddenMonths: undefined, monthlyValues: undefined, endMonth: undefined };
 }
 
+/**
+ * Desfixar a partir de um mês POSTERIOR ao de criação: os meses anteriores continuam como estavam (a fixa termina no mês
+ * anterior) e este mês vira uma transação avulsa, com o valor, a observação e o pagamento que ele tinha.
+ * Sem isso, desfixar convertia a série inteira em avulsa do mês de criação e o mês visto ficava sem nada.
+ * null quando não se aplica (não é fixa, ou o mês visto é o de criação: aí `patchToggleFixed` basta).
+ */
+export function splitFixedAtMonth(
+  t: Transaction,
+  month: Month,
+  newId: string,
+): { endPrevious: Partial<Transaction>; thisMonth: Transaction } | null {
+  if (!t.fixed || compareMonths(month, t.month) <= 0) return null;
+  const override = t.monthlyValues?.[month];
+  const payment = t.payments?.[month];
+  const thisMonth: Transaction = {
+    id: newId,
+    name: t.name,
+    amount: override ?? t.amount,
+    type: t.type,
+    category: t.category,
+    notes: noteOfMonth(t, month),
+    fixed: false,
+    month,
+    // com valor real definido para o mês, ele deixa de ser estimativa
+    ...(t.variableAmount && override === undefined && { variableAmount: true }),
+    ...(t.dueDay !== undefined && { dueDay: t.dueDay }),
+    ...(t.tags?.length && { tags: t.tags }),
+    ...(payment && { payments: { [month]: payment } }),
+  };
+  return { endPrevious: { endMonth: changeMonth(month, -1) }, thisMonth };
+}
+
 /** Fixa de valor variável: tira o valor real deste mês e ele volta ao estimado. null se o mês já está estimado. */
 export function patchClearMonthValue(t: Transaction, month: Month): Partial<Transaction> | null {
   if (!t.fixed || !t.variableAmount || t.monthlyValues?.[month] === undefined) return null;

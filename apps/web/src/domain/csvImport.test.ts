@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { IMPORT_TEMPLATES, buildImportRows, decodeCsvBytes, detectDelimiter, guessMapping, looksSensitive, markDuplicates, maskSensitive, parseAmount, parseCsv, parseDate, sensitiveColumns, suggestCategory, type Transaction } from "./index";
+import { IMPORT_TEMPLATES, buildImportRows, decodeCsvBytes, detectDelimiter, guessMapping, looksSensitive, markDuplicates, maskSensitive, parseInstallmentSuffix, parseAmount, parseCsv, parseDate, sensitiveColumns, suggestCategory, type Transaction, type CreditCard, type CreditTransaction } from "./index";
 
 describe("leitura do CSV", () => {
   it("detecta ; e , e lê aspas, vírgula dentro de campo e CRLF", () => {
@@ -177,4 +177,81 @@ describe("planilhas modelo", () => {
       expect(built.map((r) => r.type)).toEqual(["expense", "expense"]);
     });
   }
+});
+
+describe("fatura: recorrentes e parceladas já cadastradas", () => {
+  // fecha dia 25, vence dia 5: compra de 10/11 cai na fatura de dezembro
+  const card: CreditCard = { id: "c1", name: "Nubank", closingDay: 25, dueDay: 5 };
+  const credit = (extra: Partial<CreditTransaction>): CreditTransaction => ({ id: "k", name: "Claude", totalAmount: 10000, installments: 1, startMonth: "2026-10", category: "Outros", cardId: "c1", recurring: true, ...extra });
+  const fatura = (linhas: string[][]) => {
+    const rows = [["Data", "Descrição", "Valor"], ...linhas];
+    return buildImportRows(rows, { ...guessMapping(rows)!, signMode: "expense" }, []).rows;
+  };
+  const run = (linhas: string[][], credits: CreditTransaction[], transactions: Transaction[] = []) => markDuplicates(fatura(linhas), transactions, new Set(), { card, credits });
+
+  it("recorrente ativa cobre a linha, com valor exato", () => {
+    const [r] = run([["10/11/2026", "Claude", "100,00"]], [credit({})]);
+    expect(r.duplicate).toBe(true);
+    expect(r.duplicateReason).toBe("recurring");
+  });
+
+  it("compra de mesmo nome com valor diferente não é a recorrência (nem toda compra em dólar é recorrente)", () => {
+    expect(run([["10/11/2026", "Claude", "137,52"]], [credit({})])[0].duplicate).toBe(false);
+  });
+
+  it("recorrente de valor variável cobre qualquer valor", () => {
+    expect(run([["10/11/2026", "Claude", "137,52"]], [credit({ variableAmount: true })])[0].duplicate).toBe(true);
+  });
+
+  it("recorrente encerrada (endMonth) antes da fatura não cobre: a linha é compra nova", () => {
+    expect(run([["10/11/2026", "Claude", "100,00"]], [credit({ endMonth: "2026-11" })])[0].duplicate).toBe(false);
+    expect(run([["10/11/2026", "Claude", "100,00"]], [credit({ endMonth: "2026-12" })])[0].duplicate).toBe(true);
+  });
+
+  it("recorrente que ainda não começou, ou de outro cartão, não cobre", () => {
+    expect(run([["10/11/2026", "Claude", "100,00"]], [credit({ startMonth: "2027-01" })])[0].duplicate).toBe(false);
+    expect(run([["10/11/2026", "Claude", "100,00"]], [credit({ cardId: "outro" })])[0].duplicate).toBe(false);
+  });
+
+  it("despesa fixa no cartão também cobre, mas não no mês oculto", () => {
+    const fixa: Transaction = { id: "f", name: "Wellhub", amount: 8000, type: "expense", category: "Outros", month: "2026-10", fixed: true, cardId: "c1" };
+    expect(run([["10/11/2026", "Wellhub", "80,00"]], [], [fixa])[0].duplicateReason).toBe("recurring");
+    expect(run([["10/11/2026", "Wellhub", "80,00"]], [], [{ ...fixa, hiddenMonths: ["2026-12"] }])[0].duplicate).toBe(false);
+    expect(run([["10/11/2026", "Wellhub", "80,00"]], [], [{ ...fixa, endMonth: "2026-11" }])[0].duplicate).toBe(false);
+  });
+
+  it("o nome cadastrado vale em qualquer posição da descrição da fatura", () => {
+    expect(run([["10/11/2026", "ANTHROPIC* CLAUDE SUB", "100,00"]], [credit({})])[0].duplicateReason).toBe("recurring");
+    expect(run([["10/11/2026", "Wellhub Estevao Alves", "100,00"]], [credit({ name: "Wellhub" })])[0].duplicate).toBe(true);
+  });
+
+  it("parcelada com nome próprio (outro que o do estabelecimento) casa pelo total, valor e número da parcela", () => {
+    // a compra de 10/11 cai na fatura de dezembro: é a parcela 1 se a cobrança começa em dezembro
+    const terno = credit({ name: "Terno Casamento Joao", recurring: false, installments: 5, totalAmount: 50000, startMonth: "2026-12" });
+    expect(run([["10/11/2026", "Mp *Carvalholocacoes 1/5", "100,00"]], [terno])[0].duplicateReason).toBe("installment");
+    expect(run([["10/11/2026", "Mp *Carvalholocacoes 2/5", "100,00"]], [terno])[0].duplicate).toBe(false);
+    expect(run([["10/11/2026", "Mp *Carvalholocacoes 1/5", "99,00"]], [terno])[0].duplicate).toBe(false);
+    expect(run([["10/11/2026", "Mp *Carvalholocacoes 1/6", "100,00"]], [terno])[0].duplicate).toBe(false);
+  });
+
+  it("lê o sufixo de parcela", () => {
+    expect(parseInstallmentSuffix("Loja X 2/10")).toEqual({ n: 2, total: 10, base: "Loja X" });
+    expect(parseInstallmentSuffix("Loja X - Parcela 3 de 6")).toEqual({ n: 3, total: 6, base: "Loja X" });
+    expect(parseInstallmentSuffix("Loja X 1/1")).toBeNull();
+    expect(parseInstallmentSuffix("Loja X")).toBeNull();
+  });
+
+  it("parcela de compra parcelada já cadastrada é duplicada; sem cadastro vem marcada como parcelada", () => {
+    const parcelada = credit({ name: "Loja X", recurring: false, installments: 10, totalAmount: 100000, startMonth: "2026-11" });
+    const [dup] = run([["10/11/2026", "Loja X 2/10", "100,00"]], [parcelada]);
+    expect(dup.duplicateReason).toBe("installment");
+    const [nova] = run([["10/11/2026", "Loja X 2/10", "100,00"]], []);
+    expect(nova.duplicate).toBe(false);
+    expect(nova.installment).toEqual({ n: 2, total: 10, base: "Loja X" });
+  });
+
+  it("sem cartão (extrato da conta), nada disso se aplica", () => {
+    const [r] = markDuplicates(fatura([["10/11/2026", "Claude", "100,00"]]), [], new Set());
+    expect(r.duplicate).toBe(false);
+  });
 });

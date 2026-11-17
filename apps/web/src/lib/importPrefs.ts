@@ -57,6 +57,9 @@ function read(): Stored {
 
 interface ImportPrefsState extends Stored {
   saveMapping: (m: SavedMapping) => void;
+  /** troca o nome; false se o novo nome está vazio ou já é de outro mapeamento */
+  renameMapping: (oldName: string, newName: string) => boolean;
+  removeMapping: (name: string) => void;
   addRule: (rule: CategoryRule) => void;
   removeRule: (id: string) => void;
   addImported: (keys: string[]) => void;
@@ -75,6 +78,18 @@ export const useImportPrefs = create<ImportPrefsState>((set, get) => {
     ...read(),
     saveMapping: (m) => {
       set((s) => ({ mappings: [m, ...s.mappings.filter((x) => x.name !== m.name)].slice(0, MAX_SAVED_MAPPINGS) }));
+      persist();
+    },
+    renameMapping: (oldName, newName) => {
+      const name = newName.trim().slice(0, 60);
+      if (!name) return false;
+      if (name !== oldName && get().mappings.some((x) => x.name === name)) return false;
+      set((s) => ({ mappings: s.mappings.map((x) => (x.name === oldName ? { ...x, name } : x)) }));
+      persist();
+      return true;
+    },
+    removeMapping: (name) => {
+      set((s) => ({ mappings: s.mappings.filter((x) => x.name !== name) }));
       persist();
     },
     addRule: (rule) => {

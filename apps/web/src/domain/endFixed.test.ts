@@ -9,6 +9,7 @@ import {
   patchEndFromMonth,
   patchResumeFixed,
   patchToggleFixed,
+  splitFixedAtMonth,
   type Transaction,
 } from "./index";
 
@@ -129,5 +130,21 @@ describe("encerrar uma despesa fixa a partir de um mês", () => {
 
   it("deixar de ser fixa tira o encerramento junto", () => {
     expect(patchToggleFixed(end(cartao, "2026-12"))).toMatchObject({ fixed: false, endMonth: undefined });
+  });
+});
+
+describe("desfixar em um mês posterior", () => {
+  const luz: Transaction = { id: "l", name: "Luz", amount: 10000, type: "expense", category: "Casa", month: "2026-11", fixed: true, payments: { "2026-11": { method: "pix", date: "2026-11-05" }, "2026-12": { method: "pix", date: "2026-12-05" } }, monthlyValues: { "2026-12": 12345 }, dueDay: 10 };
+
+  it("a fixa termina no mês anterior e o mês visto vira avulsa com valor e pagamento dele", () => {
+    const r = splitFixedAtMonth(luz, "2026-12", "novo")!;
+    expect(r.endPrevious).toEqual({ endMonth: "2026-11" });
+    expect(r.thisMonth).toMatchObject({ id: "novo", fixed: false, month: "2026-12", amount: 12345, dueDay: 10, payments: { "2026-12": { method: "pix", date: "2026-12-05" } } });
+    expect(r.thisMonth.variableAmount).toBeUndefined();
+  });
+
+  it("no mês de criação, ou em despesa avulsa, não se aplica", () => {
+    expect(splitFixedAtMonth(luz, "2026-11", "n")).toBeNull();
+    expect(splitFixedAtMonth({ ...luz, fixed: false }, "2026-12", "n")).toBeNull();
   });
 });
