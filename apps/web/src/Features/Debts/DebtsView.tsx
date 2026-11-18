@@ -65,7 +65,7 @@ export default function DebtsView() {
       {shown.length === 0 && (
         <div className="mt-3.5">
           <Panel title="Nenhuma dívida ainda" subtitle="Consórcios, financiamentos e compras em parcelas fixas">
-            <Empty>Use “Nova dívida” para acompanhar quanto falta pagar e quando a última parcela vence. Vincule à despesa fixa que já traz a parcela para a Projeção mostrar quando ela cai.</Empty>
+            <Empty>Use “Nova dívida” para acompanhar quanto falta pagar e quando a última parcela vence. As parcelas aparecem sozinhas em Lançamentos e a Projeção mostra quando a despesa cai.</Empty>
           </Panel>
         </div>
       )}
