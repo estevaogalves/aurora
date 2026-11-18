@@ -12,7 +12,7 @@ Acompanhamento da funcionalidade de onboarding do Aurora: um tour curto e **indi
 
 - [ ok ] Visual: **protótipo B "Foco"**. Halo luminoso que pulsa no elemento destacado, cartão compacto, número grande da etapa (ex.: `3/9`) e pontos de progresso.
   - Protótipo: https://claude.ai/artifact/Q5nqtFgrTZCKB136VJ4QMw (os outros, A e C, foram descartados)
-- [ ok ] **Cada tela tem o seu próprio tour.** Não existe tour geral da plataforma.
+- [ ok ] **Cada tela tem o seu próprio tour**, e há também um **tour geral** (`components/tour/globalTour.ts`) que percorre as abas na ordem do menu (Painel, Lançamentos, Projeção, Comparação, Metas e Relatórios) reaproveitando as etapas de cada tela.
 - [ ok ] **O tour apresenta todos os cards da tela.** As telas são pequenas e têm pouca informação, então nenhum card fica de fora. A ordem das etapas segue a ordem de leitura da tela (de cima para baixo, da esquerda para a direita).
 - [ ok ] Estado do onboarding **por usuário e por tela**, salvo na conta (API) e, no modo local, no `localStorage`
 - [ ok ] Mostrar o tour nos **dois modos**: com a API (estado na conta) e local (estado no `localStorage`)
@@ -77,37 +77,45 @@ Os textos estão em `Features/*/tour.ts`. Quando um card depende de dados (por e
 ### Painel (`painel`)
 
 - [ ok ] 1. Botão **Lançar**: todo cadastro começa aqui; o Painel só mostra os números
-- [ ok ] 2. **Seletor de mês**: troca o período; não passa do mês atual
+- [ ok ] 2. **Seletor de mês**: meses futuros liberados (mostram o que já está previsto); meses passados só com movimentação
 - [ ok ] 3. **Aviso de prazo das metas** (só aparece se houver meta com prazo próximo ou vencido)
-- [ ok ] 4. **Tempo e fôlego** (botão): horas de trabalho e card Dias de fôlego, desligados por padrão
-- [ ok ] 5. **Em destaque neste mês**: insights por regras locais, dispensáveis (só com 2+ meses de movimento)
-- [ ok ] 6. Card **Saldo do mês**: renda menos despesas (com as parcelas do crédito) e % da renda comprometida
-- [ ok ] 7. Card **Últimos 6 meses**: gráfico de renda e despesas
-- [ ok ] 8. Card **Próximos vencimentos**: despesas com "Dia do vencimento" e faturas de cartão não pagas; atrasados primeiro; "Marcar como paga" só registra; janela de 7, 14 ou 30 dias. Sem vencimentos, usa exemplos fictícios durante o tour. Os atrasados e os que vencem em até 3 dias também avisam no sino
-- [ ok ] 9. Card **Despesas por categoria**: onde o dinheiro do mês foi
-- [ ok ] 10. Card **Sugestão do saldo**: como dividir o que sobrou; menu ⋮ ajusta os percentuais
-- [ ok ] 11. Card **Metas**: progresso geral dos objetivos
-- [ ok ] 12. Card **Despesas do mês**: as 5 mais recentes
-- [ ok ] 13. Card **Anotações**: lembretes do mês (somente leitura aqui)
-- [ ok ] 14. Card **Dias de fôlego** (só aparece ligado em Tempo e fôlego e com reserva; durante o tour mostra um exemplo)
+- [ ok ] 4. Botão **Fechar mês**: passo a passo (resumo, pendências, divisão do saldo, comparação e anotação); guarda um retrato sem alterar lançamentos; editar mês fechado pede reabrir
+- [ ok ] 5. **Tempo e fôlego** (botão): horas de trabalho e card Dias de fôlego, desligados por padrão
+- [ ok ] 6. **Em destaque neste mês**: insights por regras locais, dispensáveis (só com 2+ meses de movimento)
+- [ ok ] 7. Card **Saldo do mês**: renda menos despesas (com as parcelas do crédito) e % da renda comprometida
+- [ ok ] 8. Card **Últimos 6 meses**: gráfico de renda e despesas
+- [ ok ] 9. Card **Próximos vencimentos**: despesas com "Dia do vencimento" e faturas de cartão não pagas; atrasados primeiro; "Marcar como paga" só registra; janela de 7, 14 ou 30 dias. Sem vencimentos, usa exemplos
+- [ ok ] 10. Card **Despesas por categoria**: onde o dinheiro do mês foi; clicar na fatia mostra os lançamentos
+- [ ok ] 11. **Orçamento por categoria**: limite mensal herdado pelos meses seguintes, barras (80% atenção, 100% estourou) e avisos no sino
+- [ ok ] 12. Card **Sugestão do saldo**: Dist 1 (saldo do mês) e Dist 2, 3... (rendas variáveis), com Enviar para porquinho, meta ou investimento e desfazer; menu ⋮ edita os percentuais (na Dist 1, só o mês visto ou o padrão de todos os meses, com confirmação ao restaurar o padrão)
+- [ ok ] 13. Card **Metas**: progresso geral dos objetivos
+- [ ok ] 14. Card **Despesas do mês**: as 5 mais recentes
+- [ ok ] 15. Card **Anotações**: lembretes do mês (somente leitura aqui)
+- [ ok ] 16. Card **Dias de fôlego** (só aparece ligado em Tempo e fôlego e com reserva; durante o tour mostra um exemplo)
 
 ### Lançamentos (`lancamentos`)
 
-- [ ok ] 0. Botão **Importar arquivo**: CSV de extrato ou fatura (a janela traz duas planilhas modelo para baixar, de extrato e de fatura) (colunas, pré-visualização com categoria por regras e duplicados desmarcados; nada é gravado antes de confirmar; também em Lançar > Importar extrato ou fatura)
-- [ ok ] 1. Card **Rendas**: fontes do mês; fixas se repetem todo mês; menu de ações da linha
-- [ ok ] 2. Card **Despesas do mês**: despesas comuns, fixas e parcelas do crédito; fixa pode ser ocultada só num mês e restaurada
-- [ ok ] 3. Card **Anotações**: lembretes do mês, que podem ser fixados e editados
+- [ ok ] 0. Botão **Importar arquivo**: CSV ou OFX, de extrato ou fatura (duas planilhas modelo para baixar; colunas, pré-visualização com categoria por regras, duplicados desmarcados e recorrentes/parceladas do cartão reconhecidas; exclusão de compras da fatura e gerenciamento de mapeamentos salvos; nada é gravado antes de confirmar; também em Lançar > Importar extrato ou fatura). No app Android, também recebe arquivos por Compartilhar / Abrir com
+- [ ok ] 1. **Busca e filtros**: texto, categoria, status, forma de pagamento, faixa de valor e tag; só escondem linhas, os totais oficiais não mudam
+- [ ok ] 2. Card **Rendas**: fontes do mês; fixas se repetem todo mês; menu de ações da linha; comprovantes na edição; seções recolhíveis (com memória)
+- [ ok ] 3. Card **Despesas do mês**: despesas comuns, fixas e dívidas; fixa pode ser ocultada só num mês, encerrada a partir dele e restaurada; "Marcar como paga" só registra; comprovantes na edição
+- [ ok ] 4. Card **Compras parceladas**: parcelas do mês (seção recolhível) e recorrências
+- [ ok ] 5. **Fatura do cartão**: um item por cartão com movimento (usa a primeira fatura da tela)
+- [ ok ] 6. Card **Anotações**: lembretes do mês, que podem ser fixados e editados
 
 ### Projeção (`projecao`)
 
-- [ ok ] 1. Indicador **Despesa fixa mensal**
-- [ ok ] 2. Indicador **Parcelas até o fim do período**
-- [ ok ] 3. Indicador **Pior mês**
-- [ ok ] 4. Indicador **Saldo no período**
-- [ ok ] 5. Card **Renda × despesa projetadas**: próximos meses
-- [ ok ] 6. Card **Saldo acumulado**: quanto sobra somando os meses
-- [ ok ] 7. Card **Despesas extras planejadas**: gastos que não se repetem; cadastrados pelo Lançar
-- [ ok ] 8. Card **Parcelas no crédito**: o que ainda vai cair
+- [ ok ] 1. **Quantos meses projetar**: setas ← e →; "Voltar ao padrão" retorna aos 6 meses
+- [ ok ] 2. **Cenário da renda variável**: Conservador, Médio ou Otimista (só meses futuros; a escolha fica salva)
+- [ ok ] 3. Indicador **Despesa fixa mensal**
+- [ ok ] 4. Indicador **Parcelas até o fim do período**
+- [ ok ] 5. Indicador **Pior mês**
+- [ ok ] 6. Indicador **Saldo no período**
+- [ ok ] 7. Card **Renda × despesa projetadas**: próximos meses; clicar no mês abre o detalhe
+- [ ok ] 8. Card **Quando as dívidas terminam** (só com dívidas em andamento): a partir de qual mês a despesa cai; só informação
+- [ ok ] 9. Card **Saldo acumulado**: quanto sobra somando os meses
+- [ ok ] 10. Card **Despesas extras planejadas**: gastos que não se repetem; cadastrados pelo Lançar
+- [ ok ] 11. Card **Parcelas no crédito**: o que ainda vai cair
 
 ### Comparação (`comparacao`)
 
@@ -131,7 +139,8 @@ Sem nenhuma meta, a tela mostra só o card "Nenhuma meta ainda"; o tour então e
 - [ ok ] 3. Indicador **Aporte mensal**
 - [ ok ] 4. Card **Nenhuma meta ainda** (só sem metas)
 - [ ok ] 5. **Cartão de meta**: progresso, rendimentos, previsão de conclusão e selo de prazo
-- [ ok ] 6. Ações da meta: **aportar** (com rendimento), editar e excluir
+- [ ok ] 6. Ações da meta: **aportar** (com rendimento), histórico, **transferir** para outra meta ou porquinho, editar e excluir
+- [ ok ] 7. **Porquinhos**: guardados sem valor de meta (valor completo com centavos), abaixo das metas e fora dos totais do topo
 
 ### Investimentos (`investimentos`, dentro de Metas)
 
@@ -175,12 +184,13 @@ Sem nenhuma dívida, o tour usa dívidas de exemplo (fictícias, nunca gravadas)
 
 ### Relatórios (`relatorios`)
 
-- [ ok ] 1. Indicador **Renda em 6 meses**
-- [ ok ] 2. Indicador **Despesas em 6 meses**
-- [ ok ] 3. Indicador **Economia acumulada**
-- [ ok ] 4. Indicador **Maior categoria**
+- [ ok ] 1. **Escolha os meses**: começa só com o mês atual; de 1 a 12 meses, não precisam ser seguidos; atalhos Mês atual, Últimos 3 e Últimos 6 meses
+- [ ok ] 2. Indicador **Renda no período**
+- [ ok ] 3. Indicador **Despesas no período**
+- [ ok ] 4. Indicador **Economia acumulada**
+- [ ok ] 4b. Indicador **Maior categoria**
 - [ ok ] 5. Card **Resumo mês a mês**: base do relatório
-- [ ok ] 6. Card **Exportar relatório**: período e formato (PDF, CSV ou TXT)
+- [ ok ] 6. Card **Exportar relatório**: período e formato (PDF, CSV ou TXT); "Salvar alterações" guarda o padrão de exportação
 - [ ok ] 7. Card **Meses fechados**: o retrato de cada mês fechado no Painel; com mais de 3 meses aparecem o filtro por ano e 3 ou 6 meses por página (usa meses de exemplo durante o tour)
 
 ## Verificação
@@ -189,7 +199,7 @@ Sem nenhuma dívida, o tour usa dívidas de exemplo (fictícias, nunca gravadas)
 - [ ok ] Testes do repositório: `onboarding` no `LocalRepository` e no `ApiRepository` (inclui migração do envelope local para a versão 6)
 - [ ok ] Teste de integração da API para `PUT /settings/onboarding` e `GET /data`
 - [ ok ] Playwright, por tela: convite na primeira visita, tour até o fim, recarregar sem novo convite, "Agora não", outra aba sem convite repetido, tela estreita (~390px) e tema claro/escuro
-- [ ok ] Conferir no navegador que o tour não deixa clicar na página por baixo e que `Esc` fecha
+- [ ok ] Conferir no navegador (ou no app Android) que o tour não deixa clicar na página por baixo e que `Esc` fecha
 - [ ok ] `lint`, `tsc -b`, `pnpm test`, `make test-api` e `make generate` sem diferenças
 
 ## O que foi verificado
